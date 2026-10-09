@@ -82,6 +82,12 @@ test.describe.serial("a board's life", () => {
 		await expect(page.getByText("View only")).toBeVisible();
 		await expect(page.locator(".react-flow__renderer")).toBeVisible();
 		await expect(page.getByRole("toolbar", { name: "Tools" })).toHaveCount(0);
+		// No tool shortcuts that would change the board: sections (F), connectors (X), stickies (S).
+		for (const key of ["f", "x", "s"]) {
+			await page.locator(".react-flow__pane").click({ position: { x: 400, y: 300 } });
+			await page.keyboard.press(key);
+			await expect(page.locator("main.canvas")).toHaveAttribute("data-tool", "select");
+		}
 		// The title isn't renameable either.
 		await expect(page.getByRole("heading", { name: "E2E roadmap" })).toBeVisible();
 		await expect(page.getByRole("button", { name: "E2E roadmap" })).toHaveCount(0);

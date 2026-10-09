@@ -44,6 +44,12 @@ function updateMessage(update: Uint8Array): Uint8Array<ArrayBuffer> {
 }
 
 async function connect(board: string, doc: Y.Doc) {
+	// Boards must be in the index; adopt this one as a guest would from `/?board=name`.
+	await mf.dispatchFetch("http://localhost/api/boards/legacy", {
+		method: "POST",
+		headers: { origin: "http://localhost", "content-type": "application/json" },
+		body: JSON.stringify({ name: board }),
+	});
 	const response = await mf.dispatchFetch(`http://localhost/parties/board/${board}`, {
 		headers: { Upgrade: "websocket" },
 	});
