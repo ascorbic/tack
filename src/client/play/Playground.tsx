@@ -1,11 +1,20 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
-import type { Card } from "../../shared/cards.ts";
+import type { Card, PullDetails } from "../../shared/cards.ts";
 import { Board } from "../Board.tsx";
 import { cardStore } from "../cardStore.ts";
 import type { Status } from "../activity.ts";
 import { localUser } from "../presence.ts";
 import { ThemeToggle } from "../ThemeToggle.tsx";
+import {
+	checkFailed,
+	checksPassed,
+	ciProgressed,
+	ciStarted,
+	conflictToggled,
+	type Person,
+	reviewed,
+} from "./ci.ts";
 import { fixture, LABELS } from "./fixtures.ts";
 import { SCENARIOS } from "./scenarios.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
@@ -40,6 +49,9 @@ const BRAINSTORM_LINES = [
 ];
 
 const NEXT_STATUS: Record<Status, Status> = { active: "idle", idle: "away", away: "active" };
+
+const PEOPLE: Person[] = ["priya", "kai", "tom", "jo"];
+const pickPerson = (): Person => PEOPLE[Math.floor(Math.random() * PEOPLE.length)] ?? "kai";
 
 function pick<T>(list: T[]): T | undefined {
 	return list[Math.floor(Math.random() * list.length)];
@@ -92,6 +104,21 @@ export default function Playground() {
 				return card && !("missing" in card) && filter(card);
 			}),
 		);
+
+	/** Pretend a CI or review webhook changed a random open pull request. */
+	const updatePull = (
+		change: (pull: PullDetails) => PullDetails,
+		filter: (pull: PullDetails) => boolean = () => true,
+	) => {
+		const key = randomCard(
+			(card) =>
+				card.kind === "pull" &&
+				card.state !== "merged" &&
+				card.pull?.detail === "full" &&
+				filter(card.pull),
+		);
+		if (key) sim.updateCard(key, (card) => (card.pull ? { pull: change(card.pull) } : {}));
+	};
 
 	const actions = {
 		join: () => {
@@ -200,6 +227,13 @@ export default function Playground() {
 					comments: card.comments + 1 + Math.floor(Math.random() * 3),
 				}));
 		},
+		ciStart: () => updatePull(ciStarted),
+		ciProgress: () => updatePull(ciProgressed, (pull) => (pull.checks?.pending ?? 0) > 0),
+		ciFail: () => updatePull(checkFailed),
+		ciPass: () => updatePull(checksPassed, (pull) => pull.checks?.state !== "passing"),
+		approve: () => updatePull((pull) => reviewed(pull, pickPerson(), "approved")),
+		requestChanges: () => updatePull((pull) => reviewed(pull, pickPerson(), "changes_requested")),
+		conflict: () => updatePull(conflictToggled),
 	};
 
 	useEffect(() => {
@@ -313,6 +347,33 @@ export default function Playground() {
 							</button>
 							<button type="button" onClick={actions.comments}>
 								New comments
+							</button>
+						</div>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Checks and reviews</h2>
+						<div className="play-buttons">
+							<button type="button" onClick={actions.ciStart}>
+								CI starts
+							</button>
+							<button type="button" onClick={actions.ciProgress}>
+								Checks progress
+							</button>
+							<button type="button" onClick={actions.ciFail}>
+								A check fails
+							</button>
+							<button type="button" onClick={actions.ciPass}>
+								All checks pass
+							</button>
+							<button type="button" onClick={actions.approve}>
+								Approve
+							</button>
+							<button type="button" onClick={actions.requestChanges}>
+								Request changes
+							</button>
+							<button type="button" onClick={actions.conflict}>
+								Toggle conflict
 							</button>
 						</div>
 					</div>

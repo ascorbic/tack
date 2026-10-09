@@ -36,18 +36,43 @@ test("every card state renders", async ({ page }) => {
 		await expect(figure.locator(".card-title")).not.toBeEmpty();
 	}
 
-	await expect(page.locator(".card.compact")).toHaveCount(4);
+	// The first four cards, then three more PRs. Every PR with checks has a CI bar.
+	await expect(page.locator(".card.compact")).toHaveCount(7);
+	await expect(page.locator(".card.compact .ci-bar")).toHaveCount(6);
 	await expect(page.locator(".card[data-selected=true]")).toHaveCount(1);
 	await expect(page.locator(".card.loading")).toHaveCount(1);
 	await expect(page.locator(".card.missing")).toHaveCount(4);
+});
+
+test("every pull request state renders, and CI lands", async ({ page }) => {
+	const pulls = page
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Pull requests: checks and reviews" }) })
+		.locator("figure");
+	await expect(pulls).toHaveCount(8);
+	await expect(pulls.nth(1).locator(".ci")).toHaveAttribute("data-ci", "failing");
+	await expect(pulls.nth(1).locator(".ci-failures li")).toHaveCount(2);
+	await expect(pulls.nth(1).getByRole("img", { name: "priya: requested changes" })).toBeVisible();
+	await expect(pulls.nth(2).locator(".ci-summary")).toHaveText(/All 14 checks passed/);
+	await expect(pulls.nth(3).locator(".chip.conflict")).toHaveText("Conflicts");
+	await expect(pulls.nth(4).locator(".ci-failures .more")).toHaveText("+4 more");
+	await expect(pulls.nth(5).locator(".ci-unavailable")).toBeVisible();
+	await expect(pulls.nth(6).locator(".ci")).toHaveCount(0);
+
+	// Walk every PR through a run until a check fails: it lands as new.
+	const ci = page.getByRole("button", { name: /^CI:/ });
+	while (!(await ci.textContent())?.includes("A check fails")) await ci.click();
+	await ci.click();
+	await expect(pulls.first().locator(".ci-failures li[data-new=true]")).toHaveCount(1);
+	await expect(pulls.first().locator(".card-pulse[data-tone=fail]")).toHaveCount(1);
 });
 
 test("every sticky, text and presence state renders", async ({ page }) => {
 	const section = (name: string) =>
 		page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
 
-	await expect(section("Stickies").locator(".sticky")).toHaveCount(5);
-	await expect(section("Sticky states").locator(".sticky")).toHaveCount(5);
+	await expect(section("Stickies").locator(".sticky")).toHaveCount(6);
+	await expect(section("Sticky states").locator(".sticky")).toHaveCount(6);
 	await expect(
 		section("Sticky states").getByRole("toolbar", { name: "Shape options" }),
 	).toBeVisible();

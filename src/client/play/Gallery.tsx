@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Card, MissingCard } from "../../shared/cards.ts";
+import type { Card, MissingCard, PullDetails } from "../../shared/cards.ts";
 import type { ShapeFont, TextSize } from "../../shared/shapes.ts";
 import type { Status } from "../activity.ts";
 import { STICKY_COLORS } from "../board.ts";
@@ -14,7 +14,15 @@ import { ShapeToolbarView } from "../ShapeToolbar.tsx";
 import { StickyView } from "../StickyNode.tsx";
 import { TextView } from "../TextNode.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
-import { GALLERY_CARDS, LABELS } from "./fixtures.ts";
+import {
+	checkFailed,
+	checksPassed,
+	ciProgressed,
+	ciStarted,
+	conflictToggled,
+	reviewed,
+} from "./ci.ts";
+import { GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
 
 const MISSING: { label: string; card: MissingCard }[] = [
 	{
@@ -86,6 +94,26 @@ const CURSORS: { label: string; user: User; chat: Chat | null; status?: Status }
 	{ label: "Away (tab hidden)", user: TOM, chat: null, status: "away" },
 ];
 
+/** A pull request's life, one step per click: CI runs, fails, gets fixed. */
+const CI_STEPS: { label: string; step: (pull: PullDetails) => PullDetails }[] = [
+	{ label: "New push", step: ciStarted },
+	{ label: "Checks progress", step: ciProgressed },
+	{ label: "A check fails", step: checkFailed },
+	{ label: "Changes requested", step: (pull) => reviewed(pull, "priya", "changes_requested") },
+	{ label: "Fixed, all green", step: checksPassed },
+	{ label: "Approved", step: (pull) => reviewed(pull, "priya", "approved") },
+	{ label: "Conflict", step: conflictToggled },
+	{ label: "Conflict resolved", step: conflictToggled },
+];
+
+function stepPull(card: Card, round: number): Card {
+	const { pull } = card;
+	// Without the app there's no CI to simulate.
+	if (!pull || pull.detail === "basic") return card;
+	const step = CI_STEPS[round % CI_STEPS.length];
+	return step ? { ...card, pull: step.step(pull), updatedAt: new Date().toISOString() } : card;
+}
+
 /** Apply a plausible webhook-style change, to replay update animations. */
 function mutate(card: Card, round: number): Card {
 	const changes: Partial<Card>[] = [
@@ -104,6 +132,13 @@ export default function Gallery() {
 	const [round, setRound] = useState(0);
 	const [motion, setMotion] = useState(false);
 	const [layout, setLayout] = useState<Layout>("page");
+	const [pulls, setPulls] = useState(() => PULL_GALLERY.map((entry) => entry.card));
+	const [ciRound, setCiRound] = useState(0);
+
+	const stepCi = () => {
+		setPulls((current) => current.map((card) => stepPull(card, ciRound)));
+		setCiRound((r) => r + 1);
+	};
 
 	const replay = () => {
 		setCards((current) => current.map((card) => mutate(card, round)));
@@ -112,6 +147,8 @@ export default function Gallery() {
 	const reset = () => {
 		setCards(GALLERY_CARDS.map((entry) => entry.card));
 		setRound(0);
+		setPulls(PULL_GALLERY.map((entry) => entry.card));
+		setCiRound(0);
 	};
 
 	return (
@@ -120,11 +157,14 @@ export default function Gallery() {
 				<h1>Gallery</h1>
 				<p>
 					Every card, sticky, text and presence state. Use “Simulate an update” to replay the
-					live-update animations.
+					live-update animations, and the CI button to walk pull requests through a run.
 				</p>
 				<div className="gallery-actions">
 					<button type="button" className="primary" onClick={replay}>
 						Simulate an update
+					</button>
+					<button type="button" onClick={stepCi}>
+						CI: {CI_STEPS[ciRound % CI_STEPS.length]?.label}
 					</button>
 					<button type="button" onClick={reset}>
 						Reset
@@ -151,20 +191,20 @@ export default function Gallery() {
 			{layout === "both" ? (
 				<div className="gallery-split">
 					<div className="gallery-pane" data-theme="light">
-						<Sections cards={cards} />
+						<Sections cards={cards} pulls={pulls} />
 					</div>
 					<div className="gallery-pane" data-theme="dark">
-						<Sections cards={cards} />
+						<Sections cards={cards} pulls={pulls} />
 					</div>
 				</div>
 			) : (
-				<Sections cards={cards} />
+				<Sections cards={cards} pulls={pulls} />
 			)}
 		</div>
 	);
 }
 
-function Sections({ cards }: { cards: Card[] }) {
+function Sections({ cards, pulls }: { cards: Card[]; pulls: Card[] }) {
 	return (
 		<>
 			<section>
@@ -180,9 +220,21 @@ function Sections({ cards }: { cards: Card[] }) {
 			</section>
 
 			<section>
+				<h2>Pull requests: checks and reviews</h2>
+				<div className="gallery-grid">
+					{pulls.map((card, i) => (
+						<figure key={card.key}>
+							<CardView card={card} cardKey={card.key} />
+							<figcaption>{PULL_GALLERY[i]?.label}</figcaption>
+						</figure>
+					))}
+				</div>
+			</section>
+
+			<section>
 				<h2>Compact (zoomed out)</h2>
 				<div className="gallery-grid">
-					{cards.slice(0, 4).map((card) => (
+					{[...cards.slice(0, 4), ...pulls.slice(0, 3)].map((card) => (
 						<figure key={card.key}>
 							<CardView card={card} cardKey={card.key} compact />
 						</figure>

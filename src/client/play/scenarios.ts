@@ -112,7 +112,7 @@ export const SCENARIOS: Record<string, Scenario> = {
 			for (const card of PLANNING_CARDS) cardStore.set(card);
 			doc.transact(() => {
 				PLANNING_CARDS.forEach((card, i) => {
-					addCard(doc, card.key, { x: 40 + (i % 3) * 290, y: 40 + Math.floor(i / 3) * 230 });
+					addCard(doc, card.key, { x: 40 + (i % 3) * 290, y: 40 + Math.floor(i / 3) * 300 });
 				});
 				sticky(doc, "Provider docs are hard to find, I end up reading source", "yellow", 960, 40);
 				sticky(doc, "CDN detection fails for custom domains", "pink", 1150, 60);

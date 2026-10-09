@@ -1,5 +1,6 @@
 import type { Card } from "../../shared/cards.ts";
 import { itemKey } from "../../shared/refs.ts";
+import { makeChecks, pullDetails, reviewer } from "./ci.ts";
 
 // Fixture cards on the fake forge, for the playground and gallery.
 
@@ -32,6 +33,17 @@ export function fixture(overrides: Overrides): Card {
 	};
 }
 
+function linked(item: string, title: string, state: "open" | "closed" = "open") {
+	return {
+		key: itemKey({ host: "fake.tack", repo: REPO, item }),
+		item,
+		repo: REPO,
+		title,
+		state,
+		url: `https://fake.tack/${REPO}/${item.slice(1)}`,
+	};
+}
+
 export const LABELS = {
 	bug: { name: "bug", color: "d73a4a" },
 	enhancement: { name: "enhancement", color: "a2eeef" },
@@ -56,6 +68,11 @@ export const PLANNING_CARDS: Card[] = [
 		title: "Remove Node 18 from the CI matrix and engines field",
 		labels: [LABELS.breaking],
 		comments: 6,
+		pull: pullDetails({
+			checks: makeChecks({ passed: 7, pending: 4, skipped: 1 }),
+			reviewers: [reviewer("kai", "requested"), reviewer("priya", "commented")],
+			linked: [linked("#412", "Drop Node 18 support")],
+		}),
 	}),
 	fixture({
 		item: "#377",
@@ -71,6 +88,12 @@ export const PLANNING_CARDS: Card[] = [
 		title: "Document the Bunny provider",
 		labels: [LABELS.docs],
 		comments: 3,
+		pull: pullDetails({
+			checks: makeChecks({ passed: 9, skipped: 2 }),
+			review: "approved",
+			reviewers: [reviewer("jo", "approved")],
+			linked: [linked("#391", "Bunny provider has no docs", "closed")],
+		}),
 	}),
 	fixture({
 		item: "#398",
@@ -86,6 +109,10 @@ export const PLANNING_CARDS: Card[] = [
 		title: "Add ImageKit transformations",
 		labels: [LABELS.provider, LABELS.goodFirst],
 		comments: 1,
+		pull: pullDetails({
+			checks: makeChecks({ passed: 10, failed: 1, failing: ["lint"] }),
+			review: null,
+		}),
 	}),
 ];
 
@@ -115,4 +142,119 @@ export const GALLERY_CARDS: { label: string; card: Card }[] = [
 		}),
 	},
 	{ label: "Minimal", card: fixture({ title: "Typo" }) },
+];
+
+/** Pull requests in every CI, review and merge state. */
+export const PULL_GALLERY: { label: string; card: Card }[] = [
+	{
+		label: "Checks running, review requested",
+		card: fixture({
+			kind: "pull",
+			title: "Support signed URLs for Cloudinary",
+			labels: [LABELS.provider],
+			comments: 2,
+			pull: pullDetails({
+				checks: makeChecks({ passed: 5, pending: 6, skipped: 1 }),
+				reviewers: [reviewer("kai", "requested"), reviewer("tom", "requested")],
+			}),
+		}),
+	},
+	{
+		label: "Checks failing, changes requested",
+		card: fixture({
+			kind: "pull",
+			title: "Detect custom domains from the CDN response headers",
+			labels: [LABELS.bug, LABELS.provider],
+			comments: 11,
+			pull: pullDetails({
+				checks: makeChecks({ passed: 9, failed: 2 }),
+				review: "changes_requested",
+				reviewers: [reviewer("priya", "changes_requested"), reviewer("kai", "approved")],
+				linked: [linked("#377", "Custom domains aren’t detected for Cloudinary")],
+			}),
+		}),
+	},
+	{
+		label: "All green, approved",
+		card: fixture({
+			kind: "pull",
+			title: "Add width and height to the Vercel docs example",
+			labels: [LABELS.docs],
+			comments: 1,
+			pull: pullDetails({
+				checks: makeChecks({ passed: 14, skipped: 2 }),
+				review: "approved",
+				reviewers: [reviewer("jo", "approved"), reviewer("kai", "approved")],
+				linked: [linked("#402", "Vercel example is missing dimensions")],
+			}),
+		}),
+	},
+	{
+		label: "Merge conflicts",
+		card: fixture({
+			kind: "pull",
+			title: "Move providers into their own packages",
+			labels: [LABELS.breaking],
+			comments: 23,
+			pull: pullDetails({
+				checks: makeChecks({ passed: 12 }),
+				reviewers: [reviewer("tom", "commented")],
+				mergeable: "conflicting",
+			}),
+		}),
+	},
+	{
+		label: "Lots failing, several linked issues",
+		card: fixture({
+			kind: "pull",
+			title: "Upgrade to TypeScript 7",
+			comments: 4,
+			pull: pullDetails({
+				checks: makeChecks({ passed: 3, failed: 7, pending: 1 }),
+				reviewers: [reviewer("priya", "requested")],
+				linked: [
+					linked("#380", "Type errors with exactOptionalPropertyTypes"),
+					linked("#385", "Types are slow to check"),
+					linked("#390", "Drop the old .d.ts build"),
+				],
+			}),
+		}),
+	},
+	{
+		label: "Without the GitHub App (REST only)",
+		card: fixture({
+			kind: "pull",
+			title: "Fix srcset width rounding at 2x density",
+			labels: [LABELS.bug],
+			comments: 3,
+			pull: pullDetails({
+				detail: "basic",
+				checks: null,
+				review: null,
+				reviewers: [reviewer("kai", "requested")],
+				mergeable: "unknown",
+			}),
+		}),
+	},
+	{
+		label: "No checks, commented",
+		card: fixture({
+			kind: "pull",
+			title: "Typo in README",
+			pull: pullDetails({
+				checks: makeChecks({}),
+				review: null,
+				reviewers: [reviewer("jo", "commented")],
+			}),
+		}),
+	},
+	{
+		label: "Draft, checks running",
+		card: fixture({
+			kind: "pull",
+			state: "draft",
+			title: "Spike: AVIF quality defaults",
+			pull: pullDetails({ checks: makeChecks({ passed: 2, pending: 9 }), review: null }),
+		}),
+	},
 ];

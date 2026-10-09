@@ -56,6 +56,17 @@
 	--sticky-shadow: 0 1px 1px rgb(0 0 0 / 6%), 0 12px 18px -10px rgb(0 0 0 / 25%);
 	--sticky-shadow-lifted: 0 2px 4px rgb(0 0 0 / 8%), 0 26px 34px -14px rgb(0 0 0 / 30%);
 
+	/* CI and review outcomes: bright for bars and badges, darker for text. */
+	--pass: #1f883d;
+	--fail: #cf222e;
+	--fail-ink: #b0222f;
+	--fail-bg: #fdeceb;
+	--pending: #d4a72c;
+	--pending-ink: #845c00;
+	--pending-bg: #fbf1d3;
+	/* Glyphs on a solid pass or fail badge. */
+	--on-status: #ffffff;
+
 	--shadow-rest: 0 1px 1px rgb(23 25 28 / 4%), 0 2px 6px rgb(23 25 28 / 5%);
 	--shadow-hover: 0 1px 2px rgb(23 25 28 / 5%), 0 6px 16px rgb(23 25 28 / 8%);
 	--shadow-lifted: 0 4px 10px rgb(23 25 28 / 8%), 0 22px 44px rgb(23 25 28 / 16%);
@@ -95,6 +106,15 @@
 	--merged-bg: #2b2342;
 	--closed: #b3b8bf;
 	--closed-bg: #2b2d32;
+
+	--pass: #3fb950;
+	--fail: #f0524a;
+	--fail-ink: #ff9b92;
+	--fail-bg: #3b1f1f;
+	--pending: #d29922;
+	--pending-ink: #e8b84a;
+	--pending-bg: #33290f;
+	--on-status: #121417;
 
 	/* A touch deeper than daylight paper, so a wall of stickies doesn't glare
 	   on a dark board, but each colour keeps its character. */
@@ -843,6 +863,463 @@ a.card-title:hover {
 		opacity: 1;
 		transform: none;
 		color: var(--accent);
+	}
+}
+
+/* ---------------------------------------------------------------------------
+   Pull requests: checks, reviews, links
+   ------------------------------------------------------------------------ */
+
+.pull {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 10px;
+}
+
+.pull svg {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.pull svg .fill {
+	fill: currentColor;
+	stroke: none;
+}
+
+.ci {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.ci[data-ci="failing"] {
+	--ci-ink: var(--fail-ink);
+}
+
+.ci[data-ci="pending"] {
+	--ci-ink: var(--pending-ink);
+}
+
+.ci[data-ci="passing"] {
+	--ci-ink: var(--open);
+}
+
+/* One segment per outcome, sized by count. Counts change by animating
+   flex-grow, so the bar visibly fills as checks finish. Each segment has a
+   hairline gap on its left; the bar is nudged left and clipped so the
+   first visible one's doesn't show, whichever segment that is. */
+.ci-bar {
+	position: relative;
+	display: flex;
+	height: 6px;
+	margin-left: -1.5px;
+	clip-path: inset(0 0 0 1.5px round 999px);
+	background: var(--surface-muted);
+}
+
+.ci-seg {
+	flex-basis: 0;
+	min-width: 0;
+	box-shadow: inset 1.5px 0 0 var(--surface);
+	transition: flex-grow var(--t-settle) var(--ease-settle);
+}
+
+.ci-seg[data-bucket="failed"] {
+	background-color: var(--fail);
+}
+
+.ci-seg[data-bucket="passed"] {
+	background-color: var(--pass);
+}
+
+.ci-seg[data-bucket="skipped"] {
+	background-color: var(--line-strong);
+}
+
+/* Running checks: stripes that crawl, like a barber's pole. */
+.ci-seg[data-bucket="pending"] {
+	background-color: var(--pending);
+	background-image: repeating-linear-gradient(
+		-45deg,
+		transparent 0 4px,
+		rgb(255 255 255 / 38%) 4px 8px
+	);
+	background-size: 11.31px 100%;
+	animation: ci-crawl calc(900ms * var(--motion)) linear infinite;
+}
+
+@keyframes ci-crawl {
+	to {
+		background-position: 11.31px 0;
+	}
+}
+
+/* A check turning red: the bar flinches. Two identical keyframes,
+   alternated, replay it without remounting the bar (which would skip the
+   segment transitions). */
+.ci-bar[data-tone="fail"][data-replay="0"] {
+	animation: ci-flinch-a calc(480ms * var(--motion)) var(--ease-out);
+}
+
+.ci-bar[data-tone="fail"][data-replay="1"] {
+	animation: ci-flinch-b calc(480ms * var(--motion)) var(--ease-out);
+}
+
+@keyframes ci-flinch-a {
+	15% {
+		transform: translateX(-3px);
+	}
+	35% {
+		transform: translateX(3px);
+	}
+	55% {
+		transform: translateX(-2px);
+	}
+	75% {
+		transform: translateX(1px);
+	}
+}
+
+@keyframes ci-flinch-b {
+	15% {
+		transform: translateX(-3px);
+	}
+	35% {
+		transform: translateX(3px);
+	}
+	55% {
+		transform: translateX(-2px);
+	}
+	75% {
+		transform: translateX(1px);
+	}
+}
+
+/* Everything passing: a sheen sweeps along the bar. */
+.ci-sheen {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.ci-sheen[data-tone="pass"] {
+	background: linear-gradient(90deg, transparent, rgb(255 255 255 / 90%), transparent) no-repeat;
+	background-size: 45% 100%;
+	animation: ci-sheen var(--t-flash) var(--ease-out) forwards;
+}
+
+@keyframes ci-sheen {
+	from {
+		background-position: -80% 0;
+	}
+	to {
+		background-position: 180% 0;
+	}
+}
+
+.ci-summary {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	margin: 0;
+	color: var(--muted);
+	font-size: 11.5px;
+	font-variant-numeric: tabular-nums;
+}
+
+.ci-summary strong {
+	font-weight: 620;
+	color: var(--ci-ink);
+}
+
+.ci-icon {
+	display: inline-flex;
+	color: var(--ci-ink);
+}
+
+.ci-icon .spinner {
+	animation: spin calc(1100ms * var(--motion)) linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(1turn);
+	}
+}
+
+.ci-failures,
+.linked {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ci-failures li {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	padding: 2px 7px;
+	border-radius: 6px;
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	line-height: 16px;
+}
+
+.ci-failures li > :last-child,
+.linked a {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: inherit;
+	text-decoration: none;
+}
+
+.ci-failures a:hover,
+.linked a:hover {
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+/* A newly failing check slides in, red-hot, then cools. */
+.ci-failures li[data-new="true"] {
+	animation: failure-in var(--t-flash) var(--ease-spring) backwards;
+}
+
+@keyframes failure-in {
+	0% {
+		opacity: 0;
+		transform: translateX(-10px);
+		background: var(--fail);
+		color: var(--on-status);
+	}
+	20% {
+		opacity: 1;
+		transform: none;
+		background: var(--fail);
+		color: var(--on-status);
+	}
+}
+
+.ci-failures li.more,
+.linked li.more {
+	padding: 0 7px;
+	background: none;
+	color: var(--muted);
+	font-family: var(--font-ui);
+}
+
+.ci-unavailable {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+	padding: 4px 8px;
+	border: 1px dashed var(--line-strong);
+	border-radius: 8px;
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.review-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 10px;
+}
+
+.reviewers {
+	display: flex;
+	padding-right: 4px;
+}
+
+.reviewer {
+	--review: var(--line-strong);
+	position: relative;
+	display: inline-flex;
+	margin-right: -5px;
+}
+
+.reviewer[data-review="approved"] {
+	--review: var(--pass);
+}
+
+.reviewer[data-review="changes_requested"] {
+	--review: var(--fail);
+}
+
+.reviewer[data-review="commented"] {
+	--review: var(--muted);
+}
+
+.reviewer[data-review="requested"] {
+	--review: var(--pending);
+}
+
+.reviewer img,
+.reviewer-initial {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 2px solid var(--surface);
+	background: var(--surface-muted);
+}
+
+.reviewer-initial {
+	display: grid;
+	place-items: center;
+	color: var(--ink-soft);
+	font-size: 10px;
+	font-weight: 650;
+}
+
+/* Waiting on someone: their face is quieter until they've reviewed. */
+.reviewer[data-review="requested"] img {
+	filter: saturate(0.4);
+	opacity: 0.8;
+}
+
+.reviewer-badge {
+	position: absolute;
+	right: -2px;
+	bottom: -2px;
+	display: grid;
+	place-items: center;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--review);
+	color: var(--on-status);
+	box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+.reviewer[data-review="requested"] .reviewer-badge {
+	background: var(--surface);
+	color: var(--review);
+	box-shadow:
+		0 0 0 1.5px var(--surface),
+		inset 0 0 0 1.5px var(--review);
+}
+
+.pull .reviewer-badge svg {
+	width: 10px;
+	height: 10px;
+	stroke-width: 2.6;
+}
+
+.chip.review[data-review="approved"] {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.chip.review[data-review="changes_requested"],
+.chip.conflict {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.chip.review[data-review="review_required"] {
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+}
+
+.chip.conflict {
+	gap: 4px;
+	margin-left: auto;
+}
+
+.linked {
+	gap: 3px;
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.linked li {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+}
+
+.linked li svg {
+	color: var(--open);
+}
+
+.linked li[data-state="closed"] svg {
+	color: var(--merged);
+}
+
+.linked a {
+	color: var(--ink-soft);
+}
+
+.linked .mono {
+	font-size: 11px;
+}
+
+/* Zoomed out, a pull request's CI is a thick bar, and failing ones run red. */
+.card.compact .ci-bar {
+	height: 10px;
+	margin-top: auto;
+}
+
+.card.compact[data-ci="failing"] {
+	border-color: color-mix(in srgb, var(--fail) 50%, var(--line));
+}
+
+/* The card ripple takes the colour of what happened to CI. It's inside
+   .pull, so it can't inherit the card's corners. */
+.pull > .card-pulse {
+	border-radius: 12px;
+}
+
+.card-pulse[data-tone="fail"] {
+	animation-name: ripple-fail;
+}
+
+.card-pulse[data-tone="pass"] {
+	animation-name: ripple-pass;
+}
+
+@keyframes ripple-fail {
+	from {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--fail) 50%, transparent);
+	}
+	to {
+		box-shadow: 0 0 0 16px color-mix(in srgb, var(--fail) 0%, transparent);
+	}
+}
+
+@keyframes ripple-pass {
+	from {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--pass) 45%, transparent);
+	}
+	to {
+		box-shadow: 0 0 0 16px color-mix(in srgb, var(--pass) 0%, transparent);
+	}
+}
+
+/* Endless motion (running checks) stops entirely with reduced motion,
+   rather than looping at --motion's near-zero durations. */
+:root[data-motion="reduced"] .ci-seg,
+:root[data-motion="reduced"] .ci-icon .spinner {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ci-seg,
+	.ci-icon .spinner {
+		animation: none;
 	}
 }
 

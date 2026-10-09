@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { type Card, type MissingCard, isMissing } from "../shared/cards.ts";
+import { CiBar, PullStatus } from "./PullStatus.tsx";
 
 const STATE_LABEL: Record<Card["state"], string> = {
 	open: "Open",
@@ -47,7 +48,7 @@ function StateIcon({ card, size = 14 }: { card: Card; size?: number }) {
 	);
 }
 
-type Field = "title" | "state" | "labels" | "comments" | "assignees";
+type Field = "title" | "state" | "labels" | "comments" | "assignees" | "repo";
 
 interface Changes {
 	/** How many times each field has changed since mount. */
@@ -80,6 +81,8 @@ function useChanges(card: Card): Changes {
 		const added = new Set(card.labels.map((l) => l.name).filter((name) => !oldLabels.has(name)));
 		if (added.size > 0 || oldLabels.size !== card.labels.length) fields.push("labels");
 		if (before.assignees.length !== card.assignees.length) fields.push("assignees");
+		// The repository was renamed or transferred.
+		if (before.repo !== card.repo) fields.push("repo");
 		if (fields.length === 0) return;
 		setChanges((current) => {
 			const counts = { ...current.counts };
@@ -131,13 +134,16 @@ function LiveCard({
 	const state = anim("state", "s");
 	const title = anim("title", "t");
 	const comments = anim("comments", "m");
+	const repo = anim("repo", "r");
 	const repoName = card.repo.split("/").at(-1);
+	const checks = card.pull?.checks;
 
 	if (compact) {
 		return (
 			<article
 				className="card compact"
 				data-state={card.state}
+				data-ci={checks?.state}
 				data-selected={selected}
 				data-enter={enter}
 			>
@@ -146,6 +152,7 @@ function LiveCard({
 					<StateIcon card={card} size={28} />
 				</span>
 				<span className="compact-title">{card.title}</span>
+				{checks && checks.state !== "none" && <CiBar checks={checks} />}
 			</article>
 		);
 	}
@@ -158,7 +165,10 @@ function LiveCard({
 					<StateIcon card={card} />
 				</span>
 				<span className="mono">
-					{repoName} {card.item}
+					<span key={repo.key} data-flash={repo.on}>
+						{repoName}
+					</span>{" "}
+					{card.item}
 				</span>
 				<span className="chip state" key={`c${state.key}`} data-pop={state.on}>
 					{stateLabel(card)}
@@ -183,6 +193,7 @@ function LiveCard({
 					))}
 				</div>
 			)}
+			{card.pull && <PullStatus pull={card.pull} />}
 			<div className="card-foot">
 				{card.assignees.length > 0 && (
 					<span className="avatars">
