@@ -1,7 +1,7 @@
 import type { Card } from "../../shared/cards.ts";
 import type { OperationKind } from "../../shared/changes.ts";
-import { matchesQuery, queryRepos } from "../../shared/query.ts";
 import { itemKey, itemOf, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
+import { matchSearch, parseSearch, searchScope } from "../../shared/search.ts";
 import type { RelatedResult } from "../../shared/widgets.ts";
 import type { ApplyResult, ForgeAdapter } from "./types.ts";
 
@@ -173,22 +173,29 @@ export const fake: ForgeAdapter = {
 		};
 	},
 
-	// Searching: every fake repository has items 1 to `FAKE_SEARCH_ITEMS`,
-	// matched against the query by the same local reading rules use.
-	async search(query) {
-		const repos = queryRepos(query);
+	// Searches items 1 to `FAKE_SEARCH_ITEMS` of the repositories it names (`repo:stress/cards`),
+	// evaluating the search with the same matcher drop-to-match uses. Words
+	// match titles; anything it can't evaluate rules an item out.
+	async search(query, _env, auth) {
+		const parsed = parseSearch(query.q);
+		const { repos } = searchScope(parsed);
 		if (repos.length === 0) {
-			return { kind: "error", reason: "invalid", message: "Add repo:owner/name to search." };
+			return {
+				kind: "error",
+				reason: "invalid",
+				message: "The fake forge only searches within repositories: add repo:owner/name.",
+			};
 		}
-		const matches = repos
-			.flatMap((repoKey) =>
-				Array.from({ length: FAKE_SEARCH_ITEMS }, (_, i) =>
-					fakeCard(repoKey.slice(repoKey.indexOf("/") + 1), FAKE_SEARCH_ITEMS - i),
-				),
+		const items = repos
+			.flatMap((repo) =>
+				Array.from({ length: FAKE_SEARCH_ITEMS }, (_, i) => fakeCard(repo, FAKE_SEARCH_ITEMS - i)),
 			)
-			.filter((card) => matchesQuery(card, query) !== false);
-		const limit = Math.min(query.limit ?? 50, 100);
-		return { kind: "search", total: matches.length, items: matches.slice(0, limit) };
+			.filter((card) => matchSearch(card, parsed, { viewer: auth?.viewer }) === "yes");
+		return {
+			kind: "search",
+			total: items.length,
+			items: items.slice(0, Math.min(Math.max(1, query.limit ?? 50), 100)),
+		};
 	},
 };
 

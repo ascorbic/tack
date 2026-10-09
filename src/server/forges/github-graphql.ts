@@ -83,7 +83,7 @@ fragment TackPull on PullRequest {${COMMON}
 	}
 }`;
 
-const ITEM = "__typename ...TackIssue ...TackPull";
+export const ITEM = "__typename ...TackIssue ...TackPull";
 
 // --- Response shapes --------------------------------------------------------
 
@@ -165,7 +165,7 @@ export interface GqlPull extends Common {
 	commits: { nodes: ({ commit: { statusCheckRollup: Rollup | null } } | null)[] };
 }
 
-type GqlItem = GqlIssue | GqlPull | { __typename: string };
+export type GqlItem = GqlIssue | GqlPull | { __typename: string };
 
 interface Freshness {
 	__typename: string;

@@ -7,6 +7,7 @@ import { log } from "../log.ts";
 import { INSTALLATION_EVENTS, installationEvent, verifyWebhook } from "../github/webhooks.ts";
 import { fetchItemsGraphQL, GraphQLUnavailable, staleItemsGraphQL } from "./github-graphql.ts";
 import { relatedGitHub, releaseGitHub } from "./github-related.ts";
+import { searchGitHub } from "./github-search.ts";
 import {
 	applyGitHub,
 	canWriteGitHub,
@@ -444,6 +445,8 @@ export const github: ForgeAdapter = {
 	// Reading for widgets (M3): see github-related.ts.
 	related: relatedGitHub,
 	release: releaseGitHub,
+	// Widgets (M3): see github-search.ts.
+	search: (query, env, auth) => searchGitHub(query, env, auth),
 
 	async receiveWebhook(request, env) {
 		const body = await request.text();

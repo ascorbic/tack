@@ -24,6 +24,8 @@
 
 import { createHash, createVerify, generateKeyPairSync, randomBytes } from "node:crypto";
 import { type Request, Response } from "miniflare";
+import type { Card } from "../src/shared/cards.ts";
+import { matchSearch, parseSearch } from "../src/shared/search.ts";
 
 export interface FakeUser {
 	id: number;
@@ -587,6 +589,18 @@ export class FakeGitHub {
 			}
 		}
 
+		if (path === "/search/issues" && request.method === "GET") {
+			const failure = this.searchFailures.shift();
+			if (failure) return failed(failure);
+			const q = url.searchParams.get("q") ?? "";
+			const found = this.search(q, auth, Number(url.searchParams.get("per_page") ?? 30));
+			return json({
+				total_count: found.total,
+				incomplete_results: false,
+				items: found.items.map(({ repo, item }) => this.restIssue(repo, item)),
+			});
+		}
+
 		if ((match = /^\/repositories\/(\d+)$/.exec(path))) {
 			const repo = this.repos.get(Number(match[1]));
 			if (!repo || !this.canSee(repo, auth)) return undefined;
@@ -1016,6 +1030,23 @@ export class FakeGitHub {
 		record.aliases = [...body.query.matchAll(/(i\d+): issueOrPullRequest/g)].map((m) => m[1] ?? "");
 		const discussions = this.discussionsGraphQL(body.operationName, body.variables, auth);
 		if (discussions) return discussions;
+		if (body.operationName === "TackSearch") {
+			const failure = this.searchFailures.shift();
+			if (failure) return failed(failure);
+			const found = this.search(
+				typeof body.variables.q === "string" ? body.variables.q : "",
+				auth,
+				Number(body.variables.first ?? 10),
+			);
+			return json({
+				data: {
+					search: {
+						issueCount: found.total,
+						nodes: found.items.map(({ repo, item }) => this.gqlItem(repo, item)),
+					},
+				},
+			});
+		}
 		return json({ data: this.graphql(body.operationName, body.query, body.variables, auth) });
 	}
 
@@ -1103,6 +1134,65 @@ export class FakeGitHub {
 			});
 		}
 		return undefined;
+	}
+
+	/** The next searches fail like this, in order (rate limits, outages). */
+	failSearches(...failures: FakeFailure[]): void {
+		this.searchFailures.push(...failures);
+	}
+
+	private searchFailures: FakeFailure[] = [];
+
+	/**
+	 * Issue search, as far as Tack's matcher can evaluate it (src/shared/search.ts):
+	 * items in repositories the token can see, newest first. `@me` is the
+	 * token's user; anything the matcher can't tell rules an item out.
+	 */
+	private search(
+		q: string,
+		auth: string | null,
+		limit: number,
+	): { total: number; items: { repo: FakeRepo; item: FakeItem }[] } {
+		const parsed = parseSearch(q);
+		const viewer = auth ? this.userFor(auth)?.login : undefined;
+		const found: { repo: FakeRepo; item: FakeItem }[] = [];
+		for (const [key, item] of this.items) {
+			const repo = this.repos.get(Number(key.split("#")[0]));
+			if (!repo || !this.canSee(repo, auth)) continue;
+			const card: Card = {
+				key: `github.com/${repo.name}#${item.number}`.toLowerCase(),
+				forge: "github",
+				host: "github.com",
+				repo: repo.name.toLowerCase(),
+				item: `#${item.number}`,
+				kind: item.kind,
+				title: item.title,
+				state:
+					item.kind === "pull" && item.state === "merged"
+						? "merged"
+						: item.state === "closed"
+							? "closed"
+							: item.draft
+								? "draft"
+								: "open",
+				stateReason: item.state === "closed" ? (item.stateReason ?? "completed") : null,
+				labels: item.labels ?? [],
+				assignees: (item.assignees ?? []).map((login) => ({ login, avatarUrl: "" })),
+				author: { login: "octocat", avatarUrl: "" },
+				comments: 0,
+				reactions: 0,
+				url: "",
+				updatedAt: item.updatedAt,
+				visibility: repo.private ? "private" : "public",
+			};
+			const verdict = matchSearch(card, parsed, {
+				viewer,
+				milestoneOf: () => item.milestone ?? null,
+			});
+			if (verdict === "yes") found.push({ repo, item });
+		}
+		found.sort((a, b) => b.item.updatedAt.localeCompare(a.item.updatedAt));
+		return { total: found.length, items: found.slice(0, limit) };
 	}
 
 	private repoByName(name: string): FakeRepo | undefined {
