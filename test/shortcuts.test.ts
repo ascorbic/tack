@@ -132,10 +132,26 @@ describe("the sheet", () => {
 			"Edit",
 			"Selection",
 			"Arrange",
+			"Issues",
 			"View",
 			"People",
 			"Help",
 		]);
+	});
+
+	it("opens the selection actions with ⌥ and a letter, without clashing", () => {
+		const press = (code: string, shift = false) =>
+			matchShortcut(
+				{ key: "", code, metaKey: false, ctrlKey: false, altKey: true, shiftKey: shift },
+				true,
+			)?.id;
+		expect(press("KeyI")).toBe("makeIssues");
+		expect(press("KeyI", true)).toBe("parentIssue");
+		expect(press("KeyL")).toBe("labels");
+		expect(press("KeyB")).toBe("blockedBy");
+		expect(press("KeyK")).toBe("backlink");
+		const combos = SHORTCUTS.flatMap((s) => s.combos.map((c) => JSON.stringify(c)));
+		expect(new Set(combos).size).toBe(combos.length);
 	});
 
 	it("lists the presence keys handled elsewhere, without handling them", () => {
