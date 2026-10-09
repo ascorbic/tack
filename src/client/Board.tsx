@@ -1,10 +1,12 @@
 import {
 	Background,
 	BackgroundVariant,
+	ControlButton,
 	Controls,
 	MiniMap,
 	type OnNodesChange,
 	ReactFlow,
+	SelectionMode,
 	ViewportPortal,
 	useReactFlow,
 } from "@xyflow/react";
@@ -20,6 +22,7 @@ import {
 } from "react";
 import { itemKey, parseRef } from "../shared/refs.ts";
 import {
+	type Position,
 	STICKY_SIZE,
 	type ShapeNode,
 	type StickyColor,
@@ -32,16 +35,22 @@ import {
 } from "./board.ts";
 import type { BoardSource } from "./connection.ts";
 import { BrandMark } from "./BrandMark.tsx";
+import { useCanvasCommands } from "./commands.ts";
 import { CursorChat } from "./CursorChat.tsx";
 import { Cursors } from "./Cursors.tsx";
 import { EmptyBoard } from "./EmptyBoard.tsx";
 import { FollowIndicator, ViewPublisher, useFollow } from "./Follow.tsx";
+import { Guides, useSnapping } from "./Guides.tsx";
 import { DocContext, nodeTypes } from "./nodes.tsx";
 import { People } from "./People.tsx";
 import { type User, usePresence } from "./presence.ts";
+import { SelectionTools } from "./SelectionTools.tsx";
 import { ShapeToolbar } from "./ShapeToolbar.tsx";
+import { ShortcutSheet } from "./Shortcuts.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
+import { Toasts, ToastStore } from "./Toasts.tsx";
 import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar } from "./Toolbar.tsx";
+import { History } from "./undo.ts";
 import { usePublishStatus } from "./useActivity.ts";
 
 interface BoardProps extends BoardSource {
@@ -77,6 +86,18 @@ export function Board({
 	const [measured, setMeasured] = useState<Map<string, { width: number; height: number }>>(
 		() => new Map(),
 	);
+	const measuredRef = useRef(measured);
+	measuredRef.current = measured;
+	const sizeOf = useCallback((id: string) => measuredRef.current.get(id), []);
+
+	// Undo and redo this person's own changes, never anyone else's.
+	const history = useMemo(() => new History(doc), [doc]);
+	useEffect(() => () => history.destroy(), [history]);
+	const [toasts] = useState(() => new ToastStore());
+	const canvas = useRef<HTMLElement>(null);
+	const [sheetOpen, setSheetOpen] = useState(false);
+	// Shift-dragging a marquee adds to the selection instead of replacing it.
+	const marqueeBase = useRef<Set<string> | null>(null);
 
 	// Selection, measured sizes and in-progress drags are local UI state, so
 	// they live outside the document. Unchanged nodes keep their identity so
@@ -118,8 +139,44 @@ export function Board({
 		[shapeNodes, selected, measured, presence.overrides],
 	);
 
+	const snapping = useSnapping(nodes, sizeOf);
+
+	const [tool, setTool] = useState<Tool>("select");
+	const [stickyColor, setStickyColor] = useState<StickyColor>("yellow");
+
+	// Keyboard shortcuts, the clipboard (paste a URL for a card, or text for
+	// a sticky), nudging, arranging and the delete toast.
+	const previewPositions = useCallback(
+		(positions: Map<string, Position | null>) =>
+			presence.onPositionChanges(
+				[...positions].map(([id, position]) => ({
+					type: "position" as const,
+					id,
+					position: position ?? undefined,
+					dragging: position !== null,
+				})),
+			),
+		[presence.onPositionChanges],
+	);
+	const commands = useCanvasCommands({
+		doc,
+		board: name,
+		history,
+		nodes,
+		selected,
+		setSelected,
+		sizeOf,
+		user,
+		stickyColor,
+		previewPositions,
+		toasts,
+		canvas,
+		toggleShortcuts: () => setSheetOpen((open) => !open),
+	});
+
 	const onNodesChange: OnNodesChange<ShapeNode> = useCallback(
-		(changes) => {
+		(incoming) => {
+			const changes = snapping.snapChanges(incoming);
 			const selection = changes.filter((change) => change.type === "select");
 			if (selection.length > 0) {
 				setSelected((current) => {
@@ -128,6 +185,7 @@ export function Board({
 						if (change.selected) next.add(change.id);
 						else next.delete(change.id);
 					}
+					for (const id of marqueeBase.current ?? []) next.add(id);
 					return next;
 				});
 			}
@@ -144,9 +202,10 @@ export function Board({
 				});
 			}
 			presence.onPositionChanges(changes);
+			commands.onRemove(changes.flatMap((change) => (change.type === "remove" ? [change.id] : [])));
 			applyNodeChanges(doc, changes, presence.lastDragPosition);
 		},
-		[doc, presence],
+		[doc, presence, snapping, commands],
 	);
 
 	const centre = useCallback(
@@ -155,21 +214,6 @@ export function Board({
 		[flow],
 	);
 
-	// Paste an issue or PR URL anywhere to add a card.
-	useEffect(() => {
-		const onPaste = (event: ClipboardEvent) => {
-			if ((event.target as HTMLElement | null)?.closest("textarea, input")) return;
-			const ref = parseRef(event.clipboardData?.getData("text") ?? "");
-			if (!ref) return;
-			event.preventDefault();
-			addCard(doc, itemKey(ref), centre());
-		};
-		window.addEventListener("paste", onPaste);
-		return () => window.removeEventListener("paste", onPaste);
-	}, [doc, centre]);
-
-	const [tool, setTool] = useState<Tool>("select");
-	const [stickyColor, setStickyColor] = useState<StickyColor>("yellow");
 	// Where the pointer is in flow space, only tracked while placing a sticky.
 	const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
 
@@ -270,6 +314,7 @@ export function Board({
 					{actions}
 				</header>
 				<main
+					ref={canvas}
 					className="canvas"
 					data-tool={tool}
 					onPointerMove={(event) => {
@@ -299,6 +344,20 @@ export function Board({
 						elementsSelectable={tool !== "hand"}
 						minZoom={0.1}
 						deleteKeyCode={["Backspace", "Delete"]}
+						selectionMode={SelectionMode.Partial}
+						selectionKeyCode={null}
+						multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+						onSelectionStart={(event) => {
+							marqueeBase.current = event.shiftKey ? new Set(selected) : null;
+						}}
+						onSelectionEnd={() => {
+							marqueeBase.current = null;
+						}}
+						onNodeClick={(event, node) => {
+							// Clicking one shape in a multi-selection selects just that one.
+							if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+							if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
+						}}
 					>
 						<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
 						<Controls
@@ -306,8 +365,25 @@ export function Board({
 							onZoomIn={follow.stop}
 							onZoomOut={follow.stop}
 							onFitView={follow.stop}
-						/>
+						>
+							<ControlButton
+								onClick={() => setSheetOpen(true)}
+								title="Keyboard shortcuts (?)"
+								aria-label="Keyboard shortcuts"
+								className="shortcuts-button"
+							>
+								?
+							</ControlButton>
+						</Controls>
 						<MiniMap pannable zoomable nodeClassName={minimapClass} />
+						<Guides store={snapping.guides} />
+						<SelectionTools
+							nodes={nodes}
+							selected={selected}
+							sizeOf={sizeOf}
+							dragging={snapping.dragging}
+							onCommand={commands.run}
+						/>
 						<Cursors people={presence.people} />
 						<ViewPublisher awareness={awareness} />
 						<ShapeToolbar doc={doc} selected={selectedNodes} onStickyColor={setStickyColor} />
@@ -334,6 +410,8 @@ export function Board({
 						onStickyColor={setStickyColor}
 						onAddCard={onAddCard}
 					/>
+					<Toasts store={toasts} />
+					<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
 					{children}
 				</main>
 			</div>

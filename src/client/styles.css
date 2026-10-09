@@ -24,6 +24,8 @@
 	--on-accent: #ffffff;
 	--danger: #c2372b;
 	--highlight: rgb(255 210 92 / 75%);
+	/* Snap guides. */
+	--guide: #e8457c;
 
 	/* Quiet fills: chips, hovered tools, the wells behind segmented controls. */
 	--chip: #f1efea;
@@ -1897,6 +1899,576 @@ a.card-title:hover {
 	font-size: 13px;
 	font-weight: 550;
 	cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   Selection, snapping and arranging
+   ------------------------------------------------------------------------ */
+
+/* React Flow's own selection box sits over the shapes and swallows clicks;
+   ours (.selection-frame) is drawn instead and lets them through. */
+.react-flow__nodesselection {
+	display: none;
+}
+
+.react-flow__selection {
+	border-radius: 3px;
+}
+
+/* Undo, redo and arranging move shapes with the settle spring rather than
+   jumping. */
+.canvas[data-settling="true"] .react-flow__node:not(.dragging) {
+	transition: transform var(--t-settle) var(--ease-settle);
+}
+
+.selection-frame {
+	position: absolute;
+	pointer-events: none;
+	border-radius: calc(6px / var(--zoom));
+	outline: calc(1.5px / var(--zoom)) solid var(--accent);
+	outline-offset: calc(8px / var(--zoom));
+	animation: frame-in var(--t-base) var(--ease-out);
+}
+
+@keyframes frame-in {
+	from {
+		opacity: 0;
+	}
+}
+
+/* Snap guides: crisp lines with a dot at each end, at a constant on-screen
+   weight whatever the zoom. */
+/* Above every shape, including one being dragged (React Flow lifts those to
+   z-index 1000 and up). */
+.guides,
+.selection-frame {
+	z-index: 3000;
+}
+
+.guides {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.guide {
+	position: absolute;
+	background: var(--guide);
+	animation: guide-in var(--t-quick) var(--ease-out);
+}
+
+.guide[data-axis="x"] {
+	width: calc(1px / var(--zoom));
+	margin-left: calc(-0.5px / var(--zoom));
+}
+
+.guide[data-axis="y"] {
+	height: calc(1px / var(--zoom));
+	margin-top: calc(-0.5px / var(--zoom));
+}
+
+.guide::before,
+.guide::after {
+	content: "";
+	position: absolute;
+	width: calc(5px / var(--zoom));
+	height: calc(5px / var(--zoom));
+	border-radius: 50%;
+	background: var(--guide);
+	translate: -50% -50%;
+}
+
+.guide[data-axis="x"]::before,
+.guide[data-axis="x"]::after {
+	left: 50%;
+}
+
+.guide[data-axis="x"]::before {
+	top: 0;
+}
+
+.guide[data-axis="x"]::after {
+	top: 100%;
+}
+
+.guide[data-axis="y"]::before,
+.guide[data-axis="y"]::after {
+	top: 50%;
+}
+
+.guide[data-axis="y"]::before {
+	left: 0;
+}
+
+.guide[data-axis="y"]::after {
+	left: 100%;
+}
+
+.guide[data-leaving="true"] {
+	animation: guide-out var(--t-base) var(--ease-out) forwards;
+}
+
+@keyframes guide-in {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes guide-out {
+	to {
+		opacity: 0;
+	}
+}
+
+/* The contextual toolbar above a multi-selection. */
+.arrange {
+	display: flex;
+	align-items: center;
+	gap: 1px;
+	padding: 4px;
+	border-radius: 12px;
+	background: rgb(255 255 255 / 96%);
+	backdrop-filter: blur(14px) saturate(1.4);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-lifted);
+	animation: tray-in var(--t-settle) var(--ease-spring);
+}
+
+.arrange-count {
+	min-width: 22px;
+	height: 22px;
+	margin: 0 6px 0 4px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-size: 11.5px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+	line-height: 22px;
+	text-align: center;
+}
+
+.arrange-divider {
+	width: 1px;
+	height: 20px;
+	margin: 0 4px;
+	background: var(--line-strong);
+}
+
+.arrange-button {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink-soft);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.arrange-button svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.arrange-button:hover:not(:disabled) {
+	background: #f1efea;
+	color: var(--ink);
+}
+
+.arrange-button:active:not(:disabled) {
+	transform: scale(0.9);
+}
+
+.arrange-button:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+/* Tooltips below, since the toolbar sits above the selection. */
+.arrange-button::after {
+	content: attr(data-tooltip) "  " attr(data-shortcut);
+	position: absolute;
+	top: calc(100% + 10px);
+	left: 50%;
+	z-index: 1;
+	padding: 5px 9px;
+	border-radius: 7px;
+	background: var(--ink);
+	color: #fff;
+	font-size: 12px;
+	font-weight: 550;
+	white-space: pre;
+	opacity: 0;
+	transform: translate(-50%, -4px);
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.arrange-button:hover::after {
+	opacity: 1;
+	transform: translate(-50%, 0);
+	transition-delay: calc(400ms * var(--motion));
+}
+
+/* ---------------------------------------------------------------------------
+   Toasts
+   ------------------------------------------------------------------------ */
+
+.toasts {
+	position: absolute;
+	left: 50%;
+	bottom: 96px;
+	z-index: 20;
+	display: grid;
+	justify-items: center;
+	transform: translateX(-50%);
+	pointer-events: none;
+}
+
+/* Toasts stack in one cell, so the leaving one and its replacement overlap. */
+.toast {
+	grid-area: 1 / 1;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 6px 6px 6px 16px;
+	border-radius: 12px;
+	background: var(--ink);
+	color: #fff;
+	font-size: 13px;
+	font-weight: 520;
+	white-space: nowrap;
+	box-shadow: var(--shadow-lifted);
+	pointer-events: auto;
+	animation: toast-in var(--t-settle) var(--ease-spring);
+}
+
+.toast[data-leaving="true"] {
+	pointer-events: none;
+	animation: toast-out var(--t-base) var(--ease-out) forwards;
+}
+
+.toast-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	height: 30px;
+	padding: 0 10px;
+	border: 0;
+	border-radius: 8px;
+	background: rgb(255 255 255 / 12%);
+	color: #fff;
+	font-size: 13px;
+	font-weight: 620;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.toast-action:hover {
+	background: rgb(255 255 255 / 20%);
+}
+
+.toast-action:active {
+	transform: scale(0.95);
+}
+
+.toast-action kbd {
+	font-family: var(--font-ui);
+	font-size: 11.5px;
+	font-weight: 550;
+	color: rgb(255 255 255 / 60%);
+}
+
+@keyframes toast-in {
+	from {
+		opacity: 0;
+		transform: translateY(14px) scale(0.94);
+	}
+}
+
+@keyframes toast-out {
+	to {
+		opacity: 0;
+		transform: translateY(6px) scale(0.97);
+	}
+}
+
+/* ---------------------------------------------------------------------------
+   Keyboard shortcut sheet
+   ------------------------------------------------------------------------ */
+
+.shortcuts-button {
+	font-size: 14px;
+	font-weight: 650;
+	color: var(--ink-soft);
+}
+
+.sheet-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 50;
+	display: grid;
+	place-items: center;
+	padding: 16px;
+	background: rgb(23 25 28 / 18%);
+	backdrop-filter: blur(3px);
+	animation: sheet-backdrop-in var(--t-base) var(--ease-out);
+}
+
+.sheet-backdrop[data-closing="true"] {
+	animation: sheet-backdrop-out var(--t-base) var(--ease-out) forwards;
+}
+
+.sheet {
+	display: flex;
+	flex-direction: column;
+	width: min(780px, 100%);
+	max-height: min(660px, calc(100dvh - 32px));
+	border-radius: 18px;
+	background: var(--surface);
+	border: 1px solid var(--line);
+	box-shadow:
+		var(--shadow-lifted),
+		0 40px 80px rgb(23 25 28 / 14%);
+	overflow: hidden;
+	animation: sheet-in var(--t-settle) var(--ease-spring);
+}
+
+.sheet-backdrop[data-closing="true"] .sheet {
+	animation: sheet-out var(--t-base) var(--ease-out) forwards;
+}
+
+@keyframes sheet-backdrop-in {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes sheet-backdrop-out {
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes sheet-in {
+	from {
+		opacity: 0;
+		transform: translateY(12px) scale(0.96);
+	}
+}
+
+@keyframes sheet-out {
+	to {
+		opacity: 0;
+		transform: translateY(6px) scale(0.98);
+	}
+}
+
+.sheet-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px 16px;
+	padding: 18px 18px 14px 22px;
+	border-bottom: 1px solid var(--line);
+}
+
+.sheet-head h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 20px;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+.sheet-search {
+	display: flex;
+	flex: 1;
+	min-width: 200px;
+	align-items: center;
+	gap: 8px;
+	height: 36px;
+	padding: 0 12px;
+	border-radius: 10px;
+	background: var(--surface-muted);
+	border: 1px solid var(--line);
+	color: var(--muted);
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.sheet-search:focus-within {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.sheet-search svg {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+}
+
+.sheet-search input {
+	flex: 1;
+	min-width: 0;
+	border: 0;
+	background: transparent;
+	font-size: 13.5px;
+	color: var(--ink);
+	outline: none;
+}
+
+.sheet-search input::-webkit-search-cancel-button {
+	display: none;
+}
+
+.sheet-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.sheet-close:hover {
+	background: #f1efea;
+	color: var(--ink);
+}
+
+.sheet-close svg {
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+}
+
+.sheet-body {
+	overflow: auto;
+	padding: 6px 22px 22px;
+	columns: 2 300px;
+	column-gap: 36px;
+}
+
+.sheet-group {
+	break-inside: avoid;
+	padding-top: 16px;
+}
+
+.sheet-group h3 {
+	margin: 0 0 6px;
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--muted);
+}
+
+.sheet-group dl {
+	margin: 0;
+}
+
+.sheet-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	min-height: 34px;
+	padding: 4px 0;
+	border-bottom: 1px solid var(--line);
+	animation: row-in var(--t-base) var(--ease-out) backwards;
+}
+
+.sheet-row:last-child {
+	border-bottom: 0;
+}
+
+@keyframes row-in {
+	from {
+		opacity: 0;
+	}
+}
+
+.sheet-row dt {
+	font-size: 13.5px;
+	color: var(--ink-soft);
+}
+
+.sheet-row dd {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 6px;
+	margin: 0;
+}
+
+.keys {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.keys-or {
+	margin-right: 3px;
+	font-size: 11.5px;
+	color: var(--muted);
+}
+
+.keys kbd {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 23px;
+	height: 23px;
+	padding: 0 6px;
+	border-radius: 6px;
+	background: var(--surface-muted);
+	border: 1px solid var(--line-strong);
+	box-shadow: inset 0 -1.5px 0 var(--line-strong);
+	font-family: var(--font-ui);
+	font-size: 12px;
+	font-weight: 560;
+	color: var(--ink-soft);
+	white-space: nowrap;
+}
+
+.sheet-empty {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 28px 0 10px;
+	font-size: 14px;
+	color: var(--ink-soft);
+	column-span: all;
+}
+
+.sheet-empty span {
+	font-size: 13px;
+	color: var(--muted);
 }
 
 /* ---------------------------------------------------------------------------
