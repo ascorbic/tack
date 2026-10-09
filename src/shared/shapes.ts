@@ -1,3 +1,4 @@
+import { generateKeyBetween } from "fractional-indexing";
 import * as Y from "yjs";
 
 // The board document: `shapes` is a map of shape id → Y.Map of properties.
@@ -17,6 +18,13 @@ export interface ShapeProps {
 	/** Sticky shapes: plain text for now. */
 	text?: string;
 	color?: string;
+	/** Who made it, shown on stickies. */
+	author?: Author;
+}
+
+export interface Author {
+	name: string;
+	color: string;
 }
 
 export function shapesMap(doc: Y.Doc): Y.Map<Y.Map<unknown>> {
@@ -45,4 +53,43 @@ export function cardRefs(doc: Y.Doc): Set<string> {
 		if (shape.get("type") === "card" && typeof ref === "string") refs.add(ref);
 	}
 	return refs;
+}
+
+/**
+ * A z-index above every other shape, or null if `except` is already on top.
+ */
+export function topZ(doc: Y.Doc, except?: string): string | null {
+	let top: string | null = null;
+	let topId: string | null = null;
+	for (const [id, shape] of shapesMap(doc)) {
+		const z = shape.get("z");
+		// Skip keys fractional-indexing can't build on, so one bad shape (from
+		// an old board or another client) can't break moving everything else.
+		if (typeof z === "string" && isValidZ(z) && (top === null || z > top)) {
+			top = z;
+			topId = id;
+		}
+	}
+	if (except && topId === except) return null;
+	return generateKeyBetween(top, null);
+}
+
+const validZ = new Map<string, boolean>();
+
+function isValidZ(z: string): boolean {
+	let valid = validZ.get(z);
+	if (valid === undefined) {
+		try {
+			generateKeyBetween(z, null);
+			valid = true;
+		} catch {
+			valid = false;
+		}
+		validZ.set(z, valid);
+	}
+	return valid;
+}
+
+export function nextZ(doc: Y.Doc): string {
+	return topZ(doc) ?? generateKeyBetween(null, null);
 }

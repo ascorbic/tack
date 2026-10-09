@@ -106,6 +106,12 @@ export default function Playground() {
 				y: 100 + Math.random() * 400,
 			});
 		},
+		addSticky: () => {
+			void someone().addSticky(
+				{ x: 200 + Math.random() * 700, y: 120 + Math.random() * 400 },
+				pick(STICKY_LINES) ?? "",
+			);
+		},
 		editTitle: () => {
 			const key = randomCard();
 			if (key)
@@ -199,6 +205,9 @@ export default function Playground() {
 							</button>
 							<button type="button" onClick={actions.addCard}>
 								Add a card
+							</button>
+							<button type="button" onClick={actions.addSticky}>
+								Add a sticky
 							</button>
 						</div>
 					</div>

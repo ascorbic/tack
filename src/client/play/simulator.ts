@@ -2,7 +2,7 @@ import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protoc
 import * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { shapesMap } from "../../shared/shapes.ts";
-import { addCard, moveShape, type Position } from "../board.ts";
+import { STICKY_COLORS, addCard, addSticky, moveShape, type Position } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { randomUser, type User } from "../presence.ts";
 
@@ -176,6 +176,15 @@ export class RemotePerson {
 	async addCard(key: string, at: Position): Promise<void> {
 		await this.moveTo(at, 600);
 		addCard(this.doc, key, at);
+	}
+
+	/** Place a sticky with this person's name on it, then type into it. */
+	async addSticky(at: Position, text: string): Promise<void> {
+		await this.moveTo(at, 600);
+		const color = STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)];
+		const id = addSticky(this.doc, at, { color, author: this.user });
+		await sleep(250);
+		await this.type(id, text);
 	}
 
 	dispose(): void {

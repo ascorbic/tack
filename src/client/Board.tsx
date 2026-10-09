@@ -5,10 +5,12 @@ import {
 	MiniMap,
 	type OnNodesChange,
 	ReactFlow,
+	ViewportPortal,
 	useReactFlow,
 } from "@xyflow/react";
 import {
-	type FormEvent,
+	type DragEvent,
+	type MouseEvent,
 	type ReactNode,
 	useCallback,
 	useEffect,
@@ -17,11 +19,22 @@ import {
 	useState,
 } from "react";
 import { itemKey, parseRef } from "../shared/refs.ts";
-import { type ShapeNode, addCard, addSticky, applyNodeChanges, useShapeNodes } from "./board.ts";
+import {
+	STICKY_SIZE,
+	type ShapeNode,
+	type StickyColor,
+	addCard,
+	addSticky,
+	applyNodeChanges,
+	focusWhenMounted,
+	useShapeNodes,
+} from "./board.ts";
 import type { BoardSource } from "./connection.ts";
+import { BrandMark } from "./BrandMark.tsx";
 import { Cursors } from "./Cursors.tsx";
 import { DocContext, nodeTypes } from "./nodes.tsx";
 import { type User, usePresence } from "./presence.ts";
+import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar } from "./Toolbar.tsx";
 
 interface BoardProps extends BoardSource {
 	name: string;
@@ -129,50 +142,80 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 		return () => window.removeEventListener("paste", onPaste);
 	}, [doc, centre]);
 
-	const [refInput, setRefInput] = useState("");
-	const [refError, setRefError] = useState(false);
-	const onAddCard = (event: FormEvent) => {
-		event.preventDefault();
-		const ref = parseRef(refInput);
-		if (!ref) {
-			setRefError(true);
-			return;
-		}
-		addCard(doc, itemKey(ref), centre());
-		setRefInput("");
-		setRefError(false);
+	const [tool, setTool] = useState<Tool>("select");
+	const [stickyColor, setStickyColor] = useState<StickyColor>("yellow");
+	// Where the pointer is in flow space, only tracked while placing a sticky.
+	const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+
+	// Tool shortcuts, ignored while typing.
+	useEffect(() => {
+		const onKey = (event: KeyboardEvent) => {
+			if (event.metaKey || event.ctrlKey || event.altKey) return;
+			const target = event.target as HTMLElement | null;
+			if (target?.closest("input, textarea, select, [contenteditable]")) return;
+			if (event.key === "Escape") setTool("select");
+			const next = TOOL_KEYS[event.key.toLowerCase()];
+			if (next) {
+				event.preventDefault();
+				setTool(next);
+			}
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, []);
+
+	useEffect(() => {
+		if (tool !== "sticky") setGhost(null);
+	}, [tool]);
+
+	const placeSticky = useCallback(
+		(at: { x: number; y: number }, color: StickyColor) => {
+			const id = addSticky(doc, at, { color, author: { name: user.name, color: user.color } });
+			focusWhenMounted(id);
+			setSelected(new Set([id]));
+		},
+		[doc, user],
+	);
+
+	const onPaneClick = (event: MouseEvent) => {
+		if (tool !== "sticky") return;
+		placeSticky(flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }), stickyColor);
+		setTool("select");
 	};
 
+	// Drag a sticky straight off the toolbar.
+	const onDragOver = (event: DragEvent) => {
+		if (event.dataTransfer.types.includes(STICKY_DRAG_TYPE)) {
+			event.preventDefault();
+			event.dataTransfer.dropEffect = "copy";
+		}
+	};
+	const onDrop = (event: DragEvent) => {
+		const color = event.dataTransfer.getData(STICKY_DRAG_TYPE) as StickyColor;
+		if (!color) return;
+		event.preventDefault();
+		placeSticky(flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }), color);
+		setTool("select");
+	};
+
+	const onAddCard = (input: string) => {
+		const ref = parseRef(input);
+		if (!ref) return false;
+		addCard(doc, itemKey(ref), centre());
+		return true;
+	};
+
+	// Select: drag the canvas to marquee-select; scroll or space-drag to pan.
+	// Hand: drag to pan, and shapes can't be picked up.
 	return (
 		<DocContext value={doc}>
 			<div className="app">
 				<header className="topbar">
 					<span className="brand">
-						<span className="brand-mark" aria-hidden="true" />
+						<BrandMark />
 						tack
 					</span>
 					<span className="board-name">{name}</span>
-					<form className="add-card" onSubmit={onAddCard}>
-						<label htmlFor="ref" className="visually-hidden">
-							Issue or pull request
-						</label>
-						<input
-							id="ref"
-							value={refInput}
-							aria-invalid={refError}
-							onChange={(event) => {
-								setRefInput(event.target.value);
-								setRefError(false);
-							}}
-							placeholder="owner/repo#123 or paste a URL"
-						/>
-						<button type="submit" className="primary">
-							Add card
-						</button>
-					</form>
-					<button type="button" onClick={() => addSticky(doc, centre())}>
-						Add sticky
-					</button>
 					<span className="people" aria-label="People here">
 						<span
 							className="avatar"
@@ -198,16 +241,31 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 				</header>
 				<main
 					className="canvas"
-					onPointerMove={(event) =>
-						presence.setCursor(flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }))
-					}
-					onPointerLeave={() => presence.setCursor(null)}
+					data-tool={tool}
+					onPointerMove={(event) => {
+						const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+						presence.setCursor(at);
+						if (tool === "sticky") setGhost(at);
+					}}
+					onPointerLeave={() => {
+						presence.setCursor(null);
+						setGhost(null);
+					}}
+					onDragOver={onDragOver}
+					onDrop={onDrop}
 				>
 					<ReactFlow
 						nodes={nodes}
 						nodeTypes={nodeTypes}
 						onNodesChange={onNodesChange}
+						onPaneClick={onPaneClick}
+						proOptions={{ hideAttribution: true }}
 						onlyRenderVisibleElements
+						selectionOnDrag={tool === "select"}
+						panOnDrag={tool === "hand" ? true : [1, 2]}
+						panOnScroll
+						nodesDraggable={tool !== "hand"}
+						elementsSelectable={tool !== "hand"}
 						minZoom={0.1}
 						deleteKeyCode={["Backspace", "Delete"]}
 					>
@@ -215,7 +273,26 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 						<Controls showInteractive={false} />
 						<MiniMap pannable zoomable />
 						<Cursors people={presence.people} />
+						{ghost && (
+							<ViewportPortal>
+								<div
+									className="sticky sticky-ghost"
+									data-color={stickyColor}
+									aria-hidden="true"
+									style={{
+										transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+									}}
+								/>
+							</ViewportPortal>
+						)}
 					</ReactFlow>
+					<Toolbar
+						tool={tool}
+						onTool={setTool}
+						stickyColor={stickyColor}
+						onStickyColor={setStickyColor}
+						onAddCard={onAddCard}
+					/>
 					{children}
 				</main>
 			</div>

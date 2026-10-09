@@ -1,5 +1,5 @@
 import type * as Y from "yjs";
-import { addShape } from "../../shared/shapes.ts";
+import { addShape, nextZ } from "../../shared/shapes.ts";
 import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
@@ -10,8 +10,18 @@ export interface Scenario {
 	seed(doc: Y.Doc): void;
 }
 
-function sticky(doc: Y.Doc, text: string, color: string, x: number, y: number, z: string) {
-	addShape(doc, crypto.randomUUID(), { type: "sticky", text, color, x, y, z });
+// The people who wrote the seeded stickies.
+const AUTHORS = [
+	{ name: "Priya Shah", color: "#b4467a" },
+	{ name: "Kai Andersen", color: "#1f7a6b" },
+	{ name: "Tom Okafor", color: "#a35a12" },
+	{ name: "Jo Rivera", color: "#5b5fc7" },
+];
+let nextAuthor = 0;
+
+function sticky(doc: Y.Doc, text: string, color: string, x: number, y: number) {
+	const author = AUTHORS[nextAuthor++ % AUTHORS.length];
+	addShape(doc, crypto.randomUUID(), { type: "sticky", text, color, author, x, y, z: nextZ(doc) });
 }
 
 export const SCENARIOS: Record<string, Scenario> = {
@@ -24,24 +34,10 @@ export const SCENARIOS: Record<string, Scenario> = {
 				PLANNING_CARDS.forEach((card, i) => {
 					addCard(doc, card.key, { x: 40 + (i % 3) * 290, y: 40 + Math.floor(i / 3) * 230 });
 				});
-				sticky(
-					doc,
-					"Provider docs are hard to find, I end up reading source",
-					"yellow",
-					960,
-					40,
-					"b0",
-				);
-				sticky(doc, "CDN detection fails for custom domains", "pink", 1150, 60, "b1");
-				sticky(doc, "Need a fallback when the CDN isn’t recognised", "blue", 970, 250, "b2");
-				sticky(
-					doc,
-					"Release notes are thin, contributors don’t get credit",
-					"green",
-					1160,
-					270,
-					"b3",
-				);
+				sticky(doc, "Provider docs are hard to find, I end up reading source", "yellow", 960, 40);
+				sticky(doc, "CDN detection fails for custom domains", "pink", 1150, 60);
+				sticky(doc, "Need a fallback when the CDN isn’t recognised", "blue", 970, 250);
+				sticky(doc, "Release notes are thin, contributors don’t get credit", "green", 1160, 270);
 			});
 		},
 	},

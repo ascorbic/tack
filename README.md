@@ -20,6 +20,7 @@ Tack cards, issues and ideas to a shared board, change tack together, and say _t
 - [`@cloudflare/vite-plugin`](https://developers.cloudflare.com/workers/vite-plugin/) 2.0, with `cloudflare.config.ts` from `cf/config`
 - Vitest in Node, with integration tests running the built Worker in [Miniflare](https://www.npmjs.com/package/miniflare). No Wrangler
 - TypeScript, pnpm
+- The canvas is built on [React Flow](https://reactflow.dev) (MIT), and sync on [Yjs](https://yjs.dev) with [y-partyserver](https://github.com/cloudflare/partykit)
 
 ## Commands
 

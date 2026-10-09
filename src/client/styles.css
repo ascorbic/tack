@@ -176,43 +176,29 @@ textarea {
 	line-height: 1;
 }
 
+/* The mark: a sticky pinned with a tack. On hover the tack lifts and the
+   note swings on it. */
 .brand-mark {
-	position: relative;
-	width: 22px;
-	height: 22px;
+	overflow: visible;
 }
 
-.brand-mark::before,
-.brand-mark::after {
-	content: "";
-	position: absolute;
-	width: 14px;
-	height: 14px;
-	border-radius: 3px;
+.brand-mark-note {
+	transform-box: view-box;
+	transform-origin: 12px 7px;
+	transform: rotate(-5deg);
 	transition: transform var(--t-settle) var(--ease-spring);
 }
 
-.brand-mark::before {
-	top: 1px;
-	left: 1px;
-	background: #ffd85c;
-	transform: rotate(-6deg);
+.brand-mark-pin {
+	transition: transform var(--t-settle) var(--ease-spring);
 }
 
-.brand-mark::after {
-	bottom: 1px;
-	right: 1px;
-	background: #9fc4ff;
-	mix-blend-mode: multiply;
-	transform: rotate(5deg);
+.brand:hover .brand-mark-note {
+	transform: rotate(7deg);
 }
 
-.brand:hover .brand-mark::before {
-	transform: rotate(-14deg) translate(-1px, -1px);
-}
-
-.brand:hover .brand-mark::after {
-	transform: rotate(12deg) translate(1px, 1px);
+.brand:hover .brand-mark-pin {
+	transform: translateY(-1.5px);
 }
 
 .board-name {
@@ -268,40 +254,9 @@ button.primary:hover {
 	background: #3343b8;
 }
 
-.add-card {
-	display: flex;
-	gap: 6px;
-	margin-left: auto;
-}
-
-.add-card input {
-	width: min(300px, 56vw);
-}
-
-.add-card input:focus {
-	outline: none;
-	border-color: var(--accent);
-	box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.add-card input[aria-invalid="true"] {
-	border-color: #c2372b;
-	animation: shake calc(360ms * var(--motion)) var(--ease-out);
-}
-
-@keyframes shake {
-	20%,
-	60% {
-		transform: translateX(-4px);
-	}
-	40%,
-	80% {
-		transform: translateX(4px);
-	}
-}
-
 .people {
 	display: flex;
+	margin-left: auto;
 	padding-left: 6px;
 }
 
@@ -750,6 +705,8 @@ a.card-title:hover {
 	--sticky: #ffe58f;
 	position: relative;
 	display: flex;
+	flex-direction: column;
+	gap: 6px;
 	width: 176px;
 	min-height: 176px;
 	padding: 14px;
@@ -812,7 +769,8 @@ a.card-title:hover {
 	outline-offset: 4px;
 }
 
-.sticky textarea {
+.sticky textarea,
+.sticky-text {
 	flex: 1;
 	min-height: 140px;
 	border: 0;
@@ -827,8 +785,301 @@ a.card-title:hover {
 	outline: none;
 }
 
-.sticky textarea::placeholder {
+.sticky textarea::placeholder,
+.sticky-text[data-empty="true"] {
 	color: rgb(23 25 28 / 35%);
+}
+
+.sticky-text {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	overflow: hidden;
+	user-select: none;
+}
+
+.sticky[data-editing="true"] {
+	cursor: text;
+}
+
+.react-flow__node:has(.sticky[data-editing="true"]) {
+	cursor: text;
+}
+
+/* Who made it, like FigJam: quiet until you look for it. */
+.sticky-author {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 11px;
+	font-weight: 550;
+	color: rgb(23 25 28 / 55%);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sticky-author::before {
+	content: "";
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--author);
+}
+
+/* The sticky that follows the pointer while the sticky tool is active. */
+.sticky-ghost {
+	position: absolute;
+	left: 0;
+	top: 0;
+	opacity: 0.55;
+	pointer-events: none;
+	box-shadow: 0 10px 24px rgb(0 0 0 / 12%);
+	transition: none;
+	animation: pop-in var(--t-base) var(--ease-spring);
+}
+
+.canvas[data-tool="sticky"] .react-flow__pane {
+	cursor: none;
+}
+
+.canvas[data-tool="hand"] .react-flow__pane,
+.canvas[data-tool="hand"] .react-flow__node {
+	cursor: grab;
+}
+
+/* ---------------------------------------------------------------------------
+   Toolbar
+   ------------------------------------------------------------------------ */
+
+.toolbar-dock {
+	position: absolute;
+	left: 50%;
+	bottom: 18px;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	transform: translateX(-50%);
+	pointer-events: none;
+}
+
+.toolbar,
+.toolbar-options {
+	pointer-events: auto;
+	display: flex;
+	align-items: center;
+	background: rgb(255 255 255 / 94%);
+	backdrop-filter: blur(14px) saturate(1.4);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-lifted);
+}
+
+.toolbar {
+	gap: 2px;
+	padding: 5px;
+	border-radius: 16px;
+}
+
+.toolbar-divider {
+	width: 1px;
+	height: 26px;
+	margin: 0 5px;
+	background: var(--line-strong);
+}
+
+.tool {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border: 0;
+	border-radius: 11px;
+	background: transparent;
+	color: var(--ink-soft);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.tool svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.tool svg .fill {
+	fill: currentColor;
+	stroke: none;
+}
+
+.tool:hover {
+	background: #f1efea;
+}
+
+.tool:active {
+	transform: scale(0.92);
+}
+
+.tool[aria-pressed="true"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+/* Tooltips with the keyboard shortcut. */
+.tool::after {
+	content: attr(data-tooltip) "  " attr(data-shortcut);
+	position: absolute;
+	bottom: calc(100% + 10px);
+	left: 50%;
+	padding: 5px 9px;
+	border-radius: 7px;
+	background: var(--ink);
+	color: #fff;
+	font-size: 12px;
+	font-weight: 550;
+	white-space: pre;
+	opacity: 0;
+	transform: translate(-50%, 4px);
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.tool:hover::after {
+	opacity: 1;
+	transform: translate(-50%, 0);
+	transition-delay: calc(400ms * var(--motion));
+}
+
+.toolbar-dock:has(.toolbar-options) .tool::after {
+	display: none;
+}
+
+/* The sticky tool is a little sticky you can pick up. */
+.tool-sticky {
+	cursor: grab;
+}
+
+.tool-sticky-paper {
+	width: 22px;
+	height: 22px;
+	border-radius: 2px 2px 7px 2px;
+	background: var(--sticky, #ffe58f);
+	box-shadow:
+		0 1px 1px rgb(0 0 0 / 8%),
+		0 4px 6px -3px rgb(0 0 0 / 25%);
+	transform: rotate(-4deg);
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.tool-sticky:hover .tool-sticky-paper,
+.tool-sticky[aria-pressed="true"] .tool-sticky-paper {
+	transform: rotate(4deg) translateY(-3px) scale(1.08);
+}
+
+/* Options for the active tool, in a tray above the toolbar. */
+.toolbar-options {
+	gap: 6px;
+	padding: 7px 10px;
+	border-radius: 13px;
+	animation: tray-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes tray-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.94);
+	}
+}
+
+.toolbar-hint {
+	margin-left: 6px;
+	font-size: 12px;
+	color: var(--muted);
+	white-space: nowrap;
+}
+
+.swatch {
+	width: 24px;
+	height: 24px;
+	border: 0;
+	border-radius: 50%;
+	background: var(--sticky);
+	box-shadow: inset 0 0 0 1px rgb(0 0 0 / 10%);
+	cursor: pointer;
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.swatch:hover {
+	transform: scale(1.12);
+}
+
+.swatch[aria-checked="true"] {
+	box-shadow:
+		inset 0 0 0 1px rgb(0 0 0 / 10%),
+		0 0 0 2px var(--surface),
+		0 0 0 4px var(--accent);
+}
+
+.swatch[data-color="yellow"],
+.tool-sticky-paper[data-color="yellow"] {
+	--sticky: #ffe58f;
+}
+.swatch[data-color="pink"],
+.tool-sticky-paper[data-color="pink"] {
+	--sticky: #ffc9da;
+}
+.swatch[data-color="blue"],
+.tool-sticky-paper[data-color="blue"] {
+	--sticky: #c7ddff;
+}
+.swatch[data-color="green"],
+.tool-sticky-paper[data-color="green"] {
+	--sticky: #c9efcf;
+}
+.swatch[data-color="purple"],
+.tool-sticky-paper[data-color="purple"] {
+	--sticky: #e2d4ff;
+}
+
+.card-options input {
+	width: min(300px, 60vw);
+	height: 34px;
+	padding: 0 10px;
+	border-radius: 9px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	font-size: 13px;
+}
+
+.card-options input:focus {
+	outline: none;
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.card-options input[aria-invalid="true"] {
+	border-color: #c2372b;
+	animation: shake calc(360ms * var(--motion)) var(--ease-out);
+}
+
+.card-options button {
+	height: 34px;
+	padding: 0 14px;
+	border-radius: 9px;
+	border: 1px solid var(--accent);
+	font-size: 13px;
+	font-weight: 550;
+	cursor: pointer;
 }
 
 /* ---------------------------------------------------------------------------

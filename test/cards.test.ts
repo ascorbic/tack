@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import { normaliseIssue } from "../src/server/forges/github.ts";
 import { itemKey, parseKey, parseRef, repoKeyOf } from "../src/shared/refs.ts";
-import { addShape, cardRefs } from "../src/shared/shapes.ts";
+import { addShape, cardRefs, nextZ, topZ } from "../src/shared/shapes.ts";
 
 describe("parseRef", () => {
 	it("parses bare refs against the default host", () => {
@@ -92,5 +92,24 @@ describe("cardRefs", () => {
 		addShape(doc, "2", { type: "card", ref: "github.com/a/b#1", x: 0, y: 0, z: "a1" });
 		addShape(doc, "3", { type: "sticky", text: "hi", x: 0, y: 0, z: "a2" });
 		expect([...cardRefs(doc)]).toEqual(["github.com/a/b#1"]);
+	});
+});
+
+describe("stacking order", () => {
+	it("puts new shapes above everything else", () => {
+		const doc = new Y.Doc();
+		addShape(doc, "1", { type: "sticky", x: 0, y: 0, z: "a0" });
+		addShape(doc, "2", { type: "sticky", x: 0, y: 0, z: "a5" });
+		expect(nextZ(doc) > "a5").toBe(true);
+		expect(topZ(doc, "2")).toBeNull();
+		expect(topZ(doc, "1")! > "a5").toBe(true);
+	});
+
+	it("ignores invalid keys instead of throwing", () => {
+		const doc = new Y.Doc();
+		addShape(doc, "1", { type: "sticky", x: 0, y: 0, z: "a1" });
+		addShape(doc, "2", { type: "sticky", x: 0, y: 0, z: "b3" });
+		expect(() => nextZ(doc)).not.toThrow();
+		expect(nextZ(doc) > "a1").toBe(true);
 	});
 });

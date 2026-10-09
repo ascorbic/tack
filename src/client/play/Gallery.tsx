@@ -130,6 +130,12 @@ export default function Gallery() {
 									aria-label={`${color} sticky`}
 									defaultValue="Provider docs are hard to find"
 								/>
+								<span
+									className="sticky-author"
+									style={{ "--author": "#b4467a" } as React.CSSProperties}
+								>
+									Priya Shah
+								</span>
 							</div>
 							<figcaption>{color[0]?.toUpperCase() + color.slice(1)}</figcaption>
 						</figure>

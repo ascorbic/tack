@@ -1,8 +1,15 @@
 import type { Node, NodeChange } from "@xyflow/react";
-import { generateKeyBetween } from "fractional-indexing";
 import { useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
-import { type ShapeProps, addShape, readShape, shapesMap } from "../shared/shapes.ts";
+import {
+	type Author,
+	type ShapeProps,
+	addShape,
+	nextZ,
+	readShape,
+	shapesMap,
+	topZ,
+} from "../shared/shapes.ts";
 
 export type ShapeNode = Node<{ shape: ShapeProps; id: string }>;
 
@@ -122,40 +129,45 @@ export function moveShape(doc: Y.Doc, id: string, position: Position): void {
 	if (z) shape.set("z", z);
 }
 
-/**
- * A z-index above every other shape, or null if `except` is already on top.
- */
-export function topZ(doc: Y.Doc, except?: string): string | null {
-	let top: string | null = null;
-	let topId: string | null = null;
-	for (const [id, shape] of shapesMap(doc)) {
-		const z = shape.get("z");
-		if (typeof z === "string" && (top === null || z > top)) {
-			top = z;
-			topId = id;
-		}
-	}
-	if (except && topId === except) return null;
-	return generateKeyBetween(top, null);
-}
-
-function nextZ(doc: Y.Doc): string {
-	return topZ(doc) ?? generateKeyBetween(null, null);
-}
-
 export function addCard(doc: Y.Doc, ref: string, at: { x: number; y: number }): void {
 	addShape(doc, crypto.randomUUID(), { type: "card", ref, x: at.x, y: at.y, z: nextZ(doc) });
 }
 
-export function addSticky(doc: Y.Doc, at: { x: number; y: number }): void {
-	addShape(doc, crypto.randomUUID(), {
+export const STICKY_SIZE = 176;
+export const STICKY_COLORS = ["yellow", "pink", "blue", "green", "purple"] as const;
+export type StickyColor = (typeof STICKY_COLORS)[number];
+
+/** Add a sticky centred on `at`, and return its id. */
+export function addSticky(
+	doc: Y.Doc,
+	at: { x: number; y: number },
+	{ color = "yellow", author }: { color?: StickyColor; author?: Author } = {},
+): string {
+	const id = crypto.randomUUID();
+	addShape(doc, id, {
 		type: "sticky",
 		text: "",
-		color: "yellow",
-		x: at.x,
-		y: at.y,
+		color,
+		author,
+		x: Math.round(at.x - STICKY_SIZE / 2),
+		y: Math.round(at.y - STICKY_SIZE / 2),
 		z: nextZ(doc),
 	});
+	return id;
+}
+
+// A sticky this client just made, whose text box should take focus once it
+// mounts so you can type straight away.
+let focusOnMount: string | null = null;
+
+export function focusWhenMounted(id: string): void {
+	focusOnMount = id;
+}
+
+export function takeFocus(id: string): boolean {
+	if (focusOnMount !== id) return false;
+	focusOnMount = null;
+	return true;
 }
 
 export function setStickyText(doc: Y.Doc, id: string, text: string): void {
