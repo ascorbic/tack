@@ -15,6 +15,7 @@ import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { seedDecisions } from "./decisions.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
+import { seedWrites } from "./writes.ts";
 
 export interface Scenario {
 	name: string;
@@ -348,6 +349,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		seed(doc) {
 			seedDecisions(doc);
 		},
+	},
+	writes: {
+		name: "Write back",
+		description:
+			"Select stickies, a section, cards or the arrow to stage issues, sub-issues, blocked-by, triage and backlinks.",
+		seed: seedWrites,
 	},
 	empty: {
 		name: "Empty",

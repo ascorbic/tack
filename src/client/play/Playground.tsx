@@ -26,6 +26,7 @@ import { fixture, LABELS } from "./fixtures.ts";
 import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
+import { playServices } from "./writes.ts";
 
 type Motion = "normal" | "slow" | "reduced";
 
@@ -90,6 +91,7 @@ export default function Playground() {
 	useEffect(() => installFakeRepoApi(), []);
 
 	const [user] = useState(localUser);
+	const [services] = useState(playServices);
 	const [people, setPeople] = useState<RemotePerson[]>([]);
 	const [motion, setMotion] = useState<Motion>("normal");
 	const [autoplay, setAutoplay] = useState(false);
@@ -372,6 +374,7 @@ export default function Playground() {
 				doc={sim.doc}
 				awareness={sim.awareness}
 				synced
+				services={services}
 			>
 				<PenProbe doc={sim.doc} mode={pen} onStats={setPenStats} />
 				<aside className="play-panel" aria-label="Playground controls">
