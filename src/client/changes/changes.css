@@ -179,6 +179,11 @@
 	animation: panel-in var(--t-settle) var(--ease-spring);
 }
 
+/* Focused only to keep focus in it (after the push sheet closes): not a control. */
+.changes-panel:focus {
+	outline: none;
+}
+
 .changes-panel[data-leaving] {
 	pointer-events: none;
 	animation: panel-out var(--t-base) var(--ease-out) forwards;

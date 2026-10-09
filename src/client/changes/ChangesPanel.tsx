@@ -58,12 +58,25 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 		return () => window.removeEventListener("keydown", onKey);
 	}, [ui]);
 
+	// Back from the push sheet: if focus had nowhere to go back to (the
+	// review button is disabled once everything's pushed), keep it in the
+	// panel, so Escape still closes it.
+	const sheetOpen = ui.sheet !== null;
+	const hadSheet = useRef(sheetOpen);
+	useEffect(() => {
+		const closed = hadSheet.current && !sheetOpen;
+		hadSheet.current = sheetOpen;
+		const lost = !document.activeElement || document.activeElement === document.body;
+		if (closed && lost) panel.current?.focus({ preventScroll: true });
+	}, [sheetOpen]);
+
 	const empty = changes.length === 0;
 	const failed = pending.filter((change) => change.status === "failed");
 
 	return (
 		<aside
 			ref={panel}
+			tabIndex={-1}
 			className="changes-panel changes-ui"
 			aria-label="Pending changes"
 			data-leaving={leaving || undefined}

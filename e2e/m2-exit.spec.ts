@@ -110,7 +110,9 @@ async function pushAll(page: Page, count: number) {
 	await expect(sheet.locator(".push-step[data-status=applied]")).toHaveCount(count);
 	await sheet.getByRole("button", { name: "Done" }).click();
 	await expect(sheet).toBeHidden();
-	await panel.getByRole("button", { name: "Close changes" }).click();
+	// Everything's pushed, so the review button is disabled, but focus stays
+	// in the panel: Escape closes it.
+	await page.keyboard.press("Escape");
 	await expect(panel).toBeHidden();
 }
 
