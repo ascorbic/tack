@@ -24,6 +24,7 @@ import {
 	repoName,
 	summarize,
 } from "../changes/describe.ts";
+import { linkWrittenDecisions } from "../../shared/decisions.ts";
 import { scaledDuration } from "../motion.ts";
 import { avatar } from "./ci.ts";
 import { LABELS, UPSTREAM, fixture } from "./fixtures.ts";
@@ -301,6 +302,9 @@ export class SimulatedPush implements PushClient {
 					}
 					this.apply(change, created);
 					this.write(change.id, { status: "applied" });
+					// A decision written back as a pull request now follows it, as the
+					// Board object does.
+					if (change.op.kind === "pr.create") linkWrittenDecisions(this.doc, SERVER_ORIGIN);
 					record(change.id, "applied", { url: result.url });
 				}),
 			);
@@ -383,6 +387,19 @@ export class SimulatedPush implements PushClient {
 					}));
 				}
 				break;
+			case "pr.create": {
+				const key = created.get(change.id);
+				if (!key) return;
+				const [, path = "acme/imagekit"] = /^[^/]+\/(.+)#\d+$/.exec(key) ?? [];
+				const card = fixture({
+					repo: path,
+					item: key.slice(key.lastIndexOf("#")),
+					kind: "pull",
+					title: op.title,
+				});
+				cardStore.set({ ...card, key });
+				break;
+			}
 			case "item.comment":
 				if ("key" in op.target) update(op.target.key, (card) => ({ comments: card.comments + 1 }));
 				break;

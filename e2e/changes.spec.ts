@@ -286,3 +286,37 @@ test.describe("changes gallery, in motion", () => {
 		await expect(landing.locator(".staged-label")).toHaveCount(0, { timeout: 8000 });
 	});
 });
+
+test("a decision's write-back goes out through the push sheet", async ({ page }) => {
+	await openScenario(page, "decisions");
+	const title = "Require Node 20 in imagekit 5.0";
+	const node = page.locator(".react-flow__node-decision", {
+		has: page.getByRole("article", { name: `Decision: ${title}`, exact: true }),
+	});
+	await node.getByRole("button", { name: "Decide" }).click();
+	await node.getByRole("button", { name: "Write back" }).click();
+	await page
+		.getByRole("dialog", { name: title })
+		.getByRole("button", { name: "Stage write-back" })
+		.click();
+
+	// Marked on the decision, and in the panel.
+	await expect(node.locator(".staged-flag", { hasText: "New pull request" })).toBeVisible();
+	await openPanel(page);
+	const pending = panel(page).locator(".change-row[data-status=staged]");
+	await expect(pending.filter({ hasText: `ADR 0004: ${title}` })).toHaveCount(1);
+
+	await panel(page)
+		.getByRole("button", { name: /^Review and push/ })
+		.click();
+	await expect(sheet(page).locator(".preview-files")).toContainText(
+		"docs/decisions/0004-require-node-20-in-imagekit-5-0.md",
+	);
+	await sheet(page)
+		.getByRole("button", { name: /^Push \d+ change/ })
+		.click();
+	await expect(sheet(page).locator(".push-ring[data-done]")).toBeVisible();
+	await sheet(page).getByRole("button", { name: "Done" }).click();
+	// The decision now follows its pull request.
+	await expect(node.locator(".decision-record")).toContainText("ADR 0004");
+});
