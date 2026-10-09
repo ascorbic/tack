@@ -1,6 +1,13 @@
 import type { Card, MissingCard } from "../../shared/cards.ts";
 import type { Operation, OperationKind, PushAs } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
+import type {
+	QueryError,
+	RelatedResult,
+	ReleaseResult,
+	SearchQuery,
+	SearchResult,
+} from "../../shared/widgets.ts";
 import type { ForgeId, ItemRef } from "../../shared/refs.ts";
 
 /** What a forge supports, so the UI can offer only what will work. */
@@ -215,6 +222,20 @@ export interface ForgeAdapter {
 	canWrite?(repo: RepoIdentity, token: string, env: Env): Promise<boolean>;
 	/** What a repository offers to write with: labels, milestones, people, categories. */
 	repoMeta?(repo: RepoIdentity, env: Env, auth?: ReadAuth): Promise<RepoMeta>;
+	// Reading for widgets (M3). `auth.token` is the viewer's own token where
+	// they have one; adapters fall back to the app's for public data.
+
+	/** Run a search in the forge's query language. */
+	search?(
+		query: SearchQuery,
+		env: Env,
+		auth?: ReadAuth & { viewer?: string },
+	): Promise<SearchResult | QueryError>;
+	/** Items related to one item. */
+	related?(key: string, env: Env, auth?: ReadAuth): Promise<RelatedResult | QueryError>;
+	/** A repository's latest release and what's merged since. */
+	release?(repo: RepoIdentity, env: Env, auth?: ReadAuth): Promise<ReleaseResult | QueryError>;
+
 	/** File names in a directory on the default branch (for numbering ADRs). */
 	listDirectory?(repo: RepoIdentity, path: string, env: Env, auth?: ReadAuth): Promise<string[]>;
 }

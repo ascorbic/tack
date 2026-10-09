@@ -1,6 +1,7 @@
 import { generateKeyBetween } from "fractional-indexing";
 import * as Y from "yjs";
 import type { Anchor } from "./geometry.ts";
+import type { InboxConfig, Provenance } from "./widgets.ts";
 
 // The board document: `shapes` is a map of shape id → Y.Map of properties.
 // Each property is its own key so concurrent edits to different properties
@@ -57,7 +58,14 @@ import type { Anchor } from "./geometry.ts";
 // sticky into it. Readers must tolerate that, and `repair.ts` fixes it up on
 // the server.
 
-export type ShapeType = "card" | "sticky" | "text" | "section" | "connector" | "decision";
+export type ShapeType =
+	| "card"
+	| "sticky"
+	| "text"
+	| "section"
+	| "connector"
+	| "decision"
+	| "widget";
 
 /** Where a decision stands. */
 export type DecisionStatus = "proposed" | "decided" | "superseded";
@@ -126,6 +134,14 @@ export interface ShapeProps {
 	votes?: Record<string, Vote>;
 	/** Decisions: the id of its write-back in the board's `changes`. */
 	writeback?: string;
+	/** Widgets: the kind (see src/shared/widgets.ts). */
+	widget?: string;
+	/** Widgets: the kind's config. */
+	config?: unknown;
+	/** Sections: an inbox frame's query (`InboxConfig`). */
+	inbox?: InboxConfig;
+	/** Cards: how the card arrived. Absent means placed by hand. */
+	provenance?: Provenance;
 }
 
 /**
