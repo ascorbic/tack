@@ -33,12 +33,13 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `pnpm fix` — apply formatting and safe lint fixes
 - `pnpm build` — production build
 - `pnpm deploy` — `vp build` then `cf deploy --prebuilt` (requires `cf auth login` or `CLOUDFLARE_API_TOKEN`). Production deploys happen via Workers Builds on push to `main`, not from CI or local machines
-- `pnpm deploy:preview` — `vp build` then `cf workers versions create --prebuilt`: uploads a version without promoting it. Workers Builds runs this for every other branch, giving each a preview URL
+- `pnpm deploy:preview` — builds Preview Build Output (`CLOUDFLARE_PREVIEW_BUILD=true vp build`) then `cf previews deploy --prebuilt`. Workers Builds runs this for every branch other than `main`, so each branch gets a Worker Preview with its own URL and its own isolated Durable Objects. `CLOUDFLARE_PREVIEW_BUILD` is what `cf build` sets for preview builds; we set it ourselves because `cf build` expects a `vite` binary
 
 ## Configuration Architecture
 
 - **`cloudflare.config.ts` is the source of truth for the Worker**: name, entrypoint, compatibility, bindings, observability. It uses `defineConfig({ worker: { ... } })` from `cf/config`, which both the `cf` CLI and the Vite plugin read.
 - The entrypoint uses the `with { type: "cf-worker" }` import attribute. This is what makes `Env` and `exports` inference work — keep that form when changing the entrypoint.
+- **Previews**: `cloudflare.config.ts` uses the function form of `defineConfig`, which receives `isPreview`. Previews don't inherit production settings, so it returns the complete config for both. Previews get no secrets (webhooks only go to production, and card fetches work unauthenticated), so the code must treat `GITHUB_WEBHOOK_SECRET` and `GITHUB_TOKEN` as optional.
 - **Bindings**: declare them in `cloudflare.config.ts` (e.g. `env: { MY_KV: bindings.kv() }` with `bindings` from the same import). The `Env` type is inferred from them — run `pnpm types` after config changes. Durable Object bindings to this same Worker are untyped; `src/server/namespaces.ts` restores the class types. Integration tests declare the same bindings for Miniflare in `test/harness.ts`, so keep the two in step.
 - **`compatibility.ts`** exists so the test runtime (`test/harness.ts`) always matches the deployed runtime. Extra exports are not allowed in `cloudflare.config.ts` (its exports are schema-validated), which is why this is a separate file.
 - **Version pins that must move together**: the `vite@*` and `vitest@*` overrides in `pnpm-workspace.yaml` pin Vite to `@voidzero-dev/vite-plus-core` at the installed `vite-plus` version, and Vitest to the version `vp toolchain vitest` reports. Update them whenever `vite-plus` changes. There are no direct `vite` or `vitest` dependencies: import test APIs from `vite-plus/test`.

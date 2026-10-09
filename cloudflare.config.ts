@@ -2,7 +2,11 @@ import { bindings, defineConfig, exports } from "cf/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import * as entrypoint from "./src/index.ts" with { type: "cf-worker" };
 
-export default defineConfig({
+// Previews don't inherit production settings, so this returns the complete
+// config for each. Each Preview gets its own isolated Durable Object
+// namespaces automatically. Previews get no secrets: webhooks only go to
+// production, and without a token cards are fetched unauthenticated.
+export default defineConfig(({ isPreview }) => ({
 	worker: {
 		name: "tack",
 		entrypoint,
@@ -15,8 +19,12 @@ export default defineConfig({
 		env: {
 			Board: bindings.durableObject({ worker: "tack", exportName: "Board" }),
 			Repo: bindings.durableObject({ worker: "tack", exportName: "Repo" }),
-			GITHUB_WEBHOOK_SECRET: bindings.secret(),
-			GITHUB_TOKEN: bindings.secret(),
+			...(isPreview
+				? {}
+				: {
+						GITHUB_WEBHOOK_SECRET: bindings.secret(),
+						GITHUB_TOKEN: bindings.secret(),
+					}),
 		},
 		exports: {
 			Board: exports.durableObject({ storage: "sqlite" }),
@@ -26,4 +34,4 @@ export default defineConfig({
 			enabled: true,
 		},
 	},
-});
+}));

@@ -12,7 +12,7 @@
 		"dev": "vp dev",
 		"build": "vp build",
 		"deploy": "vp build && cf deploy --prebuilt",
-		"deploy:preview": "vp build && cf workers versions create --prebuilt",
+		"deploy:preview": "CLOUDFLARE_PREVIEW_BUILD=true vp build && cf previews deploy --prebuilt",
 		"types": "cf workers types",
 		"test": "vp test",
 		"check": "vp check",
