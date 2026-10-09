@@ -1,4 +1,4 @@
-import { bindings, defineConfig, exports } from "cf/config";
+import { bindings, defineConfig, exports, triggers } from "cf/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import * as entrypoint from "./src/index.ts" with { type: "cf-worker" };
 
@@ -44,6 +44,10 @@ export default defineConfig(({ isPreview, mode }) => ({
 			Repo: exports.durableObject({ storage: "sqlite" }),
 			Instance: exports.durableObject({ storage: "sqlite" }),
 		},
+		triggers: [
+			// Redeliver failed GitHub webhooks (src/server/github/redeliver.ts).
+			triggers.scheduled({ schedule: "*/10 * * * *" }),
+		],
 		observability: {
 			enabled: true,
 		},

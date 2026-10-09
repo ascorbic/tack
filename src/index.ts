@@ -2,6 +2,7 @@ import { routePartykitRequest } from "partyserver";
 import { requireInstanceAccess } from "./server/auth/access.ts";
 import { handleAuth } from "./server/auth/routes.ts";
 import { handleClientError } from "./server/clientErrors.ts";
+import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
 import { handleWebhook } from "./server/webhooks.ts";
 
@@ -32,5 +33,14 @@ export default {
 		if (party) return party;
 
 		return new Response("Not found", { status: 404 });
+	},
+
+	async scheduled(_controller, env, ctx): Promise<void> {
+		// GitHub doesn't retry failed webhook deliveries; ask it to.
+		ctx.waitUntil(
+			redeliverFailedWebhooks(env).then((report) => {
+				if (report.status === "error") console.error("Webhook redelivery", report.reason);
+			}),
+		);
 	},
 } satisfies ExportedHandler<Env>;
