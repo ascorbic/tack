@@ -4,6 +4,7 @@ import type { Card, MissingCard } from "../shared/cards.ts";
 import { type ItemRef, parseKey } from "../shared/refs.ts";
 import type { Board } from "./board.ts";
 import { type Delivery, forge } from "./forges/index.ts";
+import { log } from "./log.ts";
 import { boards } from "./namespaces.ts";
 
 export type IngestResult =
@@ -73,7 +74,14 @@ export class Repo extends DurableObject<Env> {
 		const seen = this.sql
 			.exec("SELECT 1 FROM events WHERE delivery_id = ?", delivery.id)
 			.toArray().length;
-		if (seen) return { status: "duplicate" };
+		if (seen) {
+			log.info("repo.ingest", {
+				repo: delivery.repoKey,
+				delivery: delivery.id,
+				status: "duplicate",
+			});
+			return { status: "duplicate" };
+		}
 
 		this.sql.exec(
 			"INSERT INTO events (delivery_id, event, action, payload, received_at) VALUES (?, ?, ?, ?, ?)",
@@ -98,21 +106,48 @@ export class Repo extends DurableObject<Env> {
 		}
 
 		const notified = new Set<string>();
-		await Promise.allSettled(
+		const fanout = await Promise.allSettled(
 			updated.flatMap((card) =>
 				this.subscribers(card.key).map(async (name) => {
 					notified.add(name);
-					const board = await getServerByName<Env, Board>(boards(this.env), name);
-					await board.cardUpdated(card);
+					try {
+						const board = await getServerByName<Env, Board>(boards(this.env), name);
+						await board.cardUpdated(card);
+					} catch (error) {
+						log.error("repo.fanout.failed", {
+							repo: delivery.repoKey,
+							board: name,
+							card: card.key,
+							error,
+						});
+						throw error;
+					}
 				}),
 			),
 		);
-		return {
+		const result: IngestResult = {
 			status: "processed",
 			updated: updated.map((card) => card.key),
 			stale,
 			boards: notified.size,
 		};
+		log.info("repo.ingest", {
+			repo: delivery.repoKey,
+			delivery: delivery.id,
+			event: delivery.event,
+			action: delivery.action,
+			status: result.status,
+			updated: updated.length,
+			stale: stale.length,
+		});
+		log.info("repo.fanout", {
+			repo: delivery.repoKey,
+			delivery: delivery.id,
+			boards: notified.size,
+			sent: fanout.filter((r) => r.status === "fulfilled").length,
+			failed: fanout.filter((r) => r.status === "rejected").length,
+		});
+		return result;
 	}
 
 	private store(card: Card): void {
@@ -137,10 +172,19 @@ export class Repo extends DurableObject<Env> {
 		// Every key in one Repo shares a host, so one adapter fetches them all.
 		const first = toFetch[0];
 		if (first) {
-			for (const card of await forge(first.forge).fetchItems(toFetch, this.env)) {
+			const fetched = await forge(first.forge).fetchItems(toFetch, this.env);
+			for (const card of fetched) {
 				if (!("missing" in card)) this.store(card);
 				result.set(card.key, card);
 			}
+			const missing = fetched.filter((card) => "missing" in card);
+			const errors = missing.filter((card) => card.reason === "error").length;
+			(errors > 0 ? log.warn : log.info)("repo.fetch", {
+				repo: `${first.host}/${first.repo}`,
+				requested: toFetch.length,
+				missing: missing.length,
+				errors,
+			});
 		}
 		return keys.map((key) => result.get(key) ?? { key, missing: true, reason: "error" });
 	}

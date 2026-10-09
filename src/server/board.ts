@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import type { Card, CardMessage, MissingCard } from "../shared/cards.ts";
 import { repoKeyOf } from "../shared/refs.ts";
 import { cardRefs } from "../shared/shapes.ts";
+import { log } from "./log.ts";
 import { repos } from "./namespaces.ts";
 
 // Durable Object storage rows max out at 2 MB, so snapshots are chunked.
@@ -25,17 +26,25 @@ export class Board extends YServer<Env> {
 		);
 		await super.onStart();
 		this.document.on("update", () => {
-			void this.syncSubscriptions();
+			this.syncSubscriptions().catch((error: unknown) =>
+				log.error("board.subscriptions.failed", { board: this.name, error }),
+			);
 		});
-		await this.syncSubscriptions();
+		await this.syncSubscriptions().catch((error: unknown) =>
+			log.error("board.subscriptions.failed", { board: this.name, error }),
+		);
 	}
 
 	override async onLoad(): Promise<Y.Doc | void> {
 		const rows = this.ctx.storage.sql
 			.exec<{ chunk: ArrayBuffer }>("SELECT chunk FROM snapshot ORDER BY seq")
 			.toArray();
-		if (rows.length === 0) return;
+		if (rows.length === 0) {
+			log.info("board.load", { board: this.name, bytes: 0, chunks: 0 });
+			return;
+		}
 		const total = rows.reduce((n, row) => n + row.chunk.byteLength, 0);
+		log.info("board.load", { board: this.name, bytes: total, chunks: rows.length });
 		const update = new Uint8Array(total);
 		let offset = 0;
 		for (const row of rows) {
@@ -50,16 +59,27 @@ export class Board extends YServer<Env> {
 	override async onSave(): Promise<void> {
 		// Re-encoding the full state compacts the update history each save.
 		const update = Y.encodeStateAsUpdate(this.document);
-		this.ctx.storage.transactionSync(() => {
-			this.ctx.storage.sql.exec("DELETE FROM snapshot");
-			for (let i = 0; i * CHUNK_SIZE < update.byteLength; i++) {
-				this.ctx.storage.sql.exec(
-					"INSERT INTO snapshot (seq, chunk) VALUES (?, ?)",
-					i,
-					update.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
-				);
-			}
-		});
+		const context = {
+			board: this.name,
+			bytes: update.byteLength,
+			chunks: Math.ceil(update.byteLength / CHUNK_SIZE),
+		};
+		try {
+			this.ctx.storage.transactionSync(() => {
+				this.ctx.storage.sql.exec("DELETE FROM snapshot");
+				for (let i = 0; i * CHUNK_SIZE < update.byteLength; i++) {
+					this.ctx.storage.sql.exec(
+						"INSERT INTO snapshot (seq, chunk) VALUES (?, ?)",
+						i,
+						update.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
+					);
+				}
+			});
+		} catch (error) {
+			log.error("board.save.failed", { ...context, error });
+			throw error;
+		}
+		log.info("board.save", context);
 	}
 
 	override onConnect(connection: Connection, ctx: ConnectionContext): void {
@@ -70,6 +90,14 @@ export class Board extends YServer<Env> {
 				encode({ type: "cards", cards: [...this.cards.values()] }),
 			);
 		}
+	}
+
+	override onError(connection: Connection, error: unknown): void {
+		log.error("board.connection.error", { board: this.name, connection: connection.id, error });
+	}
+
+	override onException(error: unknown): void {
+		log.error("board.exception", { board: this.name, error });
 	}
 
 	/** Called by Repo when a subscribed card changes. */
