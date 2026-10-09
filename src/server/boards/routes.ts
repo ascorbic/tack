@@ -147,7 +147,7 @@ export async function authorizeBoardConnection(
  * Who's making a request, for boards: signed in or not, and whether they
  * may use the instance (everyone may before setup, and on Previews).
  */
-async function visitorFor(request: Request, env: Env): Promise<Visitor> {
+export async function visitorFor(request: Request, env: Env): Promise<Visitor> {
 	if (!env.TACK_SECRET) return { user: null, allowed: true };
 	const { configured, session } = await lookupRequest(request, env);
 	return { user: session?.viewer ?? null, allowed: !configured || (session?.allowed ?? false) };

@@ -16,6 +16,7 @@ import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
 import { PushEngine, type PushCommand, type PushTiming } from "./push/engine.ts";
 import { repoObject, resolveRepo } from "./routing.ts";
+import { loadSnapshot, storeSnapshot } from "./snapshots.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
 
 /**
@@ -163,6 +164,20 @@ export class Board extends YServer<Env> {
 		});
 		this.watchForRepairs();
 		await this.syncSubscriptions();
+	}
+
+	// Snapshot images for backlinks (see snapshots.ts). These only touch their
+	// own table, so serving an image never loads the board's document.
+
+	/** Keep a snapshot image; returns its public id, unless the board's allowance is used up. */
+	async saveSnapshot(png: ArrayBuffer): Promise<{ ok: true; id: string } | { ok: false }> {
+		const id = storeSnapshot(this.ctx.storage, this.ctx.id.toString(), png);
+		return id ? { ok: true, id } : { ok: false };
+	}
+
+	/** A snapshot image, by the random part of its id. */
+	async snapshotImage(token: string): Promise<ArrayBuffer | null> {
+		return loadSnapshot(this.ctx.storage, token);
 	}
 
 	private repairTimer: ReturnType<typeof setTimeout> | undefined;

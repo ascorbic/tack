@@ -5,6 +5,7 @@ import { handleClientError } from "./server/clientErrors.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
 import { handlePush } from "./server/push/routes.ts";
+import { handleSnapshots } from "./server/snapshots.ts";
 import { handleWebhook } from "./server/webhooks.ts";
 
 export { Board } from "./server/board.ts";
@@ -30,6 +31,10 @@ export default {
 		// Pushing staged changes, the audit log, and what repositories offer to write with.
 		const push = await handlePush(request, env);
 		if (push) return push;
+
+		// Board snapshots for backlink comments: uploads, and the public images.
+		const snapshot = await handleSnapshots(request, env);
+		if (snapshot) return snapshot;
 
 		// The board index, membership and visibility.
 		const boards = await handleBoards(request, env);

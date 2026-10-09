@@ -23,6 +23,7 @@ export default defineConfig(({ isPreview, mode }) => ({
 				"/setup/callback",
 				"/setup/install",
 				"/setup/installed",
+				"/snapshots/*",
 			],
 		},
 		env: {

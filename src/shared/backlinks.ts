@@ -90,3 +90,19 @@ export const SNAPSHOT_MAX_SIDE = 4096;
 
 /** A snapshot's id: the board object's id (64 hex) then 32 random hex characters. */
 export const SNAPSHOT_ID = /^[0-9a-f]{96}$/;
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/** A PNG's size from its header, or null if it isn't a PNG. */
+export function pngSize(bytes: Uint8Array): { width: number; height: number } | null {
+	if (bytes.length < 33) return null;
+	if (!PNG_SIGNATURE.every((byte, i) => bytes[i] === byte)) return null;
+	// The first chunk must be IHDR: length 13, then the type.
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	if (view.getUint32(8) !== 13) return null;
+	if (String.fromCharCode(...bytes.subarray(12, 16)) !== "IHDR") return null;
+	const width = view.getUint32(16);
+	const height = view.getUint32(20);
+	if (width === 0 || height === 0) return null;
+	return { width, height };
+}
