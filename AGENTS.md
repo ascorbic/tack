@@ -32,7 +32,8 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `pnpm check` — format check, lint, and type check in one pass (`vp check`)
 - `pnpm fix` — apply formatting and safe lint fixes
 - `pnpm build` — production build
-- `pnpm deploy` — `vp build` then `cf deploy --prebuilt` (requires `cf auth login` or `CLOUDFLARE_API_TOKEN`). Production deploys normally happen via Workers Builds on push to main, not from CI or local machines
+- `pnpm deploy` — `vp build` then `cf deploy --prebuilt` (requires `cf auth login` or `CLOUDFLARE_API_TOKEN`). Production deploys happen via Workers Builds on push to `main`, not from CI or local machines
+- `pnpm deploy:preview` — `vp build` then `cf workers versions create --prebuilt`: uploads a version without promoting it. Workers Builds runs this for every other branch, giving each a preview URL
 
 ## Configuration Architecture
 
