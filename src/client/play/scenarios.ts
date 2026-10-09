@@ -14,8 +14,10 @@ import { type NewConnector, addConnector, addSection } from "../../shared/struct
 import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { seedDecisions } from "./decisions.ts";
+import type { Stager } from "../../shared/changes.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 import { seedWrites } from "./writes.ts";
+import { IMAGEKIT, PEOPLE, failChange, stageAs } from "./push.ts";
 
 export interface Scenario {
 	name: string;
@@ -152,6 +154,138 @@ const bound = (shape: string, anchor?: { x: number; y: number }): ConnectorEnd =
 	shape,
 	anchor,
 });
+
+/**
+ * A board mid-session: a few people have staged changes of every kind on
+ * stickies and cards, one change failed last time, and one is left out.
+ */
+function seedPush(doc: Y.Doc): void {
+	const upstream = ACCESS_GALLERY[0]?.card;
+	const cards = [...PLANNING_CARDS, ...(upstream ? [upstream] : [])];
+	for (const fixtureCard of cards) cardStore.set(fixtureCard);
+	const ids = new Map<string, string>();
+	doc.transact(() => {
+		PLANNING_CARDS.forEach((fixtureCard, i) => {
+			ids.set(
+				fixtureCard.item,
+				card(doc, fixtureCard.key, 40 + (i % 3) * 300, 70 + Math.floor(i / 3) * 330),
+			);
+		});
+		if (upstream) ids.set("upstream", card(doc, upstream.key, 40, 740));
+	});
+	const shape = (item: string) => ids.get(item) ?? "";
+	const key = (item: string) => `${IMAGEKIT}${item}`;
+	nextAuthor = 0;
+	const errors = sticky(doc, "Better errors when the CDN isn’t recognised", "yellow", 980, 90);
+	const guide = sticky(doc, "Write the 5.0 migration guide first", "green", 1200, 110);
+	const idea = sticky(doc, "A provider playground?", "blue", 990, 400, "hand");
+	sticky(doc, "Who owns the CDN list?", "pink", 1210, 420);
+
+	const { priya, kai, tom, jo } = PEOPLE as Record<string, Stager>;
+	if (!priya || !kai || !tom || !jo) return;
+	stageAs(
+		doc,
+		{
+			kind: "issue.create",
+			repo: IMAGEKIT,
+			title: "Better errors when the CDN isn’t recognised",
+			body: "When `detect()` can’t match a URL to a provider, it silently falls back to the default and drops every transform.\n\n**Instead**, warn once with the URL and a link to the provider list:\n\n- say which URL didn’t match\n- suggest the closest provider\n- [ ] add a test for custom domains\n\nCame out of the 5.0 planning session. cc @kai",
+			labels: ["enhancement", "provider"],
+		},
+		priya,
+		{ shapes: [errors], effect: { kind: "replace", shapes: [errors] }, minutesAgo: 14 },
+	);
+	const migration = stageAs(
+		doc,
+		{
+			kind: "issue.create",
+			repo: IMAGEKIT,
+			title: "Write the 5.0 migration guide",
+			body: "Before the code: what changes, why, and a codemod where we can.",
+			labels: ["docs"],
+			assignees: ["jo"],
+			milestone: "5.0",
+		},
+		kai,
+		{ shapes: [guide], effect: { kind: "replace", shapes: [guide] }, minutesAgo: 12 },
+	);
+	stageAs(
+		doc,
+		{ kind: "item.subIssue", parent: { key: key("#412") }, child: { pending: migration } },
+		kai,
+		{ shapes: [shape("#412"), guide], minutesAgo: 11 },
+	);
+	stageAs(
+		doc,
+		{
+			kind: "item.labels",
+			target: { key: key("#412") },
+			add: ["needs review"],
+			remove: ["enhancement"],
+		},
+		tom,
+		{ shapes: [shape("#412")], minutesAgo: 9 },
+	);
+	stageAs(
+		doc,
+		{ kind: "item.state", target: { key: key("#377") }, state: "closed", reason: "completed" },
+		jo,
+		{ shapes: [shape("#377")], minutesAgo: 8 },
+	);
+	stageAs(
+		doc,
+		{
+			kind: "item.comment",
+			target: { key: key("#418") },
+			body: "We agreed to land this for **5.0** once CI is green. @kai can you take the review?\n\nTracked on the planning board.",
+		},
+		priya,
+		{ shapes: [shape("#418")], minutesAgo: 7 },
+	);
+	stageAs(
+		doc,
+		{ kind: "item.blockedBy", target: { key: key("#423") }, blockedBy: { key: key("#418") } },
+		tom,
+		{ shapes: [shape("#423"), shape("#418")], minutesAgo: 6 },
+	);
+	stageAs(doc, { kind: "item.assignees", target: { key: key("#423") }, add: ["priya"] }, jo, {
+		shapes: [shape("#423")],
+		minutesAgo: 5,
+	});
+	const milestone = stageAs(
+		doc,
+		{ kind: "item.milestone", target: { key: key("#409") }, milestone: "5.0" },
+		kai,
+		{ shapes: [shape("#409")], minutesAgo: 30 },
+	);
+	failChange(doc, milestone, "Milestone “5.0” is closed on acme/imagekit");
+	stageAs(
+		doc,
+		{
+			kind: "pr.create",
+			repo: IMAGEKIT,
+			title: "Decision: drop Node 18 in 5.0",
+			body: "Records the decision from the planning board, so the reasoning lives next to the code.",
+			branch: "tack/decision-drop-node-18",
+			files: [
+				{
+					path: "docs/decisions/0007-drop-node-18.md",
+					content:
+						"# Drop Node 18 in 5.0\n\nStatus: decided\n\n## Context\n\nNode 18 is out of support, and three dependencies already need 20.\n\n## Decision\n\n5.0 needs Node 20 or later.\n",
+				},
+			],
+		},
+		jo,
+		{ shapes: [idea], minutesAgo: 3 },
+	);
+	if (upstream) {
+		stageAs(doc, { kind: "item.labels", target: { key: upstream.key }, add: ["triage"] }, tom, {
+			shapes: [shape("upstream")],
+			included: false,
+			minutesAgo: 2,
+		});
+	}
+}
 
 export const SCENARIOS: Record<string, Scenario> = {
 	planning: {
@@ -355,6 +489,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"Select stickies, a section, cards or the arrow to stage issues, sub-issues, blocked-by, triage and backlinks.",
 		seed: seedWrites,
+	},
+	push: {
+		name: "Pushing to GitHub",
+		description:
+			"Changes staged by a few people, on stickies and cards: open Changes in the top bar, then review and push. One failed last time; one is left out.",
+		seed: seedPush,
 	},
 	empty: {
 		name: "Empty",

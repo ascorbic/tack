@@ -1,5 +1,5 @@
 import { ReactFlowProvider } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Card, PullDetails } from "../../shared/cards.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import { Board } from "../Board.tsx";
@@ -27,6 +27,8 @@ import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
 import { playServices } from "./writes.ts";
+import { ChangeControls } from "./ChangeControls.tsx";
+import { pastPushes, SimulatedPush } from "./push.ts";
 
 type Motion = "normal" | "slow" | "reduced";
 
@@ -90,8 +92,27 @@ export default function Playground() {
 	// Decisions' write-backs ask a fake repository instead of the server.
 	useEffect(() => installFakeRepoApi(), []);
 
-	const [user] = useState(localUser);
 	const [services] = useState(playServices);
+	const [guest] = useState(localUser);
+	// Signed in by default, as a made-up GitHub login, so pushing works.
+	const [signedIn, setSignedIn] = useState(true);
+	const [viewOnly, setViewOnly] = useState(false);
+	const user = useMemo(
+		() =>
+			signedIn ? { ...guest, login: guest.name.toLowerCase().replace(/[^a-z]+/g, "-") } : guest,
+		[guest, signedIn],
+	);
+	// Who's pushing is read when a push starts.
+	const pusher = useRef(user);
+	pusher.current = user;
+	const push = useMemo(() => {
+		const client = new SimulatedPush(sim.doc, () => ({
+			login: pusher.current.login ?? "guest",
+			name: pusher.current.name,
+		}));
+		client.seedHistory(pastPushes());
+		return client;
+	}, [sim]);
 	const [people, setPeople] = useState<RemotePerson[]>([]);
 	const [motion, setMotion] = useState<Motion>("normal");
 	const [autoplay, setAutoplay] = useState(false);
@@ -375,6 +396,8 @@ export default function Playground() {
 				awareness={sim.awareness}
 				synced
 				services={services}
+				readOnly={viewOnly}
+				push={push}
 			>
 				<PenProbe doc={sim.doc} mode={pen} onStats={setPenStats} />
 				<aside className="play-panel" aria-label="Playground controls">
@@ -451,6 +474,17 @@ export default function Playground() {
 							zoom.
 						</p>
 					</div>
+
+					<ChangeControls
+						sim={sim}
+						push={push}
+						user={user}
+						someone={someone}
+						signedIn={signedIn}
+						onSignedIn={setSignedIn}
+						viewOnly={viewOnly}
+						onViewOnly={setViewOnly}
+					/>
 
 					<div className="play-section">
 						<h2 className="play-label">Sections and connectors</h2>
