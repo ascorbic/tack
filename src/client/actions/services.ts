@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { Stager } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
+import { repoApi } from "../decisions/api.ts";
 import type { User } from "../presence.ts";
 
 // What the built-in actions need from outside the board document: the
@@ -30,17 +31,8 @@ export function liveServices(boardId: string): WriteServices {
 	return {
 		boardUrl: () => location.origin + location.pathname,
 		boardTitle: () => document.title.replace(/ · Tack$/, "") || null,
-		async repoMeta(repo) {
-			try {
-				const response = await fetch(`/api/repos/meta?repo=${encodeURIComponent(repo)}`, {
-					headers: { accept: "application/json" },
-				});
-				if (!response.ok) return null;
-				return (await response.json()) as RepoMeta;
-			} catch {
-				return null;
-			}
-		},
+		// The same repository endpoint (and fetch helper) decisions use.
+		repoMeta: (repo) => repoApi.meta(repo).catch(() => null),
 		async uploadSnapshot(png) {
 			let response: Response;
 			try {
