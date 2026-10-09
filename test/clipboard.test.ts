@@ -12,6 +12,7 @@ import {
 	toHtml,
 	toPlainText,
 } from "../src/client/clipboard.ts";
+import { addDecision, castVote } from "../src/shared/decisions.ts";
 import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
 
 function board() {
@@ -201,5 +202,45 @@ describe("interpretText", () => {
 		expect(interpretText("   \n ")).toBeNull();
 		const long = interpretText("x".repeat(MAX_PASTED_TEXT + 100));
 		expect(long?.kind === "sticky" && long.text.length).toBe(MAX_PASTED_TEXT);
+	});
+});
+
+describe("decisions", () => {
+	it("copy with their votes, but leave their write-back with the original", () => {
+		const doc = new Y.Doc();
+		addDecision(doc, "d", { x: 10, y: 20, title: "Drop Node 18", text: "EOL" });
+		castVote(doc, "d", { name: "Priya", login: "priya" }, "agree");
+		const decision = shapesMap(doc).get("d");
+		decision?.set("status", "decided");
+		decision?.set("writeback", "change-1");
+		decision?.set("ref", "github.com/acme/x#88");
+
+		const payload = roundTrip(copyShapes(doc, ["d"])) as ClipboardPayload;
+		expect(toPlainText(payload)).toContain("Drop Node 18");
+		const [id] = pasteShapes(doc, payload, { x: 40, y: 40 });
+		const copy = shapesMap(doc).get(id as string) as Y.Map<unknown>;
+		expect(copy.get("votes")).toBeInstanceOf(Y.Map);
+		expect(readShape(copy)).toMatchObject({
+			type: "decision",
+			title: "Drop Node 18",
+			status: "decided",
+			votes: { "@priya": { choice: "agree" } },
+		});
+		expect(copy.has("writeback")).toBe(false);
+		expect(copy.has("ref")).toBe(false);
+	});
+
+	it("always get a votes map, even from a payload without one", () => {
+		const doc = new Y.Doc();
+		const [id] = pasteShapes(
+			doc,
+			{ tack: 1, shapes: [{ id: "x", props: { type: "decision", x: 0, y: 0, title: "t" } }] },
+			{ x: 0, y: 0 },
+		);
+		expect(
+			shapesMap(doc)
+				.get(id as string)
+				?.get("votes"),
+		).toBeInstanceOf(Y.Map);
 	});
 });

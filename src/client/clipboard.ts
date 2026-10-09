@@ -1,6 +1,7 @@
 import { generateNKeysBetween } from "fractional-indexing";
 import * as v from "valibot";
 import * as Y from "yjs";
+import { DECISION_UNCOPIED } from "../shared/decisions.ts";
 import { itemKey, parseRef } from "../shared/refs.ts";
 import { nextZ, shapesMap } from "../shared/shapes.ts";
 
@@ -114,8 +115,8 @@ export function fromHtml(html: string | undefined | null): ClipboardPayload | nu
 }
 
 /**
- * Plain text for pasting outside Tack: each sticky's text and each card's
- * link, one per paragraph.
+ * Plain text for pasting outside Tack: each sticky's text, each card's link,
+ * and each decision's title and body, one per paragraph.
  */
 export function toPlainText(
 	payload: ClipboardPayload,
@@ -123,6 +124,9 @@ export function toPlainText(
 ): string {
 	const parts: string[] = [];
 	for (const { props } of payload.shapes) {
+		if (props.type === "decision" && typeof props.title === "string" && props.title.trim()) {
+			parts.push(props.title.trim());
+		}
 		if (typeof props.ref === "string") parts.push(cardUrl(props.ref) ?? props.ref);
 		const text = plainString(props.text);
 		if (text?.trim()) parts.push(text.trim());
@@ -156,6 +160,13 @@ export function payloadBounds(payload: ClipboardPayload): Rect | null {
 }
 
 /**
+ * Properties that stay with the original rather than travel with a copy: a
+ * decision's write-back, and the pull request it was written to, belong to
+ * that decision. A pasted one can be written back on its own.
+ */
+const UNCOPIED: Record<string, readonly string[]> = { decision: DECISION_UNCOPIED };
+
+/**
  * Add copied shapes to the document, moved by `offset`, with new ids and on
  * top of everything else (keeping their order). Properties that refer to
  * another copied shape by id, such as a connector's ends, are pointed at the
@@ -176,11 +187,20 @@ export function pasteShapes(
 	payload.shapes.forEach((copied, i) => {
 		const id = ids.get(copied.id) ?? crypto.randomUUID();
 		const shape = new Y.Map<unknown>();
+		const uncopied = UNCOPIED[String(copied.props.type)];
+		// Votes merge only as a Y.Map, so a decision always gets one. (A new
+		// Y.Map can't be read back until it's in the document, so track it.)
+		let hasVotes = false;
 		for (const [key, value] of Object.entries(copied.props)) {
 			if (key === "x" || key === "y" || key === "z" || value === undefined) continue;
+			if (uncopied?.includes(key)) continue;
 			// A shape's type is never a reference, whatever its id happens to be.
-			shape.set(key, fromPlain(key === "type" ? value : remapIds(value, ids)));
+			const plain = fromPlain(key === "type" ? value : remapIds(value, ids));
+			if (key === "votes" && !(plain instanceof Y.Map)) continue;
+			if (key === "votes") hasVotes = true;
+			shape.set(key, plain);
 		}
+		if (copied.props.type === "decision" && !hasVotes) shape.set("votes", new Y.Map());
 		shape.set("x", Math.round(Number(copied.props.x) + offset.x));
 		shape.set("y", Math.round(Number(copied.props.y) + offset.y));
 		shape.set("z", zs[i]);
