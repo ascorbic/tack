@@ -9,9 +9,11 @@ import type { ApplyResult, ForgeAdapter } from "./types.ts";
 // Example key: fake.tack/stress/cards#42
 //
 // Writes go nowhere: `apply` answers as a forge would, without a network,
-// so the push flow can be tried end to end without GitHub. Created items
-// get a number from 100000 up (their cards are synthetic, like any other).
-// Anything with "[fail]" in its title or body is refused, to show failures.
+// so the push flow can be tried end to end without GitHub, sub-issues and
+// blocked-by included. Created items get a number from 100000 up: even for
+// issues, odd for pull requests, so their (synthetic) cards are open items
+// of the right kind. Anything with "[fail]" in its title or body is
+// refused, to show failures.
 
 const LABELS = [
 	{ name: "bug", color: "d73a4a" },
@@ -21,45 +23,75 @@ const LABELS = [
 ];
 const STATES = ["open", "open", "closed", "merged", "draft"] as const;
 
-/** What the fake forge can write: everything but what its capabilities say it lacks. */
+/** What the fake forge can write: everything but Discussions. */
 const FAKE_WRITES: OperationKind[] = [
 	"issue.create",
 	"item.labels",
 	"item.milestone",
 	"item.assignees",
 	"item.state",
+	"item.subIssue",
+	"item.blockedBy",
 	"item.comment",
 	"pr.create",
 ];
 
+/** Numbers from here up are items `apply` made. */
+const CREATED_FROM = 100_000;
+
+/** A number for an item `apply` makes: even for issues, odd for pull requests. */
+function createdNumber(kind: "issue" | "pull"): number {
+	const n = CREATED_FROM + 2 * Math.floor(Math.random() * 450_000);
+	return kind === "pull" ? n + 1 : n;
+}
+
 export function fakeCard(repo: string, n: number): Card {
-	const state = STATES[n % STATES.length] ?? "open";
 	const item = `#${n}`;
-	return {
+	const common: Pick<
+		Card,
+		"key" | "forge" | "host" | "repo" | "item" | "assignees" | "author" | "url" | "updatedAt"
+	> = {
 		key: itemKey({ host: "fake.tack", repo, item }),
 		forge: "fake",
 		host: "fake.tack",
 		repo,
 		item,
+		assignees: [],
+		author: null,
+		url: `https://fake.tack/${repo}/${n}`,
+		updatedAt: new Date(0).toISOString(),
+	};
+	if (n >= CREATED_FROM) {
+		const kind = n % 2 === 1 ? "pull" : "issue";
+		return {
+			...common,
+			kind,
+			title: `Made on the fake forge: ${kind === "pull" ? "pull request" : "issue"} ${n}`,
+			state: "open",
+			stateReason: null,
+			labels: [],
+			comments: 0,
+			reactions: 0,
+		};
+	}
+	const state = STATES[n % STATES.length] ?? "open";
+	return {
+		...common,
 		kind: state === "merged" || state === "draft" ? "pull" : "issue",
 		title: `Synthetic card ${n}: a reasonably long title so it wraps onto two lines`,
 		state,
 		stateReason: state === "closed" ? "completed" : null,
 		labels: LABELS.slice(0, (n % 3) + 1),
-		assignees: [],
-		author: null,
 		comments: n % 17,
 		reactions: n % 9,
-		url: `https://fake.tack/${repo}/${n}`,
-		updatedAt: new Date(0).toISOString(),
 	};
 }
 
 export const fake: ForgeAdapter = {
 	id: "fake",
 	capabilities: {
-		subIssues: false,
-		blockedBy: false,
+		subIssues: true,
+		blockedBy: true,
 		discussions: false,
 		draftPulls: true,
 		ciStatus: false,
@@ -82,11 +114,11 @@ export const fake: ForgeAdapter = {
 			return { ok: false, error: "The fake forge can't do that.", retryable: false };
 		}
 		if (op.kind === "issue.create" || op.kind === "pr.create") {
-			const n = 100_000 + Math.floor(Math.random() * 900_000);
+			const n = createdNumber(op.kind === "pr.create" ? "pull" : "issue");
 			const key = itemKey({ host: repo.host, repo: repo.name, item: `#${n}` });
 			return { ok: true, key, url: `https://fake.tack/${repo.name}/${n}`, confirmed: true };
 		}
-		const target = "target" in op ? op.target : null;
+		const target = op.kind === "item.subIssue" ? op.parent : "target" in op ? op.target : null;
 		const key = target && "key" in target ? target.key : undefined;
 		// Synthetic cards never change, so the answer is all the confirmation there is.
 		return { ok: true, ...(key ? { key } : {}), confirmed: true } satisfies ApplyResult;

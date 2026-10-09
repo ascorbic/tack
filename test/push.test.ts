@@ -436,8 +436,29 @@ describe("the fake forge", () => {
 			{ name: "Devvy" },
 			{ id: "nope" },
 		);
+		// Sub-issues and blocked-by too, so the whole flow works locally.
+		stageChange(
+			client.doc,
+			{
+				kind: "item.subIssue",
+				parent: { pending: "idea" },
+				child: { key: "fake.tack/demo/board#5" },
+			},
+			{ name: "Devvy" },
+			{ id: "sub" },
+		);
+		stageChange(
+			client.doc,
+			{
+				kind: "item.blockedBy",
+				target: { key: "fake.tack/demo/board#6" },
+				blockedBy: { pending: "idea" },
+			},
+			{ name: "Devvy" },
+			{ id: "blocked" },
+		);
 		await client.roundTrip();
-		expect((await push(mf, board, dev, ["idea", "nope"])).status).toBe(202);
+		expect((await push(mf, board, dev, ["idea", "nope", "sub", "blocked"])).status).toBe(202);
 		const idea = await until(client, "idea", "applied");
 		expect(idea.result?.key).toMatch(/^fake\.tack\/demo\/board#\d+$/);
 		await eventually(() =>
@@ -446,6 +467,17 @@ describe("the fake forge", () => {
 		expect(await until(client, "nope", "failed")).toMatchObject({
 			error: "The fake forge refused this, as asked (“[fail]”).",
 		});
+		await until(client, "sub", "applied");
+		await until(client, "blocked", "applied");
+
+		// The new card is an open issue, and counts as writable without any app,
+		// so its actions aren't held back with "Install the app".
+		const stub = await boardStub(mf, board);
+		await eventually(async () =>
+			(await stub.liveCards()).some((card) => card.key === idea.result?.key),
+		);
+		const card = (await stub.liveCards()).find((card) => card.key === idea.result?.key);
+		expect(card).toMatchObject({ kind: "issue", state: "open", live: true, writable: true });
 	});
 });
 
