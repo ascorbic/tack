@@ -1,5 +1,6 @@
 import type { Card, CardState, MissingCard } from "../../shared/cards.ts";
 import { type ItemRef, itemKey } from "../../shared/refs.ts";
+import { repoToken } from "../github/tokens.ts";
 import { verifySignature } from "./hmac.ts";
 import type { ForgeAdapter, WebhookResult } from "./types.ts";
 
@@ -74,10 +75,11 @@ export function normaliseIssue(
 async function fetchItem(ref: ItemRef, env: Env): Promise<Card | MissingCard> {
 	const key = itemKey(ref);
 	const number = ref.item.slice(1);
+	const token = await repoToken(env, `${HOST}/${ref.repo}`.toLowerCase());
 	const headers: HeadersInit = {
 		accept: "application/vnd.github+json",
 		"user-agent": "tack",
-		...(env.GITHUB_TOKEN ? { authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}),
+		...(token ? { authorization: `Bearer ${token}` } : {}),
 	};
 	const base = `https://api.github.com/repos/${ref.repo}`;
 	try {
