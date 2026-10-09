@@ -47,7 +47,7 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 
 - `pnpm dev` — start the dev server (`vp dev`). `cf dev` and `cf build` expect a `vite` binary, which Vite+ doesn't provide, so use `vp`
 - `pnpm test` — unit and integration tests (`vp test`)
-- `pnpm e2e` — Playwright smoke tests (`e2e/`). Starts its own dev server on port 5205, or reuses one already running there. Install the browser once with `pnpm exec playwright install chromium`
+- `pnpm e2e` — Playwright smoke tests (`e2e/`). Starts its own dev server on port 5205 (or `E2E_PORT`), or reuses one already running there. Install the browser once with `pnpm exec playwright install chromium`
 - `pnpm e2e:visual` / `pnpm e2e:update` — also run (or rewrite the baselines for) the opt-in pixel comparison of the gallery
 - `pnpm check` — format check, lint, and type check in one pass (`vp check`)
 - `pnpm fix` — apply formatting and safe lint fixes

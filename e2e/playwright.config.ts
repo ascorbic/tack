@@ -4,7 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 // server. Kept apart from `vp test` so the unit and integration tests stay
 // fast: run them with `pnpm e2e`.
 
-const PORT = 5205;
+// E2E_PORT lets parallel worktrees each run their own dev server.
+const PORT = Number(process.env.E2E_PORT ?? 5205);
 const CI = Boolean(process.env.CI);
 
 export default defineConfig({
