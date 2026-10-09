@@ -2,15 +2,6 @@
    Connectors
    ------------------------------------------------------------------------ */
 
-:root {
-	--connector-ink: #3f444b;
-	--connector-red: #c2372b;
-	--connector-orange: #c0650f;
-	--connector-green: #1f7a4a;
-	--connector-blue: #2a62c9;
-	--connector-purple: #7444c4;
-}
-
 :is(.connector, .connector-label, .connector-swatch)[data-color="ink"] {
 	--connector: var(--connector-ink);
 }
@@ -149,7 +140,7 @@
 
 .connector-snap {
 	fill: var(--accent);
-	stroke: #fff;
+	stroke: var(--surface);
 	stroke-width: calc(2 * var(--px, 1px));
 }
 
@@ -226,9 +217,9 @@
 	position: absolute;
 	inset: 2px;
 	border-radius: 50%;
-	background: #fff;
+	background: var(--surface);
 	border: 2px solid var(--accent);
-	box-shadow: 0 1px 3px rgb(23 25 28 / 18%);
+	box-shadow: var(--shadow-rest);
 	transition:
 		scale var(--t-quick) var(--ease-out),
 		background var(--t-quick) var(--ease-out);
@@ -241,7 +232,7 @@
 
 .connector-end[data-bound="true"]::before {
 	background: var(--accent);
-	border-color: #fff;
+	border-color: var(--surface);
 }
 
 .connector-end:hover::before {
@@ -256,7 +247,7 @@
 	inset: 3px;
 	border-width: 1.5px;
 	background: var(--accent);
-	border-color: #fff;
+	border-color: var(--surface);
 }
 
 .connector-handle:hover::before {
@@ -289,7 +280,7 @@
 	gap: 2px;
 	padding: 4px;
 	border-radius: 12px;
-	background: rgb(255 255 255 / 96%);
+	background: var(--chrome-strong);
 	border: 1px solid var(--line);
 	box-shadow: var(--shadow-lifted);
 	pointer-events: auto;
@@ -328,7 +319,7 @@
 }
 
 .connector-toolbar button:hover {
-	background: #f1efea;
+	background: var(--hover);
 }
 
 .connector-toolbar button:active {
@@ -364,7 +355,7 @@
 .connector-toolbar .connector-swatch[aria-pressed="true"] {
 	background: var(--connector);
 	box-shadow:
-		0 0 0 2px #fff,
+		0 0 0 2px var(--surface),
 		0 0 0 3.5px var(--connector);
 }
 

@@ -13,6 +13,7 @@ import {
 	distanceToPolyline,
 	nearestOutlineAnchor,
 	pointAlong,
+	polylineIntersectsRect,
 	rectFromPoints,
 } from "../src/shared/geometry.ts";
 
@@ -57,6 +58,47 @@ describe("geometry", () => {
 		expect(distanceToPolyline({ x: 120, y: 50 }, line)).toBe(20);
 		expect(pointAlong(line, 0.5)).toEqual({ x: 100, y: 0 });
 		expect(pointAlong(line, 0.75)).toEqual({ x: 100, y: 50 });
+	});
+
+	it("tells whether a line passes through a box", () => {
+		const box = { x: 0, y: 0, w: 100, h: 100 };
+		expect(
+			polylineIntersectsRect(
+				[
+					{ x: -50, y: 50 },
+					{ x: 150, y: 50 },
+				],
+				box,
+			),
+		).toBe(true);
+		expect(
+			polylineIntersectsRect(
+				[
+					{ x: 10, y: 10 },
+					{ x: 20, y: 20 },
+				],
+				box,
+			),
+		).toBe(true);
+		expect(
+			polylineIntersectsRect(
+				[
+					{ x: -50, y: -10 },
+					{ x: 150, y: -10 },
+				],
+				box,
+			),
+		).toBe(false);
+		expect(
+			polylineIntersectsRect(
+				[
+					{ x: -50, y: 200 },
+					{ x: -50, y: -50 },
+					{ x: 50, y: -50 },
+				],
+				box,
+			),
+		).toBe(false);
 	});
 
 	it("normalises rectangles drawn in any direction", () => {

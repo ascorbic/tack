@@ -195,6 +195,35 @@ export function pointAlong(points: readonly Point[], t: number): Point {
 	return points[points.length - 1] as Point;
 }
 
+/** Whether a polyline passes through (or lies inside) a rectangle. */
+export function polylineIntersectsRect(points: readonly Point[], rect: Rect): boolean {
+	if (points.some((point) => contains(rect, point))) return true;
+	const corners: Point[] = [
+		{ x: rect.x, y: rect.y },
+		{ x: rect.x + rect.w, y: rect.y },
+		{ x: rect.x + rect.w, y: rect.y + rect.h },
+		{ x: rect.x, y: rect.y + rect.h },
+	];
+	for (let i = 1; i < points.length; i++) {
+		const a = points[i - 1] as Point;
+		const b = points[i] as Point;
+		for (let j = 0; j < 4; j++) {
+			if (segmentsCross(a, b, corners[j] as Point, corners[(j + 1) % 4] as Point)) return true;
+		}
+	}
+	return false;
+}
+
+function segmentsCross(a: Point, b: Point, c: Point, d: Point): boolean {
+	const side = (p: Point, q: Point, r: Point) =>
+		(q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+	const d1 = side(c, d, a);
+	const d2 = side(c, d, b);
+	const d3 = side(a, b, c);
+	const d4 = side(a, b, d);
+	return d1 * d2 <= 0 && d3 * d4 <= 0 && !(d1 === 0 && d2 === 0 && d3 === 0 && d4 === 0);
+}
+
 export function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
 }

@@ -2,39 +2,6 @@
    Sections
    ------------------------------------------------------------------------ */
 
-/* The section palette: fill, edge, title and ink. Kept as tokens so a theme
-   (dark mode) can redefine them in one place. */
-:root {
-	--section-grey-fill: rgb(255 255 255 / 62%);
-	--section-grey-edge: rgb(23 25 28 / 13%);
-	--section-grey-title: #e8e6e0;
-	--section-grey-ink: #3f444b;
-	--section-red-fill: rgb(253 232 228 / 72%);
-	--section-red-edge: #f0b7ae;
-	--section-red-title: #f8d3cc;
-	--section-red-ink: #8f2a1d;
-	--section-orange-fill: rgb(253 238 222 / 72%);
-	--section-orange-edge: #efc496;
-	--section-orange-title: #f8dbbb;
-	--section-orange-ink: #84460f;
-	--section-yellow-fill: rgb(252 245 214 / 75%);
-	--section-yellow-edge: #e6d27a;
-	--section-yellow-title: #f5e7a6;
-	--section-yellow-ink: #6e5a0e;
-	--section-green-fill: rgb(229 245 232 / 75%);
-	--section-green-edge: #a6d6af;
-	--section-green-title: #cbead1;
-	--section-green-ink: #1d6531;
-	--section-blue-fill: rgb(229 238 253 / 75%);
-	--section-blue-edge: #a7c2ef;
-	--section-blue-title: #cddbf7;
-	--section-blue-ink: #23489a;
-	--section-purple-fill: rgb(240 233 253 / 75%);
-	--section-purple-edge: #c6b0ee;
-	--section-purple-title: #e0d2f8;
-	--section-purple-ink: #5a2fa0;
-}
-
 :is(.section, .section-swatch)[data-color="grey"] {
 	--section-fill: var(--section-grey-fill);
 	--section-edge: var(--section-grey-edge);
@@ -278,7 +245,7 @@
 	height: 18px;
 	padding: 0 6px;
 	border-radius: 9px;
-	background: rgb(255 255 255 / 62%);
+	background: color-mix(in srgb, var(--surface) 62%, transparent);
 	font-family: var(--font-mono);
 	font-size: 11px;
 	font-weight: 600;
@@ -292,7 +259,7 @@
 	gap: 3px;
 	padding: 4px;
 	border-radius: 11px;
-	background: rgb(255 255 255 / 96%);
+	background: var(--chrome-strong);
 	border: 1px solid var(--line);
 	box-shadow: var(--shadow-hover);
 	pointer-events: auto;
@@ -324,7 +291,7 @@
 
 .section-colors .section-swatch[aria-checked="true"] {
 	box-shadow:
-		0 0 0 2px #fff,
+		0 0 0 2px var(--surface),
 		0 0 0 3.5px var(--section-ink);
 }
 
@@ -344,7 +311,7 @@
 	height: calc(11 * var(--px, 1px));
 	border: calc(1.5 * var(--px, 1px)) solid var(--accent);
 	border-radius: calc(3 * var(--px, 1px));
-	background: #fff;
+	background: var(--surface);
 	translate: -50% -50%;
 }
 

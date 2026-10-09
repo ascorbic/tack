@@ -24,7 +24,9 @@ interface Stroke {
 	color: string;
 }
 
-const COLORS = ["#17191c", "#c2372b", "#2a62c9", "#1f7a4a"];
+/** Stroke colours, from the connector palette so both themes have them. */
+const COLORS = ["ink", "red", "blue", "green"];
+const strokeColor = (color: string) => `var(--connector-${color})`;
 
 function strokesMap(doc: Y.Doc): Y.Map<{ points: number[]; color: string }> {
 	return doc.getMap("probe:strokes");
@@ -187,11 +189,11 @@ export function PenProbe({
 					<path
 						key={stroke.id}
 						d={strokePath(stroke.points)}
-						stroke={stroke.color}
+						stroke={strokeColor(stroke.color)}
 						data-hover={hovered.has(stroke.id)}
 					/>
 				))}
-				{draft && <path d={strokePath(draft)} stroke={color.current} />}
+				{draft && <path d={strokePath(draft)} stroke={strokeColor(color.current)} />}
 			</svg>
 		</ViewportPortal>
 	);

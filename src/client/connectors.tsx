@@ -24,7 +24,13 @@ import {
 	routeConnector,
 	withFallbacks,
 } from "../shared/connectors.ts";
-import { type Point, type Rect, contains, distance } from "../shared/geometry.ts";
+import {
+	type Point,
+	type Rect,
+	contains,
+	distance,
+	polylineIntersectsRect,
+} from "../shared/geometry.ts";
 import type { SizeOf } from "../shared/sections.ts";
 import {
 	type ConnectorArrow,
@@ -132,6 +138,8 @@ type Gesture = Connecting & {
 
 interface Geometry {
 	d: string;
+	/** The route as a polyline, for marquee selection. */
+	points: Point[];
 	heads: string;
 	middle: Point;
 	start: Point;
@@ -153,6 +161,7 @@ function geometryOf(
 	if (connector.arrow === "both") heads.push(arrowHead(start.point, route.startAngle, STROKE));
 	return {
 		d: route.d,
+		points: route.points,
 		heads: heads.join(" "),
 		middle: route.middle,
 		start: start.point,
@@ -399,6 +408,39 @@ export function ConnectorLayer({
 		};
 		return { entry, connector, geometry: geometryOf(connector, boxOf) };
 	});
+
+	// Marquee selection takes connectors the box touches, as well as shapes.
+	const marquee = useStore((state) => (state.userSelectionActive ? state.userSelectionRect : null));
+	const marqueed = useRef(new Set<string>());
+	const drawnRef = useRef(drawn);
+	drawnRef.current = drawn;
+	useEffect(() => {
+		if (!marquee) {
+			marqueed.current = new Set();
+			return;
+		}
+		const [tx, ty, zoom] = store.getState().transform;
+		const box = {
+			x: (marquee.x - tx) / zoom,
+			y: (marquee.y - ty) / zoom,
+			w: marquee.width / zoom,
+			h: marquee.height / zoom,
+		};
+		const hits = new Set(
+			drawnRef.current
+				.filter(({ geometry }) => polylineIntersectsRect(geometry.points, box))
+				.map(({ entry }) => entry.id),
+		);
+		const before = marqueed.current;
+		if (hits.size === before.size && [...hits].every((id) => before.has(id))) return;
+		marqueed.current = hits;
+		setSelected((current) => {
+			const next = new Set(current);
+			for (const id of before) if (!hits.has(id)) next.delete(id);
+			for (const id of hits) next.add(id);
+			return next;
+		});
+	}, [marquee, store, setSelected]);
 
 	const drafts: { key: string; color?: string; geometry: Geometry }[] = [];
 	if (gesture && gesture.live && !gesture.id) {

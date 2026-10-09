@@ -73,6 +73,43 @@
 	--shadow-rest: 0 1px 1px rgb(23 25 28 / 4%), 0 2px 6px rgb(23 25 28 / 5%);
 	--shadow-hover: 0 1px 2px rgb(23 25 28 / 5%), 0 6px 16px rgb(23 25 28 / 8%);
 	--shadow-lifted: 0 4px 10px rgb(23 25 28 / 8%), 0 22px 44px rgb(23 25 28 / 16%);
+	/* Sections: fill, edge, title pill and the ink on it, per colour. */
+	--section-grey-fill: rgb(255 255 255 / 62%);
+	--section-grey-edge: rgb(23 25 28 / 13%);
+	--section-grey-title: #e8e6e0;
+	--section-grey-ink: #3f444b;
+	--section-red-fill: rgb(253 232 228 / 72%);
+	--section-red-edge: #f0b7ae;
+	--section-red-title: #f8d3cc;
+	--section-red-ink: #8f2a1d;
+	--section-orange-fill: rgb(253 238 222 / 72%);
+	--section-orange-edge: #efc496;
+	--section-orange-title: #f8dbbb;
+	--section-orange-ink: #7d420e;
+	--section-yellow-fill: rgb(252 245 214 / 75%);
+	--section-yellow-edge: #e6d27a;
+	--section-yellow-title: #f5e7a6;
+	--section-yellow-ink: #66530c;
+	--section-green-fill: rgb(229 245 232 / 75%);
+	--section-green-edge: #a6d6af;
+	--section-green-title: #cbead1;
+	--section-green-ink: #1b5e2e;
+	--section-blue-fill: rgb(229 238 253 / 75%);
+	--section-blue-edge: #a7c2ef;
+	--section-blue-title: #cddbf7;
+	--section-blue-ink: #23489a;
+	--section-purple-fill: rgb(240 233 253 / 75%);
+	--section-purple-edge: #c6b0ee;
+	--section-purple-title: #e0d2f8;
+	--section-purple-ink: #5a2fa0;
+
+	/* Connector colours: lines, arrowheads and label text. */
+	--connector-ink: #3f444b;
+	--connector-red: #c2372b;
+	--connector-orange: #a8560c;
+	--connector-green: #1f7a4a;
+	--connector-blue: #2a62c9;
+	--connector-purple: #7444c4;
 }
 
 [data-theme="dark"] {
@@ -134,6 +171,42 @@
 	--shadow-rest: 0 1px 1px rgb(0 0 0 / 30%), 0 2px 6px rgb(0 0 0 / 22%);
 	--shadow-hover: 0 1px 2px rgb(0 0 0 / 35%), 0 6px 16px rgb(0 0 0 / 30%);
 	--shadow-lifted: 0 4px 10px rgb(0 0 0 / 30%), 0 22px 44px rgb(0 0 0 / 50%);
+	/* Sections tint the board rather than lighten it. */
+	--section-grey-fill: rgb(255 255 255 / 4%);
+	--section-grey-edge: rgb(255 255 255 / 14%);
+	--section-grey-title: #2c2f34;
+	--section-grey-ink: #d4d8de;
+	--section-red-fill: rgb(240 82 74 / 9%);
+	--section-red-edge: #6b3430;
+	--section-red-title: #45231f;
+	--section-red-ink: #ffb3aa;
+	--section-orange-fill: rgb(230 140 60 / 9%);
+	--section-orange-edge: #6b4626;
+	--section-orange-title: #43301c;
+	--section-orange-ink: #f5c38f;
+	--section-yellow-fill: rgb(230 200 80 / 8%);
+	--section-yellow-edge: #635623;
+	--section-yellow-title: #3d3519;
+	--section-yellow-ink: #ecd77e;
+	--section-green-fill: rgb(80 190 110 / 8%);
+	--section-green-edge: #2f5c3b;
+	--section-green-title: #1f3a27;
+	--section-green-ink: #9fdcae;
+	--section-blue-fill: rgb(100 140 240 / 9%);
+	--section-blue-edge: #34497a;
+	--section-blue-title: #222f4d;
+	--section-blue-ink: #adc4f5;
+	--section-purple-fill: rgb(160 120 240 / 9%);
+	--section-purple-edge: #4d3d7a;
+	--section-purple-title: #30264a;
+	--section-purple-ink: #cdb8f7;
+
+	--connector-ink: #c9cdd3;
+	--connector-red: #ff8a7d;
+	--connector-orange: #f2a65a;
+	--connector-green: #6fd38a;
+	--connector-blue: #8fb0ff;
+	--connector-purple: #bfa2ff;
 }
 
 /* Before the theme is applied, at least paint the page dark in dark mode. */

@@ -67,6 +67,18 @@ const PAIRS: [string, string, string][] = [
 	["sticky-ink-soft", "sticky-blue", "author on a blue sticky"],
 	["sticky-ink-soft", "sticky-green", "author on a green sticky"],
 	["sticky-ink-soft", "sticky-purple", "author on a purple sticky"],
+	...["grey", "red", "orange", "yellow", "green", "blue", "purple"].map(
+		(color): [string, string, string] => [
+			`section-${color}-ink`,
+			`section-${color}-title`,
+			`${color} section title`,
+		],
+	),
+	...["ink", "red", "orange", "green", "blue", "purple"].map((color): [string, string, string] => [
+		`connector-${color}`,
+		"surface",
+		`${color} connector label`,
+	]),
 ];
 
 describe.each([
