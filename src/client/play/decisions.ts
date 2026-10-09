@@ -120,8 +120,8 @@ export function seedDecisions(doc: Y.Doc): SeededDecisions {
 	doc.transact(() => {
 		// Proposed, with votes coming in, linked to the issue and PR it settles.
 		addDecision(doc, ids.proposed, {
-			x: 80,
-			y: 80,
+			x: 20,
+			y: 30,
 			title: "Require Node 20 in imagekit 5.0",
 			text: "Node 18 is end-of-life in April. Keeping it costs a CI runner per job and blocks the native fetch cleanup.",
 			author: PEOPLE.priya,
@@ -129,15 +129,15 @@ export function seedDecisions(doc: Y.Doc): SeededDecisions {
 		castVote(doc, ids.proposed, PEOPLE.priya, "agree", null);
 		castVote(doc, ids.proposed, PEOPLE.kai, "agree", null);
 		castVote(doc, ids.proposed, PEOPLE.tom, "disagree", null);
-		const issue = card(node18?.key, 520, 40);
-		const pull = card(ciPull?.key, 520, 210);
+		const issue = card(node18?.key, 380, 20);
+		const pull = card(ciPull?.key, 380, 180);
 		connect(doc, bound(ids.proposed), bound(issue));
 		connect(doc, bound(ids.proposed), bound(pull));
 
 		// Superseded by the proposal above.
 		addDecision(doc, ids.superseded, {
-			x: 80,
-			y: 480,
+			x: 20,
+			y: 470,
 			title: "Keep Node 16 until 5.0",
 			text: "Enterprise users asked for one more major on 16.",
 			author: PEOPLE.kai,
@@ -148,8 +148,8 @@ export function seedDecisions(doc: Y.Doc): SeededDecisions {
 
 		// Decided, and ready to write back.
 		addDecision(doc, ids.decided, {
-			x: 920,
-			y: 80,
+			x: 670,
+			y: 30,
 			title: "Serve AVIF by default",
 			text: "Every CDN we support can now transcode AVIF, and it's 20–30% smaller than WebP at the same quality.",
 			author: PEOPLE.jo,
@@ -163,15 +163,15 @@ export function seedDecisions(doc: Y.Doc): SeededDecisions {
 			castVote(doc, ids.decided, person, choice, null);
 		}
 		setDecisionStatus(doc, ids.decided, "decided", { by: PEOPLE.jo }, null);
-		const cdnCard = card(cdn?.key, 1340, 60);
-		const docsCard = card(docs?.key, 1340, 230);
+		const cdnCard = card(cdn?.key, 380, 420);
+		const docsCard = card(docs?.key, 380, 580);
 		connect(doc, bound(ids.decided), bound(cdnCard));
 		connect(doc, bound(ids.decided), bound(docsCard));
 
 		// Decided, and written back: its ADR pull request shows live.
 		addDecision(doc, ids.written, {
-			x: 920,
-			y: 480,
+			x: 670,
+			y: 470,
 			title: "Adopt Conventional Commits",
 			text: "So release notes and version bumps can be generated from history.",
 			author: PEOPLE.tom,

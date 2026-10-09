@@ -3,12 +3,16 @@ import { drag, expect, nodePosition, openScenario, test } from "./fixtures.ts";
 // Smoke tests over the /play workbench: each scenario renders, and the board
 // responds to forge events, people, tools and drags.
 
-const SCENARIOS = {
+const SCENARIOS: Record<
+	string,
+	{ cards: number; stickies: number; texts: number; decisions?: number }
+> = {
 	planning: { cards: 8, stickies: 4, texts: 0 },
 	triage: { cards: 9, stickies: 0, texts: 0 },
 	stress: { cards: 500, stickies: 0, texts: 0 },
 	brainstorm: { cards: 0, stickies: 30, texts: 7 },
 	arrange: { cards: 4, stickies: 6, texts: 0 },
+	decisions: { cards: 4, stickies: 0, texts: 0, decisions: 4 },
 	empty: { cards: 0, stickies: 0, texts: 0 },
 };
 
@@ -16,7 +20,9 @@ test.describe("scenarios render", () => {
 	for (const [scenario, expected] of Object.entries(SCENARIOS)) {
 		test(scenario, async ({ page }) => {
 			await openScenario(page, scenario);
-			const total = expected.cards + expected.stickies + expected.texts;
+			const decisions = expected.decisions ?? 0;
+			const total = expected.cards + expected.stickies + expected.texts + decisions;
+			await expect(page.locator(".react-flow__node-decision")).toHaveCount(decisions);
 
 			// The minimap draws every shape, even those culled from the canvas.
 			await expect(page.locator(".react-flow__minimap-node")).toHaveCount(total);

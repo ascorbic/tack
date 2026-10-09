@@ -113,6 +113,60 @@ test("every sticky, text and presence state renders", async ({ page }) => {
 	).toBeVisible();
 });
 
+const DECISIONS: [caption: string, status: string][] = [
+	["New, being written", "proposed"],
+	["Proposed, no votes yet", "proposed"],
+	["Votes coming in, you agree", "proposed"],
+	["Just decided", "decided"],
+	["Write-back staged", "decided"],
+	["Pushing", "decided"],
+	["ADR open, checks running", "decided"],
+	["ADR merged", "decided"],
+	["Posted as a Discussion", "decided"],
+	["Write-back failed", "decided"],
+	["Superseded", "superseded"],
+	["Many linked items", "proposed"],
+	["View only", "proposed"],
+];
+
+test("every decision state renders", async ({ page }) => {
+	const figures = page
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Decisions", exact: true }) })
+		.locator("figure");
+	await expect(figures).toHaveCount(DECISIONS.length);
+	for (const [i, [caption, status]] of DECISIONS.entries()) {
+		await expect(figures.nth(i).locator("figcaption")).toHaveText(caption);
+		await expect(figures.nth(i).locator(".decision")).toHaveAttribute("data-status", status);
+	}
+	const at = (caption: string) => figures.filter({ hasText: caption });
+	await expect(
+		at("New, being written").getByRole("textbox", { name: "Decision title" }),
+	).toBeVisible();
+	await expect(
+		at("Votes coming in, you agree").getByRole("button", { name: "Agree: 4 votes" }),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect(at("Just decided").locator(".decision-stamp")).toHaveText("Decided");
+	await expect(at("Just decided").getByRole("button", { name: "Write back" })).toBeVisible();
+	await expect(at("Write-back staged").locator(".decision-writeback")).toHaveText(
+		/ADR 0004 · Staged/,
+	);
+	await expect(at("ADR open, checks running").locator(".decision-record .chip.state")).toHaveText(
+		"Open",
+	);
+	await expect(at("ADR merged").locator(".decision-record .chip.state")).toHaveText("Merged");
+	await expect(at("Posted as a Discussion").locator(".decision-writeback")).toHaveAttribute(
+		"href",
+		/discussions\/18$/,
+	);
+	await expect(at("Write-back failed").getByRole("button", { name: "Retry" })).toBeVisible();
+	await expect(at("Superseded").locator(".decision-superseded")).toContainText("Require Node 20");
+	await expect(at("Many linked items").locator(".decision-linked-more")).toHaveText("+2 more");
+	// View only: votes show, but can't be cast, and nothing can be decided.
+	await expect(at("View only").getByRole("button", { name: /^Agree/ })).toBeDisabled();
+	await expect(at("View only").getByRole("button", { name: "Decide" })).toHaveCount(0);
+});
+
 test("repository access states render, and installing the app upgrades cards", async ({ page }) => {
 	const section = page
 		.locator("section")
