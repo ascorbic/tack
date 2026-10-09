@@ -1,7 +1,10 @@
 import type { NodeChange } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Awareness } from "y-protocols/awareness";
+import type { Status } from "./activity.ts";
 import type { Position, ShapeNode } from "./board.ts";
+import type { Chat } from "./chat.ts";
+import type { View } from "./viewport.ts";
 
 // Ephemeral, per-client state shared through Yjs awareness. None of this is
 // ever written to the document.
@@ -17,16 +20,30 @@ export interface PresenceState {
 	cursor?: Position | null;
 	/** Shapes this client is dragging right now, by id. */
 	drags?: Record<string, Position>;
+	/** Cursor chat: what they're saying, if anything. */
+	chat?: Chat | null;
+	/** The part of the board they can see, for following them. */
+	view?: View | null;
+	/** Whether they're active, idle, or have the tab in the background. */
+	status?: Status;
+	/** The client they're following, if any. */
+	following?: number | null;
 }
 
 export interface RemoteDrag extends Position {
 	user?: User;
 }
 
+/** Someone else on the board. */
 export interface RemotePresence {
 	clientId: number;
 	user: User;
-	cursor: Position;
+	/** Null when their pointer is off the canvas. */
+	cursor: Position | null;
+	chat: Chat | null;
+	view: View | null;
+	status: Status;
+	following: number | null;
 }
 
 const COLORS = ["#3b4cca", "#b4467a", "#1f7a6b", "#a35a12", "#7444c4", "#c2372b", "#2a7ab0"];
@@ -85,8 +102,18 @@ export function usePresence(awareness: Awareness, user: User) {
 				for (const [id, position] of Object.entries(state.drags ?? {})) {
 					drags.set(id, { ...position, user: state.user });
 				}
-				if (state.user && state.cursor) {
-					people.push({ clientId, user: state.user, cursor: state.cursor });
+				// Everyone with a name is here, whether or not their pointer is
+				// on the canvas.
+				if (state.user) {
+					people.push({
+						clientId,
+						user: state.user,
+						cursor: state.cursor ?? null,
+						chat: state.chat ?? null,
+						view: state.view ?? null,
+						status: state.status ?? "active",
+						following: state.following ?? null,
+					});
 				}
 			}
 			setRemote({ drags, people });

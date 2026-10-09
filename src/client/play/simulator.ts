@@ -1,10 +1,13 @@
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
-import { shapesMap } from "../../shared/shapes.ts";
+import { type ShapeFont, shapesMap } from "../../shared/shapes.ts";
+import type { Status } from "../activity.ts";
 import { STICKY_COLORS, addCard, addSticky, moveShape, type Position } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
-import { randomUser, type User } from "../presence.ts";
+import { CHAT_LINGER_MS } from "../chat.ts";
+import { type PresenceState, randomUser, type User } from "../presence.ts";
+import type { View } from "../viewport.ts";
 
 // A board that runs entirely in the browser, with simulated people and
 // simulated forge events. Each remote person has their own Y.Doc and
@@ -13,19 +16,25 @@ import { randomUser, type User } from "../presence.ts";
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
-/** Animate from a to b over ms, calling step each frame. */
-function animate(from: Position, to: Position, ms: number, step: (p: Position) => void) {
+/** Ease from 0 to 1 over ms, calling step each frame. */
+function tween(ms: number, step: (t: number) => void) {
 	return new Promise<void>((resolve) => {
 		const start = performance.now();
 		const frame = (now: number) => {
 			const t = Math.min(1, (now - start) / ms);
-			const e = easeInOut(t);
-			step({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
+			step(easeInOut(t));
 			if (t < 1) requestAnimationFrame(frame);
 			else resolve();
 		};
 		requestAnimationFrame(frame);
 	});
+}
+
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** Animate from a to b over ms, calling step each frame. */
+function animate(from: Position, to: Position, ms: number, step: (p: Position) => void) {
+	return tween(ms, (t) => step({ x: mix(from.x, to.x, t), y: mix(from.y, to.y, t) }));
 }
 
 export class SimulatedBoard {
@@ -84,7 +93,11 @@ export class RemotePerson {
 	doc = new Y.Doc();
 	awareness: Awareness;
 	cursor: Position = { x: 0, y: 0 };
+	/** The part of the board they're looking at, as their window would. */
+	view: View = { x: -80, y: -60, width: 1440, height: 860 };
+	status: Status = "active";
 	private origin = Symbol("remote");
+	private followTimer = 0;
 	private cleanups: (() => void)[] = [];
 
 	constructor(
@@ -120,7 +133,22 @@ export class RemotePerson {
 		});
 
 		this.cursor = { x: 200 + Math.random() * 400, y: 150 + Math.random() * 300 };
-		this.awareness.setLocalState({ user, cursor: this.cursor, drags: {} });
+		this.view = {
+			x: -160 + Math.random() * 240,
+			y: -120 + Math.random() * 160,
+			width: 1280 + Math.random() * 400,
+			height: 800,
+		};
+		const state: PresenceState = {
+			user,
+			cursor: this.cursor,
+			drags: {},
+			view: this.view,
+			status: "active",
+			chat: null,
+			following: null,
+		};
+		this.awareness.setLocalState(state);
 	}
 
 	async moveTo(target: Position, ms = 700): Promise<void> {
@@ -179,15 +207,91 @@ export class RemotePerson {
 	}
 
 	/** Place a sticky with this person's name on it, then type into it. */
-	async addSticky(at: Position, text: string): Promise<void> {
+	async addSticky(at: Position, text: string, font?: ShapeFont): Promise<void> {
 		await this.moveTo(at, 600);
 		const color = STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)];
-		const id = addSticky(this.doc, at, { color, author: this.user });
+		const id = addSticky(this.doc, at, { color, author: this.user, font });
 		await sleep(250);
 		await this.type(id, text);
 	}
 
+	/** Cursor chat: open it, type a message, and let it linger and fade. */
+	async say(text: string): Promise<void> {
+		this.awareness.setLocalStateField("chat", { text: "", typing: true });
+		await sleep(700);
+		let current = "";
+		for (const char of text) {
+			current += char;
+			this.awareness.setLocalStateField("chat", { text: current, typing: true });
+			await sleep(35 + Math.random() * 80);
+		}
+		await sleep(300);
+		this.awareness.setLocalStateField("chat", { text, typing: false });
+		await sleep(CHAT_LINGER_MS);
+		this.awareness.setLocalStateField("chat", null);
+	}
+
+	/** Pan and zoom their own view, with the cursor drifting along. */
+	async lookAt(target: View, ms = 1600): Promise<void> {
+		const from = this.view;
+		const cursorFrom = this.cursor;
+		const cursorTo = { x: target.x + target.width * 0.45, y: target.y + target.height * 0.4 };
+		await tween(ms, (t) => {
+			this.view = {
+				x: mix(from.x, target.x, t),
+				y: mix(from.y, target.y, t),
+				width: mix(from.width, target.width, t),
+				height: mix(from.height, target.height, t),
+			};
+			this.cursor = { x: mix(cursorFrom.x, cursorTo.x, t), y: mix(cursorFrom.y, cursorTo.y, t) };
+			this.awareness.setLocalState({
+				...this.awareness.getLocalState(),
+				view: this.view,
+				cursor: this.cursor,
+			});
+		});
+	}
+
+	/** Wander around the board, zooming in and out. */
+	async lookAround(stops = 3): Promise<void> {
+		for (let i = 0; i < stops; i++) {
+			const width = 700 + Math.random() * 1500;
+			await this.lookAt({
+				x: -300 + Math.random() * 1300,
+				y: -200 + Math.random() * 700,
+				width,
+				height: width * 0.62,
+			});
+			await sleep(500 + Math.random() * 600);
+		}
+	}
+
+	setStatus(status: Status): void {
+		this.status = status;
+		this.awareness.setLocalStateField("status", status);
+	}
+
+	/** Follow another client, copying their view as it changes. */
+	follow(clientId: number | null): void {
+		clearInterval(this.followTimer);
+		this.awareness.setLocalStateField("following", clientId);
+		if (clientId === null) return;
+		this.followTimer = window.setInterval(() => {
+			const leader = this.board.awareness.getStates().get(clientId) as PresenceState | undefined;
+			if (!leader) return this.follow(null);
+			if (leader.view) {
+				this.view = leader.view;
+				this.awareness.setLocalStateField("view", leader.view);
+			}
+		}, 200);
+	}
+
+	get following(): number | null {
+		return (this.awareness.getLocalState() as PresenceState | null)?.following ?? null;
+	}
+
 	dispose(): void {
+		clearInterval(this.followTimer);
 		this.awareness.setLocalState(null);
 		for (const cleanup of this.cleanups) cleanup();
 		this.awareness.destroy();
