@@ -13,7 +13,7 @@ export default defineConfig({
 		include: ["test/**/*.test.ts"],
 	},
 	lint: {
-		ignorePatterns: [".cloudflare/**", ".wrangler/**", "dist/**"],
+		ignorePatterns: [".claude/worktrees/**", ".cloudflare/**", ".wrangler/**", "dist/**"],
 		options: {
 			typeAware: true,
 			typeCheck: true,
@@ -21,6 +21,6 @@ export default defineConfig({
 	},
 	fmt: {
 		useTabs: true,
-		ignorePatterns: [".cloudflare/**", ".wrangler/**", "dist/**"],
+		ignorePatterns: [".claude/worktrees/**", ".cloudflare/**", ".wrangler/**", "dist/**"],
 	},
 });
