@@ -38,3 +38,20 @@ test("dev sign-in shows who you are, and signing out makes you a guest", async (
 	await expect(page.getByRole("button", { name: "You (guest)" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Account: e2e-octocat" })).toHaveCount(0);
 });
+
+// Routes the Worker handles must reach it rather than the static site's
+// single-page fallback, which serves index.html for any unknown path. Each one
+// needs an entry in `assets.runWorkerFirst` in cloudflare.config.ts.
+for (const path of [
+	"/setup/install?state=/b/demo/demo",
+	"/setup/installed",
+	"/setup/callback",
+	"/auth/signin",
+	"/api/me",
+]) {
+	test(`${path} is handled by the Worker, not the SPA`, async ({ request }) => {
+		const response = await request.get(path, { maxRedirects: 0 });
+		const body = await response.text();
+		expect(body, `${path} served the SPA's index.html`).not.toContain('<div id="root">');
+	});
+}

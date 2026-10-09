@@ -21,6 +21,7 @@ export default defineConfig(({ isPreview, mode }) => ({
 				"/api/*",
 				"/auth/*",
 				"/setup/callback",
+				"/setup/install",
 				"/setup/installed",
 			],
 		},
