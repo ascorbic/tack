@@ -12,6 +12,7 @@ import {
 	shapesMap,
 	topZ,
 } from "../shared/shapes.ts";
+import { transactLocal } from "./undo.ts";
 
 export type ShapeNode = Node<{ shape: ShapeProps; id: string }>;
 
@@ -104,7 +105,7 @@ export function applyNodeChanges(
 	lastDragPosition: (id: string) => Position | undefined = () => undefined,
 ): void {
 	const shapes = shapesMap(doc);
-	doc.transact(() => {
+	transactLocal(doc, () => {
 		for (const change of changes) {
 			if (change.type === "position" && !change.dragging) {
 				const position = change.position ?? lastDragPosition(change.id);
@@ -114,7 +115,7 @@ export function applyNodeChanges(
 				shapes.delete(change.id);
 			}
 		}
-	}, "local");
+	});
 }
 
 /**
@@ -131,8 +132,12 @@ export function moveShape(doc: Y.Doc, id: string, position: Position): void {
 	if (z) shape.set("z", z);
 }
 
-export function addCard(doc: Y.Doc, ref: string, at: { x: number; y: number }): void {
-	addShape(doc, crypto.randomUUID(), { type: "card", ref, x: at.x, y: at.y, z: nextZ(doc) });
+export function addCard(doc: Y.Doc, ref: string, at: { x: number; y: number }): string {
+	const id = crypto.randomUUID();
+	transactLocal(doc, () =>
+		addShape(doc, id, { type: "card", ref, x: at.x, y: at.y, z: nextZ(doc) }),
+	);
+	return id;
 }
 
 export const STICKY_SIZE = 176;
@@ -150,16 +155,18 @@ export function addSticky(
 	}: { color?: StickyColor; author?: Author; font?: ShapeFont } = {},
 ): string {
 	const id = crypto.randomUUID();
-	addShape(doc, id, {
-		type: "sticky",
-		text: "",
-		color,
-		font,
-		author,
-		x: Math.round(at.x - STICKY_SIZE / 2),
-		y: Math.round(at.y - STICKY_SIZE / 2),
-		z: nextZ(doc),
-	});
+	transactLocal(doc, () =>
+		addShape(doc, id, {
+			type: "sticky",
+			text: "",
+			color,
+			font,
+			author,
+			x: Math.round(at.x - STICKY_SIZE / 2),
+			y: Math.round(at.y - STICKY_SIZE / 2),
+			z: nextZ(doc),
+		}),
+	);
 	return id;
 }
 
@@ -178,15 +185,17 @@ export function addText(
 	const id = crypto.randomUUID();
 	// The block's padding (4px 6px), and half a line.
 	const halfLine = (TEXT_SIZES[size] * 1.3) / 2;
-	addShape(doc, id, {
-		type: "text",
-		text: "",
-		size,
-		font,
-		x: Math.round(at.x - 6),
-		y: Math.round(at.y - 4 - halfLine),
-		z: nextZ(doc),
-	});
+	transactLocal(doc, () =>
+		addShape(doc, id, {
+			type: "text",
+			text: "",
+			size,
+			font,
+			x: Math.round(at.x - 6),
+			y: Math.round(at.y - 4 - halfLine),
+			z: nextZ(doc),
+		}),
+	);
 	return id;
 }
 
@@ -205,5 +214,5 @@ export function takeFocus(id: string): boolean {
 }
 
 export function setStickyText(doc: Y.Doc, id: string, text: string): void {
-	shapesMap(doc).get(id)?.set("text", text);
+	transactLocal(doc, () => shapesMap(doc).get(id)?.set("text", text));
 }
