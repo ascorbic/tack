@@ -1,4 +1,5 @@
 import { routePartykitRequest } from "partyserver";
+import { handleClientError } from "./server/clientErrors.ts";
 import { handleWebhook } from "./server/webhooks.ts";
 
 export { Board } from "./server/board.ts";
@@ -12,6 +13,8 @@ export default {
 		if (webhook?.[1] && request.method === "POST") {
 			return handleWebhook(request, env, webhook[1]);
 		}
+
+		if (url.pathname === "/api/client-errors") return handleClientError(request);
 
 		// Board sync: /parties/board/:name
 		const party = await routePartykitRequest(request, env);

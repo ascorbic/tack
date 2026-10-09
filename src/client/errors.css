@@ -1,0 +1,136 @@
+/* The error boundary's fallback: the Tack note has come unpinned. */
+
+.crash {
+	min-height: 100vh;
+	display: grid;
+	place-items: center;
+	padding: 24px;
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1.2px, transparent 1.2px);
+	background-size: 20px 20px;
+}
+
+.crash-panel {
+	max-width: 420px;
+	padding: 32px 32px 24px;
+	border-radius: 16px;
+	background: var(--surface);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-lifted);
+	animation: crash-in var(--t-settle) var(--ease-settle) both;
+}
+
+.crash-mark {
+	display: inline-block;
+	margin-bottom: 12px;
+}
+
+/* The note swings loose, and the pin pops out and falls away. */
+.crash .brand-mark-note {
+	animation: crash-swing calc(900ms * var(--motion)) var(--ease-settle) both;
+	animation-delay: calc(180ms * var(--motion));
+}
+
+.crash .brand-mark-pin {
+	animation: crash-pin calc(700ms * var(--motion)) var(--ease-out) both;
+	animation-delay: calc(120ms * var(--motion));
+}
+
+.crash h1 {
+	margin: 0 0 8px;
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 650;
+	letter-spacing: -0.015em;
+}
+
+.crash p {
+	margin: 0 0 20px;
+	color: var(--ink-soft);
+	line-height: 1.5;
+}
+
+.crash-actions {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+.crash-actions button {
+	height: 36px;
+	padding: 0 16px;
+	border-radius: 9px;
+	border: 1px solid var(--accent);
+	font-weight: 550;
+	cursor: pointer;
+	transition: transform var(--t-quick) var(--ease-out);
+}
+
+.crash-actions button:active {
+	transform: scale(0.96);
+}
+
+.crash-actions a {
+	color: var(--muted);
+	font-weight: 550;
+	text-decoration: none;
+}
+
+.crash-actions a:hover {
+	color: var(--ink);
+}
+
+.crash details {
+	margin-top: 20px;
+	padding-top: 14px;
+	border-top: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 13px;
+}
+
+.crash summary {
+	cursor: pointer;
+}
+
+.crash pre {
+	margin: 10px 0 0;
+	padding: 10px 12px;
+	border-radius: 8px;
+	background: var(--surface-muted);
+	font-size: 12px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-height: 160px;
+	overflow: auto;
+}
+
+@keyframes crash-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.98);
+	}
+}
+
+@keyframes crash-swing {
+	from {
+		transform: rotate(-5deg);
+	}
+	to {
+		transform: rotate(16deg);
+	}
+}
+
+@keyframes crash-pin {
+	0% {
+		transform: none;
+		opacity: 1;
+	}
+	35% {
+		transform: translate(2px, -5px) rotate(-12deg);
+		opacity: 1;
+	}
+	100% {
+		transform: translate(9px, 16px) rotate(40deg);
+		opacity: 0;
+	}
+}
