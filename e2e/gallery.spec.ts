@@ -21,7 +21,7 @@ const CARDS: [caption: string, state: string, chip: string][] = [
 
 test.beforeEach(async ({ page }) => {
 	await page.goto("/play/cards");
-	await expect(page.getByRole("heading", { name: "Card gallery" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Gallery", exact: true })).toBeVisible();
 	await page.evaluate(() => document.fonts.ready);
 });
 
@@ -40,7 +40,65 @@ test("every card state renders", async ({ page }) => {
 	await expect(page.locator(".card[data-selected=true]")).toHaveCount(1);
 	await expect(page.locator(".card.loading")).toHaveCount(1);
 	await expect(page.locator(".card.missing")).toHaveCount(4);
-	await expect(page.locator(".gallery .sticky")).toHaveCount(5);
+});
+
+test("every sticky, text and presence state renders", async ({ page }) => {
+	const section = (name: string) =>
+		page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
+
+	await expect(section("Stickies").locator(".sticky")).toHaveCount(5);
+	await expect(section("Sticky states").locator(".sticky")).toHaveCount(5);
+	await expect(
+		section("Sticky states").getByRole("toolbar", { name: "Shape options" }),
+	).toBeVisible();
+
+	// Shrink to fit: longer notes are set smaller, never larger.
+	for (const name of ["Shrink to fit", "Shrink to fit, handwriting"]) {
+		const sizes = await section(name)
+			.locator(".sticky")
+			.evaluateAll((els) =>
+				els.map((el) =>
+					Number.parseFloat((el as HTMLElement).style.getPropertyValue("--fit-size")),
+				),
+			);
+		expect(sizes).toHaveLength(6);
+		expect(sizes[0]).toBe(28);
+		// The last note doesn't fit even at the smallest size, and fades out.
+		expect(sizes.at(-1)).toBe(11);
+		await expect(section(name).locator(".sticky-text[data-overflow=true]")).toHaveCount(1);
+	}
+	await expect(
+		section("Shrink to fit, handwriting").locator(".sticky-text[data-font=hand]"),
+	).toHaveCount(6);
+
+	const text = section("Text").locator(".text-block");
+	await expect(text).toHaveCount(11);
+	for (const size of ["s", "m", "l", "xl"]) {
+		await expect(section("Text").locator(`.text-block[data-size=${size}]`)).not.toHaveCount(0);
+	}
+
+	const presence = section("Presence");
+	await expect(presence.locator(".cursor")).toHaveCount(7);
+	await expect(presence.locator(".cursor-chat")).toHaveCount(4);
+	await expect(presence.locator(".cursor[data-status=idle]")).toHaveCount(1);
+	await expect(presence.locator(".cursor[data-status=away]")).toHaveCount(1);
+	await expect(presence.locator(".follow-pill")).toContainText("Following Kai Andersen");
+
+	await expect(
+		section("Empty board").getByRole("heading", { name: "A blank board" }),
+	).toBeVisible();
+});
+
+test("both themes render side by side", async ({ page }) => {
+	await page.getByLabel("Both themes side by side").check();
+	await expect(page.locator(".gallery-pane[data-theme=light]")).toBeVisible();
+	await expect(page.locator(".gallery-pane[data-theme=dark]")).toBeVisible();
+	// Dark tokens apply inside the dark pane only.
+	const ground = (theme: string) =>
+		page
+			.locator(`.gallery-pane[data-theme=${theme}]`)
+			.evaluate((el) => getComputedStyle(el).backgroundColor);
+	expect(await ground("light")).not.toBe(await ground("dark"));
 });
 
 test("simulated updates land on every card", async ({ page }) => {
@@ -56,7 +114,12 @@ test("simulated updates land on every card", async ({ page }) => {
 
 test("the gallery looks right", async ({ page }) => {
 	// Every web font is loaded, so text doesn't render in a fallback.
-	for (const font of ["Geist Variable", "Geist Mono Variable", "Bricolage Grotesque Variable"]) {
+	for (const font of [
+		"Geist Variable",
+		"Geist Mono Variable",
+		"Bricolage Grotesque Variable",
+		"Shantell Sans Variable",
+	]) {
 		expect(await page.evaluate((f) => document.fonts.check(`16px "${f}"`), font), font).toBe(true);
 	}
 

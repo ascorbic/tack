@@ -61,7 +61,7 @@ test("a render error shows the fallback and is logged", async ({ page, request }
 
 test("uncaught errors and rejections are reported", async ({ page }) => {
 	await page.goto("/play/cards");
-	await expect(page.getByRole("heading", { name: "Card gallery" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Gallery", exact: true })).toBeVisible();
 
 	let report = nextReport(page);
 	await page.evaluate(() => {

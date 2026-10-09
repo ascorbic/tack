@@ -4,17 +4,18 @@ import { drag, expect, nodePosition, openScenario, test } from "./fixtures.ts";
 // responds to forge events, people, tools and drags.
 
 const SCENARIOS = {
-	planning: { cards: 6, stickies: 4 },
-	triage: { cards: 9, stickies: 0 },
-	stress: { cards: 500, stickies: 0 },
-	empty: { cards: 0, stickies: 0 },
+	planning: { cards: 6, stickies: 4, texts: 0 },
+	triage: { cards: 9, stickies: 0, texts: 0 },
+	stress: { cards: 500, stickies: 0, texts: 0 },
+	brainstorm: { cards: 0, stickies: 30, texts: 7 },
+	empty: { cards: 0, stickies: 0, texts: 0 },
 };
 
 test.describe("scenarios render", () => {
 	for (const [scenario, expected] of Object.entries(SCENARIOS)) {
 		test(scenario, async ({ page }) => {
 			await openScenario(page, scenario);
-			const total = expected.cards + expected.stickies;
+			const total = expected.cards + expected.stickies + expected.texts;
 
 			// The minimap draws every shape, even those culled from the canvas.
 			await expect(page.locator(".react-flow__minimap-node")).toHaveCount(total);
@@ -24,10 +25,22 @@ test.describe("scenarios render", () => {
 				// Off-screen shapes aren't rendered at all.
 				await expect(cards.first()).toBeVisible();
 				expect(await cards.count()).toBeLessThan(expected.cards);
+			} else if (expected.stickies > 20) {
+				// A wall of stickies runs off the screen, so only some render.
+				const stickies = page.locator(".react-flow__node-sticky");
+				await expect(stickies.first()).toBeVisible();
+				expect(await stickies.count()).toBeLessThanOrEqual(expected.stickies);
+				await expect(page.locator(".react-flow__node-text").first()).toBeVisible();
 			} else {
 				await expect(cards).toHaveCount(expected.cards);
 				await expect(page.locator(".react-flow__node-sticky")).toHaveCount(expected.stickies);
+				await expect(page.locator(".react-flow__node-text")).toHaveCount(expected.texts);
 			}
+
+			// A new board shows the first-run guide, and only a new board.
+			await expect(page.getByRole("heading", { name: "A blank board" })).toHaveCount(
+				total === 0 ? 1 : 0,
+			);
 
 			// Every rendered card loaded, with a state.
 			await expect(page.locator(".card.loading")).toHaveCount(0);
@@ -140,4 +153,95 @@ test("dragging a card commits its position", async ({ page }) => {
 	// Committed to the document, so it stays put rather than snapping back.
 	await page.waitForTimeout(400);
 	expect(await nodePosition(node)).toEqual(after);
+});
+
+test("the text tool places text that sizes to fit", async ({ page }) => {
+	await openScenario(page, "empty");
+	await page.keyboard.press("t");
+	await expect(page.getByRole("button", { name: "Text", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await page.mouse.click(420, 300);
+
+	const field = page.getByRole("textbox", { name: "Text" });
+	await expect(field).toBeFocused();
+	const block = page.locator(".react-flow__node-text");
+	await page.keyboard.type("Hi");
+	const narrow = (await block.boundingBox())?.width ?? 0;
+	await page.keyboard.type(" there, everyone");
+	await expect.poll(async () => (await block.boundingBox())?.width ?? 0).toBeGreaterThan(narrow);
+
+	// Bigger, from the toolbar above it, without leaving the text.
+	await page.getByRole("radio", { name: "Extra large" }).click();
+	await expect(block.locator(".text-block")).toHaveAttribute("data-size", "xl");
+	await expect(field).toBeFocused();
+
+	await page.keyboard.press("Escape");
+	await expect(block.locator(".text-block-text")).toHaveText("Hi there, everyone");
+});
+
+test("text left empty is removed", async ({ page }) => {
+	await openScenario(page, "empty");
+	await page.keyboard.press("t");
+	await page.mouse.click(420, 300);
+	await expect(page.getByRole("textbox", { name: "Text" })).toBeFocused();
+	await page.keyboard.press("Escape");
+	await page.mouse.click(700, 600);
+	await expect(page.locator(".react-flow__node-text")).toHaveCount(0);
+});
+
+test("the toolbar recolours a sticky and switches its typeface", async ({ page }) => {
+	await openScenario(page, "planning");
+	const sticky = page.locator(".react-flow__node-sticky").first();
+	await sticky.click();
+	const toolbar = page.getByRole("toolbar", { name: "Shape options" });
+	await expect(toolbar).toBeVisible();
+
+	await toolbar.getByRole("radio", { name: "purple" }).click();
+	await expect(sticky.locator(".sticky")).toHaveAttribute("data-color", "purple");
+	await toolbar.getByRole("radio", { name: "Handwriting" }).click();
+	await expect(sticky.locator(".sticky-text")).toHaveAttribute("data-font", "hand");
+	await expect(toolbar.getByRole("radio", { name: "Handwriting" })).toHaveAttribute(
+		"aria-checked",
+		"true",
+	);
+});
+
+test("slash opens cursor chat, and not while typing", async ({ page }) => {
+	await openScenario(page, "empty");
+	await page.mouse.move(500, 300);
+	await page.keyboard.press("/");
+	const chat = page.getByRole("textbox", { name: /Cursor chat/ });
+	await expect(chat).toBeFocused();
+	await page.keyboard.type("over here");
+	await page.keyboard.press("Enter");
+	await expect(chat).toHaveCount(0);
+	// The message stays a moment after sending.
+	await expect(page.locator(".cursor-chat-text")).toHaveText("over here");
+
+	// In a sticky, "/" is just a character.
+	await page.keyboard.press("s");
+	await page.mouse.click(300, 300);
+	const note = page.getByRole("textbox", { name: "Sticky note" });
+	await expect(note).toBeFocused();
+	await page.keyboard.type("a/b");
+	await expect(note).toHaveValue("a/b");
+	await expect(page.getByRole("textbox", { name: /Cursor chat/ })).toHaveCount(0);
+});
+
+test("clicking an avatar follows them until you pan", async ({ page }) => {
+	await openScenario(page, "planning");
+	await page.getByRole("button", { name: "Someone joins" }).click();
+	await page
+		.getByLabel("People here")
+		.getByRole("button", { name: /^Follow / })
+		.click();
+	const pill = page.locator(".follow-pill");
+	await expect(pill).toContainText("Following");
+
+	// Your own pan stops following.
+	await page.mouse.move(400, 400);
+	await page.mouse.wheel(0, 200);
+	await expect(pill).toHaveCount(0);
 });
