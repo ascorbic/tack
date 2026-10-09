@@ -20,9 +20,10 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `src/server/webhooks.ts` — `POST /webhooks/:forge` routing
 - `src/server/log.ts` — structured logger: one JSON line per event (see Observability)
 - `src/server/clientErrors.ts` — `POST /api/client-errors`: browser error reports, logged as `client.error` events
-- `src/shared/` — forge-neutral item keys (`{host}/{repo}{#|!}{n}`, see `refs.ts`), card types and the Yjs shape schema, used by both server and client
+- `src/shared/` — forge-neutral item keys (`{host}/{repo}{#|!}{n}`, see `refs.ts`), card types and the Yjs shape schema (`shapes.ts`, documented there), used by both server and client. Pure canvas logic lives here too, so it's unit-tested in Node and usable on the server: `geometry.ts`, `sections.ts` (containment), `connectors.ts` (ends and routing), `structure.ts` (structural edits) and `repair.ts` (the repair pass for dangling references)
 - `src/client/` — React + React Flow canvas (own `tsconfig.json` with DOM types); `index.html` at the repo root is its entry
 - `src/client/undo.ts` — undo and redo with `Y.UndoManager`, tracking only this client's changes. **Every local document write must go through `transactLocal(doc, fn)`** (origin `LOCAL_ORIGIN`, `"local"`), or it can't be undone; changes from other people, the server and seeding are never undone. One transaction is one undo step
+- `src/client/sections.tsx`, `src/client/connectors.tsx`, `src/client/canvasStructure.ts` — sections (React Flow nodes, containment through a stored `parent` key) and connectors (our own SVG layer inside the viewport); see `docs/react-flow-probe.md`
 - `src/client/commands.ts` — keyboard shortcuts, clipboard, nudging and arranging; `shortcuts.ts` is the single list behind both the key handling and the `?` sheet. Shortcuts ignore keys typed into text fields. Clipboard and snapping (`clipboard.ts`, `snapping.ts`, `arrange.ts`) are generic over shape types: copy carries every property, and snapping uses measured bounds
 - `src/client/auth/` — sign-in UI: the `/api/me` store (`me.ts`), the account menu, the access gate with the sign-in and "invite-only" pages, and the `/setup` page
 - `src/client/play/` — dev-only UI workbench, left out of production builds: `/play` runs a board entirely in the browser with simulated people (own Y.Doc + Awareness each) and simulated forge events, plus slow-motion and reduced-motion toggles; `/play/cards` is a gallery of every card state; `/play/auth` of every sign-in, access and setup state; `/play/crash` throws, to show the error fallback. Use these to iterate on interaction details
@@ -31,6 +32,7 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `scripts/send-webhook.ts` — send a signed webhook to a local dev server (reads `GITHUB_WEBHOOK_SECRET` from `.dev.vars`)
 - `docs/spike.md` — spike findings: performance, Yjs growth, design decisions
 - `docs/github-data.md` — how cards are keyed, fetched (batched GraphQL) and kept fresh, and how renamed repositories keep working
+- `docs/react-flow-probe.md` — what stays React Flow's (box-shaped nodes) and what's on our own layers (connectors, strokes) and in our own code (containment, geometry, hit testing)
 - `test/` — Vitest tests in Node. Integration tests run the built Worker in Miniflare (`test/harness.ts`); `test/global-setup.ts` builds it first
 - `e2e/` — Playwright smoke tests over the `/play` workbench, with their own config (`e2e/playwright.config.ts`) and screenshot baselines
 - `cloudflare.config.ts` — Worker configuration, via `defineConfig` from `cf/config` (there is no wrangler.jsonc, and no Wrangler dependency at all)

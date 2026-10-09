@@ -1,7 +1,7 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { STICKY_COLORS, type StickyColor } from "./board.ts";
 
-export type Tool = "select" | "hand" | "sticky" | "text" | "card";
+export type Tool = "select" | "hand" | "sticky" | "text" | "card" | "section" | "connector";
 
 export const TOOL_KEYS: Record<string, Tool> = {
 	v: "select",
@@ -9,6 +9,8 @@ export const TOOL_KEYS: Record<string, Tool> = {
 	s: "sticky",
 	t: "text",
 	c: "card",
+	f: "section",
+	x: "connector",
 };
 
 /** The MIME type for dragging a new sticky off the toolbar onto the canvas. */
@@ -33,6 +35,10 @@ export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }:
 				</div>
 			)}
 			{tool === "card" && <CardOptions onAddCard={onAddCard} onDone={() => onTool("select")} />}
+			{tool === "section" && (
+				<ToolHint>Drag out a section around things, or click to place one</ToolHint>
+			)}
+			{tool === "connector" && <ToolHint>Drag from a shape to another, or anywhere</ToolHint>}
 			<div className="toolbar" role="toolbar" aria-label="Tools">
 				<ToolButton tool="select" active={tool} onTool={onTool} label="Select" shortcut="V">
 					<path d="M5 3.5l12 7-5.5 1.6L9 17.5z" />
@@ -52,6 +58,14 @@ export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }:
 				<ToolButton tool="card" active={tool} onTool={onTool} label="Issue or PR" shortcut="C">
 					<circle cx="10" cy="10" r="6.5" />
 					<circle cx="10" cy="10" r="1.8" className="fill" />
+				</ToolButton>
+				<ToolButton tool="section" active={tool} onTool={onTool} label="Section" shortcut="F">
+					<rect x="3" y="7.5" width="14" height="9.5" rx="2" />
+					<path d="M3 4h6.5" />
+				</ToolButton>
+				<ToolButton tool="connector" active={tool} onTool={onTool} label="Connector" shortcut="X">
+					<circle cx="4.8" cy="15.2" r="1.8" className="fill" />
+					<path d="M6.3 13.7C8 7.5 10.5 5.5 15.5 5.5M13 3l2.5 2.5L13 8" />
 				</ToolButton>
 			</div>
 		</div>
@@ -118,6 +132,14 @@ function StickyButton({
 		>
 			<span className="tool-sticky-paper" data-color={color} aria-hidden="true" />
 		</button>
+	);
+}
+
+function ToolHint({ children }: { children: React.ReactNode }) {
+	return (
+		<div className="toolbar-options">
+			<span className="toolbar-hint">{children}</span>
+		</div>
 	);
 }
 

@@ -1,7 +1,12 @@
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
-import { type ShapeFont, shapesMap } from "../../shared/shapes.ts";
+import { withFallbacks } from "../../shared/connectors.ts";
+import type { Rect } from "../../shared/geometry.ts";
+import { REPAIR_ORIGIN, repairBoard } from "../../shared/repair.ts";
+import { boxOf } from "../../shared/sections.ts";
+import { type ConnectorEnd, type ShapeFont, readShape, shapesMap } from "../../shared/shapes.ts";
+import { addConnector, removeShapes, resizeSection } from "../../shared/structure.ts";
 import type { Status } from "../activity.ts";
 import { STICKY_COLORS, addCard, addSticky, moveShape, type Position } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
@@ -41,6 +46,22 @@ export class SimulatedBoard {
 	doc = new Y.Doc();
 	awareness = new Awareness(this.doc);
 	people: RemotePerson[] = [];
+	/** Repairs made by the simulated server, for the playground to report. */
+	repairs = 0;
+	private repairTimer = 0;
+
+	constructor() {
+		// Stand in for the board's Durable Object, which repairs references
+		// left dangling by concurrent edits shortly after they arrive.
+		shapesMap(this.doc).observeDeep((_events, transaction) => {
+			if (transaction.origin === REPAIR_ORIGIN) return;
+			clearTimeout(this.repairTimer);
+			this.repairTimer = window.setTimeout(() => {
+				const result = repairBoard(this.doc);
+				this.repairs += result.parents + result.ends + result.removed;
+			}, 250);
+		});
+	}
 
 	join(user: User = randomUser()): RemotePerson {
 		const person = new RemotePerson(this, user);
@@ -54,6 +75,7 @@ export class SimulatedBoard {
 	}
 
 	destroy(): void {
+		clearTimeout(this.repairTimer);
 		for (const person of this.people) person.dispose();
 		this.people = [];
 		this.awareness.destroy();
@@ -76,7 +98,7 @@ export class SimulatedBoard {
 		return keys;
 	}
 
-	shapeIds(type?: "card" | "sticky"): string[] {
+	shapeIds(type?: "card" | "sticky" | "section" | "connector"): string[] {
 		return [...shapesMap(this.doc).entries()]
 			.filter(([, shape]) => !type || shape.get("type") === type)
 			.map(([id]) => id);
@@ -102,6 +124,16 @@ export class SimulatedBoard {
 		if (!shape) return null;
 		return { x: Number(shape.get("x")), y: Number(shape.get("y")) };
 	}
+
+	box(id: string): Rect | undefined {
+		return nominalBox(this.doc, id);
+	}
+}
+
+/** A shape's box, with nominal sizes for shapes that size to their content. */
+function nominalBox(doc: Y.Doc, id: string): Rect | undefined {
+	const shape = shapesMap(doc).get(id);
+	return shape ? boxOf(id, readShape(shape)) : undefined;
 }
 
 export class RemotePerson {
@@ -123,10 +155,10 @@ export class RemotePerson {
 		this.awareness = new Awareness(this.doc);
 
 		const toRemote = (update: Uint8Array, origin: unknown) => {
-			if (origin !== this.origin) Y.applyUpdate(this.doc, update, this.origin);
+			if (origin !== this.origin && !this.offline) Y.applyUpdate(this.doc, update, this.origin);
 		};
 		const toLocal = (update: Uint8Array, origin: unknown) => {
-			if (origin !== this.origin) Y.applyUpdate(board.doc, update, this.origin);
+			if (origin !== this.origin && !this.offline) Y.applyUpdate(board.doc, update, this.origin);
 		};
 		board.doc.on("update", toRemote);
 		this.doc.on("update", toLocal);
@@ -164,6 +196,83 @@ export class RemotePerson {
 			following: null,
 		};
 		this.awareness.setLocalState(state);
+	}
+
+	/** While offline, edits on either side wait until `reconnect`. */
+	offline = false;
+
+	reconnect(): void {
+		this.offline = false;
+		const board = this.board.doc;
+		Y.applyUpdate(board, Y.encodeStateAsUpdate(this.doc, Y.encodeStateVector(board)), this.origin);
+		Y.applyUpdate(
+			this.doc,
+			Y.encodeStateAsUpdate(board, Y.encodeStateVector(this.doc)),
+			this.origin,
+		);
+	}
+
+	/**
+	 * Draw a connector from one shape to another, live, then commit it. The
+	 * end follows the cursor as a loose end until it reaches the target.
+	 */
+	async connect(fromId: string, toId: string): Promise<string | null> {
+		// This person's own view of the board, which may be offline.
+		const box = (id: string) => nominalBox(this.doc, id);
+		const fromBox = box(fromId);
+		const toBox = box(toId);
+		if (!fromBox || !toBox) return null;
+		const from: ConnectorEnd = { x: 0, y: 0, shape: fromId };
+		const start = { x: fromBox.x + fromBox.w / 2, y: fromBox.y + fromBox.h / 2 };
+		const target = { x: toBox.x + toBox.w / 2, y: toBox.y + toBox.h / 2 };
+		await this.moveTo(start, 500);
+		await sleep(120);
+		await animate(start, target, 900, (p) => {
+			this.cursor = p;
+			const inside =
+				p.x >= toBox.x && p.x <= toBox.x + toBox.w && p.y >= toBox.y && p.y <= toBox.y + toBox.h;
+			const to: ConnectorEnd = inside ? { x: p.x, y: p.y, shape: toId } : { x: p.x, y: p.y };
+			this.awareness.setLocalState({
+				...this.awareness.getLocalState(),
+				cursor: p,
+				connecting: { from, to },
+			});
+		});
+		const ends = withFallbacks(from, { x: 0, y: 0, shape: toId }, box);
+		let id: string | null = null;
+		this.doc.transact(() => {
+			id = addConnector(this.doc, ends);
+		});
+		this.awareness.setLocalStateField("connecting", null);
+		return id;
+	}
+
+	/** Resize a section by dragging its bottom-right corner, live, then commit. */
+	async resize(id: string, to: { w: number; h: number }, ms = 900): Promise<void> {
+		const box = this.board.box(id);
+		if (!box) return;
+		const corner = { x: box.x + box.w, y: box.y + box.h };
+		await this.moveTo(corner, 500);
+		await sleep(120);
+		let rect: Rect = box;
+		await animate(corner, { x: box.x + to.w, y: box.y + to.h }, ms, (p) => {
+			this.cursor = p;
+			rect = { ...box, w: p.x - box.x, h: p.y - box.y };
+			this.awareness.setLocalState({
+				...this.awareness.getLocalState(),
+				cursor: p,
+				resizes: { [id]: rect },
+			});
+		});
+		this.doc.transact(() => resizeSection(this.doc, id, rect));
+		this.awareness.setLocalStateField("resizes", null);
+	}
+
+	async remove(id: string): Promise<void> {
+		const position = this.board.shapePosition(id);
+		if (position) await this.moveTo({ x: position.x + 30, y: position.y + 30 }, 500);
+		await sleep(200);
+		removeShapes(this.doc, [id]);
 	}
 
 	async moveTo(target: Position, ms = 700): Promise<void> {

@@ -35,17 +35,20 @@ import {
 } from "./board.ts";
 import type { BoardSource } from "./connection.ts";
 import { BrandMark } from "./BrandMark.tsx";
+import { useCanvasStructure, useSizeOf } from "./canvasStructure.ts";
 import { useCanvasCommands } from "./commands.ts";
+import { ConnectorLayer } from "./connectors.tsx";
 import { CursorChat } from "./CursorChat.tsx";
 import { Cursors } from "./Cursors.tsx";
 import { EmptyBoard } from "./EmptyBoard.tsx";
 import { FollowIndicator, ViewPublisher, useFollow } from "./Follow.tsx";
 import { Guides, useSnapping } from "./Guides.tsx";
-import { HistoryContext } from "./DocContext.ts";
+import { BoardContext } from "./DocContext.ts";
 import { isOffBoardTarget } from "./keys.ts";
-import { DocContext, nodeTypes } from "./nodes.tsx";
+import { nodeTypes } from "./nodes.tsx";
 import { People } from "./People.tsx";
 import { type User, usePresence } from "./presence.ts";
+import { SectionTool, ZoomVariable, sectionNodeTypes } from "./sections.tsx";
 import { SelectionTools } from "./SelectionTools.tsx";
 import { ShapeToolbar, styledShapes } from "./ShapeToolbar.tsx";
 import { ShortcutSheet } from "./Shortcuts.tsx";
@@ -54,6 +57,8 @@ import { Toasts, ToastStore } from "./Toasts.tsx";
 import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar } from "./Toolbar.tsx";
 import { History } from "./undo.ts";
 import { usePublishStatus } from "./useActivity.ts";
+
+const NODE_TYPES = { ...nodeTypes, ...sectionNodeTypes };
 
 interface BoardProps extends BoardSource {
 	name: string;
@@ -91,6 +96,16 @@ export function Board({
 	const measuredRef = useRef(measured);
 	measuredRef.current = measured;
 	const sizeOf = useCallback((id: string) => measuredRef.current.get(id), []);
+	// The same, as boxes for structural edits (see shared/structure.ts).
+	const boxSize = useSizeOf(measured);
+	// Sections: contents following a dragged section, resizes in progress,
+	// and where a dragged shape would land.
+	const structure = useCanvasStructure({
+		shapeNodes,
+		drags: presence.overrides,
+		measured,
+		awareness,
+	});
 
 	// Undo and redo this person's own changes, never anyone else's.
 	const history = useMemo(() => new History(doc), [doc]);
@@ -110,9 +125,23 @@ export function Board({
 			shapeNodes.map((base) => {
 				const isSelected = selected.has(base.id);
 				const size = measured.get(base.id);
-				const drag = presence.overrides.get(base.id);
-				const position = drag ? { x: drag.x, y: drag.y } : base.position;
+				const drag = structure.overrides.get(base.id);
+				const resize = structure.resizes.get(base.id);
+				const position = resize
+					? { x: resize.x, y: resize.y }
+					: drag
+						? { x: drag.x, y: drag.y }
+						: base.position;
+				const width = resize?.w ?? base.width;
+				const height = resize?.h ?? base.height;
+				// Shapes being dragged float above everything else.
+				const zIndex = structure.zIndexOf(base);
 				const remoteColor = drag?.user?.color;
+				const className = remoteColor
+					? "remote-drag"
+					: structure.followsRemote.has(base.id)
+						? "remote-follow"
+						: undefined;
 				const cached = merged.current.get(base.id)?.out;
 				if (
 					cached &&
@@ -121,7 +150,10 @@ export function Board({
 					cached.measured === size &&
 					cached.position.x === position.x &&
 					cached.position.y === position.y &&
-					cached.className === (remoteColor ? "remote-drag" : undefined)
+					cached.width === width &&
+					cached.height === height &&
+					cached.zIndex === zIndex &&
+					cached.className === className
 				) {
 					return cached;
 				}
@@ -130,18 +162,20 @@ export function Board({
 					selected: isSelected,
 					measured: size,
 					position,
-					className: remoteColor ? "remote-drag" : undefined,
-					// Shapes being dragged float above everything else.
-					zIndex: drag ? 1000 : base.zIndex,
+					width,
+					height,
+					className,
+					zIndex,
 					style: remoteColor ? ({ "--drag-color": remoteColor } as React.CSSProperties) : undefined,
 				};
 				merged.current.set(base.id, { base, out });
 				return out;
 			}),
-		[shapeNodes, selected, measured, presence.overrides],
+		[shapeNodes, selected, measured, structure],
 	);
 
-	const snapping = useSnapping(nodes, sizeOf);
+	// A dragged section's contents move with it, so they're never snapped to.
+	const snapping = useSnapping(nodes, sizeOf, structure.contentsOf);
 
 	const [tool, setTool] = useState<Tool>("select");
 	const [stickyColor, setStickyColor] = useState<StickyColor>("yellow");
@@ -168,6 +202,7 @@ export function Board({
 		selected,
 		setSelected,
 		sizeOf,
+		boxSize,
 		user,
 		stickyColor,
 		previewPositions,
@@ -206,9 +241,20 @@ export function Board({
 			}
 			presence.onPositionChanges(changes);
 			commands.onRemove(changes.flatMap((change) => (change.type === "remove" ? [change.id] : [])));
-			applyNodeChanges(doc, changes, presence.lastDragPosition);
+			applyNodeChanges(doc, changes, presence.lastDragPosition, boxSize);
 		},
-		[doc, presence, snapping, commands],
+		[doc, presence, snapping, commands, boxSize],
+	);
+
+	const sectionUI = useMemo(
+		() => ({
+			dropTargets: structure.dropTargets,
+			selectionSize: selected.size,
+			setResize: structure.setResize,
+			snapResize: snapping.snapResize,
+			sizeOf: boxSize,
+		}),
+		[structure.dropTargets, selected.size, structure.setResize, snapping.snapResize, boxSize],
 	);
 
 	const centre = useCallback(
@@ -291,141 +337,173 @@ export function Board({
 	};
 
 	// Select: drag the canvas to marquee-select; scroll or space-drag to pan.
-	// Hand: drag to pan, and shapes can't be picked up.
+	// Hand: drag to pan, and shapes can't be picked up. Section and connector:
+	// drag to draw, so shapes can't be picked up either.
+	const shapesInteractive = tool !== "hand" && tool !== "section" && tool !== "connector";
 	return (
-		<DocContext value={doc}>
-			<HistoryContext value={history}>
-				<div className="app">
-					<header className="topbar">
-						<span className="brand">
-							<BrandMark />
-							tack
-						</span>
-						<span className="board-name">{name}</span>
-						<People
-							user={user}
-							selfId={awareness.clientID}
-							people={presence.people}
-							following={follow.following}
-							onFollow={follow.follow}
-							self={account}
-						/>
-						<ThemeToggle />
-						<span className="status" data-synced={synced}>
-							{synced ? "Synced" : "Connecting…"}
-						</span>
-						{actions}
-					</header>
-					<main
-						ref={canvas}
-						className="canvas"
-						data-tool={tool}
-						onPointerMove={(event) => {
-							const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-							presence.setCursor(at);
-							if (tool === "sticky") setGhost(at);
+		<BoardContext doc={doc} history={history} sections={sectionUI}>
+			<div className="app">
+				<header className="topbar">
+					<span className="brand">
+						<BrandMark />
+						tack
+					</span>
+					<span className="board-name">{name}</span>
+					<People
+						user={user}
+						selfId={awareness.clientID}
+						people={presence.people}
+						following={follow.following}
+						onFollow={follow.follow}
+						self={account}
+					/>
+					<ThemeToggle />
+					<span className="status" data-synced={synced}>
+						{synced ? "Synced" : "Connecting…"}
+					</span>
+					{actions}
+				</header>
+				<main
+					ref={canvas}
+					className="canvas"
+					data-tool={tool}
+					onPointerMove={(event) => {
+						const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+						presence.setCursor(at);
+						if (tool === "sticky") setGhost(at);
+					}}
+					onPointerLeave={() => {
+						presence.setCursor(null);
+						setGhost(null);
+					}}
+					onDragOver={onDragOver}
+					onDrop={onDrop}
+				>
+					<ReactFlow
+						nodes={nodes}
+						nodeTypes={NODE_TYPES}
+						onNodesChange={onNodesChange}
+						onPaneClick={onPaneClick}
+						onMoveStart={follow.onMoveStart}
+						proOptions={{ hideAttribution: true }}
+						onlyRenderVisibleElements
+						selectionOnDrag={tool === "select"}
+						panOnDrag={tool === "hand" ? true : [1, 2]}
+						panOnScroll
+						nodesDraggable={shapesInteractive}
+						elementsSelectable={shapesInteractive}
+						minZoom={0.1}
+						// Deleting is a board command (see commands.ts), so that shapes
+						// and connectors go together, as one undo step.
+						deleteKeyCode={null}
+						selectionMode={SelectionMode.Partial}
+						selectionKeyCode={null}
+						multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+						onSelectionStart={(event) => {
+							marqueeBase.current = event.shiftKey ? new Set(selected) : null;
 						}}
-						onPointerLeave={() => {
-							presence.setCursor(null);
-							setGhost(null);
+						onSelectionEnd={() => {
+							marqueeBase.current = null;
 						}}
-						onDragOver={onDragOver}
-						onDrop={onDrop}
+						onNodeClick={(event, node) => {
+							// Clicking one shape in a multi-selection selects just that one.
+							if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+							if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
+						}}
 					>
-						<ReactFlow
-							nodes={nodes}
-							nodeTypes={nodeTypes}
-							onNodesChange={onNodesChange}
-							onPaneClick={onPaneClick}
-							onMoveStart={follow.onMoveStart}
-							proOptions={{ hideAttribution: true }}
-							onlyRenderVisibleElements
-							selectionOnDrag={tool === "select"}
-							panOnDrag={tool === "hand" ? true : [1, 2]}
-							panOnScroll
-							nodesDraggable={tool !== "hand"}
-							elementsSelectable={tool !== "hand"}
-							minZoom={0.1}
-							deleteKeyCode={["Backspace", "Delete"]}
-							selectionMode={SelectionMode.Partial}
-							selectionKeyCode={null}
-							multiSelectionKeyCode={["Shift", "Meta", "Control"]}
-							onSelectionStart={(event) => {
-								marqueeBase.current = event.shiftKey ? new Set(selected) : null;
-							}}
-							onSelectionEnd={() => {
-								marqueeBase.current = null;
-							}}
-							onNodeClick={(event, node) => {
-								// Clicking one shape in a multi-selection selects just that one.
-								if (event.shiftKey || event.metaKey || event.ctrlKey) return;
-								if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
-							}}
+						<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
+						<Controls
+							showInteractive={false}
+							onZoomIn={follow.stop}
+							onZoomOut={follow.stop}
+							onFitView={follow.stop}
 						>
-							<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-							<Controls
-								showInteractive={false}
-								onZoomIn={follow.stop}
-								onZoomOut={follow.stop}
-								onFitView={follow.stop}
+							<ControlButton
+								onClick={() => setSheetOpen(true)}
+								title="Keyboard shortcuts (?)"
+								aria-label="Keyboard shortcuts"
+								className="shortcuts-button"
 							>
-								<ControlButton
-									onClick={() => setSheetOpen(true)}
-									title="Keyboard shortcuts (?)"
-									aria-label="Keyboard shortcuts"
-									className="shortcuts-button"
-								>
-									?
-								</ControlButton>
-							</Controls>
-							<MiniMap pannable zoomable nodeClassName={minimapClass} />
-							<Guides store={snapping.guides} />
-							<SelectionTools
-								nodes={nodes}
-								selected={selected}
-								sizeOf={sizeOf}
-								dragging={snapping.dragging}
-								stacked={styledShapes(selectedNodes).length > 0}
-								onCommand={commands.run}
-							/>
-							<Cursors people={presence.people} />
-							<ViewPublisher awareness={awareness} />
-							<ShapeToolbar doc={doc} selected={selectedNodes} onStickyColor={setStickyColor} />
-							{ghost && (
-								<ViewportPortal>
-									<div
-										className="sticky sticky-ghost"
-										data-color={stickyColor}
-										aria-hidden="true"
-										style={{
-											transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
-										}}
-									/>
-								</ViewportPortal>
-							)}
-						</ReactFlow>
-						<EmptyBoard empty={synced && shapeNodes.length === 0} onTool={setTool} />
-						<FollowIndicator person={follow.target} onStop={follow.stop} />
-						<CursorChat awareness={awareness} user={user} />
-						<Toolbar
-							tool={tool}
-							onTool={setTool}
-							stickyColor={stickyColor}
-							onStickyColor={setStickyColor}
-							onAddCard={onAddCard}
+								?
+							</ControlButton>
+						</Controls>
+						<MiniMap pannable zoomable nodeClassName={minimapClass} />
+						<ZoomVariable />
+						<ConnectorLayer
+							doc={doc}
+							awareness={awareness}
+							nodes={nodes}
+							sectionDrags={structure.sectionDrags}
+							drawing={tool === "connector"}
+							interactive={tool !== "hand"}
+							onDrawn={() => setTool("select")}
+							selected={selected}
+							setSelected={setSelected}
+							sizeOf={boxSize}
 						/>
-						<Toasts store={toasts} />
-						<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
-						{children}
-					</main>
-				</div>
-			</HistoryContext>
-		</DocContext>
+						{tool === "section" && (
+							<SectionTool
+								doc={doc}
+								sizeOf={boxSize}
+								onCreate={(id) => {
+									setSelected(new Set([id]));
+									setTool("select");
+								}}
+							/>
+						)}
+						<Guides store={snapping.guides} />
+						<SelectionTools
+							nodes={nodes}
+							selected={selected}
+							sizeOf={sizeOf}
+							dragging={snapping.dragging}
+							stacked={styledShapes(selectedNodes).length > 0}
+							onCommand={commands.run}
+						/>
+						<Cursors people={presence.people} />
+						<ViewPublisher awareness={awareness} />
+						<ShapeToolbar
+							doc={doc}
+							selected={selectedNodes}
+							dragging={snapping.dragging}
+							onStickyColor={setStickyColor}
+						/>
+						{ghost && (
+							<ViewportPortal>
+								<div
+									className="sticky sticky-ghost"
+									data-color={stickyColor}
+									aria-hidden="true"
+									style={{
+										transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+									}}
+								/>
+							</ViewportPortal>
+						)}
+					</ReactFlow>
+					<EmptyBoard empty={synced && shapeNodes.length === 0} onTool={setTool} />
+					<FollowIndicator person={follow.target} onStop={follow.stop} />
+					<CursorChat awareness={awareness} user={user} />
+					<Toolbar
+						tool={tool}
+						onTool={setTool}
+						stickyColor={stickyColor}
+						onStickyColor={setStickyColor}
+						onAddCard={onAddCard}
+					/>
+					<Toasts store={toasts} />
+					<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+					{children}
+				</main>
+			</div>
+		</BoardContext>
 	);
 }
 
 /** Minimap shapes take their own colour: stickies show as their paper. */
 function minimapClass(node: ShapeNode): string {
 	const { type, color } = node.data.shape;
-	return type === "sticky" ? `minimap-sticky minimap-${color ?? "yellow"}` : `minimap-${type}`;
+	if (type === "sticky") return `minimap-sticky minimap-${color ?? "yellow"}`;
+	if (type === "section") return `minimap-section minimap-section-${color ?? "grey"}`;
+	return `minimap-${type}`;
 }

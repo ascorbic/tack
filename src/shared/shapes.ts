@@ -1,11 +1,49 @@
 import { generateKeyBetween } from "fractional-indexing";
 import * as Y from "yjs";
+import type { Anchor } from "./geometry.ts";
 
 // The board document: `shapes` is a map of shape id → Y.Map of properties.
 // Each property is its own key so concurrent edits to different properties
 // of the same shape merge cleanly.
+//
+// The schema is renderer-independent: nothing here is React Flow's. In
+// particular, positions are always absolute board coordinates (never
+// relative to a section), containment is our own `parent` key rather than
+// React Flow's `parentId`, and connectors are shapes rather than edges.
+//
+// | key      | shapes             | meaning                                         |
+// | -------- | ------------------ | ----------------------------------------------- |
+// | type     | all                | `card`, `sticky`, `text`, `section`, `connector`|
+// | x, y     | all but connectors | top-left corner, absolute; 0 on connectors      |
+// | z        | all                | fractional index for stacking order             |
+// | parent   | all but connectors | id of the containing section, or null           |
+// | ref      | card               | the card key, `{host}/{repo}#{n}`               |
+// | text     | sticky, text       | plain text                                      |
+// | font     | sticky, text       | `sans` (default) or `hand`                      |
+// | size     | text               | `s`, `m` (default), `l` or `xl`                 |
+// | color    | sticky, section,   | a palette name                                  |
+// |          | connector          |                                                 |
+// | author   | sticky             | who made it                                     |
+// | w, h     | section            | size (cards and stickies size to content)       |
+// | title    | section            | the section's name                              |
+// | from, to | connector          | each end, see `ConnectorEnd`                    |
+// | label    | connector          | text at the middle of the line                  |
+// | route    | connector          | `curved` (default), `straight` or `elbow`       |
+// | arrow    | connector          | `end` (default), `both` or `none`               |
+// | dash     | connector          | dashed line when true                           |
+//
+// Every committed move writes x, y and `parent` together, even when the
+// parent is unchanged and even when it's null, so a concurrent move always
+// resolves to one client's x, y and parent rather than a mix: Yjs picks the
+// same winner for every key two clients set concurrently. (Deleting the key
+// would not: a delete never beats a concurrent set.)
+//
+// References between shapes (`parent`, connector ends) can dangle after
+// concurrent edits, e.g. one person deletes a section while another drops a
+// sticky into it. Readers must tolerate that, and `repair.ts` fixes it up on
+// the server.
 
-export type ShapeType = "card" | "sticky" | "text";
+export type ShapeType = "card" | "sticky" | "text" | "section" | "connector";
 
 /** Typeface for stickies and text: the UI sans, or a handwriting face. */
 export type ShapeFont = "sans" | "hand";
@@ -15,10 +53,13 @@ export type TextSize = "s" | "m" | "l" | "xl";
 
 export interface ShapeProps {
 	type: ShapeType;
+	/** Top-left corner in board coordinates. Unused (0) on connectors. */
 	x: number;
 	y: number;
 	/** Fractional index for stacking order. */
 	z: string;
+	/** The section this shape sits in, if any. */
+	parent?: string | null;
 	/** Card shapes: the card key, `owner/repo#number`. */
 	ref?: string;
 	/** Sticky and text shapes: plain text for now. */
@@ -30,7 +71,37 @@ export interface ShapeProps {
 	size?: TextSize;
 	/** Who made it, shown on stickies. */
 	author?: Author;
+	/** Sections: size. */
+	w?: number;
+	h?: number;
+	/** Sections: the title. */
+	title?: string;
+	/** Connectors: where each end is. */
+	from?: ConnectorEnd;
+	to?: ConnectorEnd;
+	/** Connectors: text at the middle of the line. */
+	label?: string;
+	route?: ConnectorRoute;
+	arrow?: ConnectorArrow;
+	dash?: boolean;
 }
+
+/**
+ * One end of a connector. A loose end is just a point. A bound end names a
+ * shape and follows it: `anchor` pins it to a point on the shape's outline;
+ * without one, the end floats around the outline, aiming at the other end.
+ * `x` and `y` are always set: on a bound end they're where the end was when
+ * it was last placed, which is where it's left if the shape disappears.
+ */
+export interface ConnectorEnd {
+	x: number;
+	y: number;
+	shape?: string;
+	anchor?: Anchor;
+}
+
+export type ConnectorRoute = "curved" | "straight" | "elbow";
+export type ConnectorArrow = "end" | "both" | "none";
 
 export interface Author {
 	name: string;

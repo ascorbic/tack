@@ -1,0 +1,28 @@
+/* The pen prototype from the React Flow probe. */
+.pen-probe {
+	position: absolute;
+	left: 0;
+	top: 0;
+	z-index: 1400;
+	width: 1px;
+	height: 1px;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.pen-probe path {
+	fill: none;
+	stroke-width: 3;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: opacity var(--t-quick) var(--ease-out);
+}
+
+.pen-probe path[data-hover="true"] {
+	opacity: 0.3;
+}
+
+.canvas:has(.pen-probe[data-mode="pen"]) :is(.react-flow__pane, .react-flow__node),
+.canvas:has(.pen-probe[data-mode="eraser"]) :is(.react-flow__pane, .react-flow__node) {
+	cursor: crosshair;
+}

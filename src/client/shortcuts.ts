@@ -140,6 +140,22 @@ export const SHORTCUTS: Shortcut[] = [
 		keywords: "marquee lasso box",
 	},
 	{
+		id: "rename",
+		label: "Rename a section or label a connector",
+		group: "Edit",
+		combos: [],
+		display: [["Enter"]],
+		keywords: "title label section connector arrow",
+	},
+	{
+		id: "connectFromShape",
+		label: "Connect from a dot beside a shape",
+		group: "Edit",
+		combos: [],
+		display: [["Drag"]],
+		keywords: "connector arrow line link",
+	},
+	{
 		id: "deselect",
 		label: "Deselect, or stop editing",
 		group: "Selection",
@@ -340,6 +356,8 @@ const TOOL_LABELS: Record<string, string> = {
 	sticky: "Sticky note",
 	card: "Issue or pull request",
 	text: "Text",
+	section: "Section",
+	connector: "Connector",
 };
 
 /** Sheet entries for the toolbar's single-key tool shortcuts. */

@@ -1,0 +1,391 @@
+/* ---------------------------------------------------------------------------
+   Connectors
+   ------------------------------------------------------------------------ */
+
+:root {
+	--connector-ink: #3f444b;
+	--connector-red: #c2372b;
+	--connector-orange: #c0650f;
+	--connector-green: #1f7a4a;
+	--connector-blue: #2a62c9;
+	--connector-purple: #7444c4;
+}
+
+:is(.connector, .connector-label, .connector-swatch)[data-color="ink"] {
+	--connector: var(--connector-ink);
+}
+:is(.connector, .connector-label, .connector-swatch)[data-color="red"] {
+	--connector: var(--connector-red);
+}
+:is(.connector, .connector-label, .connector-swatch)[data-color="orange"] {
+	--connector: var(--connector-orange);
+}
+:is(.connector, .connector-label, .connector-swatch)[data-color="green"] {
+	--connector: var(--connector-green);
+}
+:is(.connector, .connector-label, .connector-swatch)[data-color="blue"] {
+	--connector: var(--connector-blue);
+}
+:is(.connector, .connector-label, .connector-swatch)[data-color="purple"] {
+	--connector: var(--connector-purple);
+}
+
+/* The layer sits above resting shapes (so ends and labels can always be
+   reached) and below shapes being dragged, which lift over everything. */
+.connector-layer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	z-index: 1500;
+	pointer-events: none;
+}
+
+.connectors {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 1px;
+	height: 1px;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.connector {
+	animation: connector-in var(--t-base) var(--ease-out);
+}
+
+@keyframes connector-in {
+	from {
+		opacity: 0;
+	}
+}
+
+.connector-line {
+	fill: none;
+	stroke: var(--connector, var(--connector-ink));
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: stroke var(--t-base) var(--ease-out);
+}
+
+.connector-line[data-dash="true"] {
+	stroke-dasharray: 7 6;
+}
+
+.connector-head {
+	fill: var(--connector, var(--connector-ink));
+	stroke: var(--connector, var(--connector-ink));
+	stroke-width: 1.5;
+	stroke-linejoin: round;
+	transition:
+		fill var(--t-base) var(--ease-out),
+		stroke var(--t-base) var(--ease-out);
+}
+
+/* A soft glow along the line on hover, stronger when selected. */
+.connector-halo {
+	fill: none;
+	stroke: transparent;
+	stroke-width: 10;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: stroke var(--t-quick) var(--ease-out);
+}
+
+.connector:hover .connector-halo {
+	stroke: color-mix(in srgb, var(--connector) 14%, transparent);
+}
+
+.connector[data-selected="true"] .connector-halo {
+	stroke: var(--accent-soft);
+	stroke-width: 12;
+}
+
+/* A wide invisible stroke to make thin lines easy to pick, the same width
+   on screen at any zoom. */
+.connector-hit {
+	fill: none;
+	stroke: transparent;
+	stroke-width: calc(16 * var(--px, 1px));
+	stroke-linecap: round;
+	pointer-events: stroke;
+	cursor: pointer;
+}
+
+.connector-layer[data-interactive="false"] .connector-hit,
+.connector-layer[data-interactive="false"] .connector-label {
+	pointer-events: none;
+}
+
+.connector[data-moving="true"] .connector-line {
+	opacity: 0.85;
+}
+
+/* Being drawn: by us in the accent colour, by someone else in theirs. */
+.connector-draft {
+	--connector: var(--accent);
+	animation: none;
+}
+
+.connector-draft[data-remote="true"] {
+	--connector: var(--who);
+	opacity: 0.75;
+}
+
+/* The shape an end will attach to. */
+.connector-target {
+	fill: none;
+	stroke: var(--accent);
+	stroke-width: calc(2 * var(--px, 1px));
+	animation: connector-target-in var(--t-base) var(--ease-out);
+}
+
+@keyframes connector-target-in {
+	from {
+		opacity: 0;
+	}
+}
+
+.connector-snap {
+	fill: var(--accent);
+	stroke: #fff;
+	stroke-width: calc(2 * var(--px, 1px));
+}
+
+/* Labels sit on the line and scale with the board, like text. */
+.connector-label {
+	position: absolute;
+	left: 0;
+	top: 0;
+	padding: 3px 8px;
+	border-radius: 7px;
+	background: var(--surface);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--connector) 22%, transparent);
+	color: var(--connector);
+	font-size: 13px;
+	font-weight: 560;
+	line-height: 18px;
+	white-space: pre;
+	pointer-events: auto;
+	cursor: pointer;
+	transition: box-shadow var(--t-quick) var(--ease-out);
+}
+
+.connector-label[data-selected="true"] {
+	box-shadow:
+		0 0 0 1.5px var(--accent),
+		0 0 0 5px var(--accent-soft);
+}
+
+.connector-label[data-editing="true"] {
+	cursor: text;
+}
+
+.connector-label-edit {
+	display: inline-grid;
+}
+
+.connector-label-edit::after,
+.connector-label-edit input {
+	grid-area: 1 / 1;
+	font: inherit;
+	padding: 0;
+}
+
+.connector-label-edit::after {
+	content: attr(data-value) " ";
+	visibility: hidden;
+	white-space: pre;
+}
+
+.connector-label-edit input {
+	min-width: 1ch;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	outline: none;
+}
+
+/* Handles: ends of the selected connector, and the dots around a hovered
+   shape to drag a new connector out of. Both stay the same size on screen. */
+.connector-end,
+.connector-handle {
+	position: absolute;
+	left: -8px;
+	top: -8px;
+	width: 16px;
+	height: 16px;
+	pointer-events: auto;
+	touch-action: none;
+}
+
+.connector-end::before,
+.connector-handle::before {
+	content: "";
+	position: absolute;
+	inset: 2px;
+	border-radius: 50%;
+	background: #fff;
+	border: 2px solid var(--accent);
+	box-shadow: 0 1px 3px rgb(23 25 28 / 18%);
+	transition:
+		scale var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+	animation: connector-handle-in var(--t-base) var(--ease-spring);
+}
+
+.connector-end {
+	cursor: grab;
+}
+
+.connector-end[data-bound="true"]::before {
+	background: var(--accent);
+	border-color: #fff;
+}
+
+.connector-end:hover::before {
+	scale: 1.25;
+}
+
+.connector-handle {
+	cursor: crosshair;
+}
+
+.connector-handle::before {
+	inset: 3px;
+	border-width: 1.5px;
+	background: var(--accent);
+	border-color: #fff;
+}
+
+.connector-handle:hover::before {
+	scale: 1.6;
+}
+
+@keyframes connector-handle-in {
+	from {
+		scale: 0.3;
+		opacity: 0;
+	}
+}
+
+/* Style controls, floating above the middle of the selected connector. */
+.connector-toolbar {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 0;
+	height: 0;
+	transform-origin: 0 0;
+}
+
+.connector-toolbar-inner {
+	position: absolute;
+	left: 0;
+	bottom: 22px;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 4px;
+	border-radius: 12px;
+	background: rgb(255 255 255 / 96%);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-lifted);
+	pointer-events: auto;
+	translate: -50% 0;
+	white-space: nowrap;
+	animation: connector-toolbar-in var(--t-settle) var(--ease-spring);
+}
+
+/* Clear of the label, which sits on the middle of the line. */
+.connector-toolbar[data-labelled="true"] .connector-toolbar-inner {
+	bottom: calc(22px + 14px * var(--zoom, 1));
+}
+
+@keyframes connector-toolbar-in {
+	from {
+		opacity: 0;
+		scale: 0.94;
+		translate: -50% 6px;
+	}
+}
+
+.connector-toolbar button {
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink-soft);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.connector-toolbar button:hover {
+	background: #f1efea;
+}
+
+.connector-toolbar button:active {
+	transform: scale(0.92);
+}
+
+.connector-toolbar button[aria-pressed="true"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.connector-toolbar svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.connector-toolbar .connector-swatch {
+	width: 22px;
+	height: 22px;
+	margin: 0 1px;
+	border-radius: 50%;
+	background: var(--connector);
+}
+
+.connector-toolbar .connector-swatch:hover {
+	background: var(--connector);
+	transform: scale(1.12);
+}
+
+.connector-toolbar .connector-swatch[aria-pressed="true"] {
+	background: var(--connector);
+	box-shadow:
+		0 0 0 2px #fff,
+		0 0 0 3.5px var(--connector);
+}
+
+.connector-toolbar-divider {
+	width: 1px;
+	height: 20px;
+	margin: 0 4px;
+	background: var(--line-strong);
+}
+
+.canvas[data-tool="connector"] .react-flow__pane,
+.canvas[data-tool="connector"] .react-flow__node {
+	cursor: crosshair;
+}
+
+/* Gallery samples. */
+.connector-sample {
+	position: relative;
+}
+
+.connector-sample-shape {
+	fill: var(--surface);
+	stroke: var(--line-strong);
+}

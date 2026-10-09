@@ -17,6 +17,7 @@ import {
 	reviewed,
 } from "./ci.ts";
 import { fixture, LABELS } from "./fixtures.ts";
+import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
 
@@ -58,6 +59,13 @@ function pick<T>(list: T[]): T | undefined {
 	return list[Math.floor(Math.random() * list.length)];
 }
 
+function shuffle<T>(list: T[]): T[] {
+	return list
+		.map((item) => ({ item, key: Math.random() }))
+		.sort((a, b) => a.key - b.key)
+		.map(({ item }) => item);
+}
+
 export default function Playground() {
 	const [scenario, setScenario] = useState(
 		() => new URLSearchParams(location.search).get("scenario") ?? "planning",
@@ -68,11 +76,19 @@ export default function Playground() {
 		return board;
 	}, [scenario]);
 	useEffect(() => () => sim.destroy(), [sim]);
+	// For poking at from the console, e.g. to measure things.
+	useEffect(() => {
+		Object.assign(window, { tackPlayground: sim });
+	}, [sim]);
 
 	const [user] = useState(localUser);
 	const [people, setPeople] = useState<RemotePerson[]>([]);
 	const [motion, setMotion] = useState<Motion>("normal");
 	const [autoplay, setAutoplay] = useState(false);
+	const [structureNote, setStructureNote] = useState<string | null>(null);
+	const [pen, setPen] = useState<PenMode>("off");
+	const [penStats, setPenStats] = useState<string | null>(null);
+	useEffect(() => setPen("off"), [sim]);
 
 	useEffect(() => setPeople([]), [sim]);
 
@@ -247,6 +263,47 @@ export default function Playground() {
 		conflict: () => updatePull(conflictToggled),
 	};
 
+	// Sections and connectors, including the concurrent edits the server's
+	// repair pass exists for.
+	const shapes = () => [...sim.shapeIds("card"), ...sim.shapeIds("sticky")];
+	const structure = {
+		connect: () => {
+			const [from, to] = shuffle(shapes());
+			if (from && to) void someone().connect(from, to);
+		},
+		resize: () => {
+			const id = pick(sim.shapeIds("section"));
+			const box = id ? sim.box(id) : undefined;
+			if (id && box) {
+				void someone().resize(id, {
+					w: Math.max(200, box.w + (Math.random() - 0.4) * 300),
+					h: Math.max(160, box.h + (Math.random() - 0.4) * 200),
+				});
+			}
+		},
+		race: async () => {
+			const [from, target] = shuffle(shapes());
+			if (!from || !target) return;
+			const deleter = someone();
+			const connector = sim.people.find((person) => person !== deleter) ?? sim.join();
+			setPeople([...sim.people]);
+			setStructureNote("One person is offline, connecting to a shape the other is deleting…");
+			connector.offline = true;
+			const connecting = connector.connect(from, target);
+			await deleter.remove(target);
+			await connecting;
+			const before = sim.repairs;
+			connector.reconnect();
+			setTimeout(() => {
+				setStructureNote(
+					sim.repairs > before
+						? "Back online: the server detached the connector from the deleted shape."
+						: "Back online: nothing needed repairing.",
+				);
+			}, 600);
+		},
+	};
+
 	useEffect(() => {
 		if (!autoplay) return;
 		const all = Object.values(actions).filter(
@@ -269,6 +326,7 @@ export default function Playground() {
 				awareness={sim.awareness}
 				synced
 			>
+				<PenProbe doc={sim.doc} mode={pen} onStats={setPenStats} />
 				<aside className="play-panel" aria-label="Playground controls">
 					<div className="play-section">
 						<label className="play-label" htmlFor="scenario">
@@ -341,6 +399,42 @@ export default function Playground() {
 						<p className="play-hint">
 							Press / for your own cursor chat. Click an avatar to follow someone, then try Pan and
 							zoom.
+						</p>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Sections and connectors</h2>
+						<div className="play-buttons">
+							<button type="button" onClick={structure.connect}>
+								Connect two shapes
+							</button>
+							<button type="button" onClick={structure.resize}>
+								Resize a section
+							</button>
+							<button type="button" onClick={() => void structure.race()}>
+								Delete while connecting
+							</button>
+						</div>
+						{structureNote && <p className="play-hint">{structureNote}</p>}
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Probe: pen layer</h2>
+						<div className="segmented" role="radiogroup" aria-label="Pen">
+							{(["off", "pen", "eraser"] as const).map((m) => (
+								<label key={m} data-checked={pen === m}>
+									<input type="radio" name="pen" checked={pen === m} onChange={() => setPen(m)} />
+									{m === "off" ? "Off" : m === "pen" ? "Pen" : "Eraser"}
+								</label>
+							))}
+						</div>
+						<div className="play-buttons">
+							<button type="button" onClick={() => scribble(sim.doc, 300, { x: 600, y: 400 })}>
+								Scribble 300 strokes
+							</button>
+						</div>
+						<p className="play-hint">
+							{penStats ?? "Our own SVG layer and hit testing, outside React Flow."}
 						</p>
 					</div>
 

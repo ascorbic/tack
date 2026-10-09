@@ -1,7 +1,9 @@
 import { useReactFlow, useStoreApi } from "@xyflow/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import type * as Y from "yjs";
+import type { SizeOf } from "../shared/sections.ts";
 import { readShape, shapesMap } from "../shared/shapes.ts";
+import { commitMoves, copyClosure, settlePasted } from "../shared/structure.ts";
 import { align, distribute, type Item, tidy } from "./arrange.ts";
 import {
 	type Position,
@@ -9,6 +11,7 @@ import {
 	type StickyColor,
 	addCard,
 	addSticky,
+	deleteShapes,
 	setStickyText,
 } from "./board.ts";
 import { cardStore } from "./cardStore.ts";
@@ -60,6 +63,8 @@ interface CommandsOptions {
 	selected: Set<string>;
 	setSelected: (ids: Set<string>) => void;
 	sizeOf: (id: string) => Size | undefined;
+	/** Sizes for structural edits: sections, connector ends. */
+	boxSize?: SizeOf;
 	user: User;
 	stickyColor: StickyColor;
 	/** Shows nudges live, through presence, until they're committed. */
@@ -85,7 +90,6 @@ export function useCanvasCommands(options: CommandsOptions) {
 	} | null>(null);
 	const lastPaste = useRef<{ key: string; count: number } | null>(null);
 	const lastDuplicate = useRef<{ sources: string[]; copies: string[] } | null>(null);
-	const quietDelete = useRef(false);
 
 	const { doc, history } = options;
 
@@ -124,15 +128,15 @@ export function useCanvasCommands(options: CommandsOptions) {
 		if (!pending) return;
 		nudge.current = null;
 		clearTimeout(pending.timer);
-		const shapes = shapesMap(doc);
-		transactLocal(doc, () => {
-			for (const [id, base] of pending.base) {
-				const shape = shapes.get(id);
-				if (!shape) continue;
-				shape.set("x", Math.round(base.x + pending.dx));
-				shape.set("y", Math.round(base.y + pending.dy));
-			}
-		});
+		// Like a drop, but without bringing anything to the front: sections
+		// take their contents, and shapes nudged into a section join it.
+		const moves = new Map(
+			[...pending.base].map(([id, base]) => [
+				id,
+				{ x: base.x + pending.dx, y: base.y + pending.dy },
+			]),
+		);
+		transactLocal(doc, () => commitMoves(doc, moves, latest.current.boxSize, { raise: false }));
 		latest.current.previewPositions(new Map([...pending.base.keys()].map((id) => [id, null])));
 	}, [doc]);
 
@@ -200,7 +204,9 @@ export function useCanvasCommands(options: CommandsOptions) {
 	const copySelection = useCallback((): ClipboardPayload | null => {
 		const { selected, board, sizeOf } = latest.current;
 		if (selected.size === 0) return null;
-		const payload = copyShapes(doc, selected, { board, sizes: sizeOf });
+		// Sections come with what's in them, and connectors between copied
+		// shapes come too.
+		const payload = copyShapes(doc, copyClosure(doc, selected), { board, sizes: sizeOf });
 		lastPaste.current = null;
 		return payload.shapes.length > 0 ? payload : null;
 	}, [doc]);
@@ -259,7 +265,11 @@ export function useCanvasCommands(options: CommandsOptions) {
 
 	const pastePayload = useCallback(
 		(payload: ClipboardPayload, offset: Position): string[] => {
-			const ids = transactLocal(doc, () => pasteShapes(doc, payload, offset));
+			const ids = transactLocal(doc, () => {
+				const added = pasteShapes(doc, payload, offset);
+				settlePasted(doc, added, offset, latest.current.boxSize);
+				return added;
+			});
 			latest.current.setSelected(new Set(ids));
 			return ids;
 		},
@@ -307,16 +317,18 @@ export function useCanvasCommands(options: CommandsOptions) {
 		[pastePayload, placePaste, pasteText],
 	);
 
+	// Shapes and connectors are deleted together, as one undo step, with
+	// whatever must go with them (see deleteShapes).
 	const removeSelection = useCallback(
 		(quiet: boolean) => {
-			const ids = [...latest.current.selected];
+			const { selected, setSelected, boxSize } = latest.current;
+			const ids = [...selected];
 			if (ids.length === 0) return;
-			quietDelete.current = quiet;
-			void flow.deleteElements({ nodes: ids.map((id) => ({ id })) }).finally(() => {
-				quietDelete.current = false;
-			});
+			if (!quiet) onRemoveRef.current(ids);
+			deleteShapes(doc, ids, boxSize);
+			setSelected(new Set());
 		},
-		[flow],
+		[doc],
 	);
 
 	const duplicate = useCallback(() => {
@@ -358,14 +370,10 @@ export function useCanvasCommands(options: CommandsOptions) {
 			}
 			const positions = layout(items);
 			if (positions.size === 0) return;
-			const shapes = shapesMap(doc);
 			settle();
-			transactLocal(doc, () => {
-				for (const [id, position] of positions) {
-					shapes.get(id)?.set("x", position.x);
-					shapes.get(id)?.set("y", position.y);
-				}
-			});
+			transactLocal(doc, () =>
+				commitMoves(doc, positions, latest.current.boxSize, { raise: false }),
+			);
 		},
 		[doc, rectOf, settle],
 	);
@@ -509,7 +517,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 				});
 				return;
 			}
-			if (id === "paste" || id === "delete") return; // Paste events, and React Flow.
+			if (id === "paste") return; // Paste events.
 			if (run(id)) event.preventDefault();
 		};
 
@@ -578,7 +586,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 	 */
 	const onRemove = useCallback(
 		(ids: string[]) => {
-			if (ids.length === 0 || quietDelete.current) return;
+			if (ids.length === 0) return;
 			const shapes = shapesMap(doc);
 			const removed = ids.flatMap((id) => {
 				const shape = shapes.get(id);
@@ -614,6 +622,8 @@ export function useCanvasCommands(options: CommandsOptions) {
 		},
 		[doc, history, settle],
 	);
+	const onRemoveRef = useRef(onRemove);
+	onRemoveRef.current = onRemove;
 
 	return useMemo(() => ({ run, onRemove, settle }), [run, onRemove, settle]);
 }
@@ -625,6 +635,8 @@ function hasWords(text: unknown): boolean {
 const NOUNS: Record<string, [string, string]> = {
 	sticky: ["sticky", "stickies"],
 	card: ["card", "cards"],
+	section: ["section", "sections"],
+	connector: ["connector", "connectors"],
 };
 
 /** "a sticky", "5 cards", "3 shapes" */

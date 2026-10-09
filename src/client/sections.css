@@ -1,0 +1,431 @@
+/* ---------------------------------------------------------------------------
+   Sections
+   ------------------------------------------------------------------------ */
+
+/* The section palette: fill, edge, title and ink. Kept as tokens so a theme
+   (dark mode) can redefine them in one place. */
+:root {
+	--section-grey-fill: rgb(255 255 255 / 62%);
+	--section-grey-edge: rgb(23 25 28 / 13%);
+	--section-grey-title: #e8e6e0;
+	--section-grey-ink: #3f444b;
+	--section-red-fill: rgb(253 232 228 / 72%);
+	--section-red-edge: #f0b7ae;
+	--section-red-title: #f8d3cc;
+	--section-red-ink: #8f2a1d;
+	--section-orange-fill: rgb(253 238 222 / 72%);
+	--section-orange-edge: #efc496;
+	--section-orange-title: #f8dbbb;
+	--section-orange-ink: #84460f;
+	--section-yellow-fill: rgb(252 245 214 / 75%);
+	--section-yellow-edge: #e6d27a;
+	--section-yellow-title: #f5e7a6;
+	--section-yellow-ink: #6e5a0e;
+	--section-green-fill: rgb(229 245 232 / 75%);
+	--section-green-edge: #a6d6af;
+	--section-green-title: #cbead1;
+	--section-green-ink: #1d6531;
+	--section-blue-fill: rgb(229 238 253 / 75%);
+	--section-blue-edge: #a7c2ef;
+	--section-blue-title: #cddbf7;
+	--section-blue-ink: #23489a;
+	--section-purple-fill: rgb(240 233 253 / 75%);
+	--section-purple-edge: #c6b0ee;
+	--section-purple-title: #e0d2f8;
+	--section-purple-ink: #5a2fa0;
+}
+
+:is(.section, .section-swatch)[data-color="grey"] {
+	--section-fill: var(--section-grey-fill);
+	--section-edge: var(--section-grey-edge);
+	--section-title: var(--section-grey-title);
+	--section-ink: var(--section-grey-ink);
+}
+:is(.section, .section-swatch)[data-color="red"] {
+	--section-fill: var(--section-red-fill);
+	--section-edge: var(--section-red-edge);
+	--section-title: var(--section-red-title);
+	--section-ink: var(--section-red-ink);
+}
+:is(.section, .section-swatch)[data-color="orange"] {
+	--section-fill: var(--section-orange-fill);
+	--section-edge: var(--section-orange-edge);
+	--section-title: var(--section-orange-title);
+	--section-ink: var(--section-orange-ink);
+}
+:is(.section, .section-swatch)[data-color="yellow"] {
+	--section-fill: var(--section-yellow-fill);
+	--section-edge: var(--section-yellow-edge);
+	--section-title: var(--section-yellow-title);
+	--section-ink: var(--section-yellow-ink);
+}
+:is(.section, .section-swatch)[data-color="green"] {
+	--section-fill: var(--section-green-fill);
+	--section-edge: var(--section-green-edge);
+	--section-title: var(--section-green-title);
+	--section-ink: var(--section-green-ink);
+}
+:is(.section, .section-swatch)[data-color="blue"] {
+	--section-fill: var(--section-blue-fill);
+	--section-edge: var(--section-blue-edge);
+	--section-title: var(--section-blue-title);
+	--section-ink: var(--section-blue-ink);
+}
+:is(.section, .section-swatch)[data-color="purple"] {
+	--section-fill: var(--section-purple-fill);
+	--section-edge: var(--section-purple-edge);
+	--section-title: var(--section-purple-title);
+	--section-ink: var(--section-purple-ink);
+}
+
+/* Things that should stay the same size on screen at any zoom. --zoom is
+   kept up to date on the canvas by <ZoomVariable>. */
+.react-flow {
+	/* Undo the zoom: for handles and toolbars. */
+	--inv-zoom: calc(1 / var(--zoom, 1));
+	/* Undo zooming out only: titles grow to stay readable, but scale up with
+	   the board when zoomed in. */
+	--unzoom: clamp(1, var(--inv-zoom, 1), 10);
+	/* One screen pixel, in board units. */
+	--px: calc(1px / var(--zoom, 1));
+}
+
+/* Contents following a section someone else is dragging glide along with
+   it, smoothing the network's steps as remote drags do. */
+.react-flow__node.remote-follow {
+	transition: transform calc(90ms * var(--motion)) linear;
+}
+
+.react-flow__node.remote-drag .section {
+	outline: 2px solid var(--drag-color);
+	outline-offset: 3px;
+}
+
+/* The body of a section lets pointer events through to the canvas, so
+   dragging inside a section draws a selection box. Only its title and
+   handles are interactive. */
+.react-flow__node-section {
+	pointer-events: none !important;
+	cursor: default;
+}
+
+.section {
+	position: relative;
+	container-type: inline-size;
+	width: 100%;
+	height: 100%;
+	border-radius: 14px;
+	background: var(--section-fill);
+	border: max(1.5px, calc(1.5 * var(--px, 1px))) solid var(--section-edge);
+	transition:
+		background var(--t-base) var(--ease-out),
+		border-color var(--t-base) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out),
+		scale var(--t-settle) var(--ease-settle);
+}
+
+.section[data-enter="true"] {
+	animation: section-in var(--t-settle) var(--ease-settle) backwards;
+}
+
+@keyframes section-in {
+	from {
+		opacity: 0;
+		scale: 0.97;
+	}
+}
+
+.section[data-selected="true"] {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 calc(1 * var(--px, 1px)) var(--accent);
+}
+
+/* Something is about to land in this section. */
+.section[data-drop-target="true"] {
+	border-color: color-mix(in srgb, var(--section-ink) 55%, transparent);
+	background: color-mix(in srgb, var(--section-fill) 70%, var(--section-title));
+	box-shadow:
+		0 0 0 calc(3 * var(--px, 1px)) color-mix(in srgb, var(--section-ink) 18%, transparent),
+		inset 0 0 calc(40 * var(--px, 1px)) color-mix(in srgb, var(--section-ink) 8%, transparent);
+	scale: 1.004;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out),
+		scale var(--t-base) var(--ease-spring);
+}
+
+/* Something just landed: a soft glow that fades as it settles. */
+.section-received {
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	pointer-events: none;
+	animation: section-received var(--t-flash) var(--ease-out) forwards;
+}
+
+@keyframes section-received {
+	from {
+		box-shadow:
+			0 0 0 calc(4 * var(--px, 1px)) color-mix(in srgb, var(--section-ink) 22%, transparent),
+			inset 0 0 calc(60 * var(--px, 1px)) color-mix(in srgb, var(--section-ink) 12%, transparent);
+	}
+	to {
+		box-shadow:
+			0 0 0 calc(12 * var(--px, 1px)) transparent,
+			inset 0 0 0 transparent;
+	}
+}
+
+/* The title (and, when selected, the colours) sit above the top-left
+   corner, and stay readable when zoomed out by growing against the zoom. */
+.section-header {
+	position: absolute;
+	left: 0;
+	bottom: 100%;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	transform-origin: 0 100%;
+	scale: var(--unzoom, 1);
+	translate: 0 calc(-6px * var(--unzoom, 1));
+	transition: translate var(--t-base) var(--ease-spring);
+}
+
+.section-title {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 0;
+	/* Never wider than the section, however far out the board is zoomed. */
+	max-width: calc(100cqw / var(--unzoom, 1));
+	padding: 4px 5px 4px 10px;
+	border-radius: 9px;
+	background: var(--section-title);
+	color: var(--section-ink);
+	font-size: 13px;
+	font-weight: 620;
+	letter-spacing: -0.005em;
+	line-height: 18px;
+	white-space: nowrap;
+	pointer-events: auto;
+	cursor: grab;
+	transition: box-shadow var(--t-base) var(--ease-out);
+}
+
+.react-flow__node.dragging .section-title {
+	cursor: grabbing;
+}
+
+.section[data-drop-target="true"] .section-header,
+.react-flow__node.dragging .section-header,
+.react-flow__node.remote-drag .section-header {
+	translate: 0 calc(-9px * var(--unzoom, 1));
+}
+
+.section[data-drop-target="true"] .section-title,
+.react-flow__node.dragging .section-title,
+.react-flow__node.remote-drag .section-title {
+	box-shadow: var(--shadow-hover);
+}
+
+.section-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.section-name[data-empty="true"] {
+	opacity: 0.55;
+}
+
+/* An input that grows with its text. */
+.section-title-edit {
+	display: inline-grid;
+}
+
+.section-title-edit::after,
+.section-title-edit input {
+	grid-area: 1 / 1;
+	font: inherit;
+	letter-spacing: inherit;
+	padding: 0;
+}
+
+.section-title-edit::after {
+	content: attr(data-value) " ";
+	visibility: hidden;
+	white-space: pre;
+}
+
+.section-title-edit input {
+	min-width: 1ch;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	outline: none;
+	cursor: text;
+}
+
+.section-title-edit input::placeholder {
+	color: inherit;
+	opacity: 0.5;
+}
+
+.section-count {
+	display: inline-grid;
+	place-items: center;
+	min-width: 20px;
+	height: 18px;
+	padding: 0 6px;
+	border-radius: 9px;
+	background: rgb(255 255 255 / 62%);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Colours for a selected section, beside its title. */
+.section-colors {
+	display: flex;
+	flex: none;
+	gap: 3px;
+	padding: 4px;
+	border-radius: 11px;
+	background: rgb(255 255 255 / 96%);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-hover);
+	pointer-events: auto;
+	animation: section-tray-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes section-tray-in {
+	from {
+		opacity: 0;
+		scale: 0.9;
+	}
+}
+
+.section-colors .section-swatch {
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: 1.5px solid var(--section-edge);
+	border-radius: 50%;
+	background: var(--section-title);
+	cursor: pointer;
+	transition: transform var(--t-quick) var(--ease-out);
+}
+
+.section-colors .section-swatch:hover {
+	background: var(--section-title);
+	transform: scale(1.15);
+}
+
+.section-colors .section-swatch[aria-checked="true"] {
+	box-shadow:
+		0 0 0 2px #fff,
+		0 0 0 3.5px var(--section-ink);
+}
+
+/* Resize handles: squares on the corners, invisible strips on the edges. */
+.section-resize {
+	position: absolute;
+	pointer-events: auto;
+	touch-action: none;
+}
+
+.section-resize[data-handle="nw"],
+.section-resize[data-handle="ne"],
+.section-resize[data-handle="sw"],
+.section-resize[data-handle="se"] {
+	z-index: 1;
+	width: calc(11 * var(--px, 1px));
+	height: calc(11 * var(--px, 1px));
+	border: calc(1.5 * var(--px, 1px)) solid var(--accent);
+	border-radius: calc(3 * var(--px, 1px));
+	background: #fff;
+	translate: -50% -50%;
+}
+
+.section-resize[data-handle="nw"] {
+	left: 0;
+	top: 0;
+	cursor: nwse-resize;
+}
+.section-resize[data-handle="ne"] {
+	left: 100%;
+	top: 0;
+	cursor: nesw-resize;
+}
+.section-resize[data-handle="sw"] {
+	left: 0;
+	top: 100%;
+	cursor: nesw-resize;
+}
+.section-resize[data-handle="se"] {
+	left: 100%;
+	top: 100%;
+	cursor: nwse-resize;
+}
+
+.section-resize[data-handle="n"],
+.section-resize[data-handle="s"] {
+	left: 0;
+	right: 0;
+	height: calc(10 * var(--px, 1px));
+	translate: 0 -50%;
+	cursor: ns-resize;
+}
+.section-resize[data-handle="n"] {
+	top: 0;
+}
+.section-resize[data-handle="s"] {
+	top: 100%;
+}
+
+.section-resize[data-handle="e"],
+.section-resize[data-handle="w"] {
+	top: 0;
+	bottom: 0;
+	width: calc(10 * var(--px, 1px));
+	translate: -50% 0;
+	cursor: ew-resize;
+}
+.section-resize[data-handle="w"] {
+	left: 0;
+}
+.section-resize[data-handle="e"] {
+	left: 100%;
+}
+
+/* The section being drawn with the section tool. */
+.section-draft {
+	position: absolute;
+	left: 0;
+	top: 0;
+	border-style: dashed;
+	pointer-events: none;
+	animation: none;
+}
+
+.canvas[data-tool="section"] .react-flow__pane,
+.canvas[data-tool="section"] .react-flow__node {
+	cursor: crosshair;
+}
+
+/* Gallery samples. */
+.gallery-grid.sections {
+	row-gap: 64px;
+	padding-top: 36px;
+}
+
+.gallery-section {
+	width: 252px;
+	height: 150px;
+}
+
+.gallery-note {
+	margin: -4px 0 16px;
+	color: var(--muted);
+}

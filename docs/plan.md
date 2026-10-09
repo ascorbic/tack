@@ -88,6 +88,8 @@ React Flow is a node-and-edge editor, so test the whiteboard primitives most lik
 
 If any of these is painful, decide then whether to move that piece to our own layer or start replacing the engine. The Yjs data model doesn't depend on React Flow, so either path keeps the data.
 
+Done: see `docs/react-flow-probe.md`. React Flow stays for boxes; connectors and strokes are on our own layers, and containment is ours.
+
 **Canvas core**
 
 - selection: multi-select, marquee, shift-click

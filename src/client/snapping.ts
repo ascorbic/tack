@@ -122,3 +122,28 @@ export function unionRect(rects: Iterable<Rect>): Rect | null {
 export function intersects(a: Rect, b: Rect): boolean {
 	return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
+
+/**
+ * Snap a single line (a box edge being dragged, say) to the nearest edge or
+ * centre of any target within `threshold`. `axis: "x"` is a vertical line at
+ * x = `at`. Returns how far to move it.
+ */
+export function snapLine(at: number, axis: Axis, targets: Rect[], threshold: number): number {
+	let best = 0;
+	let bestDistance = Number.POSITIVE_INFINITY;
+	for (const target of targets) {
+		for (const line of lines(target, axis)) {
+			const distance = Math.abs(line - at);
+			if (distance <= threshold && distance < bestDistance) {
+				best = line - at;
+				bestDistance = distance;
+			}
+		}
+	}
+	return best;
+}
+
+/** Guides for every alignment `rect` makes with the targets. */
+export function alignmentGuides(rect: Rect, targets: Rect[]): Guide[] {
+	return [...guidesFor(rect, targets, "x"), ...guidesFor(rect, targets, "y")];
+}

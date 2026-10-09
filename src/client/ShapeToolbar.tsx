@@ -1,4 +1,4 @@
-import { NodeToolbar, Position, useStore } from "@xyflow/react";
+import { NodeToolbar, Position } from "@xyflow/react";
 import type * as Y from "yjs";
 import { type ShapeFont, type TextSize, updateShapes } from "../shared/shapes.ts";
 import { STICKY_COLORS, type ShapeNode, type StickyColor } from "./board.ts";
@@ -29,15 +29,20 @@ export function styledShapes(selected: ShapeNode[]): ShapeNode[] {
 export function ShapeToolbar({
 	doc,
 	selected,
+	dragging,
 	onStickyColor,
 }: {
 	doc: Y.Doc;
 	/** The selected nodes; cards and other shapes are ignored. */
 	selected: ShapeNode[];
+	/**
+	 * Hidden while shapes are dragged. (React Flow's own `dragging` flag
+	 * never reaches our controlled nodes, so the board passes this in.)
+	 */
+	dragging: boolean;
 	/** Called when stickies are recoloured, so new ones match. */
 	onStickyColor?: (color: StickyColor) => void;
 }) {
-	const dragging = useStore((state) => state.nodes.some((node) => node.dragging));
 	const stickies = selected.filter((node) => node.type === "sticky");
 	const texts = selected.filter((node) => node.type === "text");
 	const shapes = [...stickies, ...texts];

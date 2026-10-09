@@ -1,7 +1,18 @@
 import { type NodeChange, ViewportPortal, useStore, useStoreApi } from "@xyflow/react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { Rect as Box } from "../shared/geometry.ts";
+import type { ResizeHandle } from "../shared/sections.ts";
 import type { ShapeNode } from "./board.ts";
-import { type Guide, type Rect, SNAP_PX, intersects, snapRect, unionRect } from "./snapping.ts";
+import {
+	type Guide,
+	type Rect,
+	SNAP_PX,
+	alignmentGuides,
+	intersects,
+	snapLine,
+	snapRect,
+	unionRect,
+} from "./snapping.ts";
 
 // Snapping while dragging, and the guides that show it. Snapping happens
 // locally, frame by frame, before positions reach presence (so other people
@@ -44,16 +55,72 @@ function sameSpan(a: Guide, b: Guide | undefined): boolean {
 
 /**
  * Snap position changes from React Flow drags to other shapes nearby. Hold
- * ⌘ (Ctrl elsewhere) while dragging to move freely.
+ * ⌘ (Ctrl elsewhere) while dragging to move freely. `carried` names shapes
+ * that move along with the dragged ones (a section's contents), which are
+ * never snapped to.
  */
-export function useSnapping(nodes: ShapeNode[], sizeOf: (id: string) => Size | undefined) {
+export function useSnapping(
+	nodes: ShapeNode[],
+	sizeOf: (id: string) => Size | undefined,
+	carried: (moving: ReadonlySet<string>) => Iterable<string> = () => [],
+) {
 	const store = useStoreApi();
 	const [guides] = useState(() => new GuideStore());
 	const [dragging, setDragging] = useState(false);
 	const session = useRef<{ dx: number; dy: number } | null>(null);
 	const free = useRef(false);
-	const latest = useRef({ nodes, sizeOf });
-	latest.current = { nodes, sizeOf };
+	const latest = useRef({ nodes, sizeOf, carried });
+	latest.current = { nodes, sizeOf, carried };
+
+	/** Other shapes' boxes in view, to snap to. */
+	const targetsExcept = useCallback(
+		(moving: ReadonlySet<string>): Rect[] => {
+			const { nodes, sizeOf } = latest.current;
+			const { transform, width, height } = store.getState();
+			const [tx, ty, zoom] = transform;
+			const view = { x: -tx / zoom, y: -ty / zoom, width: width / zoom, height: height / zoom };
+			const targets: Rect[] = [];
+			for (const node of nodes) {
+				const size = sizeOf(node.id);
+				if (moving.has(node.id) || !size) continue;
+				const rect = { ...node.position, ...size };
+				if (intersects(rect, view)) targets.push(rect);
+			}
+			return targets;
+		},
+		[store],
+	);
+
+	/**
+	 * Snap the edges of a section being resized by `handle`, and show the
+	 * guides; with no handle, the resize is over and the guides go.
+	 */
+	const snapResize = useCallback(
+		(id: string, rect: Box, handle: ResizeHandle | null): Box => {
+			if (!handle || free.current) {
+				guides.clear();
+				return rect;
+			}
+			const targets = targetsExcept(new Set([id]));
+			const threshold = SNAP_PX / store.getState().transform[2];
+			let { x, y, w, h } = rect;
+			if (handle.includes("e")) w += snapLine(x + w, "x", targets, threshold);
+			if (handle.includes("s")) h += snapLine(y + h, "y", targets, threshold);
+			if (handle.includes("w")) {
+				const dx = snapLine(x, "x", targets, threshold);
+				x += dx;
+				w -= dx;
+			}
+			if (handle.includes("n")) {
+				const dy = snapLine(y, "y", targets, threshold);
+				y += dy;
+				h -= dy;
+			}
+			guides.set(alignmentGuides({ x, y, width: w, height: h }, targets));
+			return { x, y, w, h };
+		},
+		[guides, store, targetsExcept],
+	);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -105,22 +172,15 @@ export function useSnapping(nodes: ShapeNode[], sizeOf: (id: string) => Size | u
 			}
 
 			if (!session.current) setDragging(true);
-			const { nodes, sizeOf } = latest.current;
+			const { sizeOf, carried } = latest.current;
 			const sizeFor = (id: string) => sizeOf(id) ?? { width: 0, height: 0 };
 			const box = unionRect(
 				moves.map((change) => ({ ...(change.position as Rect), ...sizeFor(change.id) })),
 			);
-			const { transform, width, height } = store.getState();
-			const [tx, ty, zoom] = transform;
-			const view = { x: -tx / zoom, y: -ty / zoom, width: width / zoom, height: height / zoom };
+			const zoom = store.getState().transform[2];
 			const moving = new Set(moves.map((change) => change.id));
-			const targets: Rect[] = [];
-			for (const node of nodes) {
-				const size = sizeOf(node.id);
-				if (moving.has(node.id) || !size) continue;
-				const rect = { ...node.position, ...size };
-				if (intersects(rect, view)) targets.push(rect);
-			}
+			for (const id of carried(moving)) moving.add(id);
+			const targets = targetsExcept(moving);
 			const snap =
 				free.current || !box
 					? { dx: 0, dy: 0, guides: [] }
@@ -129,10 +189,10 @@ export function useSnapping(nodes: ShapeNode[], sizeOf: (id: string) => Size | u
 			guides.set(snap.guides);
 			return shift(snap);
 		},
-		[store, guides],
+		[store, guides, targetsExcept],
 	);
 
-	return { snapChanges, guides, dragging };
+	return { snapChanges, snapResize, guides, dragging };
 }
 
 interface Shown {

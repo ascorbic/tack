@@ -1,5 +1,16 @@
 import type * as Y from "yjs";
-import { type ShapeFont, type TextSize, addShape, nextZ } from "../../shared/shapes.ts";
+import { withFallbacks } from "../../shared/connectors.ts";
+import { boxOf } from "../../shared/sections.ts";
+import {
+	type ConnectorEnd,
+	type ShapeFont,
+	type TextSize,
+	addShape,
+	nextZ,
+	readShape,
+	shapesMap,
+} from "../../shared/shapes.ts";
+import { type NewConnector, addConnector, addSection } from "../../shared/structure.ts";
 import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
@@ -19,9 +30,17 @@ const AUTHORS = [
 ];
 let nextAuthor = 0;
 
-function sticky(doc: Y.Doc, text: string, color: string, x: number, y: number, font?: ShapeFont) {
+function sticky(
+	doc: Y.Doc,
+	text: string,
+	color: string,
+	x: number,
+	y: number,
+	font?: ShapeFont,
+): string {
 	const author = AUTHORS[nextAuthor++ % AUTHORS.length];
-	addShape(doc, crypto.randomUUID(), {
+	const id = crypto.randomUUID();
+	addShape(doc, id, {
 		type: "sticky",
 		text,
 		color,
@@ -31,6 +50,7 @@ function sticky(doc: Y.Doc, text: string, color: string, x: number, y: number, f
 		y,
 		z: nextZ(doc),
 	});
+	return id;
 }
 
 function text(doc: Y.Doc, value: string, size: TextSize, x: number, y: number, font?: ShapeFont) {
@@ -103,6 +123,33 @@ const BRAINSTORM: { theme: string; color: string; notes: string[] }[] = [
 		],
 	},
 ];
+
+function card(doc: Y.Doc, key: string, x: number, y: number): string {
+	const id = crypto.randomUUID();
+	addShape(doc, id, { type: "card", ref: key, x, y, z: nextZ(doc), parent: null });
+	return id;
+}
+
+/** Connect two ends, with fallbacks worked out from nominal sizes. */
+function connect(
+	doc: Y.Doc,
+	from: ConnectorEnd,
+	to: ConnectorEnd,
+	style: Omit<NewConnector, "from" | "to"> = {},
+): string {
+	const box = (id: string) => {
+		const shape = shapesMap(doc).get(id);
+		return shape ? boxOf(id, readShape(shape)) : undefined;
+	};
+	return addConnector(doc, { ...withFallbacks(from, to, box), ...style });
+}
+
+const bound = (shape: string, anchor?: { x: number; y: number }): ConnectorEnd => ({
+	x: 0,
+	y: 0,
+	shape,
+	anchor,
+});
 
 export const SCENARIOS: Record<string, Scenario> = {
 	planning: {
@@ -234,6 +281,56 @@ export const SCENARIOS: Record<string, Scenario> = {
 					const y = 340 + Math.floor(i / 3) * 210 + ((i * 41) % 36);
 					sticky(doc, note, color, x, y);
 				});
+			});
+		},
+	},
+	sections: {
+		name: "Now / Next / Later",
+		description: "Sections holding cards, and stickies to sort into them.",
+		seed(doc) {
+			for (const fixtureCard of PLANNING_CARDS) cardStore.set(fixtureCard);
+			const columns = [
+				{ title: "Now", color: "green" },
+				{ title: "Next", color: "blue" },
+				{ title: "Later", color: "purple" },
+			] as const;
+			doc.transact(() => {
+				columns.forEach(({ title, color }, i) => {
+					const x = 40 + i * 340;
+					PLANNING_CARDS.slice(i * 2, i * 2 + 2).forEach((fixtureCard, j) => {
+						card(doc, fixtureCard.key, x + 34, 90 + j * 170);
+					});
+					addSection(doc, { x, y: 40, w: 320, h: 620 }, { title, color });
+				});
+				sticky(doc, "Ship the new provider docs", "yellow", 1120, 60);
+				sticky(doc, "Revisit AVIF defaults", "pink", 1140, 280);
+				sticky(doc, "Ask about a 5.1 freeze", "green", 1320, 120);
+			});
+		},
+	},
+	connectors: {
+		name: "Connectors",
+		description: "Bound, loose and labelled connectors in each style.",
+		seed(doc) {
+			const [first, second, third, fourth] = PLANNING_CARDS;
+			for (const fixtureCard of PLANNING_CARDS) cardStore.set(fixtureCard);
+			if (!first || !second || !third || !fourth) return;
+			doc.transact(() => {
+				const a = card(doc, first.key, 60, 80);
+				const b = card(doc, second.key, 480, 80);
+				const c = card(doc, third.key, 480, 380);
+				const d = card(doc, fourth.key, 900, 380);
+				const note = sticky(doc, "Why not both?", "yellow", 120, 420);
+				connect(doc, bound(a), bound(b), { label: "blocks" });
+				connect(doc, bound(b, { x: 0.5, y: 1 }), bound(c, { x: 0.5, y: 0 }), { route: "elbow" });
+				connect(doc, bound(c), bound(d), {
+					route: "straight",
+					arrow: "both",
+					dash: true,
+					color: "blue",
+				});
+				connect(doc, bound(note, { x: 1, y: 0.5 }), bound(c), { color: "orange", label: "see" });
+				connect(doc, { x: 980, y: 120 }, { x: 1180, y: 250 }, { color: "red", label: "loose" });
 			});
 		},
 	},

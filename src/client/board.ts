@@ -1,20 +1,34 @@
 import type { Node, NodeChange } from "@xyflow/react";
 import { useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
+import { type SizeOf, readStructure } from "../shared/sections.ts";
 import {
 	type Author,
 	type ShapeFont,
 	type ShapeProps,
+	type ShapeType,
 	type TextSize,
 	addShape,
 	nextZ,
 	readShape,
 	shapesMap,
-	topZ,
 } from "../shared/shapes.ts";
+import { commitMoves, placeInSections, removeShapes } from "../shared/structure.ts";
 import { transactLocal } from "./undo.ts";
 
-export type ShapeNode = Node<{ shape: ShapeProps; id: string }>;
+export type ShapeNode = Node<{
+	shape: ShapeProps;
+	id: string;
+	/** Sections: how many shapes are directly inside. */
+	count?: number;
+}>;
+
+/**
+ * Sections sit beneath everything else, outer ones beneath inner ones. This
+ * is negative so that React Flow lifting a selected node by 1000 still
+ * leaves a selected section beneath the shapes in it.
+ */
+export const SECTION_Z = -2000;
 
 // Shapes added moments ago, so they can animate in. Big batches (a board
 // loading, a scenario seeding) don't count: only a few shapes at a time.
@@ -42,24 +56,60 @@ function createNodeStore(doc: Y.Doc) {
 	let snapshot: ShapeNode[] = [];
 
 	const rebuild = (changed?: Set<string>) => {
+		// Containment decides sections' stacking and counts, so it's read for
+		// every rebuild; a section's node is replaced when either changes.
+		const links = new Map<string, { type: ShapeType; parent?: string | null }>();
+		for (const [id, shape] of shapes) {
+			links.set(id, {
+				type: shape.get("type") as ShapeType,
+				parent: shape.get("parent") as string | null | undefined,
+			});
+		}
+		const structure = readStructure(links);
 		const nodes: ShapeNode[] = [];
 		for (const [id, shape] of shapes) {
+			// Connectors are drawn on their own layer, not as nodes.
+			const type = links.get(id)?.type;
+			if (type === "connector") continue;
+			const section = type === "section";
+			const count = section ? (structure.children.get(id)?.length ?? 0) : undefined;
+			const zIndex = section ? SECTION_Z + (structure.depth.get(id) ?? 0) : 0;
 			let node = cache.get(id);
-			if (!node || !changed || changed.has(id)) {
+			if (
+				!node ||
+				!changed ||
+				changed.has(id) ||
+				node.data.count !== count ||
+				node.zIndex !== zIndex
+			) {
 				const props = readShape(shape);
 				node = {
 					id,
 					type: props.type,
 					position: { x: props.x, y: props.y },
-					data: { shape: props, id },
-					zIndex: 0,
+					data: { shape: props, id, count },
+					zIndex,
+					...(section && {
+						width: props.w,
+						height: props.h,
+						// Sections are picked up by their title; dragging inside one
+						// selects what's in it.
+						dragHandle: ".section-handle",
+					}),
 				};
 				cache.set(id, node);
 			}
 			nodes.push(node);
 		}
 		for (const id of cache.keys()) if (!shapes.has(id)) cache.delete(id);
-		nodes.sort((a, b) => (a.data.shape.z < b.data.shape.z ? -1 : 1));
+		// Sections first (outer, then inner), then everything else by z.
+		nodes.sort((a, b) =>
+			a.zIndex !== b.zIndex
+				? (a.zIndex ?? 0) - (b.zIndex ?? 0)
+				: a.data.shape.z < b.data.shape.z
+					? -1
+					: 1,
+		);
 		snapshot = nodes;
 	};
 	rebuild();
@@ -103,53 +153,52 @@ export function applyNodeChanges(
 	doc: Y.Doc,
 	changes: NodeChange<ShapeNode>[],
 	lastDragPosition: (id: string) => Position | undefined = () => undefined,
+	sizeOf?: SizeOf,
 ): void {
-	transactLocal(doc, () => {
-		const removed: string[] = [];
-		for (const change of changes) {
-			if (change.type === "position" && !change.dragging) {
-				const position = change.position ?? lastDragPosition(change.id);
-				if (!position) continue;
-				moveShape(doc, change.id, position);
-			} else if (change.type === "remove") {
-				removed.push(change.id);
-			}
+	const moves = new Map<string, Position>();
+	const removed: string[] = [];
+	for (const change of changes) {
+		if (change.type === "position" && !change.dragging) {
+			const position = change.position ?? lastDragPosition(change.id);
+			if (position) moves.set(change.id, position);
+		} else if (change.type === "remove") {
+			removed.push(change.id);
 		}
-		if (removed.length > 0) deleteShapes(doc, removed);
+	}
+	if (moves.size === 0 && removed.length === 0) return;
+	transactLocal(doc, () => {
+		// Dropped shapes land on top, in or out of sections, and sections
+		// bring their contents along: all one undo step. See shared/structure.ts.
+		if (moves.size > 0) commitMoves(doc, moves, sizeOf);
+		if (removed.length > 0) deleteShapes(doc, removed, sizeOf);
 	});
 }
 
 /**
  * Delete shapes, as one undo step. Every deletion goes through here (the
  * delete key, cut, empty text tidying itself away), so anything that must
- * go with a shape, such as a connector attached to it, belongs here too.
+ * go with a shape goes too: a section takes what's in it, and connectors
+ * attached to a deleted shape are left with a loose end where it was.
  */
-export function deleteShapes(doc: Y.Doc, ids: Iterable<string>): void {
-	const shapes = shapesMap(doc);
-	transactLocal(doc, () => {
-		for (const id of ids) shapes.delete(id);
-	});
+export function deleteShapes(doc: Y.Doc, ids: Iterable<string>, sizeOf?: SizeOf): void {
+	transactLocal(doc, () => removeShapes(doc, ids, sizeOf));
 }
 
 /**
  * Commit a shape's new position and bring it to the front, as a dropped shape
- * should land on top. Call inside a transaction so x and y never mix with a
- * concurrent move's.
+ * should land on top. x, y and its section are written together so they
+ * never mix with a concurrent move's.
  */
-export function moveShape(doc: Y.Doc, id: string, position: Position): void {
-	const shape = shapesMap(doc).get(id);
-	if (!shape) return;
-	shape.set("x", Math.round(position.x));
-	shape.set("y", Math.round(position.y));
-	const z = topZ(doc, id);
-	if (z) shape.set("z", z);
+export function moveShape(doc: Y.Doc, id: string, position: Position, sizeOf?: SizeOf): void {
+	transactLocal(doc, () => commitMoves(doc, new Map([[id, position]]), sizeOf));
 }
 
 export function addCard(doc: Y.Doc, ref: string, at: { x: number; y: number }): string {
 	const id = crypto.randomUUID();
-	transactLocal(doc, () =>
-		addShape(doc, id, { type: "card", ref, x: at.x, y: at.y, z: nextZ(doc) }),
-	);
+	transactLocal(doc, () => {
+		addShape(doc, id, { type: "card", ref, x: at.x, y: at.y, z: nextZ(doc) });
+		placeInSections(doc, [id]);
+	});
 	return id;
 }
 
@@ -168,7 +217,7 @@ export function addSticky(
 	}: { color?: StickyColor; author?: Author; font?: ShapeFont } = {},
 ): string {
 	const id = crypto.randomUUID();
-	transactLocal(doc, () =>
+	transactLocal(doc, () => {
 		addShape(doc, id, {
 			type: "sticky",
 			text: "",
@@ -178,8 +227,9 @@ export function addSticky(
 			x: Math.round(at.x - STICKY_SIZE / 2),
 			y: Math.round(at.y - STICKY_SIZE / 2),
 			z: nextZ(doc),
-		}),
-	);
+		});
+		placeInSections(doc, [id]);
+	});
 	return id;
 }
 
@@ -198,7 +248,7 @@ export function addText(
 	const id = crypto.randomUUID();
 	// The block's padding (4px 6px), and half a line.
 	const halfLine = (TEXT_SIZES[size] * 1.3) / 2;
-	transactLocal(doc, () =>
+	transactLocal(doc, () => {
 		addShape(doc, id, {
 			type: "text",
 			text: "",
@@ -207,8 +257,9 @@ export function addText(
 			x: Math.round(at.x - 6),
 			y: Math.round(at.y - 4 - halfLine),
 			z: nextZ(doc),
-		}),
-	);
+		});
+		placeInSections(doc, [id]);
+	});
 	return id;
 }
 

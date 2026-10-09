@@ -1,15 +1,22 @@
+import { type NodeProps, ReactFlowProvider } from "@xyflow/react";
 import { useState } from "react";
+import * as Y from "yjs";
 import type { Card, MissingCard, PullDetails } from "../../shared/cards.ts";
-import type { ShapeFont, TextSize } from "../../shared/shapes.ts";
+import type { Connector } from "../../shared/connectors.ts";
+import type { Rect } from "../../shared/geometry.ts";
+import type { ShapeFont, ShapeProps, TextSize } from "../../shared/shapes.ts";
 import type { Status } from "../activity.ts";
-import { STICKY_COLORS } from "../board.ts";
+import { STICKY_COLORS, type ShapeNode } from "../board.ts";
 import { CardView } from "../CardView.tsx";
+import { ConnectorSample } from "../connectors.tsx";
 import type { Chat } from "../chat.ts";
 import { CursorView } from "../Cursors.tsx";
+import { DocContext, SectionContext } from "../DocContext.ts";
 import { EmptyBoard } from "../EmptyBoard.tsx";
 import { FollowIndicator } from "../Follow.tsx";
 import { People } from "../People.tsx";
 import type { RemotePresence, User } from "../presence.ts";
+import { SectionNode } from "../sections.tsx";
 import { ShapeToolbarView } from "../ShapeToolbar.tsx";
 import { StickyView } from "../StickyNode.tsx";
 import { TextView } from "../TextNode.tsx";
@@ -114,6 +121,135 @@ function stepPull(card: Card, round: number): Card {
 	return step ? { ...card, pull: step.step(pull), updatedAt: new Date().toISOString() } : card;
 }
 
+const SECTIONS: {
+	label: string;
+	title: string;
+	color: string;
+	count: number;
+	selected?: boolean;
+	dropTarget?: boolean;
+}[] = [
+	{ label: "Untitled", title: "", color: "grey", count: 0 },
+	{ label: "Green", title: "Now", color: "green", count: 4 },
+	{ label: "Blue, drop target", title: "Next", color: "blue", count: 7, dropTarget: true },
+	{ label: "Purple, selected", title: "Later", color: "purple", count: 12, selected: true },
+	{ label: "Red", title: "Blocked", color: "red", count: 2 },
+	{ label: "Orange", title: "Needs a decision", color: "orange", count: 3 },
+	{
+		label: "Yellow, long title",
+		title: "Things we said we’d do last quarter",
+		color: "yellow",
+		count: 9,
+	},
+];
+
+/** Render a section node outside the canvas. */
+function SectionSample({
+	id,
+	title,
+	color,
+	count,
+	selected,
+}: {
+	id: string;
+	title: string;
+	color: string;
+	count: number;
+	selected?: boolean;
+}) {
+	const shape: ShapeProps = { type: "section", x: 0, y: 0, z: "a0", w: 252, h: 150, title, color };
+	const props = { id, data: { id, shape, count }, selected } as NodeProps<ShapeNode>;
+	return (
+		<div className="gallery-section">
+			<SectionNode {...props} />
+		</div>
+	);
+}
+
+const A: Rect = { x: 6, y: 40, w: 70, h: 50 };
+const B: Rect = { x: 176, y: 40, w: 70, h: 50 };
+const BELOW: Rect = { x: 176, y: 90, w: 70, h: 40 };
+
+const CONNECTOR: Connector = {
+	from: { x: 0, y: 0, shape: "a" },
+	to: { x: 0, y: 0, shape: "b" },
+	route: "curved",
+	arrow: "end",
+	dash: false,
+	color: "ink",
+	label: "",
+};
+
+const CONNECTORS: {
+	label: string;
+	connector: Partial<Connector>;
+	boxes: [string, Rect][];
+	selected?: boolean;
+}[] = [
+	{
+		label: "Curved",
+		connector: {},
+		boxes: [
+			["a", A],
+			["b", B],
+		],
+	},
+	{
+		label: "Curved, pinned to sides",
+		connector: {
+			from: { x: 0, y: 0, shape: "a", anchor: { x: 1, y: 0.5 } },
+			to: { x: 0, y: 0, shape: "b", anchor: { x: 0.5, y: 0 } },
+		},
+		boxes: [
+			["a", { ...A, y: 10 }],
+			["b", BELOW],
+		],
+	},
+	{
+		label: "Elbow",
+		connector: { route: "elbow", to: { x: 0, y: 0, shape: "b", anchor: { x: 0.5, y: 0 } } },
+		boxes: [
+			["a", { ...A, y: 10 }],
+			["b", BELOW],
+		],
+	},
+	{
+		label: "Straight, dashed, both ends",
+		connector: { route: "straight", dash: true, arrow: "both", color: "blue" },
+		boxes: [
+			["a", A],
+			["b", B],
+		],
+	},
+	{
+		label: "Labelled",
+		connector: { label: "blocks", color: "red" },
+		boxes: [
+			["a", A],
+			["b", B],
+		],
+	},
+	{
+		label: "Loose end",
+		connector: { to: { x: 230, y: 20 }, color: "green", arrow: "none" },
+		boxes: [["a", A]],
+	},
+	{
+		label: "Selected",
+		connector: { color: "purple" },
+		boxes: [
+			["a", A],
+			["b", B],
+		],
+		selected: true,
+	},
+	{
+		label: "Free arrow",
+		connector: { from: { x: 20, y: 110 }, to: { x: 230, y: 30 }, color: "orange", label: "look" },
+		boxes: [],
+	},
+];
+
 /** Apply a plausible webhook-style change, to replay update animations. */
 function mutate(card: Card, round: number): Card {
 	const changes: Partial<Card>[] = [
@@ -139,10 +275,13 @@ export default function Gallery() {
 		setPulls((current) => current.map((card) => stepPull(card, ciRound)));
 		setCiRound((r) => r + 1);
 	};
+	const [doc] = useState(() => new Y.Doc());
+	const [drops, setDrops] = useState(0);
 
 	const replay = () => {
 		setCards((current) => current.map((card) => mutate(card, round)));
 		setRound((r) => r + 1);
+		setDrops((n) => n + 1);
 	};
 	const reset = () => {
 		setCards(GALLERY_CARDS.map((entry) => entry.card));
@@ -191,20 +330,32 @@ export default function Gallery() {
 			{layout === "both" ? (
 				<div className="gallery-split">
 					<div className="gallery-pane" data-theme="light">
-						<Sections cards={cards} pulls={pulls} />
+						<Sections cards={cards} pulls={pulls} doc={doc} drops={drops} />
 					</div>
 					<div className="gallery-pane" data-theme="dark">
-						<Sections cards={cards} pulls={pulls} />
+						<Sections cards={cards} pulls={pulls} doc={doc} drops={drops} />
 					</div>
 				</div>
 			) : (
-				<Sections cards={cards} pulls={pulls} />
+				<Sections cards={cards} pulls={pulls} doc={doc} drops={drops} />
 			)}
 		</div>
 	);
 }
 
-function Sections({ cards, pulls }: { cards: Card[]; pulls: Card[] }) {
+function Sections({
+	cards,
+	pulls,
+	doc,
+	drops,
+}: {
+	cards: Card[];
+	pulls: Card[];
+	/** A scratch document, so selected sections show their colour controls. */
+	doc: Y.Doc;
+	/** How many times something has dropped into the sample sections. */
+	drops: number;
+}) {
 	return (
 		<>
 			<section>
@@ -256,6 +407,59 @@ function Sections({ cards, pulls }: { cards: Card[]; pulls: Card[] }) {
 					{MISSING.map(({ label, card }) => (
 						<figure key={card.reason}>
 							<CardView card={card} cardKey={card.key} />
+							<figcaption>{label}</figcaption>
+						</figure>
+					))}
+				</div>
+			</section>
+
+			<section>
+				<h2>Sections</h2>
+				<p className="gallery-note">
+					“Simulate an update” drops something into each, replaying the landing glow.
+				</p>
+				<ReactFlowProvider>
+					<DocContext value={doc}>
+						<SectionContext
+							value={{
+								dropTargets: new Set(SECTIONS.filter((s) => s.dropTarget).map((s) => s.label)),
+								selectionSize: 1,
+								setResize: () => {},
+								snapResize: (_id, rect) => rect,
+								sizeOf: () => undefined,
+							}}
+						>
+							<div className="gallery-grid sections">
+								{SECTIONS.map((section) => (
+									<figure key={section.label}>
+										<SectionSample
+											id={section.label}
+											title={section.title}
+											color={section.color}
+											count={section.count + drops}
+											selected={section.selected}
+										/>
+										<figcaption>{section.label}</figcaption>
+									</figure>
+								))}
+							</div>
+						</SectionContext>
+					</DocContext>
+				</ReactFlowProvider>
+			</section>
+
+			<section>
+				<h2>Connectors</h2>
+				<div className="gallery-grid">
+					{CONNECTORS.map(({ label, connector, boxes, selected }) => (
+						<figure key={label}>
+							<ConnectorSample
+								connector={{ ...CONNECTOR, ...connector }}
+								boxes={new Map(boxes)}
+								width={252}
+								height={130}
+								selected={selected}
+							/>
 							<figcaption>{label}</figcaption>
 						</figure>
 					))}

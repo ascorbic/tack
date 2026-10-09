@@ -3,7 +3,8 @@ import { YServer } from "y-partyserver";
 import * as Y from "yjs";
 import type { Card, CardMessage, MissingCard } from "../shared/cards.ts";
 import { repoKeyOf } from "../shared/refs.ts";
-import { cardRefs } from "../shared/shapes.ts";
+import { REPAIR_ORIGIN, repairBoard } from "../shared/repair.ts";
+import { cardRefs, shapesMap } from "../shared/shapes.ts";
 import { watchCardRefs } from "./card-refs.ts";
 import type { MissingReason, RepoIdentity } from "./forges/index.ts";
 import { log } from "./log.ts";
@@ -17,6 +18,8 @@ const SYNC_WAIT_MS = 150;
 const SYNC_MAX_WAIT_MS = 1_000;
 /** How long to believe a repository couldn't be found or reached. */
 const UNRESOLVED_TTL_MS = { error: 15_000, other: 60_000 };
+/** How long to wait after an edit before checking for dangling references. */
+const REPAIR_DELAY_MS = 250;
 
 type Entry = Card | MissingCard;
 
@@ -52,7 +55,42 @@ export class Board extends YServer<Env> {
 			wait: SYNC_WAIT_MS,
 			maxWait: SYNC_MAX_WAIT_MS,
 		});
+		this.watchForRepairs();
 		await this.syncSubscriptions();
+	}
+
+	private repairTimer: ReturnType<typeof setTimeout> | undefined;
+
+	/**
+	 * Fix references left dangling by concurrent edits (see shared/repair.ts):
+	 * once on load, then shortly after any edit that adds or deletes a shape
+	 * or changes a reference, batching bursts of edits into one pass.
+	 */
+	private watchForRepairs(): void {
+		const shapes = shapesMap(this.document);
+		shapes.observeDeep((events, transaction) => {
+			if (transaction.origin === REPAIR_ORIGIN) return;
+			const relevant = events.some(
+				(event) =>
+					event.target === shapes ||
+					[...event.changes.keys.keys()].some(
+						(key) => key === "parent" || key === "from" || key === "to",
+					),
+			);
+			if (relevant) this.scheduleRepair();
+		});
+		this.repair();
+	}
+
+	private scheduleRepair(): void {
+		clearTimeout(this.repairTimer);
+		this.repairTimer = setTimeout(() => this.repair(), REPAIR_DELAY_MS);
+	}
+
+	private repair(): void {
+		const result = repairBoard(this.document);
+		const fixed = result.parents + result.ends + result.removed;
+		if (fixed > 0) log.info("board.repaired", { board: this.name, ...result });
 	}
 
 	override async onLoad(): Promise<Y.Doc | void> {
