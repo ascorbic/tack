@@ -45,6 +45,7 @@ export const fake: ForgeAdapter = {
 		discussions: false,
 		draftPulls: true,
 		ciStatus: false,
+		writes: [],
 	},
 	async fetchItems(refs) {
 		return refs.map((ref) => fakeCard(ref.repo, Number(ref.item.slice(1))));

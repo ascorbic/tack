@@ -1,4 +1,6 @@
 import type { Card, MissingCard } from "../../shared/cards.ts";
+import type { Operation, OperationKind, PushAs } from "../../shared/changes.ts";
+import type { RepoMeta } from "../../shared/push.ts";
 import type { ForgeId, ItemRef } from "../../shared/refs.ts";
 
 /** What a forge supports, so the UI can offer only what will work. */
@@ -8,6 +10,8 @@ export interface ForgeCapabilities {
 	discussions: boolean;
 	draftPulls: boolean;
 	ciStatus: boolean;
+	/** The operations `apply` supports. The UI only offers these. */
+	writes: OperationKind[];
 }
 
 /**
@@ -84,6 +88,37 @@ export type PollResult =
 	/** The forge couldn't be asked; try again no sooner than `retryAt`. */
 	| { status: "error"; retryAt?: number };
 
+/**
+ * How to write: `token` is the pushing person's own token for `user`, or an
+ * installation token for `app`.
+ */
+export interface WriteAuth {
+	as: PushAs;
+	token: string;
+}
+
+export type ApplyResult =
+	| {
+			ok: true;
+			/** The item it created or changed, and a link to what it wrote. */
+			key?: string;
+			url?: string;
+			/**
+			 * Whether the forge's response is confirmation enough (e.g. a
+			 * comment, which no card shows). Otherwise the change is `sent`
+			 * until a webhook or reconciliation shows it on the card.
+			 */
+			confirmed: boolean;
+	  }
+	| {
+			ok: false;
+			error: string;
+			/** Worth trying again: rate limits, timeouts, 5xx. */
+			retryable: boolean;
+			/** When to try again, for rate limits (ms since the epoch). */
+			retryAt?: number;
+	  };
+
 export interface ForgeAdapter {
 	id: ForgeId;
 	capabilities: ForgeCapabilities;
@@ -150,4 +185,19 @@ export interface ForgeAdapter {
 	canRead?(repo: RepoIdentity, token: string | null, env: Env): Promise<boolean>;
 	/** Verify and normalise an incoming webhook, for forges that send them. */
 	receiveWebhook?(request: Request, env: Env): Promise<WebhookResult>;
+
+	// Writing (M2). Every pending target is resolved before `apply` is called
+	// (see `resolveTargets` in src/shared/changes.ts).
+
+	/** Apply one operation. Never throws for forge errors: returns them. */
+	apply?(op: Operation, repo: RepoIdentity, auth: WriteAuth, env: Env): Promise<ApplyResult>;
+	/**
+	 * Whether the holder of `token` can write to a repository (push access on
+	 * GitHub). Pushing needs this even when writing as the app.
+	 */
+	canWrite?(repo: RepoIdentity, token: string, env: Env): Promise<boolean>;
+	/** What a repository offers to write with: labels, milestones, people, categories. */
+	repoMeta?(repo: RepoIdentity, env: Env, auth?: ReadAuth): Promise<RepoMeta>;
+	/** File names in a directory on the default branch (for numbering ADRs). */
+	listDirectory?(repo: RepoIdentity, path: string, env: Env, auth?: ReadAuth): Promise<string[]>;
 }

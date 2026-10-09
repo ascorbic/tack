@@ -48,7 +48,7 @@ export function credentialsFromConversion(app: ManifestConversion): AppCredentia
 // and Actions is needed for `workflow_run` events.
 const PERMISSIONS = {
 	metadata: "read",
-	contents: "read",
+	contents: "write",
 	issues: "write",
 	pull_requests: "write",
 	discussions: "write",

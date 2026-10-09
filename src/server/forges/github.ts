@@ -326,6 +326,7 @@ export const github: ForgeAdapter = {
 		discussions: true,
 		draftPulls: true,
 		ciStatus: true,
+		writes: [],
 	},
 
 	async resolveRepo(_host, name, env) {
