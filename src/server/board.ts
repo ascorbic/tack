@@ -586,7 +586,7 @@ export class Board extends YServer<Env> {
 							until: started + (readable ? ACCESS_TTL_MS.yes : ACCESS_TTL_MS.no),
 						});
 						if (cached?.readable !== readable) {
-							log.info("board.access", {
+							log.info("board.readable", {
 								board: this.name,
 								user: userId,
 								repo: repo.name,
@@ -596,7 +596,7 @@ export class Board extends YServer<Env> {
 						return readable;
 					},
 					(error: unknown) => {
-						log.warn("board.access.failed", {
+						log.warn("board.readable.failed", {
 							board: this.name,
 							user: userId,
 							repo: repo.name,
@@ -681,7 +681,7 @@ export class Board extends YServer<Env> {
 		this.heartbeat = setInterval(() => {
 			this.watchRepos(true);
 			void this.recheckAccess().catch((error: unknown) =>
-				log.error("board.access.failed", { board: this.name, error }),
+				log.error("board.readable.failed", { board: this.name, error }),
 			);
 		}, HEARTBEAT_MS);
 	}
