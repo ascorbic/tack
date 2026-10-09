@@ -1,6 +1,6 @@
 import { useStoreApi } from "@xyflow/react";
 import { type PointerEvent, type MouseEvent, useContext, useEffect, useRef, useState } from "react";
-import { HistoryContext } from "./DocContext.ts";
+import { HistoryContext, ReadOnlyContext } from "./DocContext.ts";
 import { isEditableTarget } from "./keys.ts";
 
 /** Keys that start editing a selected shape and go into its text. */
@@ -27,7 +27,10 @@ export function useEditing({
 	/** A character typed while the shape was selected but not editing. */
 	onType: (char: string) => void;
 }) {
-	const [editing, setEditing] = useState(startEditing);
+	const readOnly = useContext(ReadOnlyContext);
+	const [editingState, setEditing] = useState(startEditing);
+	// View-only boards never edit in place.
+	const editing = editingState && !readOnly;
 	const field = useRef<HTMLTextAreaElement>(null);
 	const store = useStoreApi();
 	const history = useContext(HistoryContext);
@@ -79,7 +82,7 @@ export function useEditing({
 	// capture phase and stops the event, so the keystroke isn't also taken as
 	// a tool shortcut. With several shapes selected, keys are left alone.
 	useEffect(() => {
-		if (!selected || editing) return;
+		if (!selected || editing || readOnly) return;
 		const onKey = (event: KeyboardEvent) => {
 			if (isEditableTarget(event.target)) return;
 			if (event.key !== "Enter" && !isTypingKey(event)) return;
@@ -93,7 +96,7 @@ export function useEditing({
 		};
 		window.addEventListener("keydown", onKey, true);
 		return () => window.removeEventListener("keydown", onKey, true);
-	}, [selected, editing, store]);
+	}, [selected, editing, readOnly, store]);
 
 	const handlers = {
 		onPointerDown: (event: PointerEvent) => {

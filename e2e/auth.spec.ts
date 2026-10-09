@@ -24,7 +24,8 @@ test("dev sign-in shows who you are, and signing out makes you a guest", async (
 	await page.goto(
 		`/auth/dev?login=e2e-octocat&name=E2E%20Octocat&return_to=${encodeURIComponent("/?board=e2e-auth")}`,
 	);
-	await expect(page).toHaveURL(/board=e2e-auth/);
+	// Boards from before the index redirect to their new address.
+	await expect(page).toHaveURL(/\/b\/e2e-auth\/e2e-auth$/);
 
 	const account = page.getByRole("button", { name: "Account: e2e-octocat" });
 	await expect(account).toBeVisible();

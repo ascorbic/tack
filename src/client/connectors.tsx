@@ -6,6 +6,7 @@ import {
 	useMemo,
 	useRef,
 	useState,
+	useContext,
 	useSyncExternalStore,
 	type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -44,6 +45,7 @@ import {
 import { addConnector } from "../shared/structure.ts";
 import { type ShapeNode, deleteShapes } from "./board.ts";
 import { type SectionDrag, nodeBox } from "./canvasStructure.ts";
+import { ReadOnlyContext } from "./DocContext.ts";
 import { useAwarenessField } from "./ephemeral.ts";
 import { isOffBoardTarget } from "./keys.ts";
 import "./connectors.css";
@@ -231,7 +233,10 @@ export function ConnectorLayer({
 		[publish],
 	);
 
-	const [editing, setEditing] = useState<string | null>(null);
+	// View-only boards show connectors, but don't label, restyle or re-attach them.
+	const readOnly = useContext(ReadOnlyContext);
+	const [editingState, setEditing] = useState<string | null>(null);
+	const editing = readOnly ? null : editingState;
 	const connectorIds = useMemo(() => new Set(entries.map((entry) => entry.id)), [entries]);
 	const selectedConnectors = useMemo(
 		() => [...selected].filter((id) => connectorIds.has(id)),
@@ -355,7 +360,7 @@ export function ConnectorLayer({
 	// deselecting are board commands, in commands.ts.)
 	const alone = selected.size === 1 && selectedConnectors.length === 1;
 	useEffect(() => {
-		if (!alone || editing) return;
+		if (!alone || editing || readOnly) return;
 		const onKey = (event: KeyboardEvent) => {
 			if (isOffBoardTarget(event.target)) return;
 			{
@@ -379,7 +384,7 @@ export function ConnectorLayer({
 		};
 		window.addEventListener("keydown", onKey, true);
 		return () => window.removeEventListener("keydown", onKey, true);
-	}, [alone, selectedConnectors, editing, doc, entries]);
+	}, [alone, selectedConnectors, editing, readOnly, doc, entries]);
 
 	// Ends being moved right now, by us or anyone else.
 	const moving = useMemo(() => {
@@ -544,7 +549,7 @@ export function ConnectorLayer({
 					) : null,
 				)}
 
-				{singleDrawn && (
+				{singleDrawn && !readOnly && (
 					<>
 						<EndHandle
 							at={singleDrawn.geometry.start}

@@ -1,0 +1,64 @@
+/* The boards gallery (`/play/boards`), development only. */
+
+.gallery-note {
+	margin: -8px 0 16px;
+	color: var(--muted);
+	font-size: 13px;
+}
+
+.gallery-homes {
+	grid-template-columns: repeat(auto-fill, minmax(min(590px, 100%), 1fr));
+}
+
+/* Each home page at half size, as it would look in a 1180px window. */
+.gallery-home-frame {
+	height: 400px;
+	overflow: hidden;
+	border-radius: 14px;
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-rest);
+}
+
+.gallery-home-frame > .home {
+	width: 1180px;
+	min-height: 800px;
+	zoom: 0.5;
+}
+
+.gallery-tiles {
+	grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
+}
+
+.gallery-shares {
+	grid-template-columns: repeat(auto-fill, minmax(min(460px, 100%), 1fr));
+}
+
+.gallery-share {
+	border-radius: 18px;
+	border: 1px solid var(--line);
+	background: var(--surface);
+	box-shadow: var(--shadow-lifted);
+}
+
+.gallery-bars {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(460px, 100%), 1fr));
+	gap: 28px 24px;
+}
+
+.gallery-topbar {
+	border: 1px solid var(--line);
+	border-radius: 14px;
+}
+
+.gallery-bar-end {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-left: auto;
+}
+
+.gallery-canvas {
+	height: 90px;
+	margin-top: 0;
+}

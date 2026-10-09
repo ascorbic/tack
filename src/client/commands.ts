@@ -74,7 +74,12 @@ interface CommandsOptions {
 	toggleShortcuts: () => void;
 	/** Called when a shortcut moves the view, e.g. to stop following someone. */
 	onNavigate?: () => void;
+	/** View only: copying and moving the view still work, but nothing that changes the board. */
+	readOnly?: boolean;
 }
+
+/** Commands that change the document, which view-only boards ignore. */
+const WRITES = /^(undo|redo|duplicate|delete|nudge|align|distribute|tidy)/;
 
 export function useCanvasCommands(options: CommandsOptions) {
 	const flow = useReactFlow<ShapeNode>();
@@ -382,6 +387,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 
 	const run = useCallback(
 		(id: CommandId): boolean => {
+			if (latest.current.readOnly && WRITES.test(id)) return false;
 			if (!id.startsWith("nudge")) flushNudge();
 			const { selected, setSelected, nodes, toggleShortcuts } = latest.current;
 			const zoomOptions = { duration: duration(260) };
@@ -512,7 +518,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 					if (!pendingCopy) return;
 					const payload = copySelection();
 					if (payload) writeClipboard(payload, null);
-					if (pendingCopy.cut) removeSelection(true);
+					if (pendingCopy.cut && !latest.current.readOnly) removeSelection(true);
 					pendingCopy = null;
 				});
 				return;
@@ -542,11 +548,11 @@ export function useCanvasCommands(options: CommandsOptions) {
 			if (!payload) return;
 			event.preventDefault();
 			writeClipboard(payload, event.clipboardData);
-			if (cut) removeSelection(true);
+			if (cut && !latest.current.readOnly) removeSelection(true);
 		};
 
 		const onPaste = (event: ClipboardEvent) => {
-			if (isOffBoardTarget(event.target)) return;
+			if (latest.current.readOnly || isOffBoardTarget(event.target)) return;
 			const data = event.clipboardData;
 			if (!data) return;
 			flushNudge();

@@ -62,6 +62,14 @@ const NODE_TYPES = { ...nodeTypes, ...sectionNodeTypes };
 
 interface BoardProps extends BoardSource {
 	name: string;
+	/** The board's title in the top bar, e.g. one you can rename. Defaults to `name`. */
+	title?: ReactNode;
+	/**
+	 * View only: no tools, no dragging, no editing in place, no sections or
+	 * connectors. For viewers, the public and archived boards (the server
+	 * refuses their writes anyway).
+	 */
+	readOnly?: boolean;
 	user: User;
 	/**
 	 * Your avatar in the top bar, e.g. an account menu, given the label the
@@ -76,6 +84,8 @@ interface BoardProps extends BoardSource {
 
 export function Board({
 	name,
+	title,
+	readOnly = false,
 	doc,
 	awareness,
 	synced,
@@ -210,6 +220,7 @@ export function Board({
 		canvas,
 		toggleShortcuts: () => setSheetOpen((open) => !open),
 		onNavigate: follow.stop,
+		readOnly,
 	});
 
 	const onNodesChange: OnNodesChange<ShapeNode> = useCallback(
@@ -239,11 +250,12 @@ export function Board({
 					return next;
 				});
 			}
+			if (readOnly) return;
 			presence.onPositionChanges(changes);
 			commands.onRemove(changes.flatMap((change) => (change.type === "remove" ? [change.id] : [])));
 			applyNodeChanges(doc, changes, presence.lastDragPosition, boxSize);
 		},
-		[doc, presence, snapping, commands, boxSize],
+		[doc, presence, snapping, commands, boxSize, readOnly],
 	);
 
 	const sectionUI = useMemo(
@@ -273,6 +285,8 @@ export function Board({
 			if (isOffBoardTarget(event.target)) return;
 			if (event.key === "Escape") setTool("select");
 			const next = TOOL_KEYS[event.key.toLowerCase()];
+			// View only: just the select and hand tools, no sections (F) or connectors (X).
+			if (next && readOnly && next !== "select" && next !== "hand") return;
 			if (next) {
 				event.preventDefault();
 				setTool(next);
@@ -280,7 +294,7 @@ export function Board({
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, []);
+	}, [readOnly]);
 
 	useEffect(() => {
 		if (tool !== "sticky") setGhost(null);
@@ -296,6 +310,7 @@ export function Board({
 	);
 
 	const onPaneClick = (event: MouseEvent) => {
+		if (readOnly) return;
 		const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
 		if (tool === "sticky") {
 			placeSticky(at, stickyColor);
@@ -323,7 +338,7 @@ export function Board({
 	};
 	const onDrop = (event: DragEvent) => {
 		const color = event.dataTransfer.getData(STICKY_DRAG_TYPE) as StickyColor;
-		if (!color) return;
+		if (!color || readOnly) return;
 		event.preventDefault();
 		placeSticky(flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }), color);
 		setTool("select");
@@ -341,14 +356,14 @@ export function Board({
 	// drag to draw, so shapes can't be picked up either.
 	const shapesInteractive = tool !== "hand" && tool !== "section" && tool !== "connector";
 	return (
-		<BoardContext doc={doc} history={history} sections={sectionUI}>
-			<div className="app">
+		<BoardContext doc={doc} history={history} sections={sectionUI} readOnly={readOnly}>
+			<div className="app" data-read-only={readOnly || undefined}>
 				<header className="topbar">
-					<span className="brand">
+					<a className="brand" href="/" aria-label="Tack: all boards">
 						<BrandMark />
 						tack
-					</span>
-					<span className="board-name">{name}</span>
+					</a>
+					{title ?? <span className="board-name">{name}</span>}
 					<People
 						user={user}
 						selfId={awareness.clientID}
@@ -390,7 +405,7 @@ export function Board({
 						selectionOnDrag={tool === "select"}
 						panOnDrag={tool === "hand" ? true : [1, 2]}
 						panOnScroll
-						nodesDraggable={shapesInteractive}
+						nodesDraggable={!readOnly && shapesInteractive}
 						elementsSelectable={shapesInteractive}
 						minZoom={0.1}
 						// Deleting is a board command (see commands.ts), so that shapes
@@ -434,14 +449,14 @@ export function Board({
 							awareness={awareness}
 							nodes={nodes}
 							sectionDrags={structure.sectionDrags}
-							drawing={tool === "connector"}
-							interactive={tool !== "hand"}
+							drawing={!readOnly && tool === "connector"}
+							interactive={!readOnly && tool !== "hand"}
 							onDrawn={() => setTool("select")}
 							selected={selected}
 							setSelected={setSelected}
 							sizeOf={boxSize}
 						/>
-						{tool === "section" && (
+						{!readOnly && tool === "section" && (
 							<SectionTool
 								doc={doc}
 								sizeOf={boxSize}
@@ -452,22 +467,26 @@ export function Board({
 							/>
 						)}
 						<Guides store={snapping.guides} />
-						<SelectionTools
-							nodes={nodes}
-							selected={selected}
-							sizeOf={sizeOf}
-							dragging={snapping.dragging}
-							stacked={styledShapes(selectedNodes).length > 0}
-							onCommand={commands.run}
-						/>
+						{!readOnly && (
+							<SelectionTools
+								nodes={nodes}
+								selected={selected}
+								sizeOf={sizeOf}
+								dragging={snapping.dragging}
+								stacked={styledShapes(selectedNodes).length > 0}
+								onCommand={commands.run}
+							/>
+						)}
 						<Cursors people={presence.people} />
 						<ViewPublisher awareness={awareness} />
-						<ShapeToolbar
-							doc={doc}
-							selected={selectedNodes}
-							dragging={snapping.dragging}
-							onStickyColor={setStickyColor}
-						/>
+						{!readOnly && (
+							<ShapeToolbar
+								doc={doc}
+								selected={selectedNodes}
+								dragging={snapping.dragging}
+								onStickyColor={setStickyColor}
+							/>
+						)}
 						{ghost && (
 							<ViewportPortal>
 								<div
@@ -481,16 +500,18 @@ export function Board({
 							</ViewportPortal>
 						)}
 					</ReactFlow>
-					<EmptyBoard empty={synced && shapeNodes.length === 0} onTool={setTool} />
+					<EmptyBoard empty={!readOnly && synced && shapeNodes.length === 0} onTool={setTool} />
 					<FollowIndicator person={follow.target} onStop={follow.stop} />
 					<CursorChat awareness={awareness} user={user} />
-					<Toolbar
-						tool={tool}
-						onTool={setTool}
-						stickyColor={stickyColor}
-						onStickyColor={setStickyColor}
-						onAddCard={onAddCard}
-					/>
+					{!readOnly && (
+						<Toolbar
+							tool={tool}
+							onTool={setTool}
+							stickyColor={stickyColor}
+							onStickyColor={setStickyColor}
+							onAddCard={onAddCard}
+						/>
+					)}
 					<Toasts store={toasts} />
 					<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
 					{children}

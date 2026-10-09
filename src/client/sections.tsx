@@ -20,7 +20,7 @@ import {
 import { transactLocal, updateShapes } from "../shared/shapes.ts";
 import { addSection, resizeSection } from "../shared/structure.ts";
 import { type ShapeNode, focusWhenMounted, isFresh, takeFocus } from "./board.ts";
-import { DocContext, SectionContext, type SectionUI } from "./DocContext.ts";
+import { DocContext, ReadOnlyContext, SectionContext, type SectionUI } from "./DocContext.ts";
 import "./sections.css";
 
 const HANDLES: ResizeHandle[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
@@ -34,15 +34,18 @@ const HANDLES: ResizeHandle[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
 export const SectionNode = memo(function SectionNode({ id, data, selected }: NodeProps<ShapeNode>) {
 	const doc = useContext(DocContext);
 	const ui = useContext(SectionContext);
+	// View-only boards can't rename, recolour or resize sections.
+	const readOnly = useContext(ReadOnlyContext);
 	const shape = data.shape;
 	const count = data.count ?? 0;
 	const [enter] = useState(() => isFresh(id));
-	const [editing, setEditing] = useState(() => takeFocus(id));
+	const [editingState, setEditing] = useState(() => takeFocus(id));
+	const editing = editingState && !readOnly;
 
 	// Enter renames a section selected on its own.
 	const alone = selected && ui.selectionSize === 1;
 	useEffect(() => {
-		if (!alone || editing) return;
+		if (!alone || editing || readOnly) return;
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.altKey) return;
 			const target = event.target as HTMLElement | null;
@@ -52,7 +55,7 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [alone, editing]);
+	}, [alone, editing, readOnly]);
 
 	// Each time the count goes up, replay the "received" animation.
 	const [received, setReceived] = useState(0);
@@ -104,7 +107,7 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 						{count}
 					</span>
 				</div>
-				{selected && doc && (
+				{selected && doc && !readOnly && (
 					<SectionColors
 						color={color as SectionColor}
 						onColor={(next) => updateShapes(doc, [id], { color: next })}
@@ -113,6 +116,7 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 			</div>
 			{selected &&
 				doc &&
+				!readOnly &&
 				HANDLES.map((handle) => (
 					<ResizeGrip key={handle} id={id} handle={handle} doc={doc} shape={shape} ui={ui} />
 				))}

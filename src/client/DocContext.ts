@@ -10,6 +10,14 @@ export const DocContext = createContext<Y.Doc | null>(null);
 /** The board's undo history, for nodes that group their edits into one step. */
 export const HistoryContext = createContext<History | null>(null);
 
+/**
+ * Whether the board is view-only for you (a viewer, the public, or an
+ * archived board). Everything that edits in place (stickies, text, section
+ * titles and resizing, connectors) checks it. The server enforces it
+ * regardless: read-only connections can't write.
+ */
+export const ReadOnlyContext = createContext(false);
+
 /** What section nodes need from the board around them. */
 export interface SectionUI {
 	/** Sections a dragged shape would land in if dropped now. */
@@ -36,11 +44,13 @@ export function BoardContext({
 	doc,
 	history,
 	sections,
+	readOnly = false,
 	children,
 }: {
 	doc: Y.Doc;
 	history: History | null;
 	sections: SectionUI;
+	readOnly?: boolean;
 	children: ReactNode;
 }) {
 	return createElement(
@@ -49,7 +59,11 @@ export function BoardContext({
 		createElement(
 			HistoryContext,
 			{ value: history },
-			createElement(SectionContext, { value: sections }, children),
+			createElement(
+				SectionContext,
+				{ value: sections },
+				createElement(ReadOnlyContext, { value: readOnly }, children),
+			),
 		),
 	);
 }
