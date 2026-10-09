@@ -1,7 +1,7 @@
 import type { Card, CardState, MissingCard } from "../../shared/cards.ts";
 import { type ItemRef, itemKey } from "../../shared/refs.ts";
 import { repoToken } from "../github/tokens.ts";
-import { verifySignature } from "./hmac.ts";
+import { INSTALLATION_EVENTS, installationEvent, verifyWebhook } from "../github/webhooks.ts";
 import type { ForgeAdapter, WebhookResult } from "./types.ts";
 
 const HOST = "github.com";
@@ -129,15 +129,17 @@ export const github: ForgeAdapter = {
 	},
 
 	async receiveWebhook(request, env) {
-		if (!env.GITHUB_WEBHOOK_SECRET) return reply({ error: "webhook secret not configured" }, 500);
 		const body = await request.text();
-		const signature = request.headers.get("x-hub-signature-256");
-		if (!(await verifySignature(env.GITHUB_WEBHOOK_SECRET, body, signature))) {
-			return reply({ error: "invalid signature" }, 401);
-		}
+		const verified = await verifyWebhook(env, body, request.headers.get("x-hub-signature-256"));
+		if (verified === "unconfigured") return reply({ error: "webhook secret not configured" }, 500);
+		if (verified === "invalid") return reply({ error: "invalid signature" }, 401);
 
 		const event = request.headers.get("x-github-event") ?? "";
 		if (event === "ping") return reply({ ok: true }, 200);
+		if (INSTALLATION_EVENTS.has(event)) {
+			await installationEvent(env, event, body);
+			return reply({ status: "processed" }, 202);
+		}
 
 		const payload = JSON.parse(body) as WebhookPayload;
 		const repo = payload.repository?.full_name?.toLowerCase();

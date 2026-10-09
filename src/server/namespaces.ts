@@ -1,4 +1,5 @@
 import type { Board } from "./board.ts";
+import type { Instance } from "./instance.ts";
 import type { Repo } from "./repo.ts";
 
 // The Durable Object bindings point back at this same Worker, which the
@@ -11,4 +12,9 @@ export function boards(env: Env): DurableObjectNamespace<Board> {
 
 export function repos(env: Env): DurableObjectNamespace<Repo> {
 	return env.Repo as unknown as DurableObjectNamespace<Repo>;
+}
+
+/** The singleton holding instance-wide state: the GitHub App, users, sessions, access. */
+export function instance(env: Env): DurableObjectStub<Instance> {
+	return (env.Instance as unknown as DurableObjectNamespace<Instance>).getByName("instance");
 }

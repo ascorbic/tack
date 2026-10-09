@@ -1,8 +1,13 @@
-// Who is making a request. Implemented by the sign-in work (#4); until then
-// everyone is anonymous.
+// Who is making a request. Sessions live in the Instance Durable Object and
+// are carried by a signed cookie (see `auth/session.ts`).
+
+import { lookupRequest } from "./auth/session.ts";
+import { instance } from "./namespaces.ts";
+
+export { canUseInstance } from "./auth/access.ts";
 
 export interface Viewer {
-	/** GitHub user id. */
+	/** GitHub user id. Dev sign-in (`/auth/dev`) users have negative ids. */
 	id: number;
 	login: string;
 	name: string | null;
@@ -10,14 +15,17 @@ export interface Viewer {
 }
 
 /** The signed-in viewer for a request (HTTP or WebSocket upgrade), if any. */
-export async function getViewer(_request: Request, _env: Env): Promise<Viewer | null> {
-	return null;
+export async function getViewer(request: Request, env: Env): Promise<Viewer | null> {
+	if (!env.TACK_SECRET) return null;
+	return (await lookupRequest(request, env)).session?.viewer ?? null;
 }
 
 /**
  * The viewer's own GitHub token (user-to-server), for checks that must use
  * their permissions, such as whether they can read a private repo (#10).
+ * Refreshed automatically; null if they have none (or it was revoked).
  */
-export async function viewerToken(_env: Env, _viewer: Viewer): Promise<string | null> {
-	return null;
+export async function viewerToken(env: Env, viewer: Viewer): Promise<string | null> {
+	if (!env.TACK_SECRET) return null;
+	return instance(env).userToken(viewer.id);
 }
