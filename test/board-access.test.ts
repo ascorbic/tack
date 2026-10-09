@@ -127,7 +127,7 @@ describe("boardThumbnail", () => {
 		const byKind = Object.fromEntries(thumbnail.shapes.map((shape) => [shape[0], shape]));
 		expect(byKind.sticky).toEqual(["sticky", 0, 0, 141, 141, "blue"]);
 		expect(byKind.card?.[5]).toBe("merged");
-		expect(byKind.text?.[5]).toBe("");
+		expect(byKind.text?.[5]).toBe("1");
 		for (const [, x, y, w, h] of thumbnail.shapes) {
 			expect(x + w).toBeLessThanOrEqual(thumbnail.width);
 			expect(y + h).toBeLessThanOrEqual(thumbnail.height);

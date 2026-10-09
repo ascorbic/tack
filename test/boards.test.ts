@@ -412,6 +412,20 @@ describe("access over live connections", () => {
 		expect(removed.closed?.code).toBe(4403);
 	});
 
+	it("tells everyone on the board when it's renamed", async () => {
+		const board = await create(olive, "Before");
+		const teammate = await open(board.id, oscar);
+		await update(olive, board.id, { title: "After the rename" });
+		await eventually(() =>
+			teammate.messages.some((m) => (m as { type: string }).type === "renamed"),
+		);
+		expect(teammate.messages).toContainEqual({
+			type: "renamed",
+			title: "After the rename",
+			slug: "after-the-rename",
+		});
+	});
+
 	it("makes archived boards read-only, even for their owner", async () => {
 		const board = await create(olive, "Archived");
 		await update(olive, board.id, { archived: true });

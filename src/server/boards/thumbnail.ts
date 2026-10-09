@@ -88,8 +88,11 @@ function shapeBox(props: Record<string, unknown>, cardTone: (ref: string) => str
 				...(sized ?? { width: STICKY, height: STICKY }),
 				tone: typeof props.color === "string" ? props.color : "yellow",
 			};
-		case "text":
-			return { kind: "text", x, y, ...(sized ?? textSize(props)), tone: "" };
+		case "text": {
+			// A text block's tone is how many lines it has, to draw them.
+			const { lines, ...size } = textSize(props);
+			return { kind: "text", x, y, ...(sized ?? size), tone: String(lines) };
+		}
 		case "frame":
 			return sized
 				? {
@@ -115,7 +118,11 @@ function explicitSize(props: Record<string, unknown>): { width: number; height: 
 }
 
 /** Roughly how much room a text block takes: wrapped lines of average-width glyphs. */
-function textSize(props: Record<string, unknown>): { width: number; height: number } {
+function textSize(props: Record<string, unknown>): {
+	width: number;
+	height: number;
+	lines: number;
+} {
 	const size = TEXT_SIZES[typeof props.size === "string" ? props.size : "m"] ?? 20;
 	const text = typeof props.text === "string" && props.text ? props.text : "Text";
 	const charWidth = size * 0.55;
@@ -129,6 +136,7 @@ function textSize(props: Record<string, unknown>): { width: number; height: numb
 	return {
 		width: Math.max(size * 2, longest * charWidth + 12),
 		height: lines * size * 1.3 + 8,
+		lines,
 	};
 }
 

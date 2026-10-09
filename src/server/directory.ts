@@ -349,6 +349,7 @@ export class Directory extends DurableObject<Env> {
 			archived: request.archived,
 		});
 		if (managing) await this.notifyBoard(id);
+		if (request.title !== undefined) await this.notifyRenamed(id);
 		return this.get(visitor, id);
 	}
 
@@ -712,6 +713,17 @@ export class Directory extends DurableObject<Env> {
 			await boards(this.env).getByName(id).accessChanged(this.policy(row));
 		} catch (error) {
 			log.error("board.access.failed", { board: id, error });
+		}
+	}
+
+	/** Tell everyone on the board its new name. */
+	private async notifyRenamed(id: string): Promise<void> {
+		const row = this.row(id);
+		if (!row) return;
+		try {
+			await boards(this.env).getByName(id).renamed(row.title, row.slug);
+		} catch (error) {
+			log.error("board.rename.failed", { board: id, error });
 		}
 	}
 }

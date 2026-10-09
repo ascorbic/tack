@@ -38,7 +38,10 @@ export interface Thumbnail {
 	shapes: ThumbnailShape[];
 }
 
-/** `[kind, x, y, width, height, tone]`; tone is a sticky colour or a card state. */
+/**
+ * `[kind, x, y, width, height, tone]`. The tone is a sticky's colour, a
+ * card's state, a frame's colour, or how many lines a text block has.
+ */
 export type ThumbnailShape = [
 	kind: ThumbnailKind,
 	x: number,
@@ -149,11 +152,14 @@ export type BoardResult<T> =
 	| { ok: true; value: T }
 	| { ok: false; error: BoardError; logins?: string[] };
 
-/** A custom message from the board's Durable Object: your access changed. */
-export interface AccessMessage {
-	type: "access";
-	role: Role;
-}
+/**
+ * Custom messages from a board's Durable Object about the board itself:
+ * your role changed, or someone renamed it. (Card data travels as
+ * `CardMessage`s on the same channel.)
+ */
+export type BoardMessage =
+	| { type: "access"; role: Role }
+	| { type: "renamed"; title: string; slug: string };
 
 export const MAX_TITLE = 120;
 export const DEFAULT_TITLE = "Untitled board";
