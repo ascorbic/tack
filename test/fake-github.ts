@@ -77,6 +77,19 @@ export interface FakeItem {
 	createdAt?: string;
 	/** Pull requests: the branch they're from. */
 	headRef?: string;
+	/** Pull requests: the branch they go into (`main` by default). */
+	base?: string;
+	/** Pull requests: when they were merged, ISO 8601 (`updatedAt` by default). */
+	mergedAt?: string;
+	/** Pull requests: issues they mention without closing (cross-references). */
+	mentions?: number[];
+}
+
+/** A published release. */
+export interface FakeRelease {
+	tagName: string;
+	name: string | null;
+	publishedAt: string;
 }
 
 export interface FakeRequest {
@@ -290,6 +303,8 @@ export class FakeGitHub {
 	readonly subIssues = new Map<string, number[]>();
 	/** Dependencies: blocked `repoId#number` → blocking database ids. */
 	readonly blockedBy = new Map<string, number[]>();
+	/** Releases by repository id, oldest first. */
+	readonly releases = new Map<number, FakeRelease[]>();
 	/** Branches, `repoId:name` → commit sha. */
 	readonly refs = new Map<string, string>();
 	readonly commits = new Map<string, { tree: string; parents: string[]; message: string }>();
@@ -1056,6 +1071,9 @@ export class FakeGitHub {
 		variables: Record<string, unknown>,
 		auth: string,
 	) {
+		if (operation === "TackRelated") return this.relatedGraphQL(variables, auth);
+		if (operation === "TackRelease") return this.releaseGraphQL(variables, auth);
+		if (operation === "TackMergedSince") return this.mergedSinceGraphQL(variables, auth);
 		const ids = (variables.ids as string[] | undefined) ?? [];
 		if (operation === "TackFreshness") {
 			return {
@@ -1097,6 +1115,117 @@ export class FakeGitHub {
 			}
 		}
 		return data;
+	}
+
+	/** An item by database id, as GraphQL shows it, if `auth` can see it. */
+	private gqlByDatabaseId(id: number, auth: string) {
+		const repo = this.repos.get(Math.floor(id / 1_000_000));
+		const item = repo && this.items.get(`${repo.id}#${id % 1_000_000}`);
+		return repo && item && this.canSee(repo, auth) ? this.gqlItem(repo, item) : null;
+	}
+
+	/** What's related to an item (src/server/forges/github-related.ts). */
+	private relatedGraphQL(variables: Record<string, unknown>, auth: string) {
+		const repo = this.repoByName(`${String(variables.owner)}/${String(variables.name)}`);
+		if (!repo || !this.canSee(repo, auth)) return { repository: null };
+		const number = Number(variables.number);
+		const item = this.items.get(`${repo.id}#${number}`);
+		if (!item) return { repository: { issueOrPullRequest: null } };
+		const self = this.databaseId(repo.id, number);
+		const key = `${repo.id}#${number}`;
+		const nodes = (ids: number[]) => ({
+			nodes: ids.map((id) => this.gqlByDatabaseId(id, auth)).filter(Boolean),
+		});
+		const pulls = [...this.items.entries()].filter(([, other]) => other.kind === "pull");
+		const mentions = {
+			nodes: pulls
+				.filter(([, pull]) => pull.mentions?.includes(number))
+				.map(([k]) => ({
+					__typename: "CrossReferencedEvent",
+					source: this.gqlByDatabaseId(
+						this.databaseId(Number(k.split("#")[0]), Number(k.split("#")[1])),
+						auth,
+					),
+				})),
+		};
+		if (item.kind === "pull") {
+			return {
+				repository: {
+					issueOrPullRequest: {
+						__typename: "PullRequest",
+						closingIssuesReferences: nodes(
+							(item.closes ?? []).map((n) => this.databaseId(repo.id, n)),
+						),
+						timelineItems: mentions,
+					},
+				},
+			};
+		}
+		const parent = [...this.subIssues].find(([, children]) => children.includes(self))?.[0];
+		const parentId = parent
+			? this.databaseId(Number(parent.split("#")[0]), Number(parent.split("#")[1]))
+			: null;
+		return {
+			repository: {
+				issueOrPullRequest: {
+					__typename: "Issue",
+					parent: parentId === null ? null : this.gqlByDatabaseId(parentId, auth),
+					subIssues: nodes(this.subIssues.get(key) ?? []),
+					blockedBy: nodes(this.blockedBy.get(key) ?? []),
+					blocking: nodes(
+						[...this.blockedBy].flatMap(([blocked, blockers]) =>
+							blockers.includes(self)
+								? [this.databaseId(Number(blocked.split("#")[0]), Number(blocked.split("#")[1]))]
+								: [],
+						),
+					),
+					closedByPullRequestsReferences: nodes(
+						pulls
+							.filter(([k, pull]) => k.startsWith(`${repo.id}#`) && pull.closes?.includes(number))
+							.map(([, pull]) => this.databaseId(repo.id, pull.number)),
+					),
+					timelineItems: mentions,
+				},
+			},
+		};
+	}
+
+	/** A repository's latest release (src/server/forges/github-related.ts). */
+	private releaseGraphQL(variables: Record<string, unknown>, auth: string) {
+		const repo = this.repoByName(`${String(variables.owner)}/${String(variables.name)}`);
+		if (!repo || !this.canSee(repo, auth)) return { repository: null };
+		const latest = this.releases.get(repo.id)?.at(-1) ?? null;
+		return {
+			repository: {
+				nameWithOwner: repo.name,
+				defaultBranchRef: { name: "main" },
+				latestRelease: latest && {
+					...latest,
+					url: `https://github.com/${repo.name}/releases/tag/${latest.tagName}`,
+				},
+			},
+		};
+	}
+
+	/** Search for merged pull requests: `repo:`, `is:pr is:merged`, `base:` and `merged:>`. */
+	private mergedSinceGraphQL(variables: Record<string, unknown>, auth: string) {
+		const q = String(variables.q);
+		const term = (name: string) => new RegExp(`(?:^| )${name}:(\\S+)`).exec(q)?.[1];
+		const repo = this.repoByName(term("repo") ?? "");
+		if (!repo || !this.canSee(repo, auth) || !/is:pr/.test(q) || !/is:merged/.test(q)) {
+			return { search: { nodes: [] } };
+		}
+		const base = term("base");
+		const since = term("merged")?.replace(/^>/, "");
+		return {
+			search: {
+				nodes: this.itemsIn(repo.id)
+					.filter((item) => item.kind === "pull" && item.state === "merged")
+					.filter((item) => !base || (item.base ?? "main") === base)
+					.filter((item) => !since || (item.mergedAt ?? item.updatedAt) > since)
+					.map((item) => this.gqlItem(repo, item)),
+			},
+		};
 	}
 
 	private rollup(item: FakeItem) {
@@ -1143,7 +1272,7 @@ export class FakeGitHub {
 			title: item.title,
 			url: `https://github.com/${repo.name}/${item.kind === "pull" ? "pull" : "issues"}/${item.number}`,
 			updatedAt: item.updatedAt,
-			repository: { nameWithOwner: repo.name },
+			repository: { nameWithOwner: repo.name, isPrivate: repo.private },
 			author: { login: "octocat", avatarUrl: "https://avatars.example/octocat" },
 			labels: { nodes: item.labels ?? [] },
 			assignees: {

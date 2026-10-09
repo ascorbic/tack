@@ -69,6 +69,8 @@ export interface RelatedResult {
 	blocking: string[];
 	/** Pull requests that close or mention it. */
 	linkedPulls: string[];
+	/** For a pull request: the issues it closes when merged. */
+	closes?: string[];
 	/** Card data for every key above, where readable. */
 	cards: (Card | MissingCard)[];
 }

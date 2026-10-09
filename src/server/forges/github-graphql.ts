@@ -40,7 +40,7 @@ const COUNTS = `
 	checkRunCountsByState { state count }
 	statusContextCountsByState { state count }`;
 
-const FRAGMENTS = `
+export const FRAGMENTS = `
 fragment TackIssue on Issue {${COMMON}
 	issueState: state
 	stateReason
@@ -106,7 +106,7 @@ interface Common {
 	reactions: { totalCount: number };
 }
 
-interface GqlIssue extends Common {
+export interface GqlIssue extends Common {
 	__typename: "Issue";
 	issueState: "OPEN" | "CLOSED";
 	stateReason: string | null;
@@ -136,7 +136,7 @@ interface Rollup {
 	};
 }
 
-interface GqlPull extends Common {
+export interface GqlPull extends Common {
 	__typename: "PullRequest";
 	pullState: "OPEN" | "CLOSED" | "MERGED";
 	isDraft: boolean;

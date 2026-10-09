@@ -5,6 +5,7 @@ import { forgetRepoToken, isInstalled, repoToken, watchInstallation } from "../g
 import { log } from "../log.ts";
 import { INSTALLATION_EVENTS, installationEvent, verifyWebhook } from "../github/webhooks.ts";
 import { fetchItemsGraphQL, GraphQLUnavailable, staleItemsGraphQL } from "./github-graphql.ts";
+import { relatedGitHub, releaseGitHub } from "./github-related.ts";
 import {
 	applyGitHub,
 	canWriteGitHub,
@@ -437,6 +438,10 @@ export const github: ForgeAdapter = {
 	canWrite: (repo, token) => canWriteGitHub(repo, token),
 	repoMeta: repoMetaGitHub,
 	listDirectory: listDirectoryGitHub,
+
+	// Reading for widgets (M3): see github-related.ts.
+	related: relatedGitHub,
+	release: releaseGitHub,
 
 	async receiveWebhook(request, env) {
 		const body = await request.text();

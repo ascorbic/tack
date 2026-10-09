@@ -1,6 +1,7 @@
 import type { Card } from "../../shared/cards.ts";
 import type { OperationKind } from "../../shared/changes.ts";
-import { itemKey } from "../../shared/refs.ts";
+import { itemKey, itemOf, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
+import type { RelatedResult } from "../../shared/widgets.ts";
 import type { ApplyResult, ForgeAdapter } from "./types.ts";
 
 // A synthetic forge at `fake.tack`, for stress tests and tests. Items are
@@ -111,4 +112,77 @@ export const fake: ForgeAdapter = {
 	async listDirectory() {
 		return [];
 	},
+
+	async related(key) {
+		const parsed = parseRepoKey(repoKeyOf(key));
+		const n = Number(itemOf(key)?.slice(1));
+		if (!parsed || !Number.isInteger(n) || n < 1) {
+			return { kind: "error", reason: "invalid", message: "Not a fake.tack item." };
+		}
+		return fakeRelated(parsed.repo, n);
+	},
+
+	async release(repo) {
+		return {
+			kind: "release",
+			repo: `${repo.host}/${repo.name}`,
+			latest: {
+				tag: "v1.4.0",
+				name: "1.4.0",
+				publishedAt: "2026-09-01T12:00:00Z",
+				url: `https://fake.tack/${repo.name}/releases/v1.4.0`,
+			},
+			// Every merged pull request is synthetic, so a handful stand in.
+			mergedSince: [3, 8, 13, 18, 23].map((n) => ({
+				...fakeCard(repo.name, n),
+				visibility: "public" as const,
+			})),
+		};
+	},
 };
+
+const isIssue = (n: number) => n % 5 <= 2;
+
+/**
+ * What's related to a synthetic item, worked out from its number, so it's
+ * the same every time and consistent both ways: issue n's sub-issues are
+ * 10n+1, 10n+2 and 10n+5 (so its parent is n/10), each issue is blocked
+ * by the one five after it (a chain), and each issue is closed by the next
+ * merged pull request (numbers ending 3 or 8), which closes the three
+ * issues before it. Issues on multiples of five are mentioned by the draft
+ * after them too.
+ */
+export function fakeRelated(repo: string, n: number): RelatedResult {
+	const key = (m: number) => itemKey({ host: "fake.tack", repo, item: `#${m}` });
+	const result: RelatedResult = {
+		kind: "related",
+		key: key(n),
+		subIssues: [],
+		blockedBy: [],
+		blocking: [],
+		linkedPulls: [],
+		cards: [],
+	};
+	const numbers = new Set<number>();
+	const add = (list: string[], m: number) => {
+		list.push(key(m));
+		numbers.add(m);
+	};
+	if (isIssue(n)) {
+		const parent = Math.floor(n / 10);
+		if (parent >= 1 && isIssue(parent)) {
+			result.parent = key(parent);
+			numbers.add(parent);
+		}
+		if (n < 1000) for (const k of [1, 2, 5]) add(result.subIssues, n * 10 + k);
+		add(result.blockedBy, n + 5);
+		if (n > 5) add(result.blocking, n - 5);
+		add(result.linkedPulls, n + 3 - (n % 5));
+		if (n % 5 === 0) add(result.linkedPulls, n + 4);
+	} else if (n % 5 === 3) {
+		result.closes = [];
+		for (const m of [n - 3, n - 2, n - 1]) if (m >= 1) add(result.closes, m);
+	}
+	result.cards = [...numbers].map((m) => ({ ...fakeCard(repo, m), visibility: "public" }));
+	return result;
+}
