@@ -3,7 +3,7 @@
 // people signed in through GitHub (a fake one), applied to the fake GitHub
 // in dependency order, and confirmed by webhooks or reconciliation.
 
-import type { Miniflare, Response } from "miniflare";
+import type { Miniflare } from "miniflare";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
 import {
@@ -19,7 +19,7 @@ import { addDecision, stageWriteBack } from "../src/shared/decisions.ts";
 import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
 import { type BoardClient, connectBoard, eventually } from "./board-client.ts";
 import { FakeGitHub, type FakeUser } from "./fake-github.ts";
-import { boardStub, instanceStub, signIn, startWorker } from "./harness.ts";
+import { boardStub, instanceStub, signIn, signInWithGitHub, startWorker } from "./harness.ts";
 
 const ORIGIN = "http://localhost";
 const WIDGETS = 1;
@@ -65,34 +65,6 @@ async function configured(github: FakeGitHub): Promise<Miniflare> {
 		ok: true,
 	});
 	return mf;
-}
-
-function cookies(response: Response): Record<string, string> {
-	const jar: Record<string, string> = {};
-	for (const header of response.headers.getSetCookie()) {
-		const [pair = ""] = header.split(";");
-		const eq = pair.indexOf("=");
-		jar[pair.slice(0, eq)] = pair.slice(eq + 1);
-	}
-	return jar;
-}
-
-/** Sign in through (fake) GitHub, so the person has a real user token. */
-async function signInWithGitHub(mf: Miniflare, github: FakeGitHub, who: FakeUser) {
-	await signIn(mf, who.login);
-	const start = await mf.dispatchFetch(`${ORIGIN}/auth/signin?return_to=/`, { redirect: "manual" });
-	const callback = new URL(github.authorize(start.headers.get("location") ?? "", who));
-	const jar = cookies(start);
-	const done = await mf.dispatchFetch(`${ORIGIN}${callback.pathname}${callback.search}`, {
-		headers: {
-			cookie: Object.entries(jar)
-				.map(([k, v]) => `${k}=${v}`)
-				.join("; "),
-		},
-		redirect: "manual",
-	});
-	expect(done.status).toBe(302);
-	return `tack_session=${cookies(done).tack_session ?? ""}`;
 }
 
 function api(mf: Miniflare, path: string, cookie: string | null, init: RequestInit = {}) {

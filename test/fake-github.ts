@@ -15,7 +15,8 @@
 //   installation token, or a user token for someone in the repository's
 //   `writers` where the app is installed. `failWrites` makes the next writes
 //   fail (rate limits, outages), and `dropWrites` accepts writes without
-//   doing them.
+//   doing them. `mergePull` merges a pull request as someone on GitHub
+//   would, and `event` gives the webhook payload for an item as it is now.
 //
 // Every request is recorded twice: as `METHOD url` lines in `log`, and as
 // structured `requests` (with GraphQL operation names and variables) so
@@ -371,6 +372,57 @@ export class FakeGitHub {
 			.digest("hex");
 		this.commits.set(sha, { tree, parents, message });
 		return sha;
+	}
+
+	/**
+	 * Merge a pull request, as someone would on GitHub: its branch's files
+	 * land on `main` in a merge commit, and it's merged. Returns the
+	 * `pull_request` webhook's payload, for the test to deliver.
+	 */
+	mergePull(repoId: number, number: number): Record<string, unknown> {
+		const repo = this.repos.get(repoId);
+		const item = this.item(repoId, number);
+		if (!repo || item?.kind !== "pull" || !item.headRef) throw new Error(`no pull ${number}`);
+		if (item.state === "merged" || item.state === "closed") throw new Error(`${number} is closed`);
+		const main = this.refs.get(`${repoId}:main`) ?? "";
+		const head = this.refs.get(`${repoId}:${item.headRef}`) ?? "";
+		const files = new Map([
+			...(this.filesOn(repoId, "main") ?? []),
+			...(this.filesOn(repoId, item.headRef) ?? []),
+		]);
+		const message = `Merge pull request #${number} from ${item.headRef}`;
+		this.refs.set(`${repoId}:main`, this.storeCommit(this.storeTree(files), [main, head], message));
+		item.state = "merged";
+		item.updatedAt = new Date(Math.max(Date.now(), Date.parse(item.updatedAt) + 1)).toISOString();
+		return this.event(repoId, number, "closed");
+	}
+
+	/**
+	 * The webhook payload GitHub sends for an item as it is now: an `issues`
+	 * event's for issues, a `pull_request` event's for pull requests.
+	 */
+	event(repoId: number, number: number, action: string): Record<string, unknown> {
+		const repo = this.repos.get(repoId);
+		const item = this.item(repoId, number);
+		if (!repo || !item) throw new Error(`no item ${repoId}#${number}`);
+		const repository = {
+			id: repo.id,
+			node_id: `R_${repo.id}`,
+			full_name: repo.name,
+			private: repo.private,
+		};
+		if (item.kind === "issue") return { action, repository, issue: this.restIssue(repo, item) };
+		const merged = item.state === "merged";
+		return {
+			action,
+			number,
+			repository,
+			pull_request: {
+				...this.restPull(repo, item),
+				merged,
+				merged_at: merged ? item.updatedAt : null,
+			},
+		};
 	}
 
 	/** Give someone read access to a private repository. */

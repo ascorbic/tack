@@ -7,6 +7,7 @@ import type { Board } from "../src/server/board.ts";
 import type { Directory } from "../src/server/directory.ts";
 import type { Instance } from "../src/server/instance.ts";
 import type { Repo } from "../src/server/repo.ts";
+import type { FakeGitHub, FakeUser } from "./fake-github.ts";
 
 export const BUNDLE = ".cloudflare/output/v0/workers/default/bundle/index.js";
 
@@ -94,6 +95,46 @@ export async function signIn(
 		);
 	}
 	return cookie;
+}
+
+function cookies(response: Response): Record<string, string> {
+	const jar: Record<string, string> = {};
+	for (const header of response.headers.getSetCookie()) {
+		const [pair = ""] = header.split(";");
+		const eq = pair.indexOf("=");
+		jar[pair.slice(0, eq)] = pair.slice(eq + 1);
+	}
+	return jar;
+}
+
+/**
+ * Sign in through the fake GitHub's OAuth flow (start the Worker with
+ * `{ devAuth: true, outboundService: github.fetch }` and complete setup), so
+ * the person has a real user token, as pushing needs. They're added to the
+ * allowlist first. Returns a `Cookie` header value.
+ */
+export async function signInWithGitHub(
+	mf: Miniflare,
+	github: Pick<FakeGitHub, "authorize">,
+	who: FakeUser,
+): Promise<string> {
+	await signIn(mf, who.login);
+	const start = await mf.dispatchFetch("http://localhost/auth/signin?return_to=/", {
+		redirect: "manual",
+	});
+	const callback = new URL(github.authorize(start.headers.get("location") ?? "", who));
+	const jar = cookies(start);
+	const done = await mf.dispatchFetch(`http://localhost${callback.pathname}${callback.search}`, {
+		headers: {
+			cookie: Object.entries(jar)
+				.map(([k, v]) => `${k}=${v}`)
+				.join("; "),
+		},
+		redirect: "manual",
+	});
+	const session = cookies(done).tack_session;
+	if (done.status !== 302 || !session) throw new Error(`GitHub sign-in failed (${done.status}).`);
+	return `tack_session=${session}`;
 }
 
 /** An RPC stub for the `Board` Durable Object with this name, started. */
