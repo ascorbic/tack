@@ -88,6 +88,20 @@ const GAP = { row: 88, column: 128, between: 24 };
 /** How far a block slides at a time, looking for a clear spot, and how often. */
 const STEP = 32;
 const TRIES = 40;
+/** How far a block may shift sideways, in steps, and what that costs against moving outward. */
+const SIDEWAYS = 8;
+const SIDEWAYS_COST = 1.6;
+/** Every spot to try, nearest first: `k` steps outward, `j` sideways. */
+const CANDIDATES: [k: number, j: number][] = Array.from({ length: TRIES }, (_, k) =>
+	Array.from({ length: SIDEWAYS * 2 + 1 }, (_, i): [number, number] => [k, i - SIDEWAYS]),
+)
+	.flat()
+	.sort(
+		([ka, ja], [kb, jb]) =>
+			ka + Math.abs(ja) * SIDEWAYS_COST - (kb + Math.abs(jb) * SIDEWAYS_COST) ||
+			Math.abs(ja) - Math.abs(jb) ||
+			jb - ja,
+	);
 /** Clearance kept around other shapes. */
 const MARGIN = 16;
 /** Most sub-issues in a row. */
@@ -298,20 +312,22 @@ export function planExpand(input: ExpandInput): ExpandPlan {
 				left: { x: -STEP, y: 0 },
 				right: { x: STEP, y: 0 },
 			}[direction];
-			const at = (k: number) =>
+			// Sideways too, a little, so one shape in the way doesn't send a
+			// group far off: the nearest clear spot wins, outward first.
+			const side = { x: step.y === 0 ? 0 : STEP, y: step.x === 0 ? 0 : STEP };
+			const at = (k: number, j: number) =>
 				block.boxes.map((b) => ({
 					...b,
-					x: Math.round(origin.x + b.x + step.x * k),
-					y: Math.round(origin.y + b.y + step.y * k),
+					x: Math.round(origin.x + b.x + step.x * k + side.x * j),
+					y: Math.round(origin.y + b.y + step.y * k + side.y * j),
 				}));
-			let boxes = at(0);
-			for (let k = 0; k < TRIES; k++) {
-				const candidate = at(k);
+			let boxes = at(TRIES - 1, 0);
+			for (const [k, j] of CANDIDATES) {
+				const candidate = at(k, j);
 				if (!candidate.some((b) => blocked.some((other) => intersects(b, other)))) {
 					boxes = candidate;
 					break;
 				}
-				if (k === TRIES - 1) boxes = candidate;
 			}
 			boxes.forEach((b, i) => {
 				const key = fresh[i] as string;
