@@ -410,12 +410,18 @@ export class PushEngine {
 		return this.running;
 	}
 
-	/** For tests: wait for the current run, if any. */
-	async settle(): Promise<void> {
-		await this.running;
+	private async runOnce(): Promise<void> {
+		try {
+			await this.writeDue();
+			await this.reconcileDue();
+		} finally {
+			// Whatever happened, save what was done and come back for the rest.
+			this.host.persist();
+			await this.armAlarm();
+		}
 	}
 
-	private async runOnce(): Promise<void> {
+	private async writeDue(): Promise<void> {
 		const { sql } = this.host;
 		let writes = 0;
 		const pushes = sql.exec<PushRow>("SELECT * FROM pushes WHERE done = 0 ORDER BY at").toArray();
@@ -446,9 +452,6 @@ export class PushEngine {
 			}
 			if (!waiting) this.finish(push);
 		}
-		await this.reconcileDue();
-		this.host.persist();
-		await this.armAlarm();
 	}
 
 	private async attempt(push: PushRow, row: ItemRow): Promise<"done" | "wait"> {

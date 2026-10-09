@@ -141,7 +141,13 @@ export class Board extends YServer<Env> {
 			sql: this.ctx.storage.sql,
 			route: (repoKey) => this.route(repoKey),
 			watch: () => void this.syncSubscriptions(),
-			persist: () => this.writeSnapshot(),
+			persist: () => {
+				try {
+					this.writeSnapshot();
+				} catch {
+					// Logged as board.save.failed; the debounced save tries again.
+				}
+			},
 			alarmAt: async (at) => {
 				const current = await this.ctx.storage.getAlarm();
 				// An alarm in the past is the one running now (or about to).
