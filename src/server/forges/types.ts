@@ -1,5 +1,6 @@
 import type { Card, MissingCard } from "../../shared/cards.ts";
 import type { Operation, OperationKind, PushAs } from "../../shared/changes.ts";
+import type { ItemMention } from "../../shared/mentions.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import type {
 	QueryError,
@@ -71,6 +72,12 @@ export interface Delivery {
 		/** Commits whose CI changed, matched to pull requests by head commit. */
 		commits: string[];
 	};
+	/**
+	 * What each changed item's text (a pull request's title and description)
+	 * refers to, by the item's canonical key (see src/shared/mentions.ts).
+	 * Rules use it to place pull requests beside what they close (#44).
+	 */
+	mentions?: Record<string, ItemMention[]>;
 }
 
 export type WebhookResult =

@@ -1,5 +1,6 @@
 import type { Card, CardState, MissingCard, PullDetails } from "../../shared/cards.ts";
 import { OPERATION_KINDS } from "../../shared/changes.ts";
+import { type ItemMention, mentionsIn } from "../../shared/mentions.ts";
 import { itemKey } from "../../shared/refs.ts";
 import { forgetRepoToken, isInstalled, repoToken, watchInstallation } from "../github/tokens.ts";
 import { log } from "../log.ts";
@@ -31,6 +32,7 @@ const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/;
 export interface GitHubIssueLike {
 	number: number;
 	title: string;
+	body?: string | null;
 	state: "open" | "closed";
 	state_reason?: string | null;
 	html_url: string;
@@ -464,9 +466,14 @@ export const github: ForgeAdapter = {
 		const repo = repoIdentity(payload.repository);
 
 		const cards: Card[] = [];
+		const mentions: Record<string, ItemMention[]> = {};
 		if (event === "issues" && payload.issue) cards.push(normaliseIssue(repo.name, payload.issue));
 		if (event === "pull_request" && payload.pull_request) {
-			cards.push(normaliseIssue(repo.name, payload.pull_request, true));
+			const pull = normaliseIssue(repo.name, payload.pull_request, true);
+			cards.push(pull);
+			const text = `${payload.pull_request.title}\n${payload.pull_request.body ?? ""}`;
+			const found = mentionsIn(text, { host: HOST, repo: pull.repo, self: pull.key });
+			if (found.length > 0) mentions[pull.key] = found;
 		}
 
 		return {
@@ -479,6 +486,7 @@ export const github: ForgeAdapter = {
 				payload: body,
 				cards,
 				refetch: refetchFor(event, payload),
+				...(Object.keys(mentions).length > 0 ? { mentions } : {}),
 			},
 		};
 	},
