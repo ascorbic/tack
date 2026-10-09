@@ -1,5 +1,6 @@
 import type { Card } from "../../shared/cards.ts";
 import type { OperationKind } from "../../shared/changes.ts";
+import { matchesQuery, queryRepos } from "../../shared/query.ts";
 import { itemKey, itemOf, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
 import type { RelatedResult } from "../../shared/widgets.ts";
 import type { ApplyResult, ForgeAdapter } from "./types.ts";
@@ -171,6 +172,24 @@ export const fake: ForgeAdapter = {
 			})),
 		};
 	},
+
+	// Searching: every fake repository has items 1 to `FAKE_SEARCH_ITEMS`,
+	// matched against the query by the same local reading rules use.
+	async search(query) {
+		const repos = queryRepos(query);
+		if (repos.length === 0) {
+			return { kind: "error", reason: "invalid", message: "Add repo:owner/name to search." };
+		}
+		const matches = repos
+			.flatMap((repoKey) =>
+				Array.from({ length: FAKE_SEARCH_ITEMS }, (_, i) =>
+					fakeCard(repoKey.slice(repoKey.indexOf("/") + 1), FAKE_SEARCH_ITEMS - i),
+				),
+			)
+			.filter((card) => matchesQuery(card, query) !== false);
+		const limit = Math.min(query.limit ?? 50, 100);
+		return { kind: "search", total: matches.length, items: matches.slice(0, limit) };
+	},
 };
 
 const isIssue = (n: number) => n % 5 <= 2;
@@ -218,3 +237,6 @@ export function fakeRelated(repo: string, n: number): RelatedResult {
 	result.cards = [...numbers].map((m) => ({ ...fakeCard(repo, m), visibility: "public" }));
 	return result;
 }
+
+/** How many items each fake repository has, for searching. */
+export const FAKE_SEARCH_ITEMS = 30;
