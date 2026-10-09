@@ -37,7 +37,7 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `docs/github-data.md` — how cards are keyed, fetched (batched GraphQL) and kept fresh, and how renamed repositories keep working
 - `docs/react-flow-probe.md` — what stays React Flow's (box-shaped nodes) and what's on our own layers (connectors, strokes) and in our own code (containment, geometry, hit testing)
 - `test/` — Vitest tests in Node. Integration tests run the built Worker in Miniflare (`test/harness.ts`); `test/global-setup.ts` builds it first
-- `e2e/` — Playwright smoke tests over the `/play` workbench, with their own config (`e2e/playwright.config.ts`) and screenshot baselines
+- `e2e/` — Playwright smoke tests over the `/play` workbench, with their own config (`e2e/playwright.config.ts`)
 - `cloudflare.config.ts` — Worker configuration, via `defineConfig` from `cf/config` (there is no wrangler.jsonc, and no Wrangler dependency at all)
 - `compatibility.ts` — compatibility date/flags, shared between the Worker config and the test runtime
 - `vite.config.ts` — unified Vite+ config: Vite plugins, Vitest, oxlint, and oxfmt
@@ -48,7 +48,7 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `pnpm dev` — start the dev server (`vp dev`). `cf dev` and `cf build` expect a `vite` binary, which Vite+ doesn't provide, so use `vp`
 - `pnpm test` — unit and integration tests (`vp test`)
 - `pnpm e2e` — Playwright smoke tests (`e2e/`). Starts its own dev server on port 5205, or reuses one already running there. Install the browser once with `pnpm exec playwright install chromium`
-- `pnpm e2e:update` — the same, rewriting screenshot baselines for this platform
+- `pnpm e2e:visual` / `pnpm e2e:update` — also run (or rewrite the baselines for) the opt-in pixel comparison of the gallery
 - `pnpm check` — format check, lint, and type check in one pass (`vp check`)
 - `pnpm fix` — apply formatting and safe lint fixes
 - `pnpm build` — production build
@@ -81,7 +81,7 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - Mock GitHub with `startWorker({ outboundService: github.fetch })`, where `github` is a `FakeGitHub` from `test/fake-github.ts`. It covers the app (manifest conversion, OAuth, users, org membership, installation tokens, the webhook delivery log; it verifies app JWTs against a test RSA key) and repository data (repositories with renames, issues and PRs with CI and reviews, over REST and GraphQL), and records `requests` so tests can count fetches.
 - `test/github-data.test.ts` opens real boards over WebSockets, and restarts the Worker with `startWorker({ persist })` to test waking from sleep.
 - End-to-end smoke tests are Playwright, in `e2e/`, kept out of `vp test` so it stays fast. They drive `/play` scenarios (render counts, simulated forge events, people joining, the sticky tool, dragging) and fail on any uncaught page error. When you add a `/play` scenario or gallery state, add it to `e2e/play.spec.ts` or `e2e/gallery.spec.ts`.
-- `e2e/gallery.spec.ts` screenshots `/play/cards` with reduced motion and animations off, against per-platform baselines in `e2e/gallery.spec.ts-snapshots/` (`*-darwin.png` locally, `*-linux.png` in CI). After an intended visual change, run `pnpm e2e:update` and commit the new PNGs. For the Linux baselines CI compares against, run the **Test** workflow manually with "update snapshots" ticked, download its `e2e-linux-baselines` artifact into `e2e/gallery.spec.ts-snapshots/`, and commit. Until a Linux baseline exists, CI runs the gallery's other checks and skips only the pixel comparison.
+- **Visual regression is opt-in for now.** The design is changing too fast for pixel baselines to be worth maintaining, so `e2e/gallery.spec.ts`'s screenshot test only runs with `VISUAL=1` (`pnpm e2e:visual`), and no baselines are committed. The gallery's structural checks (every card state, caption, `data-state` and label) always run and are what catch broken states. Turn pixel comparison back on once the UI settles, scoped to stable components rather than the whole gallery; the Test workflow's manual "update snapshots" run produces Linux baselines as an `e2e-linux-baselines` artifact.
 - In CI, the `e2e` job runs separately from `test`, and uploads traces and failure screenshots as the `e2e-results` artifact. Open a trace with `pnpm exec playwright show-trace <trace.zip>`.
 
 ## Observability

@@ -16,9 +16,10 @@
 		"types": "cf workers types",
 		"test": "vp test",
 		"e2e": "playwright test -c e2e/playwright.config.ts",
-		"e2e:update": "playwright test -c e2e/playwright.config.ts --update-snapshots",
+		"e2e:update": "VISUAL=1 playwright test -c e2e/playwright.config.ts --update-snapshots",
 		"check": "vp check",
-		"fix": "vp check --fix"
+		"fix": "vp check --fix",
+		"e2e:visual": "VISUAL=1 playwright test -c e2e/playwright.config.ts"
 	},
 	"dependencies": {
 		"@fontsource-variable/bricolage-grotesque": "^5.3.0",

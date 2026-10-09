@@ -1,10 +1,9 @@
 import { existsSync } from "node:fs";
 import { expect, test } from "./fixtures.ts";
 
-// Visual regression over the card gallery, which shows every card state.
-// Baselines are per platform (`*-darwin.png`, `*-linux.png`): update them
-// with `pnpm e2e:update`, and see AGENTS.md for refreshing the Linux ones CI
-// compares against.
+// Checks over the card gallery, which shows every card state. The pixel
+// comparison ("the gallery looks right") is opt-in with VISUAL=1 while the
+// design is still moving quickly: see AGENTS.md.
 
 test.use({ reducedMotion: "reduce" });
 
@@ -138,6 +137,8 @@ test("simulated updates land on every card", async ({ page }) => {
 });
 
 test("the gallery looks right", async ({ page }) => {
+	test.skip(process.env.VISUAL !== "1", "Visual regression is opt-in: set VISUAL=1");
+
 	// Every web font is loaded, so text doesn't render in a fallback.
 	for (const font of [
 		"Geist Variable",

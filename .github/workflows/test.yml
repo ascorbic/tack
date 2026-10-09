@@ -57,6 +57,9 @@ jobs:
         run: pnpm exec playwright install-deps chromium
       - name: E2E
         run: pnpm e2e ${{ inputs.update-snapshots && '--update-snapshots' || '' }}
+        env:
+          # Pixel comparison is opt-in; the manual update-snapshots run turns it on.
+          VISUAL: ${{ inputs.update-snapshots && '1' || '' }}
       - name: Upload traces and screenshots
         if: failure()
         uses: actions/upload-artifact@v4
