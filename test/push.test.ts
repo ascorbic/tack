@@ -592,6 +592,8 @@ describe("repository metadata", () => {
 			labels: [{ name: "bug" }],
 			defaultBranch: "main",
 			writable: true,
+			// The forge's writes, so the UI offers only those.
+			writes: expect.arrayContaining(["issue.create", "item.blockedBy", "item.comment"]),
 		});
 		const files = await api(mf, `/api/repos/files?repo=${REPO}&path=docs/decisions`, alice);
 		expect(await files.json()).toEqual(["0001-first.md"]);

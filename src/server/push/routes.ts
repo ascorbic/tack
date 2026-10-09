@@ -165,7 +165,11 @@ async function repoRoute(
 		try {
 			value =
 				route === "meta"
-					? await adapter.repoMeta!(repo, env, { token })
+					? // What the forge can write, so the UI only offers that (RepoMeta.writes).
+						{
+							...(await adapter.repoMeta!(repo, env, { token })),
+							writes: adapter.capabilities.writes,
+						}
 					: await adapter.listDirectory!(repo, path, env, { token });
 		} catch (error) {
 			log.warn(`repos.${route}.failed`, { repo: repoKey, error });
