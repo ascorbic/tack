@@ -1,4 +1,4 @@
-import type { PushAs } from "./changes.ts";
+import type { OperationKind, PushAs } from "./changes.ts";
 
 // The push API: request and response shapes shared by the server's routes
 // and the client. Change statuses themselves travel in the board document
@@ -58,6 +58,11 @@ export interface RepoMeta {
 	defaultBranch: string;
 	/** Whether the app can write here (it's installed with the needed permissions). */
 	writable: boolean;
+	/**
+	 * The writes the repository's forge supports (its adapter's
+	 * `capabilities.writes`), so the UI only offers those. Absent means unknown.
+	 */
+	writes?: OperationKind[];
 }
 
 /** One push, for the board's audit log. */

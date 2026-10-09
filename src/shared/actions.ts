@@ -1,0 +1,501 @@
+import type * as Y from "yjs";
+import {
+	type ChangeStatus,
+	type CloseReason,
+	type Operation,
+	type OperationKind,
+	type PendingChange,
+	type Stager,
+	type Target,
+	changesMap,
+	listChanges,
+	stageChange,
+	unstageChanges,
+} from "./changes.ts";
+import { readConnector } from "./connectors.ts";
+import type { RepoMeta } from "./push.ts";
+import { repoKeyOf } from "./refs.ts";
+import { readShape, shapesMap, transactLocal } from "./shapes.ts";
+
+// Built-in actions (#32): what the selection actions stage. Pure document
+// logic, so it's unit-tested in Node; the UI is in src/client/actions/.
+//
+// Nothing here writes to a forge. Each function stages pending changes
+// (src/shared/changes.ts) in one local transaction, so one action is one undo
+// step, and the push sheet decides when they're written.
+
+/** GitHub's limit on issue titles. */
+export const TITLE_MAX = 256;
+
+/** Changes that are still on their way: an issue that will exist, or is being made. */
+const LIVE: ReadonlySet<ChangeStatus> = new Set(["staged", "sending", "sent", "failed"]);
+
+/** Whether a repository's forge can do this kind of write (unknown means yes). */
+export function canWrite(meta: Pick<RepoMeta, "writes"> | null | undefined, kind: OperationKind) {
+	return !meta?.writes || meta.writes.includes(kind);
+}
+
+// Stickies to issues --------------------------------------------------------
+
+const MARKER = /^(?:#{1,6}\s+|[-*•]\s+|\[[ x]\]\s+)/i;
+
+/**
+ * A sticky's text as an issue: the first line is the title (without a
+ * leading heading or bullet marker), the rest is the body. A first line too
+ * long for a title is cut at a word and kept whole in the body. Null when
+ * there's nothing to say.
+ */
+export function issueFromText(text: string): { title: string; body?: string } | null {
+	const lines = text.replace(/\r\n?/g, "\n").split("\n");
+	const first = lines.findIndex((line) => line.trim() !== "");
+	if (first === -1) return null;
+	const line = (lines[first] ?? "").trim().replace(MARKER, "").trim();
+	const rest = lines
+		.slice(first + 1)
+		.join("\n")
+		.trim();
+	if (line === "") return rest ? issueFromText(rest) : null;
+	if (line.length <= TITLE_MAX) return rest ? { title: line, body: rest } : { title: line };
+	const cut = line.slice(0, TITLE_MAX - 1);
+	const space = cut.lastIndexOf(" ");
+	const title = `${(space > TITLE_MAX / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
+	return { title, body: rest ? `${line}\n\n${rest}` : line };
+}
+
+/**
+ * The live `issue.create` change that will turn this shape into a card, if
+ * one is staged (or on its way). Stickies are only ever made into one issue.
+ */
+export function pendingIssueFor(doc: Y.Doc, shape: string): PendingChange | null {
+	for (const change of listChanges(doc)) {
+		if (change.op.kind !== "issue.create" || !LIVE.has(change.status)) continue;
+		if (change.effect?.kind === "replace" && change.effect.shapes.includes(shape)) return change;
+	}
+	return null;
+}
+
+export interface StickyInput {
+	id: string;
+	text: string;
+}
+
+export type SkipReason =
+	/** Nothing written on the sticky. */
+	| "empty"
+	/** Already staged to become an issue. */
+	| "staged"
+	/** Pull requests can't be sub-issues or blocked. */
+	| "pull"
+	/** Not something that can be part of an issue: text, sections, unknown cards. */
+	| "unsupported";
+
+export interface StageResult {
+	/** Ids of the changes staged. */
+	staged: string[];
+	skipped: { shape: string; reason: SkipReason }[];
+}
+
+/**
+ * Stage an `issue.create` in `repo` for each sticky, which becomes the card
+ * for its issue, in place, once it's made.
+ */
+export function stageStickyIssues(
+	doc: Y.Doc,
+	stickies: StickyInput[],
+	repo: string,
+	stager: Stager,
+): StageResult {
+	const result: StageResult = { staged: [], skipped: [] };
+	transactLocal(doc, () => {
+		for (const sticky of stickies) {
+			if (pendingIssueFor(doc, sticky.id)) {
+				result.skipped.push({ shape: sticky.id, reason: "staged" });
+				continue;
+			}
+			const issue = issueFromText(sticky.text);
+			if (!issue) {
+				result.skipped.push({ shape: sticky.id, reason: "empty" });
+				continue;
+			}
+			const id = stageChange(
+				doc,
+				{ kind: "issue.create", repo, ...issue },
+				stager,
+				{ shapes: [sticky.id], effect: { kind: "replace", shapes: [sticky.id] } },
+			);
+			result.staged.push(id);
+		}
+	});
+	return result;
+}
+
+// Parent issues --------------------------------------------------------------
+
+/** Something to become a sub-issue: a card already on the forge, or a sticky. */
+export type ChildInput =
+	| { shape: string; card: { key: string; kind: "issue" | "pull" } }
+	| { shape: string; sticky: string };
+
+export interface ParentInput {
+	repo: string;
+	title: string;
+	body?: string;
+	/** Shapes the parent stands for, e.g. the section, for highlighting. */
+	shapes?: string[];
+}
+
+export interface ParentResult extends StageResult {
+	/** The parent's `issue.create` change. */
+	parent: string | null;
+	/** How many sub-issues it'll have. */
+	children: number;
+}
+
+/**
+ * Stage a parent issue with sub-issues: an `issue.create` for the parent,
+ * one for each sticky (made in the parent's repository, and turned into its
+ * card in place), and an `item.subIssue` linking each child to the parent.
+ * Stickies already staged as issues are reused rather than made twice.
+ */
+export function stageParentIssue(
+	doc: Y.Doc,
+	parent: ParentInput,
+	children: ChildInput[],
+	stager: Stager,
+): ParentResult {
+	const result: ParentResult = { staged: [], skipped: [], parent: null, children: 0 };
+	const title = parent.title.trim();
+	if (!title) return result;
+	transactLocal(doc, () => {
+		const parentId = stageChange(
+			doc,
+			{
+				kind: "issue.create",
+				repo: parent.repo,
+				title: title.slice(0, TITLE_MAX),
+				...(parent.body?.trim() ? { body: parent.body.trim() } : {}),
+			},
+			stager,
+			{ shapes: parent.shapes },
+		);
+		result.parent = parentId;
+		result.staged.push(parentId);
+		const seen = new Set<string>();
+		for (const child of children) {
+			let target: Target;
+			if ("card" in child) {
+				if (child.card.kind !== "issue") {
+					result.skipped.push({ shape: child.shape, reason: "pull" });
+					continue;
+				}
+				if (seen.has(child.card.key)) continue;
+				seen.add(child.card.key);
+				target = { key: child.card.key };
+			} else {
+				const pending = pendingIssueFor(doc, child.shape);
+				if (pending) {
+					target = { pending: pending.id };
+				} else {
+					const issue = issueFromText(child.sticky);
+					if (!issue) {
+						result.skipped.push({ shape: child.shape, reason: "empty" });
+						continue;
+					}
+					const id = stageChange(
+						doc,
+						{ kind: "issue.create", repo: parent.repo, ...issue },
+						stager,
+						{ shapes: [child.shape], effect: { kind: "replace", shapes: [child.shape] } },
+					);
+					result.staged.push(id);
+					target = { pending: id };
+				}
+			}
+			result.staged.push(
+				stageChange(doc, { kind: "item.subIssue", parent: { pending: parentId }, child: target }, stager, {
+					shapes: [child.shape],
+				}),
+			);
+			result.children++;
+		}
+	});
+	return result;
+}
+
+/** A section's title, as a parent issue's title. */
+export function sectionTitle(doc: Y.Doc, section: string): string {
+	const shape = shapesMap(doc).get(section);
+	const title = shape?.get("title");
+	return typeof title === "string" ? title.trim() : "";
+}
+
+// Blocked-by ------------------------------------------------------------------
+
+/** One end of a connector, as something that can block or be blocked. */
+export interface BlockEnd {
+	shape: string | null;
+	/** The item, or the pending issue a sticky will become. Absent if it can't be either. */
+	target?: Target;
+	/** How to show it: `#412`, or the sticky's first line. */
+	label: string;
+	/** Why it can't take part, when it can't. */
+	problem?: "loose" | "pull" | "sticky" | "unsupported" | "loading";
+	/** The card's key, for cards. */
+	key?: string;
+}
+
+/**
+ * Read a connector's ends as blocked-by candidates. `kindOf` says whether a
+ * card is an issue or a pull request (undefined while it's loading).
+ */
+export function blockEnds(
+	doc: Y.Doc,
+	connector: string,
+	kindOf: (key: string) => "issue" | "pull" | undefined,
+): { from: BlockEnd; to: BlockEnd; arrow: "end" | "both" | "none" } | null {
+	const shapes = shapesMap(doc);
+	const raw = shapes.get(connector);
+	const read = raw ? readConnector(readShape(raw)) : null;
+	if (!read) return null;
+	const end = (id: string | undefined): BlockEnd => {
+		const shape = id ? shapes.get(id) : undefined;
+		if (!id || !shape) return { shape: null, label: "nothing", problem: "loose" };
+		const props = readShape(shape);
+		if (props.type === "card" && props.ref) {
+			const kind = kindOf(props.ref);
+			const label = props.ref.slice(props.ref.search(/[#!]\d+$/));
+			if (kind === "pull") return { shape: id, key: props.ref, label, problem: "pull" };
+			if (kind === undefined) return { shape: id, key: props.ref, label, problem: "loading" };
+			return { shape: id, key: props.ref, label, target: { key: props.ref } };
+		}
+		if (props.type === "sticky") {
+			const label = issueFromText(props.text ?? "")?.title ?? "an empty sticky";
+			const pending = pendingIssueFor(doc, id);
+			return pending
+				? { shape: id, label, target: { pending: pending.id } }
+				: { shape: id, label, problem: "sticky" };
+		}
+		return { shape: id, label: props.type, problem: "unsupported" };
+	};
+	return { from: end(read.from.shape), to: end(read.to.shape), arrow: read.arrow };
+}
+
+const sameTarget = (a: Target, b: Target) =>
+	"key" in a ? "key" in b && a.key === b.key : "pending" in b && a.pending === b.pending;
+
+/**
+ * Stage `blocked` as blocked by `blocker`, drawn by `connector`: once it's
+ * written, the connector stands for the relationship. Staging the same link
+ * twice returns the existing change.
+ */
+export function stageBlockedBy(
+	doc: Y.Doc,
+	link: { blocked: Target; blocker: Target; connector: string; shapes?: string[] },
+	stager: Stager,
+): string {
+	for (const change of listChanges(doc)) {
+		const op = change.op;
+		if (
+			op.kind === "item.blockedBy" &&
+			LIVE.has(change.status) &&
+			sameTarget(op.target, link.blocked) &&
+			sameTarget(op.blockedBy, link.blocker)
+		) {
+			return change.id;
+		}
+	}
+	return transactLocal(doc, () =>
+		stageChange(
+			doc,
+			{ kind: "item.blockedBy", target: link.blocked, blockedBy: link.blocker },
+			stager,
+			{ shapes: link.shapes, effect: { kind: "connect", shape: link.connector } },
+		),
+	);
+}
+
+// Triage ------------------------------------------------------------------------
+
+export type Triage =
+	| { kind: "item.labels"; add?: string[]; remove?: string[] }
+	| { kind: "item.assignees"; add?: string[]; remove?: string[] }
+	| { kind: "item.milestone"; milestone: string | null }
+	| { kind: "item.state"; state: "open" | "closed"; reason?: CloseReason };
+
+export interface TriageTarget {
+	/** The card's item key. */
+	key: string;
+	/** The card's shape, for highlighting. */
+	shape?: string;
+}
+
+const sameStager = (a: Stager, b: Stager) =>
+	a.login || b.login ? a.login === b.login : a.name === b.name;
+
+/** Merge two set edits: the later one wins for names in both. */
+function mergeSets(
+	before: { add?: string[]; remove?: string[] },
+	after: { add?: string[]; remove?: string[] },
+): { add: string[]; remove: string[] } {
+	const add = new Set(before.add);
+	const remove = new Set(before.remove);
+	for (const name of after.add ?? []) {
+		remove.delete(name);
+		add.add(name);
+	}
+	for (const name of after.remove ?? []) {
+		add.delete(name);
+		remove.add(name);
+	}
+	return { add: [...add], remove: [...remove] };
+}
+
+function triageOp(triage: Triage, target: Target): Operation {
+	switch (triage.kind) {
+		case "item.labels":
+		case "item.assignees":
+			return {
+				kind: triage.kind,
+				target,
+				...(triage.add?.length ? { add: triage.add } : {}),
+				...(triage.remove?.length ? { remove: triage.remove } : {}),
+			};
+		case "item.milestone":
+			return { kind: "item.milestone", target, milestone: triage.milestone };
+		case "item.state":
+			return {
+				kind: "item.state",
+				target,
+				state: triage.state,
+				...(triage.state === "closed" && triage.reason ? { reason: triage.reason } : {}),
+			};
+	}
+}
+
+/**
+ * Stage a triage edit on each card's item. Your own staged edit of the same
+ * kind on the same item is updated rather than duplicated: labels and
+ * assignees merge (adding then removing a label cancels out, and an edit
+ * that ends up empty is unstaged), milestones and open/closed are replaced.
+ * Returns the ids of the changes staged or updated.
+ */
+export function stageTriage(
+	doc: Y.Doc,
+	targets: TriageTarget[],
+	triage: Triage,
+	stager: Stager,
+): string[] {
+	const ids: string[] = [];
+	const existing = listChanges(doc).filter(
+		(change) =>
+			change.status === "staged" &&
+			change.op.kind === triage.kind &&
+			"target" in change.op &&
+			"key" in change.op.target &&
+			sameStager(change.stagedBy, stager),
+	);
+	transactLocal(doc, () => {
+		const changes = changesMap(doc);
+		for (const { key, shape } of targets) {
+			const target: Target = { key };
+			const mine = existing.find(
+				(change) => "target" in change.op && sameTarget(change.op.target, target),
+			);
+			let op = triageOp(triage, target);
+			if (mine && (op.kind === "item.labels" || op.kind === "item.assignees")) {
+				const merged = mergeSets(mine.op as typeof op, op);
+				if (merged.add.length === 0 && merged.remove.length === 0) {
+					unstageChanges(doc, [mine.id]);
+					continue;
+				}
+				op = triageOp({ kind: op.kind, ...merged }, target);
+			} else if (op.kind === "item.labels" || op.kind === "item.assignees") {
+				if (!op.add?.length && !op.remove?.length) continue;
+			}
+			if (mine) {
+				changes.get(mine.id)?.set("op", op);
+				ids.push(mine.id);
+			} else {
+				ids.push(stageChange(doc, op, stager, { shapes: shape ? [shape] : undefined }));
+			}
+		}
+	});
+	return ids;
+}
+
+/** Whether every item has it, some do, or none do. */
+export type Presence = "all" | "some" | "none";
+
+/** How many of the items have each name (a label, an assignee). */
+export function presenceOf(sets: readonly (readonly string[])[], name: string): Presence {
+	const count = sets.filter((set) => set.includes(name)).length;
+	return count === 0 ? "none" : count === sets.length ? "all" : "some";
+}
+
+/**
+ * What to add and remove so each item ends up as chosen: names chosen `all`
+ * are added where missing, `none` removed where present, and `some` (left
+ * mixed) untouched. Items that need nothing are left out.
+ */
+export function setEdits(
+	items: { key: string; names: readonly string[] }[],
+	chosen: ReadonlyMap<string, Presence>,
+): { key: string; add: string[]; remove: string[] }[] {
+	const out: { key: string; add: string[]; remove: string[] }[] = [];
+	for (const item of items) {
+		const add: string[] = [];
+		const remove: string[] = [];
+		for (const [name, presence] of chosen) {
+			const has = item.names.includes(name);
+			if (presence === "all" && !has) add.push(name);
+			if (presence === "none" && has) remove.push(name);
+		}
+		if (add.length || remove.length) out.push({ key: item.key, add, remove });
+	}
+	return out;
+}
+
+/** Stage per-item set edits (labels or assignees), one change per item. */
+export function stageSetEdits(
+	doc: Y.Doc,
+	kind: "item.labels" | "item.assignees",
+	edits: { key: string; add: string[]; remove: string[]; shape?: string }[],
+	stager: Stager,
+): string[] {
+	return transactLocal(doc, () =>
+		edits.flatMap((edit) =>
+			stageTriage(doc, [{ key: edit.key, shape: edit.shape }], { kind, ...edit }, stager),
+		),
+	);
+}
+
+// Backlinks ---------------------------------------------------------------------
+
+/** Stage a comment on each item. */
+export function stageComments(
+	doc: Y.Doc,
+	comments: { key: string; body: string; shape?: string }[],
+	stager: Stager,
+): string[] {
+	return transactLocal(doc, () =>
+		comments.map(({ key, body, shape }) =>
+			stageChange(doc, { kind: "item.comment", target: { key }, body }, stager, {
+				shapes: shape ? [shape] : undefined,
+			}),
+		),
+	);
+}
+
+/** The repository keys of the cards on a board, most cards first. */
+export function boardRepos(doc: Y.Doc): { repo: string; cards: number }[] {
+	const counts = new Map<string, number>();
+	for (const shape of shapesMap(doc).values()) {
+		const ref = shape.get("ref");
+		if (shape.get("type") !== "card" || typeof ref !== "string") continue;
+		const repo = repoKeyOf(ref);
+		counts.set(repo, (counts.get(repo) ?? 0) + 1);
+	}
+	return [...counts]
+		.map(([repo, cards]) => ({ repo, cards }))
+		.sort((a, b) => b.cards - a.cards || a.repo.localeCompare(b.repo));
+}
