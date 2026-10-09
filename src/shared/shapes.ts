@@ -11,26 +11,40 @@ import type { Anchor } from "./geometry.ts";
 // relative to a section), containment is our own `parent` key rather than
 // React Flow's `parentId`, and connectors are shapes rather than edges.
 //
-// | key      | shapes             | meaning                                         |
-// | -------- | ------------------ | ----------------------------------------------- |
-// | type     | all                | `card`, `sticky`, `text`, `section`, `connector`|
-// | x, y     | all but connectors | top-left corner, absolute; 0 on connectors      |
-// | z        | all                | fractional index for stacking order             |
-// | parent   | all but connectors | id of the containing section, or null           |
-// | ref      | card               | the card key, `{host}/{repo}#{n}`               |
-// | text     | sticky, text       | plain text                                      |
-// | font     | sticky, text       | `sans` (default) or `hand`                      |
-// | size     | text               | `s`, `m` (default), `l` or `xl`                 |
-// | color    | sticky, section,   | a palette name                                  |
-// |          | connector          |                                                 |
-// | author   | sticky             | who made it                                     |
-// | w, h     | section            | size (cards and stickies size to content)       |
-// | title    | section            | the section's name                              |
-// | from, to | connector          | each end, see `ConnectorEnd`                    |
-// | label    | connector          | text at the middle of the line                  |
-// | route    | connector          | `curved` (default), `straight` or `elbow`       |
-// | arrow    | connector          | `end` (default), `both` or `none`               |
-// | dash     | connector          | dashed line when true                           |
+// | key          | shapes             | meaning                                       |
+// | ------------ | ------------------ | --------------------------------------------- |
+// | type         | all                | `card`, `sticky`, `text`, `section`,          |
+// |              |                    | `connector` or `decision`                     |
+// | x, y         | all but connectors | top-left corner, absolute; 0 on connectors    |
+// | z            | all                | fractional index for stacking order           |
+// | parent       | all but connectors | id of the containing section, or null         |
+// | ref          | card, decision     | the card key, `{host}/{repo}#{n}`; on a       |
+// |              |                    | decision, the PR its record was written to    |
+// | text         | sticky, text,      | plain text; on a decision, its body: the      |
+// |              | decision           | decision and its context                      |
+// | font         | sticky, text       | `sans` (default) or `hand`                    |
+// | size         | text               | `s`, `m` (default), `l` or `xl`               |
+// | color        | sticky, section,   | a palette name                                |
+// |              | connector          |                                               |
+// | author       | sticky, decision   | who made it (who proposed a decision)         |
+// | w, h         | section            | size (cards and stickies size to content)     |
+// | title        | section, decision  | the section's name; the decision's title      |
+// | from, to     | connector          | each end, see `ConnectorEnd`                  |
+// | label        | connector          | text at the middle of the line                |
+// | route        | connector          | `curved` (default), `straight` or `elbow`     |
+// | arrow        | connector          | `end` (default), `both` or `none`             |
+// | dash         | connector          | dashed line when true                         |
+// | status       | decision           | `proposed` (default), `decided` or            |
+// |              |                    | `superseded`                                  |
+// | supersededBy | decision           | id of the decision that superseded it         |
+// | decidedAt    | decision           | when it was decided, ISO 8601                 |
+// | decidedBy    | decision           | who marked it decided                         |
+// | votes        | decision           | nested Y.Map of voter key → `Vote`, so votes  |
+// |              |                    | from different people merge (decisions.ts)    |
+// | writeback    | decision           | id of its write-back in `changes`             |
+//
+// Decisions link to items with ordinary connectors: a connector between a
+// decision and a card links that card (see `linkedItems` in decisions.ts).
 //
 // Every committed move writes x, y and `parent` together, even when the
 // parent is unchanged and even when it's null, so a concurrent move always
@@ -43,7 +57,22 @@ import type { Anchor } from "./geometry.ts";
 // sticky into it. Readers must tolerate that, and `repair.ts` fixes it up on
 // the server.
 
-export type ShapeType = "card" | "sticky" | "text" | "section" | "connector";
+export type ShapeType = "card" | "sticky" | "text" | "section" | "connector" | "decision";
+
+/** Where a decision stands. */
+export type DecisionStatus = "proposed" | "decided" | "superseded";
+
+export type VoteChoice = "agree" | "disagree";
+
+/** One person's vote on a decision, stored whole under their voter key. */
+export interface Vote {
+	choice: VoteChoice;
+	name: string;
+	color?: string;
+	login?: string;
+	/** When they voted, ISO 8601. */
+	at: string;
+}
 
 /** Typeface for stickies and text: the UI sans, or a handwriting face. */
 export type ShapeFont = "sans" | "hand";
@@ -60,9 +89,12 @@ export interface ShapeProps {
 	z: string;
 	/** The section this shape sits in, if any. */
 	parent?: string | null;
-	/** Card shapes: the card key, `owner/repo#number`. */
+	/**
+	 * Card shapes: the card key, `owner/repo#number`. Decisions: the pull
+	 * request their record was written to, once it's applied.
+	 */
 	ref?: string;
-	/** Sticky and text shapes: plain text for now. */
+	/** Sticky and text shapes: plain text for now. Decisions: the body. */
 	text?: string;
 	color?: string;
 	/** Sticky and text shapes: the typeface. Absent means sans. */
@@ -74,7 +106,7 @@ export interface ShapeProps {
 	/** Sections: size. */
 	w?: number;
 	h?: number;
-	/** Sections: the title. */
+	/** Sections and decisions: the title. */
 	title?: string;
 	/** Connectors: where each end is. */
 	from?: ConnectorEnd;
@@ -84,6 +116,16 @@ export interface ShapeProps {
 	route?: ConnectorRoute;
 	arrow?: ConnectorArrow;
 	dash?: boolean;
+	/** Decisions: where it stands. Absent means proposed. */
+	status?: DecisionStatus;
+	/** Decisions: the decision that superseded this one. */
+	supersededBy?: string;
+	decidedAt?: string;
+	decidedBy?: Author;
+	/** Decisions: votes by voter key (a Y.Map in the document). */
+	votes?: Record<string, Vote>;
+	/** Decisions: the id of its write-back in the board's `changes`. */
+	writeback?: string;
 }
 
 /**
@@ -145,12 +187,16 @@ export function addShape(doc: Y.Doc, id: string, props: ShapeProps): void {
 	});
 }
 
-/** The set of card keys referenced anywhere on the board. */
+/**
+ * The set of card keys referenced anywhere on the board: every card, and
+ * the pull request each written-back decision shows the live state of.
+ */
 export function cardRefs(doc: Y.Doc): Set<string> {
 	const refs = new Set<string>();
 	for (const shape of shapesMap(doc).values()) {
 		const ref = shape.get("ref");
-		if (shape.get("type") === "card" && typeof ref === "string") refs.add(ref);
+		const type = shape.get("type");
+		if ((type === "card" || type === "decision") && typeof ref === "string") refs.add(ref);
 	}
 	return refs;
 }

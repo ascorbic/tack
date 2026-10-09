@@ -5,7 +5,7 @@ import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
 import type { BoardRequest, Card, CardMessage, MissingCard } from "../shared/cards.ts";
 import type { AuditEntry, PushResponse } from "../shared/push.ts";
 import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
-import { REPAIR_ORIGIN, repairBoard } from "../shared/repair.ts";
+import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "./boards/thumbnail.ts";
@@ -195,7 +195,7 @@ export class Board extends YServer<Env> {
 
 	private repair(): void {
 		const result = repairBoard(this.document);
-		const fixed = result.parents + result.ends + result.removed;
+		const fixed = repairCount(result);
 		if (fixed > 0) log.info("board.repaired", { board: this.name, ...result });
 	}
 

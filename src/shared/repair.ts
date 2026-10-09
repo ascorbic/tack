@@ -1,5 +1,6 @@
-import type * as Y from "yjs";
+import * as Y from "yjs";
 import { isAnchor, isEnd } from "./connectors.ts";
+import { readVotes } from "./decisions.ts";
 import { readStructure } from "./sections.ts";
 import { shapesMap } from "./shapes.ts";
 import { readShapes } from "./structure.ts";
@@ -19,10 +20,20 @@ export interface RepairResult {
 	ends: number;
 	/** Connectors removed because they had no usable ends. */
 	removed: number;
+	/**
+	 * Decisions fixed up: a `supersededBy` pointing at a decision that's gone
+	 * cleared, or votes that aren't a Y.Map (so wouldn't merge) rebuilt.
+	 */
+	decisions: number;
+}
+
+/** How many things a repair fixed, in total. */
+export function repairCount(result: RepairResult): number {
+	return result.parents + result.ends + result.removed + result.decisions;
 }
 
 export function repairBoard(doc: Y.Doc): RepairResult {
-	const result: RepairResult = { parents: 0, ends: 0, removed: 0 };
+	const result: RepairResult = { parents: 0, ends: 0, removed: 0, decisions: 0 };
 	doc.transact(() => {
 		const shapes = readShapes(doc);
 		const map = shapesMap(doc);
@@ -30,6 +41,27 @@ export function repairBoard(doc: Y.Doc): RepairResult {
 		for (const id of readStructure(shapes).broken) {
 			map.get(id)?.set("parent", null);
 			result.parents++;
+		}
+
+		for (const [id, shape] of shapes) {
+			if (shape.type !== "decision") continue;
+			const decision = map.get(id);
+			if (!decision) continue;
+			let fixed = false;
+			const by = shape.supersededBy;
+			if (by !== undefined && (by === id || shapes.get(by)?.type !== "decision")) {
+				decision.delete("supersededBy");
+				fixed = true;
+			}
+			if (!(decision.get("votes") instanceof Y.Map)) {
+				const votes = new Y.Map<unknown>();
+				for (const [key, vote] of Object.entries(readVotes(decision.get("votes")))) {
+					votes.set(key, vote);
+				}
+				decision.set("votes", votes);
+				fixed = true;
+			}
+			if (fixed) result.decisions++;
 		}
 
 		for (const [id, shape] of shapes) {

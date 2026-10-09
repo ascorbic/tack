@@ -3,7 +3,7 @@ import * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { withFallbacks } from "../../shared/connectors.ts";
 import type { Rect } from "../../shared/geometry.ts";
-import { REPAIR_ORIGIN, repairBoard } from "../../shared/repair.ts";
+import { REPAIR_ORIGIN, repairBoard, repairCount } from "../../shared/repair.ts";
 import { boxOf } from "../../shared/sections.ts";
 import { type ConnectorEnd, type ShapeFont, readShape, shapesMap } from "../../shared/shapes.ts";
 import { addConnector, removeShapes, resizeSection } from "../../shared/structure.ts";
@@ -58,7 +58,7 @@ export class SimulatedBoard {
 			clearTimeout(this.repairTimer);
 			this.repairTimer = window.setTimeout(() => {
 				const result = repairBoard(this.doc);
-				this.repairs += result.parents + result.ends + result.removed;
+				this.repairs += repairCount(result);
 			}, 250);
 		});
 	}

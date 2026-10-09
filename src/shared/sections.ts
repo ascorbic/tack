@@ -30,6 +30,7 @@ export const NOMINAL_SIZE: Partial<Record<ShapeProps["type"], Size>> = {
 	card: { w: 252, h: 124 },
 	sticky: { w: 176, h: 176 },
 	text: { w: 200, h: 40 },
+	decision: { w: 320, h: 230 },
 };
 
 /** A shape's rendered size where known (e.g. measured by the client). */
