@@ -136,7 +136,7 @@ export function PullStatus({ pull }: { pull: PullDetails }) {
 			{pull.linked.length > 0 && (
 				<ul className="linked">
 					{pull.linked.slice(0, SHOWN_LINKS).map((issue) => (
-						<li key={issue.key} data-state={issue.state}>
+						<li key={issue.key} data-state={issue.state} data-key={issue.key}>
 							<IssueIcon closed={issue.state !== "open"} />
 							<span className="linked-verb">Closes</span>
 							<a href={issue.url} target="_blank" rel="noreferrer" draggable={false}>
