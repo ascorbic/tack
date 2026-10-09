@@ -32,7 +32,7 @@ import { cardRefs, readShape, shapesMap } from "../../shared/shapes.ts";
 import { cardStore } from "../cardStore.ts";
 import { scaledDuration } from "../motion.ts";
 import { transactLocal } from "../undo.ts";
-import { repoApi } from "./api.ts";
+import { repoApi } from "../changes/api.ts";
 import { DecisionContext } from "./context.ts";
 import { DiscussionIcon, RecordIcon } from "./icons.tsx";
 

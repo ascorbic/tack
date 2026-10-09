@@ -14,7 +14,7 @@ import { boxOf } from "../../shared/sections.ts";
 import { type ConnectorEnd, addShape, nextZ, readShape, shapesMap } from "../../shared/shapes.ts";
 import { addConnector } from "../../shared/structure.ts";
 import { cardStore } from "../cardStore.ts";
-import { type RepoApi, repoApi } from "../decisions/api.ts";
+import { type RepoApi, repoApi } from "../changes/api.ts";
 import { makeChecks, pullDetails } from "./ci.ts";
 import { fixture, PLANNING_CARDS } from "./fixtures.ts";
 

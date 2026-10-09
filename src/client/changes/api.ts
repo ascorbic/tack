@@ -61,9 +61,56 @@ export function pushApi(boardId: string): PushClient {
 			}
 		},
 		pushes: () => getJson<AuditEntry[]>(`${board}/pushes`),
-		repoMeta: (repo) => getJson<RepoMeta>(`/api/repos/meta?repo=${encodeURIComponent(repo)}`),
+		async repoMeta(repo) {
+			try {
+				return { ok: true, value: await repoApi.meta(repo) };
+			} catch (error) {
+				return { ok: false, error: error instanceof Error ? error.message : "offline" };
+			}
+		},
 	};
 }
+
+// --- Repository endpoints ----------------------------------------------------
+//
+// Metadata (labels, milestones, assignees, Discussion categories, watchers)
+// and the files in a directory, e.g. docs/decisions for a decision record's
+// next number. Swappable, as `cardStore.recheck` is, so the playground can
+// answer without a server.
+
+export interface RepoApi {
+	meta(repo: string, signal?: AbortSignal): Promise<RepoMeta>;
+	/** File names in a directory; empty if it doesn't exist yet. */
+	files(repo: string, path: string, signal?: AbortSignal): Promise<string[]>;
+}
+
+async function getOrNull<T>(url: string, signal?: AbortSignal): Promise<T | null> {
+	const response = await fetch(url, { signal, headers: { accept: "application/json" } });
+	if (response.status === 404) return null;
+	if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim());
+	return (await response.json()) as T;
+}
+
+export const defaultRepoApi: RepoApi = {
+	async meta(repo, signal) {
+		const meta = await getOrNull<RepoMeta>(
+			`/api/repos/meta?${new URLSearchParams({ repo })}`,
+			signal,
+		);
+		if (!meta) throw new Error("Repository not found");
+		return meta;
+	},
+	async files(repo, path, signal) {
+		const files = await getOrNull<string[]>(
+			`/api/repos/files?${new URLSearchParams({ repo, path })}`,
+			signal,
+		);
+		return Array.isArray(files) ? files.filter((name) => typeof name === "string") : [];
+	},
+};
+
+/** The repository API in use. The playground replaces its methods with fakes. */
+export const repoApi: RepoApi = { ...defaultRepoApi };
 
 type MetaEntry = { status: "loading" } | { status: "ready"; meta: RepoMeta } | { status: "error" };
 
