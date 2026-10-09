@@ -13,6 +13,7 @@ import {
 import { type NewConnector, addConnector, addSection } from "../../shared/structure.ts";
 import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
+import { seedDecisions } from "./decisions.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 
 export interface Scenario {
@@ -338,6 +339,14 @@ export const SCENARIOS: Record<string, Scenario> = {
 				connect(doc, bound(note, { x: 1, y: 0.5 }), bound(c), { color: "orange", label: "see" });
 				connect(doc, { x: 980, y: 120 }, { x: 1180, y: 250 }, { color: "red", label: "loose" });
 			});
+		},
+	},
+	decisions: {
+		name: "Decisions",
+		description:
+			"A decision in every state: vote on one, decide it (D for a new one), then write it back as an ADR or a Discussion and push.",
+		seed(doc) {
+			seedDecisions(doc);
 		},
 	},
 	empty: {

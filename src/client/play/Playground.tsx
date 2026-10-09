@@ -16,6 +16,12 @@ import {
 	type Person,
 	reviewed,
 } from "./ci.ts";
+import {
+	installFakeRepoApi,
+	mergeRecords,
+	proposedDecisions,
+	pushWriteBacks,
+} from "./decisions.ts";
 import { fixture, LABELS } from "./fixtures.ts";
 import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
@@ -80,6 +86,8 @@ export default function Playground() {
 	useEffect(() => {
 		Object.assign(window, { tackPlayground: sim });
 	}, [sim]);
+	// Decisions' write-backs ask a fake repository instead of the server.
+	useEffect(() => installFakeRepoApi(), []);
 
 	const [user] = useState(localUser);
 	const [people, setPeople] = useState<RemotePerson[]>([]);
@@ -272,6 +280,36 @@ export default function Playground() {
 		conflict: () => updatePull(conflictToggled),
 	};
 
+	// Decisions: people voting and deciding, and a stand-in for the push
+	// that writes decisions back.
+	const [decisionNote, setDecisionNote] = useState<string | null>(null);
+	useEffect(() => setDecisionNote(null), [sim]);
+	const decisions = {
+		vote: () => {
+			const id = pick(proposedDecisions(sim.doc));
+			if (!id) return setDecisionNote("Nothing proposed to vote on: add a decision (D).");
+			void someone().vote(id, Math.random() < 0.7 ? "agree" : "disagree");
+		},
+		decide: () => {
+			const id = pick(proposedDecisions(sim.doc));
+			if (!id) return setDecisionNote("Nothing proposed to decide.");
+			void someone().vote(id, "decide");
+		},
+		push: async () => {
+			setDecisionNote("Pushing…");
+			const count = await pushWriteBacks(sim.doc);
+			setDecisionNote(
+				count === 0
+					? "No write-backs staged: decide something, then Write back."
+					: `Pushed ${count} write-back${count === 1 ? "" : "s"}.`,
+			);
+		},
+		merge: () => {
+			const count = mergeRecords(sim.doc);
+			setDecisionNote(count === 0 ? "No open decision records." : `Merged ${count}.`);
+		},
+	};
+
 	// Sections and connectors, including the concurrent edits the server's
 	// repair pass exists for.
 	const shapes = () => [...sim.shapeIds("card"), ...sim.shapeIds("sticky")];
@@ -425,6 +463,27 @@ export default function Playground() {
 							</button>
 						</div>
 						{structureNote && <p className="play-hint">{structureNote}</p>}
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Decisions</h2>
+						<div className="play-buttons">
+							<button type="button" onClick={decisions.vote}>
+								Someone votes
+							</button>
+							<button type="button" onClick={decisions.decide}>
+								Someone decides
+							</button>
+							<button type="button" onClick={() => void decisions.push()}>
+								Push write-backs
+							</button>
+							<button type="button" onClick={decisions.merge}>
+								Merge the ADR
+							</button>
+						</div>
+						<p className="play-hint">
+							{decisionNote ?? "Write-backs use a fake repository with two records already."}
+						</p>
 					</div>
 
 					<div className="play-section">

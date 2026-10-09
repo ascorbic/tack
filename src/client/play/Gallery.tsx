@@ -29,6 +29,7 @@ import {
 	conflictToggled,
 	reviewed,
 } from "./ci.ts";
+import { DecisionGallery } from "./DecisionGallery.tsx";
 import { ACCESS_GALLERY, GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
 
 const MISSING: { label: string; card: MissingCard }[] = [
@@ -326,8 +327,8 @@ export default function Gallery() {
 			<header className="gallery-head">
 				<h1>Gallery</h1>
 				<p>
-					Every card, sticky, text and presence state. Use “Simulate an update” to replay the
-					live-update animations, and the CI button to walk pull requests through a run.
+					Every card, sticky, decision, text and presence state. Use “Simulate an update” to replay
+					the live-update animations, and the CI button to walk pull requests through a run.
 				</p>
 				<div className="gallery-actions">
 					<button type="button" className="primary" onClick={replay}>
@@ -587,6 +588,8 @@ function Sections({
 					</figure>
 				</div>
 			</section>
+
+			<DecisionGallery />
 
 			<section>
 				<h2>Text</h2>

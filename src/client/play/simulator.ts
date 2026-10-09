@@ -2,10 +2,17 @@ import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protoc
 import * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { withFallbacks } from "../../shared/connectors.ts";
+import { castVote, setDecisionStatus } from "../../shared/decisions.ts";
 import type { Rect } from "../../shared/geometry.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../../shared/repair.ts";
 import { boxOf } from "../../shared/sections.ts";
-import { type ConnectorEnd, type ShapeFont, readShape, shapesMap } from "../../shared/shapes.ts";
+import {
+	type ConnectorEnd,
+	type ShapeFont,
+	type VoteChoice,
+	readShape,
+	shapesMap,
+} from "../../shared/shapes.ts";
 import { addConnector, removeShapes, resizeSection } from "../../shared/structure.ts";
 import type { Status } from "../activity.ts";
 import { STICKY_COLORS, addCard, addSticky, moveShape, type Position } from "../board.ts";
@@ -322,6 +329,25 @@ export class RemotePerson {
 			current += char;
 			shape.set("text", current);
 			await sleep(45 + Math.random() * 90);
+		}
+	}
+
+	/** Head over to a decision and vote on it, or decide it. */
+	async vote(id: string, choice: VoteChoice | "decide"): Promise<void> {
+		const box = nominalBox(this.doc, id);
+		if (box) {
+			await this.moveTo(
+				{ x: box.x + 40 + Math.random() * 120, y: box.y + box.h - 30 + Math.random() * 10 },
+				600,
+			);
+		}
+		await sleep(180);
+		if (choice === "decide") {
+			setDecisionStatus(this.doc, id, "decided", {
+				by: { name: this.user.name, color: this.user.color },
+			});
+		} else {
+			castVote(this.doc, id, this.user, choice);
 		}
 	}
 
