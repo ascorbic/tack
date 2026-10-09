@@ -5,6 +5,7 @@ import { CardView } from "./CardView.tsx";
 import { useCard } from "./cardStore.ts";
 import { StickyNode } from "./StickyNode.tsx";
 import { TextNode } from "./TextNode.tsx";
+import { DecisionNode } from "./decisions/DecisionNode.tsx";
 
 export { DocContext } from "./DocContext.ts";
 
@@ -20,4 +21,9 @@ export const CardNode = memo(function CardNode({ data, selected }: NodeProps<Sha
 	return <CardView card={card} cardKey={key} selected={selected} compact={compact} enter={enter} />;
 });
 
-export const nodeTypes = { card: CardNode, sticky: StickyNode, text: TextNode };
+export const nodeTypes = {
+	card: CardNode,
+	sticky: StickyNode,
+	text: TextNode,
+	decision: DecisionNode,
+};

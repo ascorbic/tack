@@ -2,6 +2,7 @@ import { type ReactNode, createContext, createElement } from "react";
 import type * as Y from "yjs";
 import type { Rect } from "../shared/geometry.ts";
 import type { ResizeHandle, SizeOf } from "../shared/sections.ts";
+import { type DecisionBoard, DecisionContext } from "./decisions/context.ts";
 import type { History } from "./undo.ts";
 
 /** The board's document, for nodes that write to it. */
@@ -45,12 +46,15 @@ export function BoardContext({
 	history,
 	sections,
 	readOnly = false,
+	decisions = NO_DECISION_BOARD,
 	children,
 }: {
 	doc: Y.Doc;
 	history: History | null;
 	sections: SectionUI;
 	readOnly?: boolean;
+	/** Who's voting on decisions, and the board's address. */
+	decisions?: DecisionBoard;
 	children: ReactNode;
 }) {
 	return createElement(
@@ -62,8 +66,14 @@ export function BoardContext({
 			createElement(
 				SectionContext,
 				{ value: sections },
-				createElement(ReadOnlyContext, { value: readOnly }, children),
+				createElement(
+					ReadOnlyContext,
+					{ value: readOnly },
+					createElement(DecisionContext, { value: decisions }, children),
+				),
 			),
 		),
 	);
 }
+
+const NO_DECISION_BOARD: DecisionBoard = { user: null };

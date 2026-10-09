@@ -356,6 +356,7 @@ const TOOL_LABELS: Record<string, string> = {
 	sticky: "Sticky note",
 	card: "Issue or pull request",
 	text: "Text",
+	decision: "Decision",
 	section: "Section",
 	connector: "Connector",
 };

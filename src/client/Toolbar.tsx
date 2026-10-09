@@ -1,7 +1,16 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { STICKY_COLORS, type StickyColor } from "./board.ts";
+import { GavelPaths } from "./decisions/icons.tsx";
 
-export type Tool = "select" | "hand" | "sticky" | "text" | "card" | "section" | "connector";
+export type Tool =
+	| "select"
+	| "hand"
+	| "sticky"
+	| "text"
+	| "card"
+	| "section"
+	| "connector"
+	| "decision";
 
 export const TOOL_KEYS: Record<string, Tool> = {
 	v: "select",
@@ -11,6 +20,7 @@ export const TOOL_KEYS: Record<string, Tool> = {
 	c: "card",
 	f: "section",
 	x: "connector",
+	d: "decision",
 };
 
 /** The MIME type for dragging a new sticky off the toolbar onto the canvas. */
@@ -39,6 +49,9 @@ export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }:
 				<ToolHint>Drag out a section around things, or click to place one</ToolHint>
 			)}
 			{tool === "connector" && <ToolHint>Drag from a shape to another, or anywhere</ToolHint>}
+			{tool === "decision" && (
+				<ToolHint>Click to propose a decision, then connect the issues it settles</ToolHint>
+			)}
 			<div className="toolbar" role="toolbar" aria-label="Tools">
 				<ToolButton tool="select" active={tool} onTool={onTool} label="Select" shortcut="V">
 					<path d="M5 3.5l12 7-5.5 1.6L9 17.5z" />
@@ -66,6 +79,10 @@ export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }:
 				<ToolButton tool="connector" active={tool} onTool={onTool} label="Connector" shortcut="X">
 					<circle cx="4.8" cy="15.2" r="1.8" className="fill" />
 					<path d="M6.3 13.7C8 7.5 10.5 5.5 15.5 5.5M13 3l2.5 2.5L13 8" />
+				</ToolButton>
+				<span className="toolbar-divider" aria-hidden="true" />
+				<ToolButton tool="decision" active={tool} onTool={onTool} label="Decision" shortcut="D">
+					<GavelPaths />
 				</ToolButton>
 			</div>
 		</div>

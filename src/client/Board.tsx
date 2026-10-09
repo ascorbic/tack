@@ -27,6 +27,7 @@ import {
 	type ShapeNode,
 	type StickyColor,
 	addCard,
+	addDecisionAt,
 	addSticky,
 	addText,
 	applyNodeChanges,
@@ -187,6 +188,12 @@ export function Board({
 	// A dragged section's contents move with it, so they're never snapped to.
 	const snapping = useSnapping(nodes, sizeOf, structure.contentsOf);
 
+	// Who's voting on decisions, and the board a written-back record links to.
+	const decisionBoard = useMemo(
+		() => ({ user, boardUrl: `${location.origin}${location.pathname}` }),
+		[user],
+	);
+
 	const [tool, setTool] = useState<Tool>("select");
 	const [stickyColor, setStickyColor] = useState<StickyColor>("yellow");
 
@@ -329,6 +336,10 @@ export function Board({
 			const id = addText(doc, at);
 			focusWhenMounted(id);
 			setSelected(new Set([id]));
+		} else if (tool === "decision") {
+			const id = addDecisionAt(doc, at, { name: user.name, color: user.color });
+			focusWhenMounted(id);
+			setSelected(new Set([id]));
 		} else {
 			return;
 		}
@@ -367,7 +378,13 @@ export function Board({
 	// drag to draw, so shapes can't be picked up either.
 	const shapesInteractive = tool !== "hand" && tool !== "section" && tool !== "connector";
 	return (
-		<BoardContext doc={doc} history={history} sections={sectionUI} readOnly={readOnly}>
+		<BoardContext
+			doc={doc}
+			history={history}
+			sections={sectionUI}
+			readOnly={readOnly}
+			decisions={decisionBoard}
+		>
 			<div className="app" data-read-only={readOnly || undefined}>
 				<header className="topbar">
 					<a className="brand" href="/" aria-label="Tack: all boards">
@@ -542,5 +559,7 @@ function minimapClass(node: ShapeNode): string {
 	const { type, color } = node.data.shape;
 	if (type === "sticky") return `minimap-sticky minimap-${color ?? "yellow"}`;
 	if (type === "section") return `minimap-section minimap-section-${color ?? "grey"}`;
+	if (type === "decision")
+		return `minimap-decision minimap-decision-${node.data.shape.status ?? "proposed"}`;
 	return `minimap-${type}`;
 }

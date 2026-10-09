@@ -10,12 +10,12 @@ const STATE_LABEL: Record<Card["state"], string> = {
 	draft: "Draft",
 };
 
-function stateLabel(card: Card): string {
+export function stateLabel(card: Card): string {
 	if (card.state === "closed" && card.stateReason === "not_planned") return "Not planned";
 	return STATE_LABEL[card.state];
 }
 
-function StateIcon({ card, size = 14 }: { card: Card; size?: number }) {
+export function StateIcon({ card, size = 14 }: { card: Card; size?: number }) {
 	if (card.kind === "pull") {
 		return (
 			<svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">

@@ -1,7 +1,8 @@
 import type { Node, NodeChange } from "@xyflow/react";
 import { useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
-import { type SizeOf, readStructure } from "../shared/sections.ts";
+import { addDecision } from "../shared/decisions.ts";
+import { NOMINAL_SIZE, type SizeOf, readStructure } from "../shared/sections.ts";
 import {
 	type Author,
 	type ShapeFont,
@@ -258,6 +259,17 @@ export function addText(
 			y: Math.round(at.y - 4 - halfLine),
 			z: nextZ(doc),
 		});
+		placeInSections(doc, [id]);
+	});
+	return id;
+}
+
+/** Add a proposed decision with its top edge's middle near `at`, and return its id. */
+export function addDecisionAt(doc: Y.Doc, at: { x: number; y: number }, author?: Author): string {
+	const id = crypto.randomUUID();
+	const width = NOMINAL_SIZE.decision?.w ?? 320;
+	transactLocal(doc, () => {
+		addDecision(doc, id, { x: at.x - width / 2, y: at.y - 40, author });
 		placeInSections(doc, [id]);
 	});
 	return id;

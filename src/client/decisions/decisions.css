@@ -1,0 +1,1328 @@
+/* ---------------------------------------------------------------------------
+   Decisions
+   ------------------------------------------------------------------------ */
+
+/* A decision is a sheet of record paper with a second sheet beneath it, so
+   it reads as heavier than a card or a sticky. A rail along the top says
+   where it stands: amber while proposed, green once decided, grey once
+   superseded. The title is set in the display face. */
+
+@property --share {
+	syntax: "<number>";
+	inherits: true;
+	initial-value: 0.5;
+}
+
+.decision {
+	--rail: var(--pending);
+	--sheet-x: 6px;
+	--sheet-y: 7px;
+	--sheet:
+		var(--sheet-x) var(--sheet-y) 0 -1px var(--surface-muted),
+		var(--sheet-x) var(--sheet-y) 0 0 var(--line-strong);
+	position: relative;
+	width: 320px;
+	padding: 15px 16px 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 14px;
+	background:
+		linear-gradient(var(--rail), var(--rail)) top / 100% 4px no-repeat,
+		var(--surface);
+	color: var(--ink);
+	box-shadow: var(--sheet), var(--shadow-rest);
+	transition:
+		transform var(--t-settle) var(--ease-settle),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.decision[data-status="decided"] {
+	--rail: var(--pass);
+}
+
+.decision[data-status="superseded"] {
+	--rail: var(--closed);
+}
+
+.decision[data-enter="true"] {
+	animation: decision-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes decision-in {
+	from {
+		opacity: 0;
+		transform: scale(0.9) translateY(-12px);
+	}
+}
+
+.react-flow__node:hover .decision {
+	box-shadow: var(--sheet), var(--shadow-hover);
+}
+
+/* Picking it up fans the sheets apart a little. */
+.react-flow__node.dragging .decision,
+.react-flow__node.remote-drag .decision {
+	--sheet-x: 9px;
+	--sheet-y: 11px;
+	transform: scale(1.03) rotate(-1deg);
+	box-shadow: var(--sheet), var(--shadow-lifted);
+	transition:
+		transform var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.react-flow__node.remote-drag .decision {
+	outline: 2px solid var(--drag-color);
+	outline-offset: 3px;
+}
+
+.decision[data-selected="true"] {
+	box-shadow:
+		0 0 0 2px var(--accent),
+		0 0 0 6px var(--accent-soft),
+		var(--sheet),
+		var(--shadow-hover);
+}
+
+.decision[data-editing="true"] {
+	cursor: text;
+}
+
+.decision-icon {
+	display: block;
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.decision-icon .fill {
+	fill: currentColor;
+	stroke: none;
+}
+
+/* Head: kicker, status, options ------------------------------------------ */
+
+.decision-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 24px;
+}
+
+.decision-kicker {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	color: var(--muted);
+	font-size: 10.5px;
+	font-weight: 650;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+}
+
+.decision-status {
+	margin-left: auto;
+	padding: 0 8px;
+	border-radius: 999px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 20px;
+}
+
+/* The stamp: once decided (or superseded), the status is inked on. */
+.decision-stamp {
+	--stamp: var(--open);
+	margin-left: auto;
+	padding: 1px 8px 0;
+	border: 2px solid color-mix(in srgb, var(--stamp) 75%, transparent);
+	border-radius: 6px;
+	color: color-mix(in srgb, var(--stamp) 85%, transparent);
+	font-family: var(--font-display);
+	font-size: 12px;
+	font-weight: 800;
+	line-height: 18px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	transform: rotate(-6deg);
+	user-select: none;
+}
+
+.decision-stamp[data-status="superseded"] {
+	--stamp: var(--muted);
+}
+
+.decision-stamp[data-new="true"] {
+	animation: stamp-in var(--t-settle) var(--ease-out) backwards;
+}
+
+/* Lifted, then pressed down hard, a little past where it rests. */
+@keyframes stamp-in {
+	0% {
+		opacity: 0;
+		transform: rotate(-16deg) scale(2.1);
+	}
+	55% {
+		opacity: 1;
+		transform: rotate(-4deg) scale(0.88);
+	}
+	75% {
+		transform: rotate(-7deg) scale(1.04);
+	}
+	100% {
+		transform: rotate(-6deg) scale(1);
+	}
+}
+
+/* The paper takes the blow as the stamp lands. */
+.decision:has(.decision-stamp[data-new="true"]) {
+	animation: decision-thud var(--t-settle) var(--ease-out);
+}
+
+@keyframes decision-thud {
+	40% {
+		transform: none;
+	}
+	55% {
+		transform: translateY(1.5px) scale(0.992);
+	}
+}
+
+.decision-more {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	margin-right: -6px;
+	padding: 0;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	opacity: 0;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+}
+
+.decision-head:has(.decision-status) .decision-more,
+.decision-head:has(.decision-stamp) .decision-more {
+	margin-left: 0;
+}
+
+.react-flow__node:hover .decision-more,
+.decision[data-selected="true"] .decision-more,
+.decision-more[aria-expanded="true"],
+.decision-more:focus-visible {
+	opacity: 1;
+}
+
+.decision-more:hover,
+.decision-more[aria-expanded="true"] {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+/* Title and body ------------------------------------------------------------ */
+
+/* Like text blocks, each field and an invisible copy share a grid cell, so
+   the editor grows with what's typed and editing never shifts a line. */
+.decision-sizer {
+	position: relative;
+	display: grid;
+}
+
+.decision-sizer::after {
+	content: attr(data-value) " ";
+	visibility: hidden;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+.decision[data-editing="false"] .decision-sizer::after {
+	display: none;
+}
+
+.decision-sizer::after,
+.decision-sizer > * {
+	grid-area: 1 / 1;
+	min-width: 0;
+}
+
+.decision-sizer textarea {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	border: 0;
+	padding: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	letter-spacing: inherit;
+	resize: none;
+	outline: none;
+	overflow: hidden;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+.decision-sizer textarea::placeholder,
+.decision-sizer [data-empty="true"] {
+	color: var(--muted);
+}
+
+.decision-title {
+	margin-top: 10px;
+	font-family: var(--font-display);
+	font-size: 20px;
+	font-weight: 680;
+	line-height: 1.18;
+	letter-spacing: -0.018em;
+	text-wrap: balance;
+}
+
+.decision-title h3 {
+	margin: 0;
+	font: inherit;
+	letter-spacing: inherit;
+	overflow-wrap: break-word;
+	user-select: none;
+}
+
+.decision-body {
+	margin-top: 7px;
+	color: var(--ink-soft);
+	font-size: 13.5px;
+	line-height: 1.5;
+	text-wrap: pretty;
+}
+
+.decision-body p {
+	display: -webkit-box;
+	margin: 0;
+	overflow: hidden;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 9;
+	user-select: none;
+}
+
+.decision[data-status="superseded"] .decision-title h3 {
+	color: var(--muted);
+	text-decoration: line-through;
+	text-decoration-thickness: 1.5px;
+	text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+.decision[data-status="superseded"] .decision-body {
+	color: var(--muted);
+}
+
+/* Linked items ------------------------------------------------------------- */
+
+.decision-linked {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 12px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.decision-link,
+.decision-linked-more {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	padding: 4px 8px;
+	border-radius: 8px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 12px;
+	line-height: 18px;
+}
+
+/* Animations below play for what changes while you watch, never for what
+   was already there when the board loaded (see `data-new`, `data-animate`). */
+.decision-link[data-new="true"] {
+	animation: link-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes link-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px) scale(0.97);
+	}
+}
+
+.decision-linked-more {
+	align-self: flex-start;
+	color: var(--muted);
+	background: transparent;
+	padding-left: 2px;
+}
+
+.decision-link .mono {
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.decision-link-title {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.decision-link[data-state="open"] .state-icon {
+	color: var(--open);
+}
+
+.decision-link[data-state="merged"] .state-icon,
+.decision-link[data-state="closed"] .state-icon {
+	color: var(--merged);
+}
+
+.decision-link[data-state="draft"] .state-icon {
+	color: var(--closed);
+}
+
+/* Superseded by ------------------------------------------------------------ */
+
+.decision-superseded {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	margin-top: 12px;
+	padding: 7px 10px;
+	border: 1px dashed var(--line-strong);
+	border-radius: 9px;
+	background: transparent;
+	color: var(--ink);
+	font-size: 12px;
+	text-align: left;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out);
+}
+
+.decision-superseded:disabled {
+	cursor: default;
+}
+
+.decision-superseded:not(:disabled):hover {
+	border-style: solid;
+	background: var(--hover);
+}
+
+.decision-superseded .decision-icon {
+	margin-left: auto;
+	color: var(--muted);
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.decision-superseded:not(:disabled):hover .decision-icon {
+	transform: translateX(3px);
+}
+
+.decision-superseded-label {
+	flex: none;
+	color: var(--muted);
+}
+
+.decision-superseded-title {
+	overflow: hidden;
+	font-weight: 600;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* Foot: votes, deciding, the write-back ------------------------------------ */
+
+.decision-foot {
+	position: relative;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	margin-top: 14px;
+	padding-top: 11px;
+	border-top: 1px solid var(--line);
+}
+
+.decision-votes {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+/* Where the vote stands, along the top of the foot: agree from the left,
+   disagree from the right. It slides as votes come in. */
+.decision-split {
+	position: absolute;
+	top: -1.5px;
+	left: 0;
+	right: 0;
+	height: 2px;
+	border-radius: 2px;
+	background: linear-gradient(
+		to right,
+		var(--pass) calc(var(--share) * 100%),
+		var(--fail) calc(var(--share) * 100%)
+	);
+	transition: --share var(--t-settle) var(--ease-settle);
+}
+
+.decision-split[data-empty="true"] {
+	background: transparent;
+}
+
+.decision-vote,
+.decision-decide,
+.decision-writeback-offer {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 28px;
+	padding: 0 10px 0 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.decision-vote {
+	--vote: var(--open);
+	--vote-bg: var(--open-bg);
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	color: var(--ink-soft);
+}
+
+.decision-vote[data-choice="disagree"] {
+	--vote: var(--fail-ink);
+	--vote-bg: var(--fail-bg);
+}
+
+.decision-vote:not(:disabled):hover {
+	border-color: color-mix(in srgb, var(--vote) 45%, var(--line-strong));
+	color: var(--vote);
+}
+
+.decision-vote:not(:disabled):active,
+.decision-decide:active,
+.decision-writeback-offer:active {
+	transform: scale(0.94);
+}
+
+.decision-vote[aria-pressed="true"] {
+	border-color: color-mix(in srgb, var(--vote) 40%, transparent);
+	background: var(--vote-bg);
+	color: var(--vote);
+}
+
+.decision-vote[data-new="true"] .decision-icon {
+	animation: vote-tick var(--t-settle) var(--ease-spring);
+}
+
+@keyframes vote-tick {
+	from {
+		transform: scale(0.4) rotate(-20deg);
+	}
+}
+
+.decision-vote:disabled {
+	cursor: default;
+}
+
+.decision-vote-count {
+	font-variant-numeric: tabular-nums;
+}
+
+.decision-vote-count[data-new="true"] {
+	display: inline-block;
+	animation: pop-in var(--t-base) var(--ease-spring);
+}
+
+.decision-voters {
+	display: inline-flex;
+	margin-left: 2px;
+	padding-left: 4px;
+}
+
+.decision-voter {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 17px;
+	height: 17px;
+	margin-left: -4px;
+	border-radius: 50%;
+	background: var(--voter);
+	box-shadow: 0 0 0 1.5px var(--surface);
+	color: #fff;
+	font-size: 8px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+}
+
+.decision-voter[data-new="true"] {
+	animation: voter-in var(--t-settle) var(--ease-spring);
+}
+
+.decision-voter.more {
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 8.5px;
+}
+
+@keyframes voter-in {
+	from {
+		opacity: 0;
+		transform: translateY(5px) scale(0.6);
+	}
+}
+
+.decision-decide {
+	margin-left: auto;
+	padding: 0 12px 0 10px;
+	border: 1px solid var(--ink);
+	background: var(--ink);
+	color: var(--surface);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
+}
+
+.decision-decide:hover {
+	box-shadow: 0 3px 10px -2px rgb(0 0 0 / 28%);
+	transform: translateY(-1px);
+}
+
+.decision-tally {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	color: var(--muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.decision-tally > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.decision-tally [data-choice="agree"] .decision-icon {
+	color: var(--open);
+}
+
+.decision-tally [data-choice="disagree"] .decision-icon {
+	color: var(--fail-ink);
+}
+
+/* Offered once it's decided, a beat after the stamp lands. */
+.decision-writeback-offer {
+	margin-left: auto;
+	padding: 0 12px 0 10px;
+	border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.decision-foot[data-animate="true"] .decision-writeback-offer {
+	animation: offer-in var(--t-settle) var(--ease-spring) calc(260ms * var(--motion)) backwards;
+}
+
+.decision-foot[data-animate="true"] .decision-writeback,
+.decision-foot[data-animate="true"] .decision-record {
+	animation: offer-in var(--t-settle) var(--ease-spring);
+}
+
+.decision-writeback-offer:hover {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+@keyframes offer-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px) scale(0.92);
+	}
+}
+
+.decision-writeback {
+	--tone: var(--pending-ink);
+	--tone-bg: var(--pending-bg);
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	min-width: 0;
+	margin-left: auto;
+	height: 26px;
+	padding: 0 10px;
+	border-radius: 999px;
+	background: var(--tone-bg);
+	color: var(--tone);
+	font-size: 12px;
+	font-weight: 600;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.decision-writeback > span:not(.decision-pulse) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.decision-writeback[data-status="sending"],
+.decision-writeback[data-status="sent"] {
+	--tone: var(--accent);
+	--tone-bg: var(--accent-soft);
+}
+
+.decision-writeback[data-status="applied"] {
+	--tone: var(--open);
+	--tone-bg: var(--open-bg);
+}
+
+.decision-writeback[data-status="failed"] {
+	--tone: var(--fail-ink);
+	--tone-bg: var(--fail-bg);
+}
+
+.decision-pulse {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: currentColor;
+	animation: writeback-pulse calc(1400ms * var(--motion)) ease-in-out infinite;
+}
+
+.decision-writeback[data-status="sending"] .decision-pulse,
+.decision-writeback[data-status="sent"] .decision-pulse {
+	animation-duration: calc(700ms * var(--motion));
+}
+
+@keyframes writeback-pulse {
+	50% {
+		opacity: 0.35;
+		transform: scale(0.7);
+	}
+}
+
+.decision-retry {
+	margin: 0 -4px 0 2px;
+	padding: 2px 6px;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+.decision-retry:hover {
+	background: color-mix(in srgb, var(--tone) 12%, transparent);
+}
+
+/* The record's pull request, live, like a small card. */
+.decision-record {
+	--state: var(--closed);
+	--state-bg: var(--closed-bg);
+	display: grid;
+	gap: 7px;
+	flex: 1 1 100%;
+	min-width: 0;
+	margin-top: 2px;
+	padding: 8px 10px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface-muted);
+	color: var(--ink);
+	text-decoration: none;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+}
+
+.decision-record:hover {
+	border-color: color-mix(in srgb, var(--state) 40%, var(--line-strong));
+}
+
+.decision-record[data-state="open"] {
+	--state: var(--open);
+	--state-bg: var(--open-bg);
+}
+
+.decision-record[data-state="merged"],
+.decision-record[data-state="closed"] {
+	--state: var(--merged);
+	--state-bg: var(--merged-bg);
+}
+
+.decision-record-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	font-size: 12px;
+}
+
+.decision-record-head .state-icon {
+	color: var(--state);
+}
+
+.decision-record-label {
+	font-weight: 650;
+}
+
+.decision-record-head .mono {
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.decision-record .chip.state {
+	margin-left: auto;
+	background: var(--state-bg);
+	color: var(--state);
+}
+
+.decision-byline {
+	margin: 8px 0 0;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+/* Options menu ----------------------------------------------------------------- */
+
+.decision-menu {
+	position: absolute;
+	top: 42px;
+	right: 10px;
+	z-index: 5;
+	display: grid;
+	min-width: 230px;
+	max-width: 280px;
+	padding: 5px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--chrome-strong);
+	backdrop-filter: blur(14px) saturate(1.4);
+	box-shadow: var(--shadow-lifted);
+	transform-origin: top right;
+	animation: menu-in var(--t-base) var(--ease-spring);
+	cursor: default;
+}
+
+@keyframes menu-in {
+	from {
+		opacity: 0;
+		transform: scale(0.94) translateY(-4px);
+	}
+}
+
+.decision-menu-item {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0 8px;
+	width: 100%;
+	padding: 7px 10px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink);
+	font-size: 13px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.decision-menu-item:hover,
+.decision-menu-item:focus-visible {
+	background: var(--hover);
+	outline: none;
+}
+
+.decision-menu-hint {
+	flex-basis: 100%;
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.decision-menu-heading {
+	margin: 6px 0 0;
+	padding: 6px 10px 3px;
+	border-top: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 10.5px;
+	font-weight: 650;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.decision-menu-dot {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--pending);
+}
+
+.decision-menu-dot[data-status="decided"] {
+	background: var(--pass);
+}
+
+.decision-menu-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* The tool, and the minimap ---------------------------------------------------- */
+
+.canvas[data-tool="decision"] .react-flow__pane {
+	cursor: crosshair;
+}
+
+.react-flow__minimap-node.minimap-decision {
+	fill: var(--pending);
+}
+
+.react-flow__minimap-node.minimap-decision-decided {
+	fill: var(--pass);
+}
+
+.react-flow__minimap-node.minimap-decision-superseded {
+	fill: var(--closed);
+}
+
+/* In the gallery: room for the sheet beneath, and the menu. */
+.gallery-grid.decisions {
+	grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+}
+
+/* ---------------------------------------------------------------------------
+   The write-back dialog
+   ------------------------------------------------------------------------ */
+
+.writeback-dialog {
+	width: min(920px, calc(100vw - 32px));
+	max-height: calc(100dvh - 48px);
+	padding: 0;
+	overflow: auto;
+	border: 1px solid var(--line);
+	border-radius: 18px;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-lifted);
+	animation: writeback-in var(--t-settle) var(--ease-spring);
+}
+
+.writeback-dialog::backdrop {
+	background: rgb(16 17 20 / 32%);
+	backdrop-filter: blur(2px);
+	animation: writeback-fade var(--t-base) var(--ease-out);
+}
+
+.writeback-dialog[data-closing] {
+	animation: writeback-out var(--t-quick) var(--ease-out) forwards;
+}
+
+.writeback-dialog[data-closing]::backdrop {
+	animation: writeback-fade var(--t-quick) var(--ease-out) reverse forwards;
+}
+
+@keyframes writeback-in {
+	from {
+		opacity: 0;
+		transform: translateY(16px) scale(0.96);
+	}
+}
+
+@keyframes writeback-out {
+	to {
+		opacity: 0;
+		transform: translateY(6px) scale(0.98);
+	}
+}
+
+@keyframes writeback-fade {
+	from {
+		opacity: 0;
+	}
+}
+
+.writeback {
+	font-size: 14px;
+}
+
+.writeback button,
+.writeback select {
+	cursor: pointer;
+}
+
+.writeback-head {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 18px 20px 4px;
+}
+
+.writeback-kicker {
+	margin: 0;
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+}
+
+.writeback-head h2 {
+	margin: 4px 0 0;
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 700;
+	line-height: 1.15;
+	letter-spacing: -0.02em;
+	text-wrap: balance;
+}
+
+.writeback-close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	margin: -4px -6px 0 auto;
+	border: 0;
+	border-radius: 9px;
+	background: transparent;
+	color: var(--muted);
+}
+
+.writeback-close svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+}
+
+.writeback-close:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.writeback-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+	gap: 20px;
+	padding: 14px 20px 18px;
+}
+
+@media (max-width: 760px) {
+	.writeback-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+.writeback-form {
+	display: grid;
+	align-content: start;
+	gap: 12px;
+}
+
+.writeback-kinds {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+.writeback-kind {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: center;
+	gap: 2px 8px;
+	padding: 10px 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 12px;
+	background: var(--surface);
+	color: var(--ink);
+	text-align: left;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.writeback-kind:not(:disabled):hover {
+	background: var(--surface-muted);
+}
+
+.writeback-kind:not(:disabled):active {
+	transform: scale(0.98);
+}
+
+.writeback-kind[aria-checked="true"] {
+	border-color: var(--accent);
+	background: var(--accent-soft);
+	box-shadow: 0 0 0 1px var(--accent);
+}
+
+.writeback-kind:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+.writeback-kind-icon {
+	grid-row: span 2;
+	display: inline-flex;
+	color: var(--muted);
+}
+
+.writeback-kind[aria-checked="true"] .writeback-kind-icon {
+	color: var(--accent);
+}
+
+.writeback-kind-title {
+	font-size: 13px;
+	font-weight: 650;
+}
+
+.writeback-kind-detail {
+	color: var(--muted);
+	font-size: 11.5px;
+	line-height: 1.35;
+}
+
+.writeback-field {
+	display: grid;
+	gap: 5px;
+}
+
+.writeback-field > span {
+	color: var(--ink-soft);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.writeback-field select,
+.writeback-field input,
+.writeback-field textarea {
+	width: 100%;
+	padding: 8px 10px;
+	border: 1px solid var(--line-strong);
+	border-radius: 9px;
+	background: var(--surface);
+	color: var(--ink);
+	font-size: 13.5px;
+	line-height: 1.45;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.writeback-field textarea {
+	resize: vertical;
+	min-height: 2.6em;
+}
+
+.writeback-field :focus-visible {
+	border-color: var(--accent);
+	outline: none;
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.writeback-field [aria-invalid="true"] {
+	border-color: var(--danger);
+}
+
+.writeback-path {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin: 0;
+	padding: 7px 10px;
+	border-radius: 9px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 12px;
+	overflow-wrap: anywhere;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.writeback-path[data-loading] {
+	opacity: 0.55;
+}
+
+.writeback-path b {
+	display: inline-block;
+	color: var(--accent);
+	font-weight: 700;
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.writeback-note {
+	margin: 0;
+	padding: 8px 10px;
+	border-radius: 9px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.writeback-preview {
+	display: grid;
+	align-content: start;
+	gap: 6px;
+	min-width: 0;
+}
+
+.writeback-preview-label {
+	margin: 0;
+	overflow: hidden;
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-size: 11.5px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* The record as it'll read on the forge, on a sheet of paper. */
+.writeback-paper {
+	max-height: min(58vh, 560px);
+	padding: 18px 22px;
+	overflow: auto;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface-muted);
+	box-shadow: inset 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+.writeback-md {
+	color: var(--ink-soft);
+	font-size: 13px;
+	line-height: 1.55;
+}
+
+.writeback-md h1 {
+	margin: 0 0 10px;
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-size: 19px;
+	font-weight: 700;
+	line-height: 1.2;
+	letter-spacing: -0.015em;
+}
+
+.writeback-md h2 {
+	margin: 16px 0 4px;
+	padding-bottom: 3px;
+	border-bottom: 1px solid var(--line);
+	color: var(--ink);
+	font-size: 13.5px;
+	font-weight: 680;
+}
+
+.writeback-md p,
+.writeback-md ul {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.writeback-md ul {
+	padding-left: 18px;
+}
+
+.writeback-md em {
+	color: var(--muted);
+}
+
+.writeback-md code {
+	font-family: var(--font-mono);
+	font-size: 12px;
+}
+
+.writeback-md-link {
+	color: var(--accent);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+	text-underline-offset: 2px;
+}
+
+.writeback-foot {
+	position: sticky;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 20px;
+	border-top: 1px solid var(--line);
+	background: var(--surface);
+}
+
+.writeback-hint {
+	flex: 1;
+	margin: 0;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.writeback-foot button {
+	height: 34px;
+	padding: 0 14px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.writeback-cancel:hover {
+	background: var(--surface-muted);
+}
+
+.writeback-foot button.primary {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.writeback-foot button.primary:hover:not(:disabled) {
+	border-color: var(--accent-hover);
+	background: var(--accent-hover);
+}
+
+.writeback-foot button:active:not(:disabled) {
+	transform: scale(0.97);
+}
+
+.writeback-stage:disabled {
+	cursor: progress;
+	opacity: 0.6;
+}

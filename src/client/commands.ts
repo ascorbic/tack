@@ -598,7 +598,8 @@ export function useCanvasCommands(options: CommandsOptions) {
 				const shape = shapes.get(id);
 				return shape ? [readShape(shape)] : [];
 			});
-			const hasContent = removed.some((shape) => hasWords(shape.text));
+			// A decision always matters: it carries votes and a status, not just words.
+			const hasContent = removed.some((shape) => hasWords(shape.text) || shape.type === "decision");
 			if (removed.length <= QUIET_DELETE_LIMIT && !hasContent) return;
 			const { toasts } = latest.current;
 			// Show it once the deletion is on the undo stack, and drop it as soon
@@ -643,6 +644,7 @@ const NOUNS: Record<string, [string, string]> = {
 	card: ["card", "cards"],
 	section: ["section", "sections"],
 	connector: ["connector", "connectors"],
+	decision: ["decision", "decisions"],
 };
 
 /** "a sticky", "5 cards", "3 shapes" */
