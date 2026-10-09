@@ -1,0 +1,261 @@
+import { ReactFlowProvider } from "@xyflow/react";
+import { useEffect, useMemo, useState } from "react";
+import type { Card } from "../../shared/cards.ts";
+import { Board } from "../Board.tsx";
+import { cardStore } from "../cardStore.ts";
+import { localUser } from "../presence.ts";
+import { fixture, LABELS } from "./fixtures.ts";
+import { SCENARIOS } from "./scenarios.ts";
+import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
+
+type Motion = "normal" | "slow" | "reduced";
+
+const STICKY_LINES = [
+	"what if we did this in 5.1 instead?",
+	"+1, this bites me weekly",
+	"needs an RFC first",
+	"I can take this one",
+];
+
+function pick<T>(list: T[]): T | undefined {
+	return list[Math.floor(Math.random() * list.length)];
+}
+
+export default function Playground() {
+	const [scenario, setScenario] = useState(
+		() => new URLSearchParams(location.search).get("scenario") ?? "planning",
+	);
+	const sim = useMemo(() => {
+		const board = new SimulatedBoard();
+		(SCENARIOS[scenario] ?? SCENARIOS.planning)?.seed(board.doc);
+		return board;
+	}, [scenario]);
+	useEffect(() => () => sim.destroy(), [sim]);
+
+	const [user] = useState(localUser);
+	const [people, setPeople] = useState<RemotePerson[]>([]);
+	const [motion, setMotion] = useState<Motion>("normal");
+	const [autoplay, setAutoplay] = useState(false);
+
+	useEffect(() => setPeople([]), [sim]);
+
+	useEffect(() => {
+		document.documentElement.dataset.motion = motion;
+		return () => {
+			delete document.documentElement.dataset.motion;
+		};
+	}, [motion]);
+
+	const chooseScenario = (name: string) => {
+		const url = new URL(location.href);
+		url.searchParams.set("scenario", name);
+		history.replaceState(null, "", url);
+		setScenario(name);
+	};
+
+	const someone = (): RemotePerson => {
+		const existing = pick(sim.people);
+		if (existing) return existing;
+		const person = sim.join();
+		setPeople([...sim.people]);
+		return person;
+	};
+
+	const randomCard = (filter: (card: Card) => boolean = () => true): string | undefined =>
+		pick(
+			sim.cardKeys().filter((key) => {
+				const card = cardStore.get(key);
+				return card && !("missing" in card) && filter(card);
+			}),
+		);
+
+	const actions = {
+		join: () => {
+			const person = sim.join();
+			setPeople([...sim.people]);
+			void person.wander(3);
+		},
+		leave: () => {
+			const person = sim.people.at(-1);
+			if (person) sim.leave(person);
+			setPeople([...sim.people]);
+		},
+		wander: () => void someone().wander(3),
+		drag: () => {
+			const id = pick(sim.shapeIds());
+			const from = id ? sim.shapePosition(id) : null;
+			if (id && from) {
+				void someone().drag(id, {
+					x: from.x + (Math.random() - 0.5) * 500,
+					y: from.y + (Math.random() - 0.3) * 300,
+				});
+			}
+		},
+		type: () => {
+			const id = pick(sim.shapeIds("sticky"));
+			if (id) void someone().type(id, pick(STICKY_LINES) ?? "");
+		},
+		addCard: () => {
+			const card = fixture({
+				title: "Freshly pasted: support signed URLs",
+				labels: [LABELS.enhancement],
+			});
+			cardStore.set(card);
+			void someone().addCard(card.key, {
+				x: 200 + Math.random() * 600,
+				y: 100 + Math.random() * 400,
+			});
+		},
+		editTitle: () => {
+			const key = randomCard();
+			if (key)
+				sim.updateCard(key, (card) => ({
+					title: `${card.title.replace(/ \(edited\)$/, "")} (edited)`,
+				}));
+		},
+		merge: () => {
+			const key = randomCard((card) => card.kind === "pull" && card.state !== "merged");
+			if (key) sim.updateCard(key, () => ({ state: "merged" }));
+		},
+		close: () => {
+			const key = randomCard((card) => card.kind === "issue" && card.state === "open");
+			if (key) sim.updateCard(key, () => ({ state: "closed", stateReason: "completed" }));
+		},
+		reopen: () => {
+			const key = randomCard((card) => card.state === "closed");
+			if (key) sim.updateCard(key, () => ({ state: "open", stateReason: null }));
+		},
+		label: () => {
+			const key = randomCard();
+			if (key) {
+				sim.updateCard(key, (card) => ({
+					labels: card.labels.some((l) => l.name === "needs review")
+						? card.labels.filter((l) => l.name !== "needs review")
+						: [...card.labels, LABELS.needsReview],
+				}));
+			}
+		},
+		comments: () => {
+			const key = randomCard();
+			if (key)
+				sim.updateCard(key, (card) => ({
+					comments: card.comments + 1 + Math.floor(Math.random() * 3),
+				}));
+		},
+	};
+
+	useEffect(() => {
+		if (!autoplay) return;
+		const all = Object.values(actions).filter(
+			(action) => action !== actions.leave && action !== actions.join,
+		);
+		const timer = setInterval(() => pick(all)?.(), 1800);
+		return () => clearInterval(timer);
+	});
+
+	return (
+		<ReactFlowProvider key={scenario}>
+			<Board
+				name={`Playground · ${SCENARIOS[scenario]?.name ?? scenario}`}
+				user={user}
+				doc={sim.doc}
+				awareness={sim.awareness}
+				synced
+			>
+				<aside className="play-panel" aria-label="Playground controls">
+					<div className="play-section">
+						<label className="play-label" htmlFor="scenario">
+							Scenario
+						</label>
+						<select id="scenario" value={scenario} onChange={(e) => chooseScenario(e.target.value)}>
+							{Object.entries(SCENARIOS).map(([id, s]) => (
+								<option key={id} value={id}>
+									{s.name}
+								</option>
+							))}
+						</select>
+						<p className="play-hint">{SCENARIOS[scenario]?.description}</p>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">
+							People {people.length > 0 && <span>· {people.length}</span>}
+						</h2>
+						<div className="play-buttons">
+							<button type="button" onClick={actions.join}>
+								Someone joins
+							</button>
+							<button type="button" onClick={actions.leave} disabled={people.length === 0}>
+								Someone leaves
+							</button>
+							<button type="button" onClick={actions.wander}>
+								Wander
+							</button>
+							<button type="button" onClick={actions.drag}>
+								Drag a shape
+							</button>
+							<button type="button" onClick={actions.type}>
+								Type in a sticky
+							</button>
+							<button type="button" onClick={actions.addCard}>
+								Add a card
+							</button>
+						</div>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Forge events</h2>
+						<div className="play-buttons">
+							<button type="button" onClick={actions.editTitle}>
+								Edit a title
+							</button>
+							<button type="button" onClick={actions.merge}>
+								Merge a PR
+							</button>
+							<button type="button" onClick={actions.close}>
+								Close an issue
+							</button>
+							<button type="button" onClick={actions.reopen}>
+								Reopen
+							</button>
+							<button type="button" onClick={actions.label}>
+								Toggle a label
+							</button>
+							<button type="button" onClick={actions.comments}>
+								New comments
+							</button>
+						</div>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Motion</h2>
+						<div className="segmented" role="radiogroup" aria-label="Motion">
+							{(["normal", "slow", "reduced"] as const).map((m) => (
+								<label key={m} data-checked={motion === m}>
+									<input
+										type="radio"
+										name="motion"
+										checked={motion === m}
+										onChange={() => setMotion(m)}
+									/>
+									{m === "slow" ? "Slow ×10" : m === "reduced" ? "Reduced" : "Normal"}
+								</label>
+							))}
+						</div>
+						<label className="play-toggle">
+							<input
+								type="checkbox"
+								checked={autoplay}
+								onChange={(e) => setAutoplay(e.target.checked)}
+							/>
+							Autoplay random events
+						</label>
+						<a className="play-link" href="/play/cards">
+							Card gallery →
+						</a>
+					</div>
+				</aside>
+			</Board>
+		</ReactFlowProvider>
+	);
+}

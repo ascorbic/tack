@@ -15,6 +15,8 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `src/server/webhooks.ts` — `POST /webhooks/:forge` routing
 - `src/shared/` — forge-neutral item keys (`{host}/{repo}{#|!}{n}`, see `refs.ts`), card types and the Yjs shape schema, used by both server and client
 - `src/client/` — React + React Flow canvas (own `tsconfig.json` with DOM types); `index.html` at the repo root is its entry
+- `src/client/play/` — dev-only UI workbench, left out of production builds: `/play` runs a board entirely in the browser with simulated people (own Y.Doc + Awareness each) and simulated forge events, plus slow-motion and reduced-motion toggles; `/play/cards` is a gallery of every card state. Use these to iterate on interaction details
+- `src/client/styles.css` — design tokens, including motion: every duration is scaled by `--motion`, so slow motion and reduced motion apply everywhere. Use the spring easings (`--ease-spring`, `--ease-settle`) rather than ad hoc curves
 - `scripts/send-webhook.ts` — send a signed webhook to a local dev server (reads `GITHUB_WEBHOOK_SECRET` from `.dev.vars`)
 - `docs/spike.md` — spike findings: performance, Yjs growth, design decisions
 - `test/` — Vitest tests, run inside workerd via `@cloudflare/vitest-plugin`

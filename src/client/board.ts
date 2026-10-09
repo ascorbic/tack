@@ -1,30 +1,20 @@
 import type { Node, NodeChange } from "@xyflow/react";
 import { generateKeyBetween } from "fractional-indexing";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import YProvider from "y-partyserver/provider";
+import { useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
-import type { CardMessage } from "../shared/cards.ts";
 import { type ShapeProps, addShape, readShape, shapesMap } from "../shared/shapes.ts";
-import { cardStore } from "./cardStore.ts";
 
 export type ShapeNode = Node<{ shape: ShapeProps; id: string }>;
 
-export interface BoardConnection {
-	doc: Y.Doc;
-	provider: YProvider;
-}
+// Shapes added moments ago, so they can animate in. Big batches (a board
+// loading, a scenario seeding) don't count: only a few shapes at a time.
+const FRESH_MS = 1500;
+const FRESH_BATCH = 5;
+const freshShapes = new Map<string, number>();
 
-export function useBoardConnection(name: string): BoardConnection {
-	const [connection] = useState(() => {
-		const doc = new Y.Doc();
-		const provider = new YProvider(location.host, name, doc, { party: "board" });
-		provider.on("custom-message", (message: string) => {
-			cardStore.apply(JSON.parse(message) as CardMessage);
-		});
-		return { doc, provider };
-	});
-	useEffect(() => () => connection.provider.destroy(), [connection]);
-	return connection;
+export function isFresh(id: string): boolean {
+	const added = freshShapes.get(id);
+	return added !== undefined && performance.now() - added < FRESH_MS;
 }
 
 /**
@@ -73,8 +63,14 @@ function createNodeStore(doc: Y.Doc) {
 			const observer = (events: Y.YEvent<Y.AbstractType<unknown>>[]) => {
 				const changed = new Set<string>();
 				for (const event of events) {
-					if (event.target === shapes) for (const key of event.keys.keys()) changed.add(key);
-					else if (typeof event.path[0] === "string") changed.add(event.path[0]);
+					if (event.target === shapes) {
+						const added = [...event.keys].filter(([, change]) => change.action === "add");
+						if (added.length <= FRESH_BATCH) {
+							for (const [key] of added) freshShapes.set(key, performance.now());
+						}
+						for (const key of event.keys.keys()) changed.add(key);
+						continue;
+					} else if (typeof event.path[0] === "string") changed.add(event.path[0]);
 				}
 				rebuild(changed);
 				listener();
@@ -85,13 +81,13 @@ function createNodeStore(doc: Y.Doc) {
 	};
 }
 
-type Position = { x: number; y: number };
+export type Position = { x: number; y: number };
 
 /**
  * Write React Flow changes into the document. Positions are committed only
  * when a drag ends: every Yjs write leaves a ~10 byte tombstone, so writing
  * each drag frame would bloat long-lived boards. In-progress drags travel as
- * awareness state instead (see useDragOverrides).
+ * awareness state instead (see usePresence).
  */
 export function applyNodeChanges(
 	doc: Y.Doc,
@@ -104,10 +100,7 @@ export function applyNodeChanges(
 			if (change.type === "position" && !change.dragging) {
 				const position = change.position ?? lastDragPosition(change.id);
 				if (!position) continue;
-				const shape = shapes.get(change.id);
-				// x and y in one transaction so concurrent moves never mix axes.
-				shape?.set("x", Math.round(position.x));
-				shape?.set("y", Math.round(position.y));
+				moveShape(doc, change.id, position);
 			} else if (change.type === "remove") {
 				shapes.delete(change.id);
 			}
@@ -116,74 +109,42 @@ export function applyNodeChanges(
 }
 
 /**
- * Positions of shapes being dragged right now, by this client or others.
- * Local drags come from React Flow change events; remote drags arrive via
- * awareness, so they're ephemeral and never touch the document.
+ * Commit a shape's new position and bring it to the front, as a dropped shape
+ * should land on top. Call inside a transaction so x and y never mix with a
+ * concurrent move's.
  */
-export function useDragOverrides(provider: YProvider) {
-	const [local, setLocal] = useState(() => new Map<string, Position>());
-	const [remote, setRemote] = useState(() => new Map<string, Position>());
-	const localRef = useRef(local);
-	localRef.current = local;
-
-	useEffect(() => {
-		const awareness = provider.awareness;
-		const onChange = () => {
-			const next = new Map<string, Position>();
-			for (const [clientId, state] of awareness.getStates()) {
-				if (clientId === awareness.clientID) continue;
-				const drags = (state as { drags?: Record<string, Position> }).drags;
-				for (const [id, position] of Object.entries(drags ?? {})) next.set(id, position);
-			}
-			setRemote(next);
-		};
-		awareness.on("change", onChange);
-		return () => awareness.off("change", onChange);
-	}, [provider]);
-
-	// Publish local drags at most once per frame.
-	useEffect(() => {
-		const frame = requestAnimationFrame(() => {
-			provider.awareness.setLocalStateField("drags", Object.fromEntries(local));
-		});
-		return () => cancelAnimationFrame(frame);
-	}, [provider, local]);
-
-	const onPositionChanges = useCallback((changes: NodeChange<ShapeNode>[]) => {
-		let next: Map<string, Position> | undefined;
-		for (const change of changes) {
-			if (change.type !== "position") continue;
-			next ??= new Map(localRef.current);
-			if (change.dragging && change.position) next.set(change.id, change.position);
-			else next.delete(change.id);
-		}
-		if (next) setLocal(next);
-	}, []);
-
-	const overrides = useMemo(() => {
-		if (remote.size === 0) return local;
-		if (local.size === 0) return remote;
-		return new Map([...remote, ...local]);
-	}, [local, remote]);
-
-	return {
-		overrides,
-		onPositionChanges,
-		lastDragPosition: (id: string) => localRef.current.get(id),
-	};
+export function moveShape(doc: Y.Doc, id: string, position: Position): void {
+	const shape = shapesMap(doc).get(id);
+	if (!shape) return;
+	shape.set("x", Math.round(position.x));
+	shape.set("y", Math.round(position.y));
+	const z = topZ(doc, id);
+	if (z) shape.set("z", z);
 }
 
-export function topZ(doc: Y.Doc): string {
+/**
+ * A z-index above every other shape, or null if `except` is already on top.
+ */
+export function topZ(doc: Y.Doc, except?: string): string | null {
 	let top: string | null = null;
-	for (const shape of shapesMap(doc).values()) {
+	let topId: string | null = null;
+	for (const [id, shape] of shapesMap(doc)) {
 		const z = shape.get("z");
-		if (typeof z === "string" && (top === null || z > top)) top = z;
+		if (typeof z === "string" && (top === null || z > top)) {
+			top = z;
+			topId = id;
+		}
 	}
+	if (except && topId === except) return null;
 	return generateKeyBetween(top, null);
 }
 
+function nextZ(doc: Y.Doc): string {
+	return topZ(doc) ?? generateKeyBetween(null, null);
+}
+
 export function addCard(doc: Y.Doc, ref: string, at: { x: number; y: number }): void {
-	addShape(doc, crypto.randomUUID(), { type: "card", ref, x: at.x, y: at.y, z: topZ(doc) });
+	addShape(doc, crypto.randomUUID(), { type: "card", ref, x: at.x, y: at.y, z: nextZ(doc) });
 }
 
 export function addSticky(doc: Y.Doc, at: { x: number; y: number }): void {
@@ -193,7 +154,7 @@ export function addSticky(doc: Y.Doc, at: { x: number; y: number }): void {
 		color: "yellow",
 		x: at.x,
 		y: at.y,
-		z: topZ(doc),
+		z: nextZ(doc),
 	});
 }
 
