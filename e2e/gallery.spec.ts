@@ -157,3 +157,67 @@ test("the gallery looks right", async ({ page }) => {
 	}
 	await expect(page).toHaveScreenshot("cards.png", { fullPage: true });
 });
+
+test.describe("boards gallery", () => {
+	test.beforeEach(async ({ page }) => {
+		await page.goto("/play/boards");
+		await expect(page.getByRole("heading", { name: "Boards", exact: true }).first()).toBeVisible();
+	});
+
+	test("every home, tile, share and top bar state renders", async ({ page }) => {
+		const section = (name: string) =>
+			page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
+
+		await expect(section("Home").locator(".home")).toHaveCount(6);
+		await expect(section("Home").getByText("Your boards will live here")).toHaveCount(2);
+		await expect(section("Home").getByRole("heading", { name: "Public boards" })).toBeVisible();
+		// Many boards: tabs, a search box and archived boards.
+		const many = section("Home").locator("figure").nth(3);
+		await expect(many.getByRole("tab")).toHaveCount(5);
+		await expect(many.getByRole("searchbox")).toBeVisible();
+
+		await expect(section("Tiles").locator(".board-tile")).toHaveCount(8);
+		await expect(section("Tiles").locator(".board-thumb-sketch")).toHaveCount(7);
+		await expect(section("Tiles").locator(".board-thumb-empty")).toHaveCount(1);
+		await expect(section("Tiles").locator(".board-tile[data-archived]")).toHaveCount(1);
+
+		const shares = section("Share").locator(".share");
+		await expect(shares).toHaveCount(3);
+		await expect(shares.first().getByRole("listitem")).toHaveCount(4);
+		await expect(shares.nth(1).getByRole("button", { name: "Leave board" })).toBeVisible();
+		await expect(shares.nth(1).getByLabel("Who can open this board")).toHaveCount(0);
+
+		await expect(section("Board top bar").locator(".view-only")).toBeVisible();
+		await expect(section("Board top bar").getByText("This board is archived")).toBeVisible();
+	});
+
+	test("invites land in the list, and bad usernames say why", async ({ page }) => {
+		const owner = page.locator(".share").first();
+		await expect(owner.getByRole("listitem")).toHaveCount(4);
+		await owner.getByLabel("GitHub usernames to invite").fill("jo-rivera, not a login!");
+		await owner.getByRole("button", { name: "Invite", exact: true }).click();
+		await expect(owner.getByRole("alert")).toContainText("isn’t a GitHub username");
+
+		await owner.getByLabel("GitHub usernames to invite").fill("ghost");
+		await owner.getByRole("button", { name: "Invite", exact: true }).click();
+		await expect(owner.getByRole("alert")).toContainText("“ghost”");
+
+		await owner.getByLabel("GitHub usernames to invite").fill("jo-rivera");
+		await owner.getByRole("button", { name: "Invite", exact: true }).click();
+		await expect(owner.getByRole("listitem")).toHaveCount(5);
+		await expect(owner.getByRole("alert")).toHaveCount(0);
+	});
+
+	test("home pages render full size in both themes", async ({ page }) => {
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto("/play/boards?home=many");
+			await expect(page.locator(".board-tile")).toHaveCount(8);
+			await page.getByRole("searchbox").fill("retro");
+			await expect(page.locator(".board-tile")).toHaveCount(2);
+			await page.getByRole("tab", { name: /Archived/ }).click();
+			await page.getByRole("searchbox").fill("");
+			await expect(page.locator(".board-tile")).toHaveCount(1);
+		}
+	});
+});
