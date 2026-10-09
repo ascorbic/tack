@@ -128,6 +128,39 @@ interface Socket {
  * every custom message. Shapes are added with Yjs sync messages, as the
  * app's provider sends them.
  */
+/** Create a board as the person with `cookie`, returning its id. */
+async function createBoard(
+	mf: Miniflare,
+	cookie: string,
+	visibility: "private" | "instance" | "public" = "instance",
+): Promise<string> {
+	const response = await mf.dispatchFetch(`${ORIGIN}/api/boards`, {
+		method: "POST",
+		headers: { cookie, origin: ORIGIN, "content-type": "application/json" },
+		body: JSON.stringify({ title: "Repo access", visibility }),
+	});
+	expect(response.status).toBe(201);
+	return ((await response.json()) as { id: string }).id;
+}
+
+/** Adopt a board by name, as a guest would before sign-in is set up. */
+async function adoptBoard(mf: Miniflare, name: string): Promise<string> {
+	const response = await mf.dispatchFetch(`${ORIGIN}/api/boards/legacy`, {
+		method: "POST",
+		headers: { origin: ORIGIN, "content-type": "application/json" },
+		body: JSON.stringify({ name }),
+	});
+	expect(response.status).toBe(200);
+	return name;
+}
+
+/** Alice, signed in through GitHub, on a new board of hers. */
+async function aliceOnBoard(mf: Miniflare, github: FakeGitHub) {
+	const cookie = await signInWithGitHub(mf, github, ALICE);
+	const board = await createBoard(mf, cookie);
+	return { alice: await connect(mf, board, cookie), board, cookie };
+}
+
 async function connect(mf: Miniflare, board: string, cookie?: string): Promise<Socket> {
 	const response = await mf.dispatchFetch(`${ORIGIN}/parties/board/${board}`, {
 		headers: { upgrade: "websocket", ...(cookie ? { cookie } : {}) },
@@ -243,8 +276,12 @@ describe("per-viewer filtering", () => {
 	it("sends different payloads to viewers with different access, and never a private title", async () => {
 		const github = fakeGitHub();
 		const mf = await configured(github);
-		const alice = await connect(mf, "mixed", await signInWithGitHub(mf, github, ALICE));
-		const bob = await connect(mf, "mixed", await signInWithGitHub(mf, github, BOB));
+		const aliceCookie = await signInWithGitHub(mf, github, ALICE);
+		const board = await createBoard(mf, aliceCookie);
+		const alice = await connect(mf, board, aliceCookie);
+		// Bob's on the board too (anyone on the instance may open it), but
+		// board roles never grant access to repository data.
+		const bob = await connect(mf, board, await signInWithGitHub(mf, github, BOB));
 
 		alice.add(PUBLIC_CARD, PRIVATE_CARD);
 
@@ -303,7 +340,8 @@ describe("per-viewer filtering", () => {
 		const github = fakeGitHub();
 		const mf = await configured(github);
 		const bobCookie = await signInWithGitHub(mf, github, BOB);
-		const bob = await connect(mf, "access", bobCookie);
+		const board = await createBoard(mf, bobCookie);
+		const bob = await connect(mf, board, bobCookie);
 		bob.add(PRIVATE_CARD);
 		await bob.until(PRIVATE_CARD, isPlaceholder);
 
@@ -323,7 +361,7 @@ describe("per-viewer filtering", () => {
 		bob.close();
 		github.addCollaborator(PRIVATE_ID, "bob");
 		await new Promise((resolve) => setTimeout(resolve, 5_100));
-		const again = await connect(mf, "access", bobCookie);
+		const again = await connect(mf, board, bobCookie);
 		await again.until(PRIVATE_CARD, isCard);
 	}, 30_000);
 
@@ -339,6 +377,7 @@ describe("per-viewer filtering", () => {
 		});
 		cleanups.push(() => mf.dispose());
 
+		await adoptBoard(mf, "open");
 		const anonymous = await connect(mf, "open");
 		// Dev sign-in users have no GitHub token, so can't show they may read anything.
 		const dev = await connect(mf, "open", await signIn(mf, "alice"));
@@ -373,13 +412,57 @@ describe("per-viewer filtering", () => {
 		await deliver(mf, github, "repository", publicized, "test-secret");
 		for (const socket of [anonymous, dev]) await socket.until(PUBLIC_CARD, isCard);
 	});
+
+	it("gives anonymous viewers of a public board only public-repo cards", async () => {
+		const github = fakeGitHub();
+		const mf = await configured(github);
+		const aliceCookie = await signInWithGitHub(mf, github, ALICE);
+		const board = await createBoard(mf, aliceCookie, "public");
+		const alice = await connect(mf, board, aliceCookie);
+		// Signed out: public boards are readable by anyone, as viewers.
+		const anonymous = await connect(mf, board);
+		alice.add(PUBLIC_CARD, PRIVATE_CARD);
+
+		await alice.until(PRIVATE_CARD, isCard);
+		expect(await anonymous.until(PUBLIC_CARD, isCard)).toMatchObject({ title: "Widgets wobble" });
+		await anonymous.until(PRIVATE_CARD, isPlaceholder);
+
+		// Updates to the private card reach the anonymous socket only as placeholders.
+		const sent = anonymous.raw.length;
+		await deliver(
+			mf,
+			github,
+			"issues",
+			issuePayload(SECRET_REPO, { number: 5, title: `${SECRET_TITLE} v3`, updated_at: T1 }),
+		);
+		await alice.until(PRIVATE_CARD, (card) => isCard(card) && card.title === `${SECRET_TITLE} v3`);
+		await vi.waitFor(() => expect(anonymous.raw.length).toBeGreaterThan(sent));
+		const everything = anonymous.raw.join("\n");
+		expect(everything).not.toContain(SECRET_TITLE);
+		expect(everything).not.toContain(SECRET_LABEL);
+
+		// The home page's thumbnail of the board (anyone can see a public
+		// board's) carries shapes and colours only: no card text, and no
+		// state colour from the private card.
+		await new Promise((resolve) => setTimeout(resolve, 2_500)); // the debounced save
+		const info = await mf.dispatchFetch(`${ORIGIN}/api/boards/${board}`);
+		expect(info.status).toBe(200);
+		const text = await info.text();
+		expect(text).not.toContain(SECRET_TITLE);
+		expect(text).not.toContain("Widgets wobble");
+		const { thumbnail } = JSON.parse(text) as {
+			thumbnail: { shapes: [string, number, number, number, number, string][] } | null;
+		};
+		const tones = thumbnail?.shapes.filter(([kind]) => kind === "card").map((shape) => shape[5]);
+		expect(tones?.sort()).toEqual(["", "open"]);
+	}, 20_000);
 });
 
 describe("two tiers of repository access", () => {
 	it("mixes live cards from an installed repo with lazy cards from a public one", async () => {
 		const github = fakeGitHub();
 		const mf = await configured(github);
-		const alice = await connect(mf, "tiers", await signInWithGitHub(mf, github, ALICE));
+		const { alice } = await aliceOnBoard(mf, github);
 		alice.add(PUBLIC_CARD, PRIVATE_CARD);
 
 		expect(await alice.until(PRIVATE_CARD, isCard)).toMatchObject({
@@ -396,11 +479,11 @@ describe("two tiers of repository access", () => {
 	it("polls repositories that aren't live with ETags, only while someone's watching", async () => {
 		const github = fakeGitHub();
 		const mf = await configured(github);
-		const alice = await connect(mf, "polling", await signInWithGitHub(mf, github, ALICE));
+		const { alice, board } = await aliceOnBoard(mf, github);
 		alice.add(PUBLIC_CARD);
 		await alice.until(PUBLIC_CARD, isCard);
 		const repo = await repoStub(mf, `github.com/@${PUBLIC_ID}`);
-		expect(await repo.watchers()).toEqual(["polling"]);
+		expect(await repo.watchers()).toEqual([board]);
 
 		const polls = () => github.count((r) => r.path === "/repos/acme/widgets/issues");
 		await repo.pollNow();
@@ -440,7 +523,7 @@ describe("two tiers of repository access", () => {
 	it("upgrades a card in place when the app is installed", async () => {
 		const github = fakeGitHub();
 		const mf = await configured(github);
-		const alice = await connect(mf, "install", await signInWithGitHub(mf, github, ALICE));
+		const { alice } = await aliceOnBoard(mf, github);
 		alice.add(PUBLIC_CARD);
 		await alice.until(PUBLIC_CARD, (card) => isCard(card) && card.live === false);
 
@@ -471,7 +554,7 @@ describe("two tiers of repository access", () => {
 	it("says a private repo without the app can't be read, until it's installed", async () => {
 		const github = fakeGitHub();
 		const mf = await configured(github);
-		const alice = await connect(mf, "hidden", await signInWithGitHub(mf, github, ALICE));
+		const { alice } = await aliceOnBoard(mf, github);
 		alice.add(HIDDEN_CARD);
 		expect(await alice.until(HIDDEN_CARD, (card) => "missing" in card)).toEqual({
 			key: HIDDEN_CARD,
@@ -522,7 +605,8 @@ describe("two tiers of repository access", () => {
 		cleanups.push(() => rmSync(persist, { recursive: true, force: true }));
 		let mf = await configured(github, persist);
 		const cookie = await signInWithGitHub(mf, github, ALICE);
-		const first = await connect(mf, "restart", cookie);
+		const board = await createBoard(mf, cookie);
+		const first = await connect(mf, board, cookie);
 		first.add(PUBLIC_CARD, PRIVATE_CARD);
 		await first.until(PRIVATE_CARD, isCard);
 		// Let the board save its document (debounced) before stopping.
@@ -531,7 +615,7 @@ describe("two tiers of repository access", () => {
 		await mf.dispose();
 
 		mf = await configured(github, persist);
-		const second = await connect(mf, "restart", cookie);
+		const second = await connect(mf, board, cookie);
 		expect(await second.until(PRIVATE_CARD, isCard)).toMatchObject({ live: true });
 		expect(await second.until(PUBLIC_CARD, isCard)).toMatchObject({ live: false });
 	}, 30_000);
