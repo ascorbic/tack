@@ -104,17 +104,30 @@ export function applyNodeChanges(
 	changes: NodeChange<ShapeNode>[],
 	lastDragPosition: (id: string) => Position | undefined = () => undefined,
 ): void {
-	const shapes = shapesMap(doc);
 	transactLocal(doc, () => {
+		const removed: string[] = [];
 		for (const change of changes) {
 			if (change.type === "position" && !change.dragging) {
 				const position = change.position ?? lastDragPosition(change.id);
 				if (!position) continue;
 				moveShape(doc, change.id, position);
 			} else if (change.type === "remove") {
-				shapes.delete(change.id);
+				removed.push(change.id);
 			}
 		}
+		if (removed.length > 0) deleteShapes(doc, removed);
+	});
+}
+
+/**
+ * Delete shapes, as one undo step. Every deletion goes through here (the
+ * delete key, cut, empty text tidying itself away), so anything that must
+ * go with a shape, such as a connector attached to it, belongs here too.
+ */
+export function deleteShapes(doc: Y.Doc, ids: Iterable<string>): void {
+	const shapes = shapesMap(doc);
+	transactLocal(doc, () => {
+		for (const id of ids) shapes.delete(id);
 	});
 }
 

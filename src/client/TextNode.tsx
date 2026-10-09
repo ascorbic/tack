@@ -9,8 +9,8 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { type ShapeFont, type TextSize, shapesMap } from "../shared/shapes.ts";
-import { isFresh, type ShapeNode, setStickyText, takeFocus } from "./board.ts";
+import type { ShapeFont, TextSize } from "../shared/shapes.ts";
+import { deleteShapes, isFresh, type ShapeNode, setStickyText, takeFocus } from "./board.ts";
 import { DocContext } from "./DocContext.ts";
 import { useEditing } from "./useEditing.ts";
 
@@ -105,7 +105,7 @@ export const TextNode = memo(function TextNode({ data, selected }: NodeProps<Sha
 	const wasEditing = useRef(editing);
 	useEffect(() => {
 		if (wasEditing.current && !editing && doc && latest.current.trim() === "") {
-			doc.transact(() => shapesMap(doc).delete(data.id), "local");
+			deleteShapes(doc, [data.id]);
 		}
 		wasEditing.current = editing;
 	}, [editing, doc, data.id]);

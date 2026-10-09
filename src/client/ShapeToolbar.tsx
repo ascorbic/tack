@@ -16,6 +16,11 @@ function common<T>(values: T[]): T | undefined {
 	return values.every((value) => value === first) ? first : undefined;
 }
 
+/** The selected shapes this toolbar styles: stickies and text. */
+export function styledShapes(selected: ShapeNode[]): ShapeNode[] {
+	return selected.filter((node) => node.type === "sticky" || node.type === "text");
+}
+
 /**
  * A small toolbar floating above the selected stickies and text, like
  * FigJam's: colour, typeface and size. Each change is one transaction

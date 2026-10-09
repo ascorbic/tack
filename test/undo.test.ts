@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
-import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
+import { addShape, readShape, shapesMap, updateShapes } from "../src/shared/shapes.ts";
 import { History, LOCAL_ORIGIN, transactLocal } from "../src/client/undo.ts";
 
 // Two people on one board: each has their own Y.Doc, kept in sync the way a
@@ -246,5 +246,17 @@ describe("History", () => {
 
 	it("uses the origin that applyNodeChanges writes with", () => {
 		expect(LOCAL_ORIGIN).toBe("local");
+	});
+
+	it("undoes a restyle of several shapes in one step", () => {
+		const doc = new Y.Doc();
+		const h = history(doc);
+		sticky(doc, "a");
+		sticky(doc, "b");
+		updateShapes(doc, ["a", "b"], { color: "pink", font: "hand" });
+		h.undo();
+		expect(shape(doc, "a")?.color).toBeUndefined();
+		expect(shape(doc, "b")?.font).toBeUndefined();
+		expect(shape(doc, "b")).toBeDefined();
 	});
 });

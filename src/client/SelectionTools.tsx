@@ -11,12 +11,19 @@ type Size = { width: number; height: number };
 
 const apple = isApplePlatform();
 
+/** Gap above the selection, as for the shape toolbar. */
+const OFFSET = 18;
+/** Clear of the shape toolbar (about 44px tall) when both are showing. */
+const STACKED_OFFSET = OFFSET + 52;
+
 interface SelectionToolsProps {
 	nodes: ShapeNode[];
 	selected: Set<string>;
 	sizeOf: (id: string) => Size | undefined;
 	/** Hidden while dragging, so it doesn't get in the way. */
 	dragging: boolean;
+	/** Sit a row higher, above the shape toolbar (colour, font, size). */
+	stacked?: boolean;
 	onCommand: (id: CommandId) => void;
 }
 
@@ -25,6 +32,7 @@ export function SelectionTools({
 	selected,
 	sizeOf,
 	dragging,
+	stacked = false,
 	onCommand,
 }: SelectionToolsProps) {
 	const zoom = useStore((state) => state.transform[2]);
@@ -57,7 +65,12 @@ export function SelectionTools({
 					/>
 				</ViewportPortal>
 			)}
-			<NodeToolbar nodeId={ids} isVisible={!dragging} position={Position.Top} offset={18}>
+			<NodeToolbar
+				nodeId={ids}
+				isVisible={!dragging}
+				position={Position.Top}
+				offset={stacked ? STACKED_OFFSET : OFFSET}
+			>
 				<div className="arrange" role="toolbar" aria-label="Arrange selection">
 					<span className="arrange-count">{selected.size}</span>
 					<ArrangeButton id="alignLeft" label="Align left" onCommand={onCommand}>

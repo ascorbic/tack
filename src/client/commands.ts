@@ -12,6 +12,8 @@ import {
 	setStickyText,
 } from "./board.ts";
 import { cardStore } from "./cardStore.ts";
+import { isOffBoardTarget } from "./keys.ts";
+import { scaledDuration } from "./motion.ts";
 import {
 	CLIPBOARD_TYPE,
 	type ClipboardPayload,
@@ -45,24 +47,6 @@ const QUIET_DELETE_LIMIT = 3;
 
 const apple = isApplePlatform();
 
-/** Durations scale with --motion, so slow and reduced motion apply. */
-export function motionScale(): number {
-	const value = Number.parseFloat(
-		getComputedStyle(document.documentElement).getPropertyValue("--motion"),
-	);
-	return Number.isFinite(value) ? value : 1;
-}
-
-/** Whether a key or clipboard event belongs to a text field or dialog, not the board. */
-export function isTextTarget(target: EventTarget | null): boolean {
-	return (
-		target instanceof Element &&
-		!!target.closest(
-			"input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='dialog']",
-		)
-	);
-}
-
 function hasTextSelection(): boolean {
 	const selection = window.getSelection();
 	return !!selection && !selection.isCollapsed && selection.toString().length > 0;
@@ -83,6 +67,8 @@ interface CommandsOptions {
 	toasts: ToastStore;
 	canvas: RefObject<HTMLElement | null>;
 	toggleShortcuts: () => void;
+	/** Called when a shortcut moves the view, e.g. to stop following someone. */
+	onNavigate?: () => void;
 }
 
 export function useCanvasCommands(options: CommandsOptions) {
@@ -103,7 +89,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 
 	const { doc, history } = options;
 
-	const duration = useCallback((ms: number) => Math.round(ms * motionScale()), []);
+	const duration = useCallback((ms: number) => scaledDuration(ms), []);
 
 	/** Let shapes glide to positions set by undo, redo or arranging. */
 	const settle = useCallback(() => {
@@ -198,6 +184,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 					const bounds = unionRect(changed);
 					const view = flowRect();
 					if (bounds && !changed.some((rect) => intersects(rect, view))) {
+						latest.current.onNavigate?.();
 						void flow.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
 							zoom: store.getState().transform[2],
 							duration: duration(420),
@@ -207,39 +194,6 @@ export function useCanvasCommands(options: CommandsOptions) {
 			}),
 		[history, doc, flow, store, flowRect, rectOf, duration],
 	);
-
-	// Editing text is one undo step, however long it takes.
-	useEffect(() => {
-		const el = options.canvas.current;
-		if (!el) return;
-		let end: (() => void) | null = null;
-		const onFocusIn = (event: FocusEvent) => {
-			if (
-				!end &&
-				isTextTarget(event.target) &&
-				(event.target as Element).closest(".react-flow__node")
-			) {
-				end = history.beginSession();
-			}
-		};
-		const onFocusOut = (event: FocusEvent) => {
-			const next = event.relatedTarget;
-			if (
-				end &&
-				!(next instanceof Element && isTextTarget(next) && next.closest(".react-flow__node"))
-			) {
-				end();
-				end = null;
-			}
-		};
-		el.addEventListener("focusin", onFocusIn);
-		el.addEventListener("focusout", onFocusOut);
-		return () => {
-			end?.();
-			el.removeEventListener("focusin", onFocusIn);
-			el.removeEventListener("focusout", onFocusOut);
-		};
-	}, [history, options.canvas]);
 
 	// Clipboard ------------------------------------------------------------
 
@@ -423,6 +377,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 			if (!id.startsWith("nudge")) flushNudge();
 			const { selected, setSelected, nodes, toggleShortcuts } = latest.current;
 			const zoomOptions = { duration: duration(260) };
+			if (id.startsWith("zoom")) latest.current.onNavigate?.();
 			switch (id) {
 				case "undo":
 				case "redo":
@@ -536,7 +491,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 		let pendingCopy: { cut: boolean } | null = null;
 
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.defaultPrevented || isTextTarget(event.target)) return;
+			if (event.defaultPrevented || isOffBoardTarget(event.target)) return;
 			const shortcut = matchShortcut(event, apple);
 			if (!shortcut) return;
 			const id = shortcut.id as CommandId;
@@ -561,7 +516,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 		// Arrow keys are taken before React Flow's own handling on a focused
 		// node, which moves by 5px rather than 1 and 10.
 		const onArrowCapture = (event: KeyboardEvent) => {
-			if (!event.key.startsWith("Arrow") || isTextTarget(event.target)) return;
+			if (!event.key.startsWith("Arrow") || isOffBoardTarget(event.target)) return;
 			const shortcut = matchShortcut(event, apple);
 			if (shortcut?.id.startsWith("nudge") && latest.current.selected.size > 0) {
 				event.preventDefault();
@@ -571,7 +526,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 		};
 
 		const onCopy = (event: ClipboardEvent) => {
-			if (isTextTarget(event.target) || hasTextSelection()) return;
+			if (isOffBoardTarget(event.target) || hasTextSelection()) return;
 			const cut = event.type === "cut";
 			pendingCopy = null;
 			flushNudge();
@@ -583,7 +538,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 		};
 
 		const onPaste = (event: ClipboardEvent) => {
-			if (isTextTarget(event.target)) return;
+			if (isOffBoardTarget(event.target)) return;
 			const data = event.clipboardData;
 			if (!data) return;
 			flushNudge();

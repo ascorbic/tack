@@ -1,5 +1,6 @@
 import { useStoreApi } from "@xyflow/react";
-import { type PointerEvent, type MouseEvent, useEffect, useRef, useState } from "react";
+import { type PointerEvent, type MouseEvent, useContext, useEffect, useRef, useState } from "react";
+import { HistoryContext } from "./DocContext.ts";
 import { isEditableTarget } from "./keys.ts";
 
 /** Keys that start editing a selected shape and go into its text. */
@@ -29,6 +30,7 @@ export function useEditing({
 	const [editing, setEditing] = useState(startEditing);
 	const field = useRef<HTMLTextAreaElement>(null);
 	const store = useStoreApi();
+	const history = useContext(HistoryContext);
 	const onTypeRef = useRef(onType);
 	onTypeRef.current = onType;
 
@@ -43,6 +45,15 @@ export function useEditing({
 		if (wasSelected.current && !selected) setEditing(false);
 		wasSelected.current = selected;
 	}, [selected]);
+
+	// Everything typed in one go is one undo step, however long it takes. The
+	// session ends a moment after editing does, so tidying up on the way out
+	// (an empty text block removing itself) joins the same step.
+	useEffect(() => {
+		if (!editing || !history) return;
+		const end = history.beginSession();
+		return () => queueMicrotask(end);
+	}, [editing, history]);
 
 	// React Flow keeps a new node hidden until it has measured it, and hidden
 	// elements can't take focus, so keep trying for a few frames.
@@ -86,7 +97,15 @@ export function useEditing({
 
 	const handlers = {
 		onPointerDown: (event: PointerEvent) => {
-			press.current = { wasSelected: selected, x: event.clientX, y: event.clientY };
+			// Only a click on a shape that was selected on its own edits it. One
+			// in a multi-selection narrows the selection to it instead.
+			let count = 0;
+			for (const node of store.getState().nodes) if (node.selected) count++;
+			press.current = {
+				wasSelected: selected && count === 1,
+				x: event.clientX,
+				y: event.clientY,
+			};
 		},
 		onClick: (event: MouseEvent) => {
 			const p = press.current;

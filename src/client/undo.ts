@@ -1,4 +1,5 @@
 import * as Y from "yjs";
+import { LOCAL_ORIGIN, transactLocal } from "../shared/shapes.ts";
 
 // Undo and redo for one person's changes to a shared board.
 //
@@ -9,20 +10,10 @@ import * as Y from "yjs";
 // since changed; on top of that, undo never deletes a shape that someone
 // else has worked on, even if this client created it.
 
-/** The transaction origin for every local document write. */
-export const LOCAL_ORIGIN = "local";
-
-/**
- * Run `fn` as a single local transaction: one undo step, tracked as this
- * person's change. Nested calls join the outer transaction.
- */
-export function transactLocal<T>(doc: Y.Doc, fn: () => T): T {
-	let result: T | undefined;
-	doc.transact(() => {
-		result = fn();
-	}, LOCAL_ORIGIN);
-	return result as T;
-}
+// Every local write goes through `transactLocal` (origin `LOCAL_ORIGIN`),
+// defined beside the shape schema so shared helpers like `updateShapes` use
+// it too.
+export { LOCAL_ORIGIN, transactLocal };
 
 /**
  * Text edits that begin within this long of the previous change join its

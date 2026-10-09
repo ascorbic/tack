@@ -37,6 +37,25 @@ export interface Author {
 	color: string;
 }
 
+/**
+ * The transaction origin for every document write a client makes itself.
+ * The client's undo manager tracks exactly this origin (see
+ * src/client/undo.ts), so writes under any other origin can't be undone.
+ */
+export const LOCAL_ORIGIN = "local";
+
+/**
+ * Run `fn` as a single local transaction: one undo step, tracked as this
+ * person's change. Nested calls join the outer transaction.
+ */
+export function transactLocal<T>(doc: Y.Doc, fn: () => T): T {
+	let result: T | undefined;
+	doc.transact(() => {
+		result = fn();
+	}, LOCAL_ORIGIN);
+	return result as T;
+}
+
 export function shapesMap(doc: Y.Doc): Y.Map<Y.Map<unknown>> {
 	return doc.getMap("shapes");
 }
@@ -114,7 +133,7 @@ export function updateShapes(
 	doc: Y.Doc,
 	ids: Iterable<string>,
 	props: Partial<Omit<ShapeProps, "type">>,
-	origin: unknown = "local",
+	origin: unknown = LOCAL_ORIGIN,
 ): void {
 	const shapes = shapesMap(doc);
 	doc.transact(() => {

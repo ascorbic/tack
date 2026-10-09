@@ -133,7 +133,23 @@ describe("the sheet", () => {
 			"Selection",
 			"Arrange",
 			"View",
+			"People",
 			"Help",
 		]);
+	});
+
+	it("lists the presence keys handled elsewhere, without handling them", () => {
+		const people = sheetShortcuts(all, "", true).find((s) => s.group === "People");
+		expect(people?.shortcuts.map((s) => s.label)).toEqual([
+			"Cursor chat",
+			"Follow someone",
+			"Stop following",
+		]);
+		expect(
+			matchShortcut(
+				{ key: "/", code: "Slash", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false },
+				true,
+			),
+		).toBeUndefined();
 	});
 });

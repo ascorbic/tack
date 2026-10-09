@@ -18,9 +18,17 @@ export interface KeyCombo {
 	shift?: boolean;
 }
 
-export type ShortcutGroup = "Tools" | "Edit" | "Selection" | "Arrange" | "View" | "Help";
+export type ShortcutGroup = "Tools" | "Edit" | "Selection" | "Arrange" | "View" | "People" | "Help";
 
-export const GROUPS: ShortcutGroup[] = ["Tools", "Edit", "Selection", "Arrange", "View", "Help"];
+export const GROUPS: ShortcutGroup[] = [
+	"Tools",
+	"Edit",
+	"Selection",
+	"Arrange",
+	"View",
+	"People",
+	"Help",
+];
 
 export interface Shortcut {
 	id: string;
@@ -279,6 +287,32 @@ export const SHORTCUTS: Shortcut[] = [
 		display: [["Space", "Drag"], ["Scroll"]],
 		keywords: "move hand",
 	},
+	// People: handled by CursorChat.tsx and Follow.tsx, listed here so the
+	// sheet shows them.
+	{
+		id: "chat",
+		label: "Cursor chat",
+		group: "People",
+		combos: [],
+		display: [["/"]],
+		keywords: "message say talk",
+	},
+	{
+		id: "follow",
+		label: "Follow someone",
+		group: "People",
+		combos: [],
+		display: [["Click", "avatar"]],
+		keywords: "presentation watch",
+	},
+	{
+		id: "stopFollowing",
+		label: "Stop following",
+		group: "People",
+		combos: [],
+		display: [["Esc"]],
+		keywords: "escape unfollow",
+	},
 	{
 		id: "shortcuts",
 		label: "Keyboard shortcuts",
@@ -305,6 +339,7 @@ const TOOL_LABELS: Record<string, string> = {
 	hand: "Hand",
 	sticky: "Sticky note",
 	card: "Issue or pull request",
+	text: "Text",
 };
 
 /** Sheet entries for the toolbar's single-key tool shortcuts. */

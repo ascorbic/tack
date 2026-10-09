@@ -41,11 +41,13 @@ import { Cursors } from "./Cursors.tsx";
 import { EmptyBoard } from "./EmptyBoard.tsx";
 import { FollowIndicator, ViewPublisher, useFollow } from "./Follow.tsx";
 import { Guides, useSnapping } from "./Guides.tsx";
+import { HistoryContext } from "./DocContext.ts";
+import { isOffBoardTarget } from "./keys.ts";
 import { DocContext, nodeTypes } from "./nodes.tsx";
 import { People } from "./People.tsx";
 import { type User, usePresence } from "./presence.ts";
 import { SelectionTools } from "./SelectionTools.tsx";
-import { ShapeToolbar } from "./ShapeToolbar.tsx";
+import { ShapeToolbar, styledShapes } from "./ShapeToolbar.tsx";
 import { ShortcutSheet } from "./Shortcuts.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 import { Toasts, ToastStore } from "./Toasts.tsx";
@@ -172,6 +174,7 @@ export function Board({
 		toasts,
 		canvas,
 		toggleShortcuts: () => setSheetOpen((open) => !open),
+		onNavigate: follow.stop,
 	});
 
 	const onNodesChange: OnNodesChange<ShapeNode> = useCallback(
@@ -221,8 +224,7 @@ export function Board({
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.metaKey || event.ctrlKey || event.altKey) return;
-			const target = event.target as HTMLElement | null;
-			if (target?.closest("input, textarea, select, [contenteditable]")) return;
+			if (isOffBoardTarget(event.target)) return;
 			if (event.key === "Escape") setTool("select");
 			const next = TOOL_KEYS[event.key.toLowerCase()];
 			if (next) {
@@ -292,129 +294,132 @@ export function Board({
 	// Hand: drag to pan, and shapes can't be picked up.
 	return (
 		<DocContext value={doc}>
-			<div className="app">
-				<header className="topbar">
-					<span className="brand">
-						<BrandMark />
-						tack
-					</span>
-					<span className="board-name">{name}</span>
-					<People
-						user={user}
-						selfId={awareness.clientID}
-						people={presence.people}
-						following={follow.following}
-						onFollow={follow.follow}
-						self={account}
-					/>
-					<ThemeToggle />
-					<span className="status" data-synced={synced}>
-						{synced ? "Synced" : "Connecting…"}
-					</span>
-					{actions}
-				</header>
-				<main
-					ref={canvas}
-					className="canvas"
-					data-tool={tool}
-					onPointerMove={(event) => {
-						const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-						presence.setCursor(at);
-						if (tool === "sticky") setGhost(at);
-					}}
-					onPointerLeave={() => {
-						presence.setCursor(null);
-						setGhost(null);
-					}}
-					onDragOver={onDragOver}
-					onDrop={onDrop}
-				>
-					<ReactFlow
-						nodes={nodes}
-						nodeTypes={nodeTypes}
-						onNodesChange={onNodesChange}
-						onPaneClick={onPaneClick}
-						onMoveStart={follow.onMoveStart}
-						proOptions={{ hideAttribution: true }}
-						onlyRenderVisibleElements
-						selectionOnDrag={tool === "select"}
-						panOnDrag={tool === "hand" ? true : [1, 2]}
-						panOnScroll
-						nodesDraggable={tool !== "hand"}
-						elementsSelectable={tool !== "hand"}
-						minZoom={0.1}
-						deleteKeyCode={["Backspace", "Delete"]}
-						selectionMode={SelectionMode.Partial}
-						selectionKeyCode={null}
-						multiSelectionKeyCode={["Shift", "Meta", "Control"]}
-						onSelectionStart={(event) => {
-							marqueeBase.current = event.shiftKey ? new Set(selected) : null;
-						}}
-						onSelectionEnd={() => {
-							marqueeBase.current = null;
-						}}
-						onNodeClick={(event, node) => {
-							// Clicking one shape in a multi-selection selects just that one.
-							if (event.shiftKey || event.metaKey || event.ctrlKey) return;
-							if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
-						}}
-					>
-						<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-						<Controls
-							showInteractive={false}
-							onZoomIn={follow.stop}
-							onZoomOut={follow.stop}
-							onFitView={follow.stop}
-						>
-							<ControlButton
-								onClick={() => setSheetOpen(true)}
-								title="Keyboard shortcuts (?)"
-								aria-label="Keyboard shortcuts"
-								className="shortcuts-button"
-							>
-								?
-							</ControlButton>
-						</Controls>
-						<MiniMap pannable zoomable nodeClassName={minimapClass} />
-						<Guides store={snapping.guides} />
-						<SelectionTools
-							nodes={nodes}
-							selected={selected}
-							sizeOf={sizeOf}
-							dragging={snapping.dragging}
-							onCommand={commands.run}
+			<HistoryContext value={history}>
+				<div className="app">
+					<header className="topbar">
+						<span className="brand">
+							<BrandMark />
+							tack
+						</span>
+						<span className="board-name">{name}</span>
+						<People
+							user={user}
+							selfId={awareness.clientID}
+							people={presence.people}
+							following={follow.following}
+							onFollow={follow.follow}
+							self={account}
 						/>
-						<Cursors people={presence.people} />
-						<ViewPublisher awareness={awareness} />
-						<ShapeToolbar doc={doc} selected={selectedNodes} onStickyColor={setStickyColor} />
-						{ghost && (
-							<ViewportPortal>
-								<div
-									className="sticky sticky-ghost"
-									data-color={stickyColor}
-									aria-hidden="true"
-									style={{
-										transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
-									}}
-								/>
-							</ViewportPortal>
-						)}
-					</ReactFlow>
-					<EmptyBoard empty={synced && shapeNodes.length === 0} onTool={setTool} />
-					<FollowIndicator person={follow.target} onStop={follow.stop} />
-					<CursorChat awareness={awareness} user={user} />
-					<Toolbar
-						tool={tool}
-						onTool={setTool}
-						stickyColor={stickyColor}
-						onStickyColor={setStickyColor}
-						onAddCard={onAddCard}
-					/>
-					<Toasts store={toasts} />
-					<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
-					{children}
-				</main>
-			</div>
+						<ThemeToggle />
+						<span className="status" data-synced={synced}>
+							{synced ? "Synced" : "Connecting…"}
+						</span>
+						{actions}
+					</header>
+					<main
+						ref={canvas}
+						className="canvas"
+						data-tool={tool}
+						onPointerMove={(event) => {
+							const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+							presence.setCursor(at);
+							if (tool === "sticky") setGhost(at);
+						}}
+						onPointerLeave={() => {
+							presence.setCursor(null);
+							setGhost(null);
+						}}
+						onDragOver={onDragOver}
+						onDrop={onDrop}
+					>
+						<ReactFlow
+							nodes={nodes}
+							nodeTypes={nodeTypes}
+							onNodesChange={onNodesChange}
+							onPaneClick={onPaneClick}
+							onMoveStart={follow.onMoveStart}
+							proOptions={{ hideAttribution: true }}
+							onlyRenderVisibleElements
+							selectionOnDrag={tool === "select"}
+							panOnDrag={tool === "hand" ? true : [1, 2]}
+							panOnScroll
+							nodesDraggable={tool !== "hand"}
+							elementsSelectable={tool !== "hand"}
+							minZoom={0.1}
+							deleteKeyCode={["Backspace", "Delete"]}
+							selectionMode={SelectionMode.Partial}
+							selectionKeyCode={null}
+							multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+							onSelectionStart={(event) => {
+								marqueeBase.current = event.shiftKey ? new Set(selected) : null;
+							}}
+							onSelectionEnd={() => {
+								marqueeBase.current = null;
+							}}
+							onNodeClick={(event, node) => {
+								// Clicking one shape in a multi-selection selects just that one.
+								if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+								if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
+							}}
+						>
+							<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
+							<Controls
+								showInteractive={false}
+								onZoomIn={follow.stop}
+								onZoomOut={follow.stop}
+								onFitView={follow.stop}
+							>
+								<ControlButton
+									onClick={() => setSheetOpen(true)}
+									title="Keyboard shortcuts (?)"
+									aria-label="Keyboard shortcuts"
+									className="shortcuts-button"
+								>
+									?
+								</ControlButton>
+							</Controls>
+							<MiniMap pannable zoomable nodeClassName={minimapClass} />
+							<Guides store={snapping.guides} />
+							<SelectionTools
+								nodes={nodes}
+								selected={selected}
+								sizeOf={sizeOf}
+								dragging={snapping.dragging}
+								stacked={styledShapes(selectedNodes).length > 0}
+								onCommand={commands.run}
+							/>
+							<Cursors people={presence.people} />
+							<ViewPublisher awareness={awareness} />
+							<ShapeToolbar doc={doc} selected={selectedNodes} onStickyColor={setStickyColor} />
+							{ghost && (
+								<ViewportPortal>
+									<div
+										className="sticky sticky-ghost"
+										data-color={stickyColor}
+										aria-hidden="true"
+										style={{
+											transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+										}}
+									/>
+								</ViewportPortal>
+							)}
+						</ReactFlow>
+						<EmptyBoard empty={synced && shapeNodes.length === 0} onTool={setTool} />
+						<FollowIndicator person={follow.target} onStop={follow.stop} />
+						<CursorChat awareness={awareness} user={user} />
+						<Toolbar
+							tool={tool}
+							onTool={setTool}
+							stickyColor={stickyColor}
+							onStickyColor={setStickyColor}
+							onAddCard={onAddCard}
+						/>
+						<Toasts store={toasts} />
+						<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+						{children}
+					</main>
+				</div>
+			</HistoryContext>
 		</DocContext>
 	);
 }
