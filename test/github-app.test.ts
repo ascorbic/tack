@@ -110,7 +110,7 @@ describe("setup", () => {
 				issues: "write",
 				pull_requests: "write",
 				metadata: "read",
-				contents: "read",
+				contents: "write",
 				checks: "read",
 				statuses: "read",
 				discussions: "write",
