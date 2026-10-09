@@ -100,6 +100,7 @@ export type CommandId =
 	| "closeReopen"
 	| "backlink"
 	| "blockedBy"
+	| "expandRelated"
 	| "shortcuts";
 
 const arrow = (key: string, shift: boolean): KeyCombo[] => [{ key, shift }];
@@ -338,6 +339,13 @@ export const SHORTCUTS: Shortcut[] = [
 		group: "Issues",
 		combos: [{ code: "KeyK", alt: true, shift: false }],
 		keywords: "backlink comment snapshot link github stage",
+	},
+	{
+		id: "expandRelated",
+		label: "Expand related items",
+		group: "Issues",
+		combos: [{ code: "KeyE", alt: true, shift: false }],
+		keywords: "related parent sub-issues blocked blocking linked pull requests expand layout",
 	},
 	{
 		id: "zoomIn",

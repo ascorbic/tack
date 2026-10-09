@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { Stager } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
+import type { QueryError, RelatedResult } from "../../shared/widgets.ts";
 import { repoApi } from "../changes/api.ts";
 import type { User } from "../presence.ts";
 
@@ -17,6 +18,8 @@ export interface WriteServices {
 	repoMeta(repo: string): Promise<RepoMeta | null>;
 	/** Upload a PNG snapshot; resolves to its public URL. Throws with a message people can read. */
 	uploadSnapshot(png: Blob): Promise<string>;
+	/** What's related to an item, as this viewer may see it (Expand related). Never throws. */
+	related(key: string): Promise<RelatedResult | QueryError>;
 }
 
 const SNAPSHOT_ERRORS: Record<string, string> = {
@@ -50,6 +53,19 @@ export function liveServices(boardId: string): WriteServices {
 			} | null;
 			if (response.ok && body?.url) return body.url;
 			throw new Error(SNAPSHOT_ERRORS[body?.error ?? ""] ?? "The snapshot couldn’t be uploaded.");
+		},
+		async related(key) {
+			try {
+				const response = await fetch(
+					`/api/boards/${encodeURIComponent(boardId)}/related?key=${encodeURIComponent(key)}`,
+					{ headers: { accept: "application/json" } },
+				);
+				const body = (await response.json().catch(() => null)) as RelatedResult | QueryError | null;
+				if (body?.kind === "related" || body?.kind === "error") return body;
+				return { kind: "error", reason: "error", message: "Something went wrong. Try again?" };
+			} catch {
+				return { kind: "error", reason: "error", message: "Couldn’t reach the server." };
+			}
 		},
 	};
 }

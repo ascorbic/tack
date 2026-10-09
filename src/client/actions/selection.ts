@@ -18,6 +18,7 @@ export type ActionCommand = Extract<
 	| "closeReopen"
 	| "backlink"
 	| "blockedBy"
+	| "expandRelated"
 >;
 
 /**

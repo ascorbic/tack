@@ -150,6 +150,7 @@ describe("the sheet", () => {
 		expect(press("KeyL")).toBe("labels");
 		expect(press("KeyB")).toBe("blockedBy");
 		expect(press("KeyK")).toBe("backlink");
+		expect(press("KeyE")).toBe("expandRelated");
 		const combos = SHORTCUTS.flatMap((s) => s.combos.map((c) => JSON.stringify(c)));
 		expect(new Set(combos).size).toBe(combos.length);
 	});

@@ -31,6 +31,7 @@ import { unionRect } from "../snapping.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import type { History } from "../undo.ts";
 import { type BoardCard, BacklinkPanel } from "./BacklinkPanel.tsx";
+import { ExpandRelated } from "./ExpandRelated.tsx";
 import {
 	BacklinkIcon,
 	CloseIssueIcon,
@@ -39,6 +40,7 @@ import {
 	MilestoneIcon,
 	ParentIcon,
 	PersonIcon,
+	RelatedIcon,
 } from "./icons.tsx";
 import { type ChildPreview, MakeIssuesPanel, ParentIssuePanel } from "./IssuePanels.tsx";
 import {
@@ -210,6 +212,16 @@ export function ActionBar(props: ActionBarProps) {
 				label: onlySection ? "Make a parent issue from this section" : "Make a parent issue",
 				icon: <ParentIcon />,
 				text: onlySection || clustered ? "Parent issue" : undefined,
+			});
+		}
+		// Not a change to stage: it lays out what's already linked, so it's
+		// there whether or not Tack can write to the repository.
+		if (onlyCards && cardNodes.length === 1 && cards.length === 1) {
+			out.push({
+				id: "expandRelated",
+				label: "Expand related items",
+				icon: <RelatedIcon />,
+				text: "Related",
 			});
 		}
 		if (onlyCards && cards.length > 0) {
@@ -423,6 +435,22 @@ export function ActionBar(props: ActionBarProps) {
 					/>
 				);
 			}
+			case "expandRelated": {
+				const target = cards[0];
+				return target ? (
+					<ExpandRelated
+						doc={doc}
+						services={services}
+						shape={target.shape}
+						card={target.card}
+						sizeOf={props.sizeOf}
+						onDone={(message) => {
+							close();
+							toast(message);
+						}}
+					/>
+				) : null;
+			}
 			case "backlink":
 				return (
 					<BacklinkFor
@@ -478,7 +506,7 @@ export function ActionBar(props: ActionBarProps) {
 						prefer={roomBelow ? "below" : "above"}
 						label={label}
 						onClose={close}
-						wide={open === "backlink" || open === "parentIssue"}
+						wide={open === "backlink" || open === "parentIssue" || open === "expandRelated"}
 					>
 						{panel()}
 					</Popover>

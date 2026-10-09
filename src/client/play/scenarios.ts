@@ -16,6 +16,7 @@ import { cardStore } from "../cardStore.ts";
 import { seedDecisions } from "./decisions.ts";
 import type { Stager } from "../../shared/changes.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
+import { seedRelated } from "./related.ts";
 import { seedWrites } from "./writes.ts";
 import { IMAGEKIT, PEOPLE, failChange, stageAs } from "./push.ts";
 
@@ -495,6 +496,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"Changes staged by a few people, on stickies and cards: open Changes in the top bar, then review and push. One failed last time; one is left out.",
 		seed: seedPush,
+	},
+	related: {
+		name: "Related and provenance",
+		description:
+			"Select “Drop Node 18 support” and Expand related (⌥E) to lay out its web around it. On the right, cards an inbox, a rule and a list brought: one no longer matches.",
+		seed: seedRelated,
 	},
 	empty: {
 		name: "Empty",

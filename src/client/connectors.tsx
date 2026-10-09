@@ -47,6 +47,7 @@ import { addConnector } from "../shared/structure.ts";
 import { type ShapeNode, deleteShapes } from "./board.ts";
 import { type SectionDrag, nodeBox } from "./canvasStructure.ts";
 import { ReadOnlyContext } from "./DocContext.ts";
+import { entranceOf } from "./entering.ts";
 import { useAwarenessField } from "./ephemeral.ts";
 import { isOffBoardTarget } from "./keys.ts";
 import "./connectors.css";
@@ -540,6 +541,7 @@ export function ConnectorLayer({
 					connector.label || editing === entry.id ? (
 						<ConnectorLabel
 							key={entry.id}
+							id={entry.id}
 							at={geometry.middle}
 							label={connector.label}
 							color={connector.color}
@@ -630,10 +632,28 @@ const ConnectorPath = memo(function ConnectorPath({
 	onPress: (id: string, event: ReactPointerEvent) => void;
 	onEdit: (id: string) => void;
 }) {
+	// Laid out with others (Expand related): drawn in once its cards land.
+	const [entrance] = useState(() => entranceOf(id));
 	return (
-		<g className="connector" data-color={color} data-selected={selected} data-moving={moving}>
+		<g
+			className="connector"
+			data-color={color}
+			data-selected={selected}
+			data-moving={moving}
+			data-enter={entrance ? "draw" : undefined}
+			style={
+				entrance
+					? ({ "--enter-delay": `${Math.round(entrance.delay)}` } as React.CSSProperties)
+					: undefined
+			}
+		>
 			<path className="connector-halo" d={d} />
-			<path className="connector-line" d={d} data-dash={dash} />
+			<path
+				className="connector-line"
+				d={d}
+				data-dash={dash}
+				{...(entrance && !dash ? { pathLength: 1, "data-draw": true } : {})}
+			/>
 			{heads && <path className="connector-head" d={heads} />}
 			<path
 				className="connector-hit"
@@ -650,6 +670,7 @@ const ConnectorPath = memo(function ConnectorPath({
 });
 
 function ConnectorLabel({
+	id,
 	at,
 	label,
 	color,
@@ -660,6 +681,8 @@ function ConnectorLabel({
 	onChange,
 	onDone,
 }: {
+	/** The connector's id, for its entrance when laid out with others. */
+	id?: string;
 	at: Point;
 	label: string;
 	color: ConnectorColor;
@@ -677,13 +700,20 @@ function ConnectorLabel({
 		el?.focus();
 		el?.setSelectionRange(el.value.length, el.value.length);
 	}, [editing]);
+	const [entrance] = useState(() => (id ? entranceOf(id) : null));
 	return (
 		<div
+			data-enter={entrance ? "draw" : undefined}
 			className="connector-label connector-ui nodrag nopan"
 			data-color={color}
 			data-selected={selected}
 			data-editing={editing}
-			style={{ transform: `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)` }}
+			style={
+				{
+					transform: `translate(${at.x}px, ${at.y}px) translate(-50%, -50%)`,
+					...(entrance ? { "--enter-delay": `${Math.round(entrance.delay)}` } : {}),
+				} as React.CSSProperties
+			}
 			onPointerDown={(event) => {
 				event.stopPropagation();
 				if (!editing) onPress(event);

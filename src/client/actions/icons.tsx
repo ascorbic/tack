@@ -146,3 +146,16 @@ export const PullIcon = () => (
 		<path d="M4.5 5.1v5.8M11.5 10.9V6.4a2 2 0 0 0-2-2H7.4M8.8 2.8 7.2 4.4 8.8 6" />
 	</Icon>
 );
+
+/** A card with its neighbours around it: Expand related. */
+export const RelatedIcon = () => (
+	<Icon>
+		<rect x="5.5" y="5.75" width="5" height="4.5" rx="1.2" />
+		<circle cx="8" cy="2" r="1.2" />
+		<circle cx="2" cy="8" r="1.2" />
+		<circle cx="14" cy="8" r="1.2" />
+		<circle cx="5" cy="14" r="1.2" />
+		<circle cx="11" cy="14" r="1.2" />
+		<path d="M8 3.2v2.5M3.2 8h2.3M10.5 8h2.3M6.8 10.3 5.6 12.9M9.2 10.3l1.2 2.6" />
+	</Icon>
+);

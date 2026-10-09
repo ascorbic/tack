@@ -9,6 +9,7 @@ import { addConnector, addSection } from "../../shared/structure.ts";
 import type { WriteServices } from "../actions/services.ts";
 import { cardStore } from "../cardStore.ts";
 import { ACCESS_GALLERY, LABELS, fixture } from "./fixtures.ts";
+import { playRelated } from "./related.ts";
 
 // Writing back (M2) in the playground: a board to try the selection actions
 // on, and stand-ins for the Worker's repository metadata and snapshot
@@ -72,6 +73,7 @@ export function playServices(): WriteServices {
 			uploadedSnapshots.push({ url, bytes: png.size });
 			return url;
 		},
+		related: playRelated,
 	};
 }
 

@@ -1,0 +1,403 @@
+/* ---------------------------------------------------------------------------
+   Expand related (#42): the panel, and how laid-out shapes arrive
+   ------------------------------------------------------------------------ */
+
+.related-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 14px;
+}
+
+.related-head .action-popover-head {
+	min-width: 0;
+}
+
+.related-head .action-popover-head p {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.related-head .action-popover-head .mono {
+	color: var(--ink-soft);
+	font-size: 12px;
+}
+
+/* A tiny map of where each group will go. */
+.related-compass {
+	flex: none;
+	width: 76px;
+	height: 57px;
+	margin: -2px -2px 0 0;
+	overflow: visible;
+}
+
+.related-compass rect,
+.related-compass path {
+	transition:
+		fill var(--t-base) var(--ease-out),
+		stroke var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out),
+		scale var(--t-settle) var(--ease-spring);
+	transform-box: fill-box;
+	transform-origin: center;
+}
+
+.related-compass rect {
+	fill: var(--chip);
+	stroke: var(--line-strong);
+	stroke-width: 1;
+}
+
+.related-compass path {
+	fill: none;
+	stroke: var(--line-strong);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.related-compass .related-compass-card {
+	fill: var(--surface);
+	stroke: var(--ink-soft);
+	stroke-width: 1.5;
+}
+
+.related-compass [data-state="absent"] {
+	opacity: 0.4;
+	fill: none;
+	stroke-dasharray: 2 2;
+}
+
+.related-compass rect[data-state="off"] {
+	fill: none;
+}
+
+.related-compass rect[data-state="on"],
+.related-compass rect[data-state="hovered"] {
+	fill: var(--accent-soft);
+	stroke: var(--accent);
+}
+
+.related-compass path[data-state="on"],
+.related-compass path[data-state="hovered"] {
+	stroke: var(--accent);
+}
+
+.related-compass [data-group="blockedBy"][data-state="on"],
+.related-compass [data-group="blocking"][data-state="on"],
+.related-compass [data-group="blockedBy"][data-state="hovered"],
+.related-compass [data-group="blocking"][data-state="hovered"] {
+	stroke: var(--connector-red);
+}
+
+.related-compass rect[data-group="blockedBy"][data-state="on"],
+.related-compass rect[data-group="blocking"][data-state="on"],
+.related-compass rect[data-group="blockedBy"][data-state="hovered"],
+.related-compass rect[data-group="blocking"][data-state="hovered"] {
+	fill: color-mix(in srgb, var(--connector-red) 16%, transparent);
+}
+
+.related-compass [data-group="linkedPulls"]:not([data-state="absent"]) {
+	stroke-dasharray: 3 2;
+}
+
+.related-compass [data-group="linkedPulls"][data-state="on"],
+.related-compass [data-group="linkedPulls"][data-state="hovered"] {
+	stroke: var(--connector-purple);
+}
+
+.related-compass rect[data-group="linkedPulls"][data-state="on"],
+.related-compass rect[data-group="linkedPulls"][data-state="hovered"] {
+	fill: color-mix(in srgb, var(--connector-purple) 16%, transparent);
+}
+
+.related-compass rect[data-state="hovered"] {
+	scale: 1.18;
+}
+
+.related-loading {
+	display: grid;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.related-empty {
+	margin: 2px 0 0;
+	color: var(--muted);
+	font-size: 12.5px;
+	line-height: 1.45;
+}
+
+/* Groups ------------------------------------------------------------------- */
+
+.related-groups {
+	display: grid;
+	gap: 2px;
+	margin: 6px -8px 0;
+	padding: 0;
+	list-style: none;
+}
+
+.related-group {
+	padding: 6px 8px 7px;
+	border-radius: 10px;
+	transition: background var(--t-quick) var(--ease-out);
+	animation: preview-in var(--t-settle) var(--ease-spring) both;
+	animation-delay: calc(var(--i, 0) * 35ms * var(--motion));
+}
+
+.related-group:hover {
+	background: var(--hover);
+}
+
+.related-group-head {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 620;
+	cursor: pointer;
+	user-select: none;
+}
+
+.related-group-head input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* A small switch, its knob sliding over on a spring. */
+.related-switch {
+	position: relative;
+	flex: none;
+	width: 26px;
+	height: 16px;
+	border-radius: 999px;
+	background: var(--line-strong);
+	transition:
+		background var(--t-base) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.related-switch::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--surface);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 22%);
+	transition: translate var(--t-settle) var(--ease-spring);
+}
+
+.related-group-head input:checked + .related-switch {
+	background: var(--accent);
+}
+
+.related-group-head input:checked + .related-switch::after {
+	translate: 10px 0;
+}
+
+.related-group-head input:focus-visible + .related-switch {
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.related-group-head:active .related-switch::after {
+	scale: 1.12 0.92;
+}
+
+.related-arrow {
+	flex: none;
+	width: 12px;
+	color: var(--muted);
+	font-size: 12px;
+	text-align: center;
+	transition: translate var(--t-settle) var(--ease-spring);
+}
+
+.related-group:hover .related-arrow {
+	translate: var(--nudge-x, 0) var(--nudge-y, 0);
+}
+
+.related-group[data-group="parent"],
+.related-group[data-group="closes"] {
+	--nudge-y: -2px;
+}
+.related-group[data-group="subIssues"] {
+	--nudge-y: 2px;
+}
+.related-group[data-group="blockedBy"] {
+	--nudge-x: -2px;
+}
+.related-group[data-group="blocking"] {
+	--nudge-x: 2px;
+}
+.related-group[data-group="linkedPulls"] {
+	--nudge-x: 2px;
+	--nudge-y: -2px;
+}
+
+.related-group-name {
+	min-width: 0;
+}
+
+.related-count {
+	flex: none;
+	min-width: 20px;
+	margin-left: auto;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--chip);
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	line-height: 18px;
+	text-align: center;
+}
+
+.related-items {
+	display: grid;
+	gap: 3px;
+	margin: 5px 0 0 46px;
+	padding: 0;
+	list-style: none;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.related-group[data-on="false"] .related-items {
+	opacity: 0.42;
+}
+
+.related-group[data-on="false"] .related-group-name {
+	color: var(--muted);
+}
+
+.related-items li {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	font-size: 12.5px;
+}
+
+.related-state {
+	flex: none;
+}
+
+.related-state[data-state="open"] {
+	color: var(--open);
+}
+.related-state[data-state="merged"],
+.related-state[data-state="closed"] {
+	color: var(--merged);
+}
+.related-state[data-state="draft"] {
+	color: var(--closed);
+}
+
+.related-dot {
+	flex: none;
+	width: 9px;
+	height: 9px;
+	margin: 0 2px;
+	border-radius: 50%;
+	background: var(--skeleton);
+}
+
+.related-ref {
+	flex: none;
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.related-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.related-here {
+	flex: none;
+	margin-left: auto;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-size: 10.5px;
+	font-weight: 620;
+	line-height: 17px;
+}
+
+.related-more {
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.related-panel .action-primary .action-icon {
+	margin-left: -3px;
+}
+
+/* Arriving ------------------------------------------------------------------ */
+
+/* Cards fly out from the card they're related to, one after another, and
+   settle with a spring. Reduced motion makes this instant (see --motion). */
+.card[data-enter="expand"] {
+	animation: expand-in calc(640ms * var(--motion)) var(--ease-spring) backwards;
+	animation-delay: calc(var(--enter-delay, 0) * 1ms * var(--motion));
+}
+
+@keyframes expand-in {
+	from {
+		opacity: 0;
+		transform: translate(var(--enter-x, 0), var(--enter-y, 0)) scale(0.32);
+	}
+}
+
+/* Their connectors draw in once they've landed, arrowheads and labels last. */
+.connector[data-enter="draw"] {
+	animation: related-fade calc(200ms * var(--motion)) var(--ease-out) backwards;
+	animation-delay: calc(var(--enter-delay, 0) * 1ms * var(--motion));
+}
+
+.connector[data-enter="draw"] .connector-line[data-draw] {
+	stroke-dasharray: 1;
+	stroke-dashoffset: 1;
+	animation: related-draw calc(460ms * var(--motion)) var(--ease-out) forwards;
+	animation-delay: calc(var(--enter-delay, 0) * 1ms * var(--motion));
+}
+
+.connector[data-enter="draw"] .connector-head {
+	animation: related-fade calc(220ms * var(--motion)) var(--ease-out) backwards;
+	animation-delay: calc((var(--enter-delay, 0) + 360) * 1ms * var(--motion));
+}
+
+.connector-label[data-enter="draw"] {
+	animation: related-label calc(480ms * var(--motion)) var(--ease-spring) backwards;
+	animation-delay: calc((var(--enter-delay, 0) + 260) * 1ms * var(--motion));
+}
+
+@keyframes related-draw {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+@keyframes related-fade {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes related-label {
+	from {
+		opacity: 0;
+		scale: 0.6;
+	}
+}
