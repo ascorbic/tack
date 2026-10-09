@@ -4,6 +4,7 @@ import { readVotes } from "./decisions.ts";
 import { readStructure } from "./sections.ts";
 import { shapesMap } from "./shapes.ts";
 import { readShapes } from "./structure.ts";
+import { widgetDefinition, widgetSize } from "./widgetRegistry.ts";
 
 // The repair pass. Concurrent edits can leave references between shapes
 // dangling: someone deletes a section while someone else drops a sticky into
@@ -25,18 +26,45 @@ export interface RepairResult {
 	 * cleared, or votes that aren't a Y.Map (so wouldn't merge) rebuilt.
 	 */
 	decisions: number;
+	/**
+	 * Widgets fixed up: a size that isn't a usable number given their kind's
+	 * default, or a config that isn't an object replaced with the defaults.
+	 */
+	widgets: number;
 }
 
 /** How many things a repair fixed, in total. */
 export function repairCount(result: RepairResult): number {
-	return result.parents + result.ends + result.removed + result.decisions;
+	return result.parents + result.ends + result.removed + result.decisions + result.widgets;
 }
 
 export function repairBoard(doc: Y.Doc): RepairResult {
-	const result: RepairResult = { parents: 0, ends: 0, removed: 0, decisions: 0 };
+	const result: RepairResult = { parents: 0, ends: 0, removed: 0, decisions: 0, widgets: 0 };
 	doc.transact(() => {
 		const shapes = readShapes(doc);
 		const map = shapesMap(doc);
+
+		for (const [id, shape] of shapes) {
+			if (shape.type !== "widget") continue;
+			const widget = map.get(id);
+			if (!widget) continue;
+			let fixed = false;
+			const size = widgetSize(shape);
+			for (const key of ["w", "h"] as const) {
+				const value = shape[key];
+				if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+					widget.set(key, size[key]);
+					fixed = true;
+				}
+			}
+			const definition = widgetDefinition(shape.widget);
+			const config = shape.config;
+			if (definition && (!config || typeof config !== "object" || Array.isArray(config))) {
+				widget.set("config", definition.defaults);
+				fixed = true;
+			}
+			if (fixed) result.widgets++;
+		}
 
 		for (const id of readStructure(shapes).broken) {
 			map.get(id)?.set("parent", null);

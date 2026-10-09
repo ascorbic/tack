@@ -1,5 +1,6 @@
 import { type Rect, area, centre, contains } from "./geometry.ts";
 import type { ShapeProps } from "./shapes.ts";
+import { widgetSize } from "./widgetRegistry.ts";
 
 // Sections contain shapes through each shape's `parent` key. Containment is
 // decided geometrically when something is dropped, moved or resized (a shape
@@ -31,6 +32,7 @@ export const NOMINAL_SIZE: Partial<Record<ShapeProps["type"], Size>> = {
 	sticky: { w: 176, h: 176 },
 	text: { w: 200, h: 40 },
 	decision: { w: 320, h: 230 },
+	widget: { w: 360, h: 440 },
 };
 
 /** A shape's rendered size where known (e.g. measured by the client). */
@@ -46,6 +48,8 @@ export function boxOf(id: string, shape: ShapeProps, sizeOf?: SizeOf): Rect {
 			h: shape.h ?? SECTION_DEFAULT.h,
 		};
 	}
+	// Widgets are sized like sections: by their own w and h.
+	if (shape.type === "widget") return { x: shape.x, y: shape.y, ...widgetSize(shape) };
 	const size = sizeOf?.(id) ?? NOMINAL_SIZE[shape.type] ?? { w: 0, h: 0 };
 	return { x: shape.x, y: shape.y, w: size.w, h: size.h };
 }
@@ -179,22 +183,23 @@ export type ResizeHandle = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 /**
  * Resize a rectangle by dragging one of its handles by `delta`, keeping the
- * opposite edges fixed and the minimum section size.
+ * opposite edges fixed and a minimum size (a section's, unless given).
  */
 export function resizeRect(
 	start: Rect,
 	handle: ResizeHandle,
 	delta: { x: number; y: number },
+	min: Size = SECTION_MIN,
 ): Rect {
 	let { x, y, w, h } = start;
-	if (handle.includes("e")) w = Math.max(start.w + delta.x, SECTION_MIN.w);
-	if (handle.includes("s")) h = Math.max(start.h + delta.y, SECTION_MIN.h);
+	if (handle.includes("e")) w = Math.max(start.w + delta.x, min.w);
+	if (handle.includes("s")) h = Math.max(start.h + delta.y, min.h);
 	if (handle.includes("w")) {
-		w = Math.max(start.w - delta.x, SECTION_MIN.w);
+		w = Math.max(start.w - delta.x, min.w);
 		x = start.x + start.w - w;
 	}
 	if (handle.includes("n")) {
-		h = Math.max(start.h - delta.y, SECTION_MIN.h);
+		h = Math.max(start.h - delta.y, min.h);
 		y = start.y + start.h - h;
 	}
 	return { x, y, w, h };

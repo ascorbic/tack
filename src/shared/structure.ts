@@ -23,6 +23,7 @@ import {
 	shapesMap,
 	topZ,
 } from "./shapes.ts";
+import { normaliseWidgetRect } from "./widgetRegistry.ts";
 
 // Edits that keep the board's structure consistent: dropping shapes in and
 // out of sections, moving and resizing sections with their contents, and
@@ -232,6 +233,23 @@ export function resizeSection(doc: Y.Doc, id: string, rect: Rect, sizeOf?: SizeO
 			false,
 			sizeOf,
 		);
+	});
+}
+
+/**
+ * Resize a widget (#37). Like any shape that moves, it then belongs to
+ * whichever section it's in; unlike a section, it never takes anything in.
+ */
+export function resizeWidget(doc: Y.Doc, id: string, rect: Rect, sizeOf?: SizeOf): void {
+	doc.transact(() => {
+		const shape = shapesMap(doc).get(id);
+		if (!shape || shape.get("type") !== "widget") return;
+		const next = normaliseWidgetRect(rect);
+		shape.set("x", next.x);
+		shape.set("y", next.y);
+		shape.set("w", next.w);
+		shape.set("h", next.h);
+		reparent(doc, [id], true, sizeOf);
 	});
 }
 

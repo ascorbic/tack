@@ -16,7 +16,7 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | key          | shapes             | meaning                                       |
 // | ------------ | ------------------ | --------------------------------------------- |
 // | type         | all                | `card`, `sticky`, `text`, `section`,          |
-// |              |                    | `connector` or `decision`                     |
+// |              |                    | `connector`, `decision` or `widget`           |
 // | x, y         | all but connectors | top-left corner, absolute; 0 on connectors    |
 // | z            | all                | fractional index for stacking order           |
 // | parent       | all but connectors | id of the containing section, or null         |
@@ -29,7 +29,7 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | color        | sticky, section,   | a palette name                                |
 // |              | connector          |                                               |
 // | author       | sticky, decision   | who made it (who proposed a decision)         |
-// | w, h         | section            | size (cards and stickies size to content)     |
+// | w, h         | section, widget    | size (cards and stickies size to content)     |
 // | title        | section, decision  | the section's name; the decision's title      |
 // | from, to     | connector          | each end, see `ConnectorEnd`                  |
 // | label        | connector          | text at the middle of the line                |
@@ -52,6 +52,8 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | unmatched    | card               | when it stopped matching the inbox or rule    |
 // |              |                    | that brought it, ISO 8601; absent if it still |
 // |              |                    | matches (or nothing brought it)               |
+// | widget       | widget             | its kind, e.g. `list` (see widgetRegistry.ts) |
+// | config       | widget             | the kind's config, read with its schema       |
 //
 // Decisions link to items with ordinary connectors: a connector between a
 // decision and a card links that card (see `linkedItems` in decisions.ts).
