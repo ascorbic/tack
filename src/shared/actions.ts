@@ -14,7 +14,7 @@ import {
 } from "./changes.ts";
 import { readConnector } from "./connectors.ts";
 import type { RepoMeta } from "./push.ts";
-import { repoKeyOf } from "./refs.ts";
+import { forgeForHost, repoKeyOf } from "./refs.ts";
 import { readShape, shapesMap, transactLocal } from "./shapes.ts";
 
 // Built-in actions (#32): what the selection actions stage. Pure document
@@ -117,12 +117,10 @@ export function stageStickyIssues(
 				result.skipped.push({ shape: sticky.id, reason: "empty" });
 				continue;
 			}
-			const id = stageChange(
-				doc,
-				{ kind: "issue.create", repo, ...issue },
-				stager,
-				{ shapes: [sticky.id], effect: { kind: "replace", shapes: [sticky.id] } },
-			);
+			const id = stageChange(doc, { kind: "issue.create", repo, ...issue }, stager, {
+				shapes: [sticky.id],
+				effect: { kind: "replace", shapes: [sticky.id] },
+			});
 			result.staged.push(id);
 		}
 	});
@@ -212,9 +210,14 @@ export function stageParentIssue(
 				}
 			}
 			result.staged.push(
-				stageChange(doc, { kind: "item.subIssue", parent: { pending: parentId }, child: target }, stager, {
-					shapes: [child.shape],
-				}),
+				stageChange(
+					doc,
+					{ kind: "item.subIssue", parent: { pending: parentId }, child: target },
+					stager,
+					{
+						shapes: [child.shape],
+					},
+				),
 			);
 			result.children++;
 		}
@@ -455,6 +458,27 @@ export function setEdits(
 	return out;
 }
 
+/**
+ * An item's labels or assignees as they'll be once staged and pushed
+ * changes land: the forge's `names`, with every live edit applied in order.
+ */
+export function withStaged(
+	doc: Y.Doc,
+	key: string,
+	kind: "item.labels" | "item.assignees",
+	names: readonly string[],
+): string[] {
+	const out = new Set(names);
+	for (const change of listChanges(doc)) {
+		const op = change.op;
+		if (op.kind !== kind || !LIVE.has(change.status) || change.status === "failed") continue;
+		if (!("key" in op.target) || op.target.key !== key) continue;
+		for (const name of op.add ?? []) out.add(name);
+		for (const name of op.remove ?? []) out.delete(name);
+	}
+	return [...out];
+}
+
 /** Stage per-item set edits (labels or assignees), one change per item. */
 export function stageSetEdits(
 	doc: Y.Doc,
@@ -498,4 +522,25 @@ export function boardRepos(doc: Y.Doc): { repo: string; cards: number }[] {
 	return [...counts]
 		.map(([repo, cards]) => ({ repo, cards }))
 		.sort((a, b) => b.cards - a.cards || a.repo.localeCompare(b.repo));
+}
+
+/**
+ * A repository someone typed: `owner/repo` (on `host`, the board's usual
+ * forge), `host/owner/repo`, or a URL. Null unless it's on a known forge.
+ */
+export function parseRepoInput(text: string, host: string): string | null {
+	const trimmed = text
+		.trim()
+		.replace(/^https?:\/\//i, "")
+		.replace(/\.git$/i, "")
+		.replace(/\/+$/, "");
+	const parts = trimmed.split("/");
+	const name = /^[\w.-]+$/;
+	if (parts.length === 2 && parts.every((part) => name.test(part))) {
+		return forgeForHost(host) ? `${host}/${trimmed}`.toLowerCase() : null;
+	}
+	if (parts.length === 3 && parts.slice(1).every((part) => name.test(part))) {
+		return forgeForHost(parts[0] ?? "") ? trimmed.toLowerCase() : null;
+	}
+	return null;
 }

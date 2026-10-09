@@ -5,6 +5,7 @@ import {
 	boardRepos,
 	canWrite,
 	issueFromText,
+	parseRepoInput,
 	pendingIssueFor,
 	presenceOf,
 	setEdits,
@@ -14,6 +15,7 @@ import {
 	stageSetEdits,
 	stageStickyIssues,
 	stageTriage,
+	withStaged,
 } from "../src/shared/actions.ts";
 import {
 	type Operation,
@@ -348,6 +350,19 @@ describe("triage", () => {
 		]);
 	});
 
+	it("shows what an item will have once staged edits land", () => {
+		const { doc } = board();
+		stageTriage(doc, [{ key: A }], { kind: "item.labels", add: ["docs"], remove: ["bug"] }, PRIYA);
+		stageTriage(doc, [{ key: A }], { kind: "item.labels", add: ["provider"] }, KAI);
+		stageTriage(doc, [{ key: B }], { kind: "item.labels", add: ["nope"] }, KAI);
+		expect(withStaged(doc, A, "item.labels", ["bug", "breaking"])).toEqual([
+			"breaking",
+			"docs",
+			"provider",
+		]);
+		expect(withStaged(doc, A, "item.assignees", ["kai"])).toEqual(["kai"]);
+	});
+
 	it("doesn't stage empty edits", () => {
 		const { doc } = board();
 		expect(stageTriage(doc, [{ key: A }], { kind: "item.assignees" }, PRIYA)).toEqual([]);
@@ -437,5 +452,21 @@ describe("other helpers", () => {
 		expect(canWrite({}, "item.labels")).toBe(true);
 		expect(canWrite({ writes: ["issue.create"] }, "item.labels")).toBe(false);
 		expect(canWrite({ writes: ["issue.create"] }, "issue.create")).toBe(true);
+	});
+});
+
+describe("parseRepoInput", () => {
+	it("reads owner/repo on the board's forge, a host path, or a URL", () => {
+		expect(parseRepoInput("Acme/ImageKit", "github.com")).toBe("github.com/acme/imagekit");
+		expect(parseRepoInput("fake.tack/acme/x", "github.com")).toBe("fake.tack/acme/x");
+		expect(parseRepoInput("https://github.com/a/b.git", "fake.tack")).toBe("github.com/a/b");
+		expect(parseRepoInput("https://github.com/a/b/", "fake.tack")).toBe("github.com/a/b");
+	});
+
+	it("is null for anything else", () => {
+		expect(parseRepoInput("acme", "github.com")).toBeNull();
+		expect(parseRepoInput("a/b/c/d", "github.com")).toBeNull();
+		expect(parseRepoInput("gitlab.example/a/b", "github.com")).toBeNull();
+		expect(parseRepoInput("a b/c", "github.com")).toBeNull();
 	});
 });
