@@ -302,7 +302,7 @@
 	}
 }
 
-.connector-toolbar button {
+.connector-toolbar-inner > button {
 	display: grid;
 	place-items: center;
 	width: 30px;
@@ -318,15 +318,15 @@
 		transform var(--t-quick) var(--ease-out);
 }
 
-.connector-toolbar button:hover {
+.connector-toolbar-inner > button:hover {
 	background: var(--hover);
 }
 
-.connector-toolbar button:active {
+.connector-toolbar-inner > button:active {
 	transform: scale(0.92);
 }
 
-.connector-toolbar button[aria-pressed="true"] {
+.connector-toolbar-inner > button[aria-pressed="true"] {
 	background: var(--accent-soft);
 	color: var(--accent);
 }

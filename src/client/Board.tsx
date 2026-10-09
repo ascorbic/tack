@@ -34,6 +34,10 @@ import {
 	focusWhenMounted,
 	useShapeNodes,
 } from "./board.ts";
+import { ActionBar } from "./actions/ActionBar.tsx";
+import { BlockedByAction } from "./actions/BlockedBy.tsx";
+import { ActionRequests } from "./actions/selection.ts";
+import { ServicesContext, type WriteServices, liveServices } from "./actions/services.ts";
 import type { BoardSource } from "./connection.ts";
 import { BrandMark } from "./BrandMark.tsx";
 import { useCanvasStructure, useSizeOf } from "./canvasStructure.ts";
@@ -81,6 +85,11 @@ interface BoardProps extends BoardSource {
 	actions?: ReactNode;
 	/** Extra UI drawn over the canvas, e.g. the playground's controls. */
 	children?: ReactNode;
+	/**
+	 * What the selection actions need from outside the document (repository
+	 * metadata, snapshot uploads). Defaults to the Worker's API for board `name`.
+	 */
+	services?: WriteServices;
 }
 
 export function Board({
@@ -94,6 +103,7 @@ export function Board({
 	account,
 	actions,
 	children,
+	services,
 }: BoardProps) {
 	const shapeNodes = useShapeNodes(doc);
 	const flow = useReactFlow();
@@ -122,6 +132,9 @@ export function Board({
 	const history = useMemo(() => new History(doc), [doc]);
 	useEffect(() => () => history.destroy(), [history]);
 	const [toasts] = useState(() => new ToastStore());
+	// Selection actions: staging changes for the forge (src/client/actions/).
+	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
+	const [actionRequests] = useState(() => new ActionRequests());
 	const canvas = useRef<HTMLElement>(null);
 	const [sheetOpen, setSheetOpen] = useState(false);
 	// Shift-dragging a marquee adds to the selection instead of replacing it.
@@ -228,6 +241,7 @@ export function Board({
 		toggleShortcuts: () => setSheetOpen((open) => !open),
 		onNavigate: follow.stop,
 		readOnly,
+		onAction: (id) => actionRequests.request(id),
 	});
 
 	const onNodesChange: OnNodesChange<ShapeNode> = useCallback(
@@ -385,171 +399,201 @@ export function Board({
 			readOnly={readOnly}
 			decisions={decisionBoard}
 		>
-			<div className="app" data-read-only={readOnly || undefined}>
-				<header className="topbar">
-					<a className="brand" href="/" aria-label="Tack: all boards">
-						<BrandMark />
-						tack
-					</a>
-					{title ?? <span className="board-name">{name}</span>}
-					<People
-						user={user}
-						selfId={awareness.clientID}
-						people={presence.people}
-						following={follow.following}
-						onFollow={follow.follow}
-						self={account}
-					/>
-					<ThemeToggle />
-					<span className="status" data-synced={synced}>
-						{synced ? "Synced" : "Connecting…"}
-					</span>
-					{actions}
-				</header>
-				<main
-					ref={canvas}
-					className="canvas"
-					data-tool={tool}
-					onPointerMove={(event) => {
-						const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-						presence.setCursor(at);
-						if (tool === "sticky") setGhost(at);
-					}}
-					onPointerLeave={() => {
-						presence.setCursor(null);
-						setGhost(null);
-					}}
-					onDragOver={onDragOver}
-					onDrop={onDrop}
-				>
-					<ReactFlow
-						nodes={nodes}
-						nodeTypes={NODE_TYPES}
-						onNodesChange={onNodesChange}
-						onPaneClick={onPaneClick}
-						onMoveStart={follow.onMoveStart}
-						proOptions={{ hideAttribution: true }}
-						onlyRenderVisibleElements
-						selectionOnDrag={tool === "select"}
-						panOnDrag={tool === "hand" ? true : [1, 2]}
-						panOnScroll
-						nodesDraggable={!readOnly && shapesInteractive}
-						elementsSelectable={shapesInteractive}
-						minZoom={0.1}
-						// Deleting is a board command (see commands.ts), so that shapes
-						// and connectors go together, as one undo step.
-						deleteKeyCode={null}
-						selectionMode={SelectionMode.Partial}
-						selectionKeyCode={null}
-						multiSelectionKeyCode={["Shift", "Meta", "Control"]}
-						onSelectionStart={(event) => {
-							// React Flow has just deselected every shape, before calling
-							// this. A plain marquee replaces the whole selection,
-							// connectors too; with Shift, it adds to what was selected.
-							const base = event.shiftKey ? new Set(selected) : null;
-							marqueeBase.current = base;
-							setSelected(new Set(base));
-						}}
-						onSelectionEnd={() => {
-							marqueeBase.current = null;
-						}}
-						onNodeClick={(event, node) => {
-							// Clicking one shape in a multi-selection selects just that one.
-							if (event.shiftKey || event.metaKey || event.ctrlKey) return;
-							if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
-						}}
-					>
-						<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-						<Controls
-							showInteractive={false}
-							onZoomIn={follow.stop}
-							onZoomOut={follow.stop}
-							onFitView={follow.stop}
-						>
-							<ControlButton
-								onClick={() => setSheetOpen(true)}
-								title="Keyboard shortcuts (?)"
-								aria-label="Keyboard shortcuts"
-								className="shortcuts-button"
-							>
-								?
-							</ControlButton>
-						</Controls>
-						<MiniMap pannable zoomable nodeClassName={minimapClass} />
-						<ZoomVariable />
-						<ConnectorLayer
-							doc={doc}
-							awareness={awareness}
-							nodes={nodes}
-							sectionDrags={structure.sectionDrags}
-							drawing={!readOnly && tool === "connector"}
-							interactive={!readOnly && tool !== "hand"}
-							onDrawn={() => setTool("select")}
-							selected={selected}
-							setSelected={setSelected}
-							sizeOf={boxSize}
+			<ServicesContext value={writeServices}>
+				<div className="app" data-read-only={readOnly || undefined}>
+					<header className="topbar">
+						<a className="brand" href="/" aria-label="Tack: all boards">
+							<BrandMark />
+							tack
+						</a>
+						{title ?? <span className="board-name">{name}</span>}
+						<People
+							user={user}
+							selfId={awareness.clientID}
+							people={presence.people}
+							following={follow.following}
+							onFollow={follow.follow}
+							self={account}
 						/>
-						{!readOnly && tool === "section" && (
-							<SectionTool
+						<ThemeToggle />
+						<span className="status" data-synced={synced}>
+							{synced ? "Synced" : "Connecting…"}
+						</span>
+						{actions}
+					</header>
+					<main
+						ref={canvas}
+						className="canvas"
+						data-tool={tool}
+						onPointerMove={(event) => {
+							const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+							presence.setCursor(at);
+							if (tool === "sticky") setGhost(at);
+						}}
+						onPointerLeave={() => {
+							presence.setCursor(null);
+							setGhost(null);
+						}}
+						onDragOver={onDragOver}
+						onDrop={onDrop}
+					>
+						<ReactFlow
+							nodes={nodes}
+							nodeTypes={NODE_TYPES}
+							onNodesChange={onNodesChange}
+							onPaneClick={onPaneClick}
+							onMoveStart={follow.onMoveStart}
+							proOptions={{ hideAttribution: true }}
+							onlyRenderVisibleElements
+							selectionOnDrag={tool === "select"}
+							panOnDrag={tool === "hand" ? true : [1, 2]}
+							panOnScroll
+							nodesDraggable={!readOnly && shapesInteractive}
+							elementsSelectable={shapesInteractive}
+							minZoom={0.1}
+							// Deleting is a board command (see commands.ts), so that shapes
+							// and connectors go together, as one undo step.
+							deleteKeyCode={null}
+							selectionMode={SelectionMode.Partial}
+							selectionKeyCode={null}
+							multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+							onSelectionStart={(event) => {
+								// React Flow has just deselected every shape, before calling
+								// this. A plain marquee replaces the whole selection,
+								// connectors too; with Shift, it adds to what was selected.
+								const base = event.shiftKey ? new Set(selected) : null;
+								marqueeBase.current = base;
+								setSelected(new Set(base));
+							}}
+							onSelectionEnd={() => {
+								marqueeBase.current = null;
+							}}
+							onNodeClick={(event, node) => {
+								// Clicking one shape in a multi-selection selects just that one.
+								if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+								if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
+							}}
+						>
+							<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
+							<Controls
+								showInteractive={false}
+								onZoomIn={follow.stop}
+								onZoomOut={follow.stop}
+								onFitView={follow.stop}
+							>
+								<ControlButton
+									onClick={() => setSheetOpen(true)}
+									title="Keyboard shortcuts (?)"
+									aria-label="Keyboard shortcuts"
+									className="shortcuts-button"
+								>
+									?
+								</ControlButton>
+							</Controls>
+							<MiniMap pannable zoomable nodeClassName={minimapClass} />
+							<ZoomVariable />
+							<ConnectorLayer
 								doc={doc}
-								sizeOf={boxSize}
-								onCreate={(id) => {
-									setSelected(new Set([id]));
-									setTool("select");
-								}}
-							/>
-						)}
-						<Guides store={snapping.guides} />
-						{!readOnly && (
-							<SelectionTools
+								awareness={awareness}
 								nodes={nodes}
+								sectionDrags={structure.sectionDrags}
+								drawing={!readOnly && tool === "connector"}
+								interactive={!readOnly && tool !== "hand"}
+								onDrawn={() => setTool("select")}
 								selected={selected}
-								sizeOf={sizeOf}
-								dragging={snapping.dragging}
-								stacked={styledShapes(selectedNodes).length > 0}
-								onCommand={commands.run}
+								setSelected={setSelected}
+								sizeOf={boxSize}
+								connectorActions={
+									readOnly
+										? undefined
+										: (id) => (
+												<BlockedByAction
+													key={id}
+													doc={doc}
+													connector={id}
+													user={user}
+													toasts={toasts}
+													history={history}
+													requests={actionRequests}
+												/>
+											)
+								}
 							/>
-						)}
-						<Cursors people={presence.people} />
-						<ViewPublisher awareness={awareness} />
-						{!readOnly && (
-							<ShapeToolbar
-								doc={doc}
-								selected={selectedNodes}
-								dragging={snapping.dragging}
-								onStickyColor={setStickyColor}
-							/>
-						)}
-						{ghost && (
-							<ViewportPortal>
-								<div
-									className="sticky sticky-ghost"
-									data-color={stickyColor}
-									aria-hidden="true"
-									style={{
-										transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+							{!readOnly && tool === "section" && (
+								<SectionTool
+									doc={doc}
+									sizeOf={boxSize}
+									onCreate={(id) => {
+										setSelected(new Set([id]));
+										setTool("select");
 									}}
 								/>
-							</ViewportPortal>
+							)}
+							<Guides store={snapping.guides} />
+							{!readOnly && (
+								<SelectionTools
+									nodes={nodes}
+									selected={selected}
+									sizeOf={sizeOf}
+									dragging={snapping.dragging}
+									stacked={styledShapes(selectedNodes).length > 0}
+									onCommand={commands.run}
+								/>
+							)}
+							<Cursors people={presence.people} />
+							<ViewPublisher awareness={awareness} />
+							{!readOnly && (
+								<ShapeToolbar
+									doc={doc}
+									selected={selectedNodes}
+									dragging={snapping.dragging}
+									onStickyColor={setStickyColor}
+								/>
+							)}
+							{!readOnly && (
+								<ActionBar
+									doc={doc}
+									selected={selectedNodes}
+									nodes={nodes}
+									dragging={snapping.dragging}
+									user={user}
+									toasts={toasts}
+									history={history}
+									requests={actionRequests}
+									sizeOf={sizeOf}
+								/>
+							)}
+							{ghost && (
+								<ViewportPortal>
+									<div
+										className="sticky sticky-ghost"
+										data-color={stickyColor}
+										aria-hidden="true"
+										style={{
+											transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+										}}
+									/>
+								</ViewportPortal>
+							)}
+						</ReactFlow>
+						<EmptyBoard empty={!readOnly && synced && shapeNodes.length === 0} onTool={setTool} />
+						<FollowIndicator person={follow.target} onStop={follow.stop} />
+						<CursorChat awareness={awareness} user={user} />
+						{!readOnly && (
+							<Toolbar
+								tool={tool}
+								onTool={setTool}
+								stickyColor={stickyColor}
+								onStickyColor={setStickyColor}
+								onAddCard={onAddCard}
+							/>
 						)}
-					</ReactFlow>
-					<EmptyBoard empty={!readOnly && synced && shapeNodes.length === 0} onTool={setTool} />
-					<FollowIndicator person={follow.target} onStop={follow.stop} />
-					<CursorChat awareness={awareness} user={user} />
-					{!readOnly && (
-						<Toolbar
-							tool={tool}
-							onTool={setTool}
-							stickyColor={stickyColor}
-							onStickyColor={setStickyColor}
-							onAddCard={onAddCard}
-						/>
-					)}
-					<Toasts store={toasts} />
-					<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
-					{children}
-				</main>
-			</div>
+						<Toasts store={toasts} />
+						<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+						{children}
+					</main>
+				</div>
+			</ServicesContext>
 		</BoardContext>
 	);
 }

@@ -18,13 +18,22 @@ export interface KeyCombo {
 	shift?: boolean;
 }
 
-export type ShortcutGroup = "Tools" | "Edit" | "Selection" | "Arrange" | "View" | "People" | "Help";
+export type ShortcutGroup =
+	| "Tools"
+	| "Edit"
+	| "Selection"
+	| "Arrange"
+	| "Issues"
+	| "View"
+	| "People"
+	| "Help";
 
 export const GROUPS: ShortcutGroup[] = [
 	"Tools",
 	"Edit",
 	"Selection",
 	"Arrange",
+	"Issues",
 	"View",
 	"People",
 	"Help",
@@ -83,6 +92,14 @@ export type CommandId =
 	| "zoomToFit"
 	| "zoomTo100"
 	| "zoomToSelection"
+	| "makeIssues"
+	| "parentIssue"
+	| "labels"
+	| "milestone"
+	| "assign"
+	| "closeReopen"
+	| "backlink"
+	| "blockedBy"
 	| "shortcuts";
 
 const arrow = (key: string, shift: boolean): KeyCombo[] => [{ key, shift }];
@@ -263,6 +280,64 @@ export const SHORTCUTS: Shortcut[] = [
 		group: "Arrange",
 		combos: [{ code: "KeyT", alt: true, ctrl: true }],
 		keywords: "grid arrange",
+	},
+	// Selection actions: each stages changes for the push sheet (see
+	// src/client/actions/). ⌥ with a letter, by key code, as for aligning.
+	{
+		id: "makeIssues",
+		label: "Make issues from stickies",
+		group: "Issues",
+		combos: [{ code: "KeyI", alt: true, shift: false }],
+		keywords: "sticky issue create github stage",
+	},
+	{
+		id: "parentIssue",
+		label: "Make a parent issue with sub-issues",
+		group: "Issues",
+		combos: [{ code: "KeyI", alt: true, shift: true }],
+		keywords: "section group sub-issues github stage",
+	},
+	{
+		id: "labels",
+		label: "Labels",
+		group: "Issues",
+		combos: [{ code: "KeyL", alt: true, shift: false }],
+		keywords: "label triage tag github stage",
+	},
+	{
+		id: "milestone",
+		label: "Milestone",
+		group: "Issues",
+		combos: [{ code: "KeyM", alt: true, shift: false }],
+		keywords: "milestone triage release github stage",
+	},
+	{
+		id: "assign",
+		label: "Assign",
+		group: "Issues",
+		combos: [{ code: "KeyP", alt: true, shift: false }],
+		keywords: "assignee people person triage github stage",
+	},
+	{
+		id: "closeReopen",
+		label: "Close or reopen",
+		group: "Issues",
+		combos: [{ code: "KeyC", alt: true, shift: false }],
+		keywords: "close reopen state not planned duplicate github stage",
+	},
+	{
+		id: "blockedBy",
+		label: "Connector to blocked-by",
+		group: "Issues",
+		combos: [{ code: "KeyB", alt: true, shift: false }],
+		keywords: "blocked blocks dependency connector arrow github stage",
+	},
+	{
+		id: "backlink",
+		label: "Comment with a link to the board",
+		group: "Issues",
+		combos: [{ code: "KeyK", alt: true, shift: false }],
+		keywords: "backlink comment snapshot link github stage",
 	},
 	{
 		id: "zoomIn",

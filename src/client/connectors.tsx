@@ -9,6 +9,7 @@ import {
 	useContext,
 	useSyncExternalStore,
 	type PointerEvent as ReactPointerEvent,
+	type ReactNode,
 } from "react";
 import type { Awareness } from "y-protocols/awareness";
 import type * as Y from "yjs";
@@ -185,6 +186,8 @@ export interface ConnectorLayerProps {
 	selected: ReadonlySet<string>;
 	setSelected: (update: (current: Set<string>) => Set<string>) => void;
 	sizeOf: SizeOf;
+	/** Extra controls at the end of a selected connector's toolbar, e.g. blocked-by. */
+	connectorActions?: (id: string) => ReactNode;
 }
 
 export function ConnectorLayer({
@@ -198,6 +201,7 @@ export function ConnectorLayer({
 	selected,
 	setSelected,
 	sizeOf,
+	connectorActions,
 }: ConnectorLayerProps) {
 	const entries = useConnectors(doc);
 	const store = useStoreApi();
@@ -593,6 +597,7 @@ export function ConnectorLayer({
 								}}
 								onLabel={() => setEditing(singleDrawn.entry.id)}
 								onDelete={() => remove([singleDrawn.entry.id])}
+								extra={connectorActions?.(singleDrawn.entry.id)}
 							/>
 						)}
 					</>
@@ -839,12 +844,14 @@ function ConnectorToolbar({
 	onStyle,
 	onLabel,
 	onDelete,
+	extra,
 }: {
 	at: Point;
 	connector: Connector;
 	onStyle: (style: Partial<Pick<Connector, "route" | "arrow" | "dash" | "color">>) => void;
 	onLabel: () => void;
 	onDelete: () => void;
+	extra?: ReactNode;
 }) {
 	return (
 		<div
@@ -916,6 +923,7 @@ function ConnectorToolbar({
 						<path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10" />
 					</svg>
 				</button>
+				{extra}
 			</div>
 		</div>
 	);

@@ -30,6 +30,7 @@ import {
 	toPlainText,
 } from "./clipboard.ts";
 import type { User } from "./presence.ts";
+import type { ActionCommand } from "./actions/selection.ts";
 import { type CommandId, isApplePlatform, matchShortcut, shortcutHint } from "./shortcuts.ts";
 import { type Rect, intersects, unionRect } from "./snapping.ts";
 import type { ToastStore } from "./Toasts.tsx";
@@ -76,10 +77,13 @@ interface CommandsOptions {
 	onNavigate?: () => void;
 	/** View only: copying and moving the view still work, but nothing that changes the board. */
 	readOnly?: boolean;
+	/** Open a selection action (src/client/actions/); false if none applies. */
+	onAction?: (id: ActionCommand) => boolean;
 }
 
 /** Commands that change the document, which view-only boards ignore. */
-const WRITES = /^(undo|redo|duplicate|delete|nudge|align|distribute|tidy)/;
+const WRITES =
+	/^(undo|redo|duplicate|delete|nudge|align|distribute|tidy|makeIssues|parentIssue|labels|milestone|assign|closeReopen|backlink|blockedBy)/;
 
 export function useCanvasCommands(options: CommandsOptions) {
 	const flow = useReactFlow<ShapeNode>();
@@ -478,6 +482,15 @@ export function useCanvasCommands(options: CommandsOptions) {
 				case "shortcuts":
 					toggleShortcuts();
 					return true;
+				case "makeIssues":
+				case "parentIssue":
+				case "labels":
+				case "milestone":
+				case "assign":
+				case "closeReopen":
+				case "backlink":
+				case "blockedBy":
+					return latest.current.onAction?.(id) ?? false;
 				case "copy":
 				case "cut":
 				case "paste":
