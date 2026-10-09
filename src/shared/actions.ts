@@ -330,6 +330,11 @@ export interface TriageTarget {
 	key: string;
 	/** The card's shape, for highlighting. */
 	shape?: string;
+	/**
+	 * Labels or assignees: what the item has on the forge now, so edits that
+	 * would change nothing (removing a label it doesn't have) are dropped.
+	 */
+	current?: readonly string[];
 }
 
 const sameStager = (a: Stager, b: Stager) =>
@@ -399,7 +404,7 @@ export function stageTriage(
 	);
 	transactLocal(doc, () => {
 		const changes = changesMap(doc);
-		for (const { key, shape } of targets) {
+		for (const { key, shape, current } of targets) {
 			const target: Target = { key };
 			const mine = existing.find(
 				(change) => "target" in change.op && sameTarget(change.op.target, target),
@@ -407,6 +412,10 @@ export function stageTriage(
 			let op = triageOp(triage, target);
 			if (mine && (op.kind === "item.labels" || op.kind === "item.assignees")) {
 				const merged = mergeSets(mine.op as typeof op, op);
+				if (current) {
+					merged.add = merged.add.filter((name) => !current.includes(name));
+					merged.remove = merged.remove.filter((name) => current.includes(name));
+				}
 				if (merged.add.length === 0 && merged.remove.length === 0) {
 					unstageChanges(doc, [mine.id]);
 					continue;
@@ -483,12 +492,19 @@ export function withStaged(
 export function stageSetEdits(
 	doc: Y.Doc,
 	kind: "item.labels" | "item.assignees",
-	edits: { key: string; add: string[]; remove: string[]; shape?: string }[],
+	edits: {
+		key: string;
+		add: string[];
+		remove: string[];
+		shape?: string;
+		/** What the item has on the forge now (see `TriageTarget`). */
+		current?: readonly string[];
+	}[],
 	stager: Stager,
 ): string[] {
 	return transactLocal(doc, () =>
-		edits.flatMap((edit) =>
-			stageTriage(doc, [{ key: edit.key, shape: edit.shape }], { kind, ...edit }, stager),
+		edits.flatMap(({ key, shape, current, add, remove }) =>
+			stageTriage(doc, [{ key, shape, current }], { kind, add, remove }, stager),
 		),
 	);
 }

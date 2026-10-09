@@ -350,6 +350,39 @@ describe("triage", () => {
 		]);
 	});
 
+	it("drops edits that would change nothing on the forge", () => {
+		const { doc } = board();
+		// Add "docs", then take it away again: the item never had it.
+		stageSetEdits(
+			doc,
+			"item.labels",
+			[{ key: A, add: ["docs"], remove: [], current: ["bug"] }],
+			PRIYA,
+		);
+		stageSetEdits(
+			doc,
+			"item.labels",
+			[{ key: A, add: [], remove: ["docs"], current: ["bug"] }],
+			PRIYA,
+		);
+		expect(listChanges(doc)).toEqual([]);
+		stageSetEdits(
+			doc,
+			"item.labels",
+			[{ key: A, add: ["docs"], remove: [], current: ["bug"] }],
+			PRIYA,
+		);
+		stageSetEdits(
+			doc,
+			"item.labels",
+			[{ key: A, add: [], remove: ["bug"], current: ["bug"] }],
+			PRIYA,
+		);
+		expect(ops(doc)).toEqual([
+			{ kind: "item.labels", target: { key: A }, add: ["docs"], remove: ["bug"] },
+		]);
+	});
+
 	it("shows what an item will have once staged edits land", () => {
 		const { doc } = board();
 		stageTriage(doc, [{ key: A }], { kind: "item.labels", add: ["docs"], remove: ["bug"] }, PRIYA);
