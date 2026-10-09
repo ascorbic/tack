@@ -22,6 +22,7 @@ import {
 	proposedDecisions,
 	pushWriteBacks,
 } from "./decisions.ts";
+import { AutomationPlay } from "./AutomationPlay.tsx";
 import { fixture, LABELS } from "./fixtures.ts";
 import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
@@ -573,6 +574,8 @@ export default function Playground() {
 							</button>
 						</div>
 					</div>
+
+					<AutomationPlay doc={sim.doc} />
 
 					<div className="play-section">
 						<h2 className="play-label">Checks and reviews</h2>

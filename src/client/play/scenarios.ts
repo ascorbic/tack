@@ -13,6 +13,7 @@ import {
 import { type NewConnector, addConnector, addSection } from "../../shared/structure.ts";
 import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
+import { seedInbox, seedRules } from "./automationScenarios.ts";
 import { seedDecisions } from "./decisions.ts";
 import type { Stager } from "../../shared/changes.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
@@ -502,6 +503,18 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"Select “Drop Node 18 support” and Expand related (⌥E) to lay out its web around it. On the left, cards an inbox, a rule and a list brought: one no longer matches.",
 		seed: seedRelated,
+	},
+	inbox: {
+		name: "Triage inbox",
+		description:
+			"A section bound to a search: new matches wait in its tray. Drag them into place or dismiss them, then have new issues arrive.",
+		seed: seedInbox,
+	},
+	rules: {
+		name: "Rules",
+		description:
+			"Two rules: pull requests land beside the issues they close, and new bugs go into a section. Open Rules, then fire some webhooks.",
+		seed: seedRules,
 	},
 	empty: {
 		name: "Empty",
