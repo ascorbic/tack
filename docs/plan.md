@@ -19,6 +19,10 @@ These decide arguments before they start.
 
 ## Where we are
 
+**M1 is done (9 October 2026).** All 22 issues are closed: GitHub App and sign-in, boards with membership and visibility, two tiers of repo access with per-viewer filtering of private items, PR cards with CI and reviews, freshness and webhook redelivery, sections and connectors, selection, undo, clipboard and snapping, stickies and text, cursor chat and follow, dark mode, logs and error reporting, and e2e tests. It runs at https://tack.ascorbic.workers.dev. Next up is M2: writing back to GitHub.
+
+The spike notes below are kept for history.
+
 **Spike, done** (branch `spike/live-cards`, see `docs/spike.md`):
 
 - `Board` and `Repo` Durable Objects; Yjs via y-partyserver with chunked snapshots
