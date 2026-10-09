@@ -4,6 +4,7 @@ import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.t
 import { handleClientError } from "./server/clientErrors.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
+import { handlePush } from "./server/push/routes.ts";
 import { handleWebhook } from "./server/webhooks.ts";
 
 export { Board } from "./server/board.ts";
@@ -25,6 +26,10 @@ export default {
 		// Sign-in, setup and instance settings.
 		const identity = (await handleAuth(request, env)) ?? (await handleSetup(request, env));
 		if (identity) return identity;
+
+		// Pushing staged changes, the audit log, and what repositories offer to write with.
+		const push = await handlePush(request, env);
+		if (push) return push;
 
 		// The board index, membership and visibility.
 		const boards = await handleBoards(request, env);

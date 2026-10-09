@@ -3,6 +3,7 @@ import { YServer } from "y-partyserver";
 import * as Y from "yjs";
 import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
 import type { BoardRequest, Card, CardMessage, MissingCard } from "../shared/cards.ts";
+import type { AuditEntry, PushResponse } from "../shared/push.ts";
 import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
 import { REPAIR_ORIGIN, repairBoard } from "../shared/repair.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
@@ -13,6 +14,7 @@ import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts"
 import { userToken } from "./identity.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
+import { PushEngine, type PushCommand, type PushTiming } from "./push/engine.ts";
 import { repoObject, resolveRepo } from "./routing.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
 
@@ -103,6 +105,9 @@ export class Board extends YServer<Env> {
 	private heartbeat: ReturnType<typeof setInterval> | undefined;
 	private watchedAt = 0;
 
+	/** Pushes staged changes to forges (M2). Ready once the document has loaded. */
+	private pushes: PushEngine | null = null;
+
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
 			return super.fetch(request);
@@ -129,6 +134,23 @@ export class Board extends YServer<Env> {
 			this.routes.set(row.repo_key, JSON.parse(row.identity) as RepoIdentity);
 		}
 		await super.onStart();
+		this.pushes = new PushEngine({
+			name: this.name,
+			env: this.env,
+			doc: this.document,
+			sql: this.ctx.storage.sql,
+			route: (repoKey) => this.route(repoKey),
+			watch: () => void this.syncSubscriptions(),
+			persist: () => this.writeSnapshot(),
+			alarmAt: async (at) => {
+				const current = await this.ctx.storage.getAlarm();
+				// An alarm in the past is the one running now (or about to).
+				if (current === null || at < current || current <= Date.now()) {
+					await this.ctx.storage.setAlarm(at);
+				}
+			},
+		});
+		await this.pushes.init();
 		watchCardRefs(this.document, () => void this.syncSubscriptions(), {
 			wait: SYNC_WAIT_MS,
 			maxWait: SYNC_MAX_WAIT_MS,
@@ -193,6 +215,12 @@ export class Board extends YServer<Env> {
 	}
 
 	override async onSave(): Promise<void> {
+		this.writeSnapshot();
+		await this.updateIndex();
+	}
+
+	/** Write the document to storage now. */
+	private writeSnapshot(): void {
 		// Re-encoding the full state compacts the update history each save.
 		const update = Y.encodeStateAsUpdate(this.document);
 		const context = {
@@ -216,7 +244,6 @@ export class Board extends YServer<Env> {
 			throw error;
 		}
 		log.info("board.save", context);
-		await this.updateIndex();
 	}
 
 	/**
@@ -360,6 +387,40 @@ export class Board extends YServer<Env> {
 		await this.syncSubscriptions();
 	}
 
+	// --- Pushing (M2) --------------------------------------------------------------
+
+	/**
+	 * Push staged changes, as checked by the Worker (`POST /api/boards/:id/push`):
+	 * `by` is signed in and may edit the board. See `push/engine.ts`.
+	 */
+	async push(command: PushCommand): Promise<PushResponse> {
+		return this.pushEngine().push(command);
+	}
+
+	/** The board's audit log of pushes, newest first. */
+	pushLog(): AuditEntry[] {
+		return this.pushEngine().audit();
+	}
+
+	/** For tests: shorten the push engine's pauses. */
+	async pushTiming(timing: Partial<PushTiming>): Promise<void> {
+		this.pushEngine().setTiming(timing);
+	}
+
+	/** For tests: run whatever pushes are due now, and wait for them. */
+	async runPushes(): Promise<void> {
+		await this.pushEngine().run();
+	}
+
+	override async onAlarm(): Promise<void> {
+		await this.pushEngine().run();
+	}
+
+	private pushEngine(): PushEngine {
+		if (!this.pushes) throw new Error("Board not started");
+		return this.pushes;
+	}
+
 	/** Snapshot size in bytes, for measuring growth. */
 	snapshotSize(): number {
 		return Y.encodeStateAsUpdate(this.document).byteLength;
@@ -399,6 +460,8 @@ export class Board extends YServer<Env> {
 
 	private async syncOnce(): Promise<void> {
 		const refs = cardRefs(this.document);
+		// Items with pushed changes waiting to be confirmed, whether or not they're on the board.
+		for (const key of this.pushes?.watchKeys() ?? []) refs.add(key);
 		for (const key of this.cards.keys()) if (!refs.has(key)) this.cards.delete(key);
 		const added = [...refs].filter((key) => !this.subscribed.has(key));
 		const removed = [...this.subscribed].filter((key) => !refs.has(key));
@@ -511,6 +574,7 @@ export class Board extends YServer<Env> {
 		if (cards.length === 0) return;
 		for (const card of cards) this.cards.set(card.key, card);
 		for (const connection of this.getConnections()) this.send(connection, cards);
+		this.pushes?.cardsArrived(cards);
 	}
 
 	// --- Per-viewer filtering (#10) ------------------------------------------------

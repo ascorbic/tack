@@ -715,7 +715,7 @@ export class FakeGitHub {
 				number,
 				kind: "pull",
 				title: String(body.title),
-				body: String(body.body ?? ""),
+				body: typeof body.body === "string" ? body.body : "",
 				state: "open",
 				updatedAt: now,
 				createdAt: now,
@@ -1117,7 +1117,7 @@ export class FakeGitHub {
 		};
 	}
 
-	private gqlItem(repo: FakeRepo, item: FakeItem) {
+	private gqlItem(repo: Pick<FakeRepo, "id" | "name" | "private">, item: FakeItem) {
 		const common = {
 			__typename: item.kind === "pull" ? "PullRequest" : "Issue",
 			id: `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`,
@@ -1221,7 +1221,7 @@ export class FakeGitHub {
 			found ||= Boolean(issue);
 			fields[alias ?? ""] = issue
 				? this.gqlItem(
-						{ id: 0, name: repo, private: true, collaborators: new Set() },
+						{ id: 0, name: repo, private: true },
 						{
 							number: issue.number,
 							kind: "issue",
