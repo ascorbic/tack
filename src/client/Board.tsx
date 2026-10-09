@@ -69,6 +69,9 @@ import { Toasts, ToastStore } from "./Toasts.tsx";
 import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar } from "./Toolbar.tsx";
 import { History } from "./undo.ts";
 import { usePublishStatus } from "./useActivity.ts";
+import { InboxLayer } from "./inbox/InboxTray.tsx";
+import { scaledDuration } from "./motion.ts";
+import { RulesButton, RulesPanel } from "./rules/RulesPanel.tsx";
 
 // Every shape shows the changes staged about it.
 const NODE_TYPES = Object.fromEntries(
@@ -250,6 +253,22 @@ export function Board({
 
 	const [tool, setTool] = useState<Tool>("select");
 	const [stickyColor, setStickyColor] = useState<StickyColor>("yellow");
+
+	// Rules (automation that places cards) and inbox frames.
+	const [rulesOpen, setRulesOpen] = useState(false);
+	const reveal = useCallback(
+		(id: string) => {
+			if (!flow.getNode(id)) return;
+			setSelected(new Set([id]));
+			void flow.fitView({
+				nodes: [{ id }],
+				padding: 1.2,
+				maxZoom: Math.max(flow.getZoom(), 0.9),
+				duration: scaledDuration(500),
+			});
+		},
+		[flow],
+	);
 
 	// Keyboard shortcuts, the clipboard (paste a URL for a card, or text for
 	// a sticky), nudging, arranging and the delete toast.
@@ -457,6 +476,13 @@ export function Board({
 								onFollow={follow.follow}
 								self={account}
 							/>
+							<RulesButton
+								doc={doc}
+								open={rulesOpen}
+								onToggle={() => setRulesOpen((open) => !open)}
+								toasts={toasts}
+								onReveal={reveal}
+							/>
 							<ThemeToggle />
 							<span className="status" data-synced={synced}>
 								{synced ? "Synced" : "Connecting…"}
@@ -572,6 +598,15 @@ export function Board({
 										}}
 									/>
 								)}
+								<InboxLayer
+									doc={doc}
+									nodes={nodes}
+									readOnly={readOnly}
+									user={user}
+									toasts={toasts}
+									sizeOf={boxSize}
+									onPlaced={(id) => setSelected(new Set([id]))}
+								/>
 								<Guides store={snapping.guides} />
 								{!readOnly && (
 									<SelectionTools
@@ -629,6 +664,17 @@ export function Board({
 									stickyColor={stickyColor}
 									onStickyColor={setStickyColor}
 									onAddCard={onAddCard}
+								/>
+							)}
+							{rulesOpen && (
+								<RulesPanel
+									doc={doc}
+									user={{ name: user.name, color: user.color }}
+									readOnly={readOnly}
+									onClose={() => setRulesOpen(false)}
+									onReveal={reveal}
+									onUndo={() => history.undo()}
+									toasts={toasts}
 								/>
 							)}
 							<Toasts store={toasts} />
