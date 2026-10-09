@@ -3,7 +3,7 @@ import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import * as entrypoint from "./src/index.ts" with { type: "cf-worker" };
 
 export default defineWorker({
-	name: "worker-template",
+	name: "tack",
 	entrypoint,
 	compatibilityDate,
 	compatibilityFlags,

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("worker", () => {
 	it("responds with a greeting", async () => {
 		const response = await exports.default.fetch("https://example.com/");
-		expect(await response.text()).toBe("Hello from worker-template");
+		expect(await response.text()).toBe("Hello from tack");
 	});
 
 	it("serves the JSON API route", async () => {

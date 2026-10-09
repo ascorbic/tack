@@ -1,6 +1,17 @@
-# worker-template
+# Tack
 
-Template for standalone Cloudflare Workers.
+A GitHub-native whiteboard for open source planning.
+
+Tack cards, issues and ideas to a shared board, change tack together, and say _tack_ (Swedish for "thanks") to the people who got you there.
+
+- **Live GitHub cards**: paste any issue, PR, discussion, release, milestone, code permalink or search, and it stays live via webhooks
+- **Freeform canvas**: layout never changes GitHub; explicit actions do
+- **Staged pushes**: create issues from stickies, label, link, and write decisions back, reviewed and pushed as one batch
+- **Async first**: "since you were here", history replay, open voting windows
+- **Decisions**: recorded on the board and written back as ADR PRs or Discussion posts
+- **GitHub identity**: log in with GitHub; repo permissions decide what you can do
+
+> Status: early prototype.
 
 ## Stack
 
@@ -26,7 +37,3 @@ pnpm deploy   # build and deploy via cf
 - [cloudflare.config.ts](cloudflare.config.ts) — the Worker itself: name, entrypoint, compatibility, bindings. `Env` types are inferred from the bindings you declare here and written to `worker-configuration.d.ts` while the dev server runs.
 - [compatibility.ts](compatibility.ts) — compatibility date and flags, shared with the test runtime.
 - [vite.config.ts](vite.config.ts) — everything else: Vite, Vitest, oxlint, and oxfmt in one file.
-
-## Template setup
-
-This is a template repository. After creating a repo from it, follow the setup steps in [AGENTS.md](AGENTS.md) — or just ask Claude to do it.
