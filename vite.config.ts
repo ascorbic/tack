@@ -9,6 +9,8 @@ export default defineConfig({
 	plugins: process.env.VITEST ? [] : [react(), cloudflare({ inspectorPort: false })],
 	test: {
 		globalSetup: "./test/global-setup.ts",
+		// Playwright's smoke tests run separately, with `pnpm e2e`.
+		include: ["test/**/*.test.ts"],
 	},
 	lint: {
 		ignorePatterns: [".cloudflare/**", ".wrangler/**", "dist/**"],

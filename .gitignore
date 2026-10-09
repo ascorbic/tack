@@ -2,6 +2,10 @@
 dist/
 .cloudflare/
 
+# Playwright output
+e2e/test-results/
+e2e/report/
+
 # local dev state
 .wrangler/
 
