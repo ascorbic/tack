@@ -1,0 +1,96 @@
+import { describe, expect, it } from "vitest";
+import * as Y from "yjs";
+import { normaliseIssue } from "../src/server/forges/github.ts";
+import { itemKey, parseKey, parseRef, repoKeyOf } from "../src/shared/refs.ts";
+import { addShape, cardRefs } from "../src/shared/shapes.ts";
+
+describe("parseRef", () => {
+	it("parses bare refs against the default host", () => {
+		expect(parseRef("withastro/astro#123")).toEqual({
+			forge: "github",
+			host: "github.com",
+			repo: "withastro/astro",
+			item: "#123",
+		});
+	});
+
+	it("parses GitHub issue and PR URLs", () => {
+		expect(parseRef("https://github.com/ascorbic/unpic/pull/42/files")).toEqual({
+			forge: "github",
+			host: "github.com",
+			repo: "ascorbic/unpic",
+			item: "#42",
+		});
+	});
+
+	it("parses canonical keys, including other forges", () => {
+		expect(parseRef("fake.tack/stress/cards#7")).toEqual({
+			forge: "fake",
+			host: "fake.tack",
+			repo: "stress/cards",
+			item: "#7",
+		});
+	});
+
+	it("rejects unknown hosts and junk", () => {
+		expect(parseRef("https://example.com/a/b/issues/1")).toBeNull();
+		expect(parseKey("gitlab.example.com/group/sub/project!12")).toBeNull();
+		expect(parseRef("not a ref")).toBeNull();
+	});
+});
+
+describe("item keys", () => {
+	it("are lowercased and include the host", () => {
+		expect(itemKey({ host: "github.com", repo: "Ascorbic/Unpic", item: "#1" })).toBe(
+			"github.com/ascorbic/unpic#1",
+		);
+	});
+
+	it("split into repository keys, with nested paths and forge-native refs", () => {
+		expect(repoKeyOf("github.com/ascorbic/unpic#100")).toBe("github.com/ascorbic/unpic");
+		expect(repoKeyOf("gitlab.com/group/sub/project!12")).toBe("gitlab.com/group/sub/project");
+	});
+});
+
+describe("GitHub normalisation", () => {
+	const base = {
+		number: 1,
+		title: "t",
+		html_url: "https://github.com/a/b/pull/1",
+		updated_at: "2026-01-01T00:00:00Z",
+	};
+
+	it("distinguishes draft, merged and closed pull requests", () => {
+		expect(normaliseIssue("a/b", { ...base, state: "open", draft: true }, true).state).toBe(
+			"draft",
+		);
+		expect(normaliseIssue("a/b", { ...base, state: "closed", merged_at: "x" }, true).state).toBe(
+			"merged",
+		);
+		expect(normaliseIssue("a/b", { ...base, state: "closed" }, true).state).toBe("closed");
+	});
+
+	it("produces canonical keys and treats issues-endpoint PRs as pulls", () => {
+		const card = normaliseIssue("A/B", {
+			...base,
+			state: "open",
+			pull_request: { merged_at: null },
+		});
+		expect(card).toMatchObject({
+			key: "github.com/a/b#1",
+			forge: "github",
+			item: "#1",
+			kind: "pull",
+		});
+	});
+});
+
+describe("cardRefs", () => {
+	it("collects card keys and ignores stickies", () => {
+		const doc = new Y.Doc();
+		addShape(doc, "1", { type: "card", ref: "github.com/a/b#1", x: 0, y: 0, z: "a0" });
+		addShape(doc, "2", { type: "card", ref: "github.com/a/b#1", x: 0, y: 0, z: "a1" });
+		addShape(doc, "3", { type: "sticky", text: "hi", x: 0, y: 0, z: "a2" });
+		expect([...cardRefs(doc)]).toEqual(["github.com/a/b#1"]);
+	});
+});
