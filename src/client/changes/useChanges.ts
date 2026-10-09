@@ -22,6 +22,7 @@ export function useChangesState({
 	toasts,
 	undo,
 	focusShapes,
+	initial = {},
 }: {
 	doc: Y.Doc;
 	client: PushClient | null;
@@ -30,13 +31,15 @@ export function useChangesState({
 	toasts: ToastStore | null;
 	undo: (() => void) | null;
 	focusShapes: (ids: string[]) => void;
+	/** What starts open, for the gallery. */
+	initial?: { panel?: boolean; sheet?: SheetMode };
 }): ChangesUI {
 	const store = useMemo(() => new ChangesStore(doc), [doc]);
 	useEffect(() => () => store.destroy(), [store]);
 	const meta = useMemo(() => (client ? new RepoMetaCache(client) : null), [client]);
 	const session = useMemo(() => new PushSession(client), [client]);
-	const [panelOpen, setPanelOpen] = useState(false);
-	const [sheet, setSheet] = useState<SheetMode | null>(null);
+	const [panelOpen, setPanelOpen] = useState(initial.panel ?? false);
+	const [sheet, setSheet] = useState<SheetMode | null>(initial.sheet ?? null);
 	const [revealed, setRevealed] = useState<string | null>(null);
 
 	const reveal = useCallback((id: string) => {

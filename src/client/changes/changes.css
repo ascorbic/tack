@@ -305,7 +305,11 @@
 	animation: pop-in var(--t-settle) var(--ease-spring);
 }
 
-.changes-group + .changes-group {
+.changes-panel-body .changes-group {
+	margin-top: 0;
+}
+
+.changes-panel-body .changes-group + .changes-group {
 	margin-top: 8px;
 }
 
@@ -1369,7 +1373,7 @@
 	cursor: pointer;
 }
 
-.push-repo {
+.push-body .push-repo {
 	margin-top: 18px;
 	animation: change-in var(--t-settle) var(--ease-spring) backwards;
 }

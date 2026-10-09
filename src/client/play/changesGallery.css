@@ -1,0 +1,67 @@
+/* The changes gallery (`/play/changes`, development only). */
+
+.changes-gallery-bars {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 24px 32px;
+}
+
+.changes-gallery-bar {
+	display: inline-flex;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+}
+
+.changes-gallery-panels {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(392px, 1fr));
+	gap: 32px 24px;
+}
+
+.changes-gallery-canvas {
+	height: 620px;
+	overflow: hidden;
+	border-radius: 16px;
+	border: 1px solid var(--line);
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 20px 20px;
+}
+
+.changes-gallery-marks {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	gap: 24px;
+	align-items: start;
+}
+
+.changes-mark-sample {
+	display: flex;
+	justify-content: center;
+	padding: 52px 24px 64px;
+	border-radius: 16px;
+	border: 1px solid var(--line);
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 20px 20px;
+}
+
+.changes-mark-shape {
+	isolation: isolate;
+	position: relative;
+}
+
+.changes-gallery-sheets {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(680px, 100%), 1fr));
+	gap: 32px 24px;
+}
+
+.changes-sheet-frame {
+	display: flex;
+	height: 640px;
+	overflow: hidden;
+	border-radius: 20px;
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-hover);
+}
