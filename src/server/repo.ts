@@ -1,7 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { getServerByName } from "partyserver";
 import { type Card, isMissing, type MissingCard } from "../shared/cards.ts";
-import { itemKey, itemOf, parseKey } from "../shared/refs.ts";
+import type { ItemMention } from "../shared/mentions.ts";
+import { itemKey, itemOf, parseKey, repoKeyOf } from "../shared/refs.ts";
+import type { RepoActivity } from "../shared/rules.ts";
 import type { Board } from "./board.ts";
 import {
 	type Delivery,
@@ -377,6 +379,8 @@ export class Repo extends DurableObject<Env> {
 		const notified = await this.fanOut(dedupe([...renamed, ...updated]), {
 			delivery: delivery.id,
 		});
+		// Rules and inboxes hear about every item a delivery touched, on the board or not.
+		await this.fanOutActivity(delivery, fresh);
 		return {
 			status: "processed",
 			updated: updated.map(keyOf),
@@ -848,6 +852,72 @@ export class Repo extends DurableObject<Env> {
 		if (next == null) return;
 		const current = await this.ctx.storage.getAlarm();
 		if (current === null || next < current) await this.ctx.storage.setAlarm(next);
+	}
+
+	/**
+	 * Tell every board with this repository on it (subscribed to any of its
+	 * items, or watching it for an inbox) what a delivery changed, for its
+	 * rules and inboxes (#44, #40). Cards and same-repository mentions go
+	 * under the keys each board uses.
+	 */
+	private async fanOutActivity(delivery: Delivery, cards: Card[]): Promise<number> {
+		const identity = this.identity();
+		if (cards.length === 0 || !identity) return 0;
+		const boardNames = this.sql
+			.exec<{ board: string }>(
+				"SELECT DISTINCT board FROM subscribers UNION SELECT board FROM watchers WHERE until > ?",
+				Date.now(),
+			)
+			.toArray()
+			.map((row) => row.board);
+		if (boardNames.length === 0) return 0;
+		const status = this.status();
+		const canonical = `${identity.host}/${identity.name}`;
+		const results = await Promise.allSettled(
+			boardNames.map(async (name) => {
+				const keys = new Map(
+					this.sql
+						.exec<{ key: string; item: string }>(
+							"SELECT key, item FROM subscribers WHERE board = ?",
+							name,
+						)
+						.toArray()
+						.map((row) => [row.item, row.key]),
+				);
+				const keyFor = (key: string) => {
+					const item = itemOf(key);
+					return (repoKeyOf(key) === canonical && item && keys.get(item)) || key;
+				};
+				const mentions: Record<string, ItemMention[]> = {};
+				for (const [key, list] of Object.entries(delivery.mentions ?? {})) {
+					mentions[keyFor(key)] = list.map((m) => ({ ...m, key: keyFor(m.key) }));
+				}
+				const [anyKey] = keys.values();
+				const activity: RepoActivity = {
+					delivery: delivery.id,
+					event: delivery.event,
+					action: delivery.action,
+					repo: anyKey ? repoKeyOf(anyKey) : canonical,
+					cards: cards.map((card) => this.present(card, keyFor(card.key), status)),
+					mentions,
+				};
+				const board = await getServerByName<Env, Board>(boards(this.env), name);
+				await board.repoActivity(activity);
+			}),
+		);
+		const failed = results.filter((r) => r.status === "rejected");
+		for (const result of failed) {
+			this.logger().error("repo.activity.failed", {
+				delivery: delivery.id,
+				error: (result as PromiseRejectedResult).reason,
+			});
+		}
+		this.logger().info("repo.activity", {
+			delivery: delivery.id,
+			boards: boardNames.length,
+			failed: failed.length,
+		});
+		return boardNames.length;
 	}
 
 	/** Send changed cards to every board watching them, under each board's key. */

@@ -4,18 +4,29 @@ import * as Y from "yjs";
 import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
 import type { BoardRequest, Card, CardMessage, MissingCard } from "../shared/cards.ts";
 import type { AuditEntry, PushResponse } from "../shared/push.ts";
-import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
+import type { InboxPreviewRequest } from "../shared/inbox.ts";
+import { forgeForHost, parseRepoKey, repoKeyOf } from "../shared/refs.ts";
+import type { RepoActivity } from "../shared/rules.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
+import type {
+	QueryError,
+	SearchQuery,
+	SearchResult,
+	WidgetMessage,
+	WidgetRequest,
+} from "../shared/widgets.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "./boards/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
 import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
 import { userToken } from "./identity.ts";
+import { InboxRunner, type InboxTiming } from "./inbox.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
 import { PushEngine, type PushCommand, type PushTiming } from "./push/engine.ts";
 import { repoObject, resolveRepo } from "./routing.ts";
+import { RulesEngine } from "./rules.ts";
 import { loadSnapshot, storeSnapshot } from "./snapshots.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
 
@@ -108,6 +119,10 @@ export class Board extends YServer<Env> {
 
 	/** Pushes staged changes to forges (M2). Ready once the document has loaded. */
 	private pushes: PushEngine | null = null;
+	/** Runs the board's rules on webhook deliveries (#44). */
+	private rules: RulesEngine | null = null;
+	/** Runs inbox frames' queries for the people looking (#40). */
+	private inboxes: InboxRunner | null = null;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -158,6 +173,24 @@ export class Board extends YServer<Env> {
 			},
 		});
 		await this.pushes.init();
+		this.rules = new RulesEngine({
+			board: this.name,
+			doc: this.document,
+			sql: this.ctx.storage.sql,
+			persist: () => {
+				try {
+					this.writeSnapshot();
+				} catch {
+					// Logged as board.save.failed; the debounced save tries again.
+				}
+			},
+		});
+		this.inboxes = new InboxRunner({
+			board: this.name,
+			doc: this.document,
+			search: (query, viewer) => this.searchAs(query, viewer),
+			send: (id, message) => this.sendTo(id, message),
+		});
 		watchCardRefs(this.document, () => void this.syncSubscriptions(), {
 			wait: SYNC_WAIT_MS,
 			maxWait: SYNC_MAX_WAIT_MS,
@@ -354,18 +387,22 @@ export class Board extends YServer<Env> {
 		wasClean: boolean,
 	): void | Promise<void> {
 		this.viewing.delete(connection.id);
+		this.inboxes?.closed(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
 		return super.onClose(connection, code, reason, wasClean);
 	}
 
 	override onCustomMessage(connection: Connection, message: string): void {
-		let request: BoardRequest | null = null;
+		let request: BoardRequest | WidgetRequest | InboxPreviewRequest | null = null;
 		try {
-			request = JSON.parse(message) as BoardRequest;
+			request = JSON.parse(message) as BoardRequest | WidgetRequest | InboxPreviewRequest;
 		} catch {
 			return;
 		}
-		if (request?.type !== "recheck") return;
+		if (request?.type !== "recheck") {
+			this.onInboxRequest(connection, request);
+			return;
+		}
 		const viewing = this.viewing.get(connection.id);
 		const now = Date.now();
 		if (!viewing || now - viewing.recheckedAt < RECHECK_THROTTLE_MS) return;
@@ -373,6 +410,107 @@ export class Board extends YServer<Env> {
 		// Check every private repository again now, and resend what changed.
 		const cards = [...this.cards.values()].filter((entry) => !isPublic(entry));
 		if (cards.length > 0) this.send(connection, cards, { maxAge: 0 });
+	}
+
+	/** Inbox frames: watching, refreshing and previewing their queries (#40). */
+	private onInboxRequest(
+		connection: Connection,
+		request: WidgetRequest | InboxPreviewRequest | null,
+	): void {
+		const inboxes = this.inboxes;
+		const viewing = this.viewing.get(connection.id);
+		if (!inboxes || !viewing || !request) return;
+		const ids = (value: unknown) =>
+			Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+		switch (request.type) {
+			case "widget-watch":
+				if (inboxes.watch(connection.id, viewing.userId, ids(request.ids)).length > 0) {
+					this.watchInboxRepos();
+				}
+				return;
+			case "widget-unwatch":
+				inboxes.unwatch(connection.id, ids(request.ids));
+				return;
+			case "widget-refresh":
+				if (typeof request.id === "string") inboxes.refresh(connection.id, request.id);
+				return;
+			case "inbox-preview":
+				if (typeof request.id === "string" && request.query) {
+					void inboxes.preview(connection.id, viewing.userId, request.id, request.query);
+				}
+				return;
+		}
+	}
+
+	/** Send a widget message to one connection. Results were searched as its viewer. */
+	private sendTo(connectionId: string, message: WidgetMessage): void {
+		const connection = this.getConnection(connectionId);
+		if (connection) this.sendCustomMessage(connection, JSON.stringify(message));
+	}
+
+	/**
+	 * Run a search as a viewer: with their own token, so private items only
+	 * reach people who can read them. Signed-out viewers search as nobody
+	 * (adapters fall back to the app's access for public data).
+	 */
+	private async searchAs(
+		query: SearchQuery,
+		viewer: number | null,
+	): Promise<SearchResult | QueryError> {
+		const id = forgeForHost(query.host);
+		const adapter = id ? forge(id) : null;
+		if (!adapter?.search) {
+			return {
+				kind: "error",
+				reason: "unsupported",
+				message: "Searching isn't available for this forge yet.",
+			};
+		}
+		const token = viewer !== null ? await userToken(this.env, viewer) : null;
+		return adapter.search(query, this.env, { token });
+	}
+
+	/**
+	 * Watch the repositories inboxes search, so their deliveries reach this
+	 * board (`repoActivity`) while anyone's looking, even with none of their
+	 * items on it yet.
+	 */
+	private watchInboxRepos(): void {
+		const repos = this.inboxes?.watchedRepos() ?? [];
+		if (repos.length === 0) return;
+		const reader = this.reader;
+		this.ctx.waitUntil(
+			Promise.allSettled(
+				repos.map(async (repoKey) => {
+					const repo = await this.route(repoKey);
+					if (typeof repo !== "string") await repoObject(this.env, repo).watch(this.name, reader);
+				}),
+			).then((results) => {
+				const failed = results.filter((result) => result.status === "rejected").length;
+				if (failed > 0) log.warn("board.watch.failed", { board: this.name, failed });
+			}),
+		);
+	}
+
+	// --- Rules and inboxes (M3) ----------------------------------------------------
+
+	/**
+	 * Called by a `Repo` with every webhook delivery from a repository on this
+	 * board (or one an inbox searches): rules run on it, and inboxes that
+	 * could include its items search again.
+	 */
+	async repoActivity(activity: RepoActivity): Promise<void> {
+		try {
+			this.rules?.run(activity);
+		} catch (error) {
+			log.error("rule.failed", { board: this.name, delivery: activity.delivery, error });
+		}
+		this.inboxes?.activity(activity.repo);
+	}
+
+	/** For tests: shorten the inbox runner's timings. */
+	async inboxTiming(timing: Partial<InboxTiming>): Promise<void> {
+		this.inboxes?.setTiming(timing);
 	}
 
 	override onError(connection: Connection, error: unknown): void {
@@ -765,6 +903,7 @@ export class Board extends YServer<Env> {
 		if (this.heartbeat) return;
 		this.heartbeat = setInterval(() => {
 			this.watchRepos(true);
+			this.watchInboxRepos();
 			void this.recheckAccess().catch((error: unknown) =>
 				log.error("board.readable.failed", { board: this.name, error }),
 			);

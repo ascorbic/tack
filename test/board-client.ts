@@ -19,6 +19,8 @@ export interface BoardClient {
 	closed: { code: number; reason: string } | null;
 	/** Resolves once the server has answered our sync request: everything we sent before has been applied. */
 	roundTrip(): Promise<void>;
+	/** Send a custom message (JSON), as the provider's `sendMessage` does. */
+	send(message: unknown): void;
 	close(): void;
 }
 
@@ -53,6 +55,7 @@ export async function connectBoard(
 				waiting.push(resolve);
 				send(syncStep1(doc));
 			}),
+		send: (message) => ws.send(`__YPS:${JSON.stringify(message)}`),
 		close: () => {
 			if (client.closed) return;
 			client.closed = { code: 1000, reason: "closed by test" };
