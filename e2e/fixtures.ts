@@ -23,6 +23,37 @@ export async function openScenario(page: Page, scenario: string): Promise<void> 
 	await page.goto(`/play?scenario=${scenario}`);
 	await expect(page.locator(".react-flow__renderer")).toBeVisible();
 	await expect(page.getByLabel("Playground controls")).toBeVisible();
+	await settleCanvas(page);
+}
+
+/**
+ * Wait until every node has been measured (React Flow hides unmeasured
+ * nodes) and the viewport has stopped moving, so tests that use screen
+ * coordinates don't race the initial fit.
+ */
+export async function settleCanvas(page: Page): Promise<void> {
+	await page.waitForFunction(() =>
+		[...document.querySelectorAll(".react-flow__node")].every(
+			(node) => getComputedStyle(node).visibility !== "hidden",
+		),
+	);
+	await page.evaluate(
+		() =>
+			new Promise<void>((resolve) => {
+				const viewport = document.querySelector<HTMLElement>(".react-flow__viewport");
+				let last = viewport?.style.transform;
+				let still = 0;
+				const started = performance.now();
+				const tick = () => {
+					const now = viewport?.style.transform;
+					still = now === last ? still + 1 : 0;
+					last = now;
+					if (still >= 5 || performance.now() - started > 3000) resolve();
+					else requestAnimationFrame(tick);
+				};
+				requestAnimationFrame(tick);
+			}),
+	);
 }
 
 /** A node's position in flow coordinates, from React Flow's transform. */

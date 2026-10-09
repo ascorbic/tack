@@ -15,6 +15,23 @@ async function centre(node: Locator): Promise<{ x: number; y: number }> {
 	return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+/**
+ * Drag a selection marquee. It must start on empty canvas: if a toolbar (or
+ * anything else) is under the start point, the drag would hit that instead,
+ * so fail clearly rather than flake.
+ */
+async function marquee(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+	const onCanvas = await page.evaluate(
+		({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest(".react-flow__pane")),
+		from,
+	);
+	expect(onCanvas, `marquee starts on empty canvas at ${from.x},${from.y}`).toBe(true);
+	await page.mouse.move(from.x, from.y);
+	await page.mouse.down();
+	await page.mouse.move(to.x, to.y, { steps: 8 });
+	await page.mouse.up();
+}
+
 test.beforeEach(async ({ page }) => openScenario(page, "arrange"));
 
 test("shift-click and shift-marquee add to the selection", async ({ page }) => {
@@ -33,17 +50,20 @@ test("shift-click and shift-marquee add to the selection", async ({ page }) => {
 
 	// A plain marquee replaces the selection; with Shift it adds.
 	await page.keyboard.press("Escape");
-	await page.mouse.move(20, 300);
-	await page.mouse.down();
-	await page.mouse.move(120, 790, { steps: 8 });
-	await page.mouse.up();
+	// Let the deselect land before starting a marquee that builds on it.
+	await expect(selected(page)).toHaveCount(0);
+	await marquee(page, { x: 20, y: 300 }, { x: 120, y: 790 });
 	await expect(selected(page)).toHaveCount(2);
+	// The arrange toolbar springs in above the new selection. Wait for it to
+	// settle so it can't be under the next marquee's start point mid-animation.
+	const arrange = page.getByRole("toolbar", { name: "Arrange selection" });
+	await expect(arrange).toBeVisible();
+	await arrange.evaluate((el) =>
+		Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)),
+	);
 	await page.keyboard.down("Shift");
-	// Start below the arrange toolbar, which now sits over (20, 300).
-	await page.mouse.move(20, 320);
-	await page.mouse.down();
-	await page.mouse.move(560, 420, { steps: 8 });
-	await page.mouse.up();
+	// Start below the arrange toolbar, which sits over (20, 300).
+	await marquee(page, { x: 20, y: 320 }, { x: 560, y: 420 });
 	await page.keyboard.up("Shift");
 	await expect(selected(page)).toHaveCount(4);
 	await expect(page.getByRole("toolbar", { name: "Arrange selection" })).toBeVisible();
