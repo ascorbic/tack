@@ -13,9 +13,9 @@ Try it:
 
 ```sh
 pnpm dev
-# open /?board=demo, add ascorbic/unpic#100
+# open /, create a board (or /?board=demo, which now redirects to /b/demo/demo), add ascorbic/unpic#100
 node scripts/send-webhook.ts pull_request payload.json http://localhost:5173/webhooks/github
-# open /?board=stress-500&stress=500 for the stress board
+# open /?board=stress-500&stress=500 for the stress board (the stress param carries over)
 ```
 
 ## Findings
