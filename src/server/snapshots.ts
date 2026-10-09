@@ -31,10 +31,25 @@ export const MAX_SNAPSHOT_BYTES_PER_BOARD = 200_000_000;
 export async function handleSnapshots(request: Request, env: Env): Promise<Response | null> {
 	const url = new URL(request.url);
 	const upload = /^\/api\/boards\/([^/]+)\/snapshots$/.exec(url.pathname);
-	if (upload) return uploadSnapshot(request, env, upload[1] ?? "");
+	if (upload) {
+		const response = await uploadSnapshot(request, env, upload[1] ?? "");
+		await discardBody(request);
+		return response;
+	}
 	const image = /^\/snapshots\/([^/]+)\.png$/.exec(url.pathname);
 	if (image) return serveSnapshot(request, env, image[1] ?? "");
 	return null;
+}
+
+/**
+ * Read the rest of a refused upload's body, without keeping it. Answering
+ * before the client has finished sending makes the runtime reset the
+ * connection, and a client still writing (a slow one, or a test under load)
+ * then sees "fetch failed" instead of the refusal.
+ */
+async function discardBody(request: Request): Promise<void> {
+	if (!request.body || request.bodyUsed) return;
+	await request.body.pipeTo(new WritableStream()).catch(() => {});
 }
 
 function refuse(status: number, error: string, reason: string, context: object = {}): Response {
