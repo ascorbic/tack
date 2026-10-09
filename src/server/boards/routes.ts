@@ -137,7 +137,12 @@ export async function authorizeBoardConnection(
 		});
 		return json({ error: result.error }, { status: STATUS[result.error] });
 	}
-	const access: ConnectionAccess = { ...visitorKey(visitor), role: result.value.role };
+	const access: ConnectionAccess = {
+		...visitorKey(visitor),
+		role: result.value.role,
+		// What `@me` means in this person's widget searches.
+		...(visitor.user ? { login: visitor.user.login } : {}),
+	};
 	const forwarded = new Request(request);
 	forwarded.headers.set(ACCESS_HEADER, JSON.stringify(access));
 	return forwarded;

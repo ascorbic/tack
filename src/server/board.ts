@@ -29,6 +29,7 @@ import { repoObject, resolveRepo } from "./routing.ts";
 import { RulesEngine } from "./rules.ts";
 import { loadSnapshot, storeSnapshot } from "./snapshots.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
+import { type RunnerTiming, WidgetRunner } from "./widgets/runner.ts";
 
 /**
  * The Worker checks access before a connection reaches the board (see
@@ -40,6 +41,8 @@ export const ACCESS_HEADER = "x-tack-access";
 /** Who a live connection belongs to, and what they may do. */
 export interface ConnectionAccess extends VisitorKey {
 	role: Role;
+	/** Their GitHub login, when signed in: what `@me` means in widget searches. */
+	login?: string;
 }
 
 /** WebSocket close code for a connection whose access was taken away. */
@@ -124,6 +127,11 @@ export class Board extends YServer<Env> {
 	/** Runs inbox frames' queries for the people looking (#40). */
 	private inboxes: InboxRunner | null = null;
 
+	/** Runs widgets' queries for the people watching them (#37). Ready once the document has loaded. */
+	private widgets: WidgetRunner | null = null;
+	/** When each repository was last asked to tell us about its webhooks, for widgets. */
+	private queryWatches = new Map<string, number>();
+
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
 			return super.fetch(request);
@@ -195,6 +203,7 @@ export class Board extends YServer<Env> {
 			wait: SYNC_WAIT_MS,
 			maxWait: SYNC_MAX_WAIT_MS,
 		});
+		this.widgets = this.startWidgets();
 		this.watchForRepairs();
 		await this.syncSubscriptions();
 	}
@@ -388,6 +397,7 @@ export class Board extends YServer<Env> {
 	): void | Promise<void> {
 		this.viewing.delete(connection.id);
 		this.inboxes?.closed(connection.id);
+		this.widgets?.disconnect(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
 		return super.onClose(connection, code, reason, wasClean);
 	}
@@ -399,6 +409,8 @@ export class Board extends YServer<Env> {
 		} catch {
 			return;
 		}
+		// Viewers can watch widgets too: watching never changes the document.
+		this.widgets?.request(connection.id, request);
 		if (request?.type !== "recheck") {
 			this.onInboxRequest(connection, request);
 			return;
@@ -544,6 +556,79 @@ export class Board extends YServer<Env> {
 			}
 		}
 		await this.syncSubscriptions();
+	}
+
+	// --- Widgets (M3, #37) ---------------------------------------------------------
+
+	private startWidgets(): WidgetRunner {
+		return new WidgetRunner({
+			doc: this.document,
+			env: this.env,
+			log: log.with({ board: this.name }),
+			send: (id, message) => {
+				const connection = this.getConnection(id);
+				if (!connection) return;
+				try {
+					this.sendCustomMessage(connection, JSON.stringify(message));
+				} catch (error) {
+					log.warn("board.send.failed", { board: this.name, connection: id, error });
+				}
+			},
+			access: async (id) => {
+				const state = this.getConnection<ConnectionAccess>(id)?.state;
+				const userId = state?.userId ?? null;
+				// Only people with their own token search as themselves.
+				const token = userId !== null && userId > 0 ? await userToken(this.env, userId) : null;
+				return token && userId !== null
+					? { key: `user:${userId}`, userId, login: state?.login ?? null, token }
+					: { key: "public", userId, login: null, token: null };
+			},
+			readerToken: async () =>
+				this.reader === null ? null : userToken(this.env, this.reader).catch(() => null),
+			watchRepos: (repos) => this.watchQueryRepos(repos),
+		});
+	}
+
+	/** Ask repositories that widgets read to tell this board when their items change. */
+	private watchQueryRepos(repoKeys: string[]): void {
+		const now = Date.now();
+		const due = repoKeys.filter(
+			(key) => now - (this.queryWatches.get(key) ?? 0) >= WATCH_THROTTLE_MS,
+		);
+		if (due.length === 0) return;
+		for (const key of due) this.queryWatches.set(key, now);
+		this.ctx.waitUntil(
+			Promise.allSettled(
+				due.map(async (key) => {
+					const repo = await this.route(key);
+					if (typeof repo !== "string") await repoObject(this.env, repo).watchQueries(this.name);
+				}),
+			).then((results) => {
+				const failed = results.filter((result) => result.status === "rejected").length;
+				if (failed > 0) log.warn("widget.watch.failed", { board: this.name, failed });
+			}),
+		);
+	}
+
+	/** Called by a `Repo` when a delivery changed its items: widgets reading it refresh. */
+	async queriesChanged(repoKey: string): Promise<void> {
+		const due = this.widgets?.repoChanged(repoKey) ?? 0;
+		log.info("widget.refresh", { board: this.name, repo: repoKey, queries: due });
+	}
+
+	/** For tests: shorten the widget runner's pauses. */
+	async widgetTiming(timing: Partial<RunnerTiming>): Promise<void> {
+		if (this.widgets) Object.assign(this.widgets.timing, timing);
+	}
+
+	/** For tests: run whatever widget queries are due now, and wait for them. */
+	async runWidgets(): Promise<void> {
+		await this.widgets?.tick();
+	}
+
+	/** For tests and debugging over RPC only: the widget results cache, without results. */
+	widgetCache(): ReturnType<WidgetRunner["cached"]> {
+		return this.widgets?.cached() ?? [];
 	}
 
 	// --- Pushing (M2) --------------------------------------------------------------

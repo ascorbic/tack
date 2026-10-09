@@ -134,6 +134,10 @@ export class Repo extends DurableObject<Env> {
 				board TEXT PRIMARY KEY,
 				until INTEGER NOT NULL
 			);
+			CREATE TABLE IF NOT EXISTS query_watchers (
+				board TEXT PRIMARY KEY,
+				until INTEGER NOT NULL
+			);
 		`);
 	}
 
@@ -264,6 +268,29 @@ export class Repo extends DurableObject<Env> {
 		if (this.status().live) return;
 		if (this.pollDue(POLL_ON_VIEW_MS)) this.ctx.waitUntil(this.poll());
 		await this.armAlarm();
+	}
+
+	/**
+	 * A board has widgets whose queries read this repository (#37), for the
+	 * next few minutes: deliveries that change its items tell the board, so
+	 * new matches show up (`Board.queriesChanged`). Renewed while watched.
+	 */
+	watchQueries(board: string): void {
+		const now = Date.now();
+		this.sql.exec(
+			"INSERT OR REPLACE INTO query_watchers (board, until) VALUES (?, ?)",
+			board,
+			now + WATCH_LEASE_MS,
+		);
+		this.sql.exec("DELETE FROM query_watchers WHERE until < ?", now);
+	}
+
+	/** Boards with widgets reading this repository, for tests and debugging. */
+	queryWatchers(): string[] {
+		return this.sql
+			.exec<{ board: string }>("SELECT board FROM query_watchers WHERE until > ?", Date.now())
+			.toArray()
+			.map((row) => row.board);
 	}
 
 	/** Boards whose lease hasn't lapsed, for tests and debugging. */
