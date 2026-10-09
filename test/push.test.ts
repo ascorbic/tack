@@ -15,6 +15,7 @@ import {
 	type Stager,
 } from "../src/shared/changes.ts";
 import type { AuditEntry, PushResponse, RepoMeta } from "../src/shared/push.ts";
+import { addDecision, stageWriteBack } from "../src/shared/decisions.ts";
 import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
 import { type BoardClient, connectBoard, eventually } from "./board-client.ts";
 import { FakeGitHub, type FakeUser } from "./fake-github.ts";
@@ -328,6 +329,32 @@ describe("pushing", () => {
 				],
 			},
 		]);
+	});
+
+	it("points a decision written back as a pull request at it, with no one's client involved", async () => {
+		const { mf, alice, board, client } = await setup();
+		const doc = client.doc;
+		addDecision(doc, "decision", { x: 0, y: 0, title: "Use Yjs", status: "decided" });
+		stageWriteBack(
+			doc,
+			"decision",
+			{
+				kind: "pr.create",
+				repo: REPO,
+				title: "ADR 0002: Use Yjs",
+				body: "",
+				branch: "tack/adr-0002-use-yjs",
+				files: [{ path: "docs/decisions/0002-use-yjs.md", content: "# Use Yjs" }],
+			},
+			STAGER,
+		);
+		await client.roundTrip();
+		const id = shapesMap(doc).get("decision")?.get("writeback") as string;
+
+		expect(await push(mf, board, alice, [id])).toMatchObject({ status: 202 });
+		const applied = await until(client, id, "applied");
+		await eventually(() => shapesMap(doc).get("decision")?.get("ref") === applied.result?.key);
+		expect(applied.result?.key).toMatch(/^github\.com\/acme\/widgets#\d+$/);
 	});
 
 	it("can't undo the server's writes, and never pushes a change twice", async () => {

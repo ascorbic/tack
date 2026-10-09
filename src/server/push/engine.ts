@@ -40,6 +40,7 @@ import {
 import { confirmationKey, reflects } from "../../shared/confirm.ts";
 import type { AuditEntry, PushResponse } from "../../shared/push.ts";
 import { parseKey, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
+import { linkWrittenDecisions } from "../../shared/decisions.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import {
 	type ApplyResult,
@@ -808,6 +809,9 @@ export class PushEngine {
 	 */
 	private runEffect(pushId: string, changeId: string): void {
 		const row = this.row(pushId, changeId);
+		// A decision written back as a pull request follows it from now on,
+		// even with no one on the board.
+		if (row?.kind === "pr.create") linkWrittenDecisions(this.host.doc);
 		const effect = row?.effect ? (JSON.parse(row.effect) as ChangeEffect) : null;
 		if (!row || effect?.kind !== "replace" || !row.result_key) return;
 		const { doc } = this.host;
