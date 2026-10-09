@@ -1,6 +1,7 @@
 import { generateKeyBetween } from "fractional-indexing";
 import * as Y from "yjs";
 import type { Anchor } from "./geometry.ts";
+import type { Dismissal } from "./inbox.ts";
 import type { InboxConfig, Provenance } from "./widgets.ts";
 
 // The board document: `shapes` is a map of shape id → Y.Map of properties.
@@ -43,6 +44,9 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | votes        | decision           | nested Y.Map of voter key → `Vote`, so votes  |
 // |              |                    | from different people merge (decisions.ts)    |
 // | writeback    | decision           | id of its write-back in `changes`             |
+// | inbox        | section            | an inbox frame's query (`InboxConfig`)        |
+// | dismissed    | section            | nested Y.Map of item key → `Dismissal`: items |
+// |              |                    | dismissed from an inbox's tray (inbox.ts)     |
 // | provenance   | card               | how it arrived (`Provenance`); absent means   |
 // |              |                    | placed by hand. See provenance.ts             |
 // | unmatched    | card               | when it stopped matching the inbox or rule    |
@@ -152,6 +156,8 @@ export interface ShapeProps {
 	 * 8601). People decide whether to keep or remove it (see provenance.ts).
 	 */
 	unmatched?: string;
+	/** Inbox sections: items dismissed from the tray, by key (a Y.Map in the document). */
+	dismissed?: Record<string, Dismissal>;
 }
 
 /**
