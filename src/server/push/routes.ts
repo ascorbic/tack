@@ -183,7 +183,7 @@ async function repoRoute(
 }
 
 /** Whether the viewer may read a repository: public ones anyone may, private ones need their own token. */
-async function mayRead(
+export async function mayRead(
 	env: Env,
 	repo: RepoIdentity,
 	viewer: Viewer | null,

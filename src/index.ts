@@ -5,6 +5,7 @@ import { handleClientError } from "./server/clientErrors.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
 import { handlePush } from "./server/push/routes.ts";
+import { handleRelated } from "./server/related.ts";
 import { handleSnapshots } from "./server/snapshots.ts";
 import { handleWebhook } from "./server/webhooks.ts";
 
@@ -27,6 +28,10 @@ export default {
 		// Sign-in, setup and instance settings.
 		const identity = (await handleAuth(request, env)) ?? (await handleSetup(request, env));
 		if (identity) return identity;
+
+		// What's related to a card, as the viewer may see it (Expand related).
+		const related = await handleRelated(request, env);
+		if (related) return related;
 
 		// Pushing staged changes, the audit log, and what repositories offer to write with.
 		const push = await handlePush(request, env);
