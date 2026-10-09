@@ -239,11 +239,13 @@ export class Repo extends DurableObject<Env> {
 		const identity = this.identity();
 		if (!identity) return { live: false, writable: false, visibility: "private" };
 		const adapter = forge(identity.forge);
-		// Forges that can't say whether the app is installed are live (no webhooks to miss).
+		// Forges that can't say whether the app is installed are live (no webhooks to miss),
+		// and writable if they can write at all: that's the fake forge, whose writes go
+		// nowhere, so the whole push flow can be tried locally. GitHub needs the app.
 		const installed = adapter.installed ? (this.installedState()?.installed ?? false) : true;
 		return {
 			live: installed,
-			writable: installed && adapter.installed !== undefined,
+			writable: installed && adapter.apply !== undefined,
 			visibility: !adapter.canRead || identity.private === false ? "public" : "private",
 		};
 	}
