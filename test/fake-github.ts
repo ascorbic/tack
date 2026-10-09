@@ -61,6 +61,7 @@ export interface FakeItem {
 	reviews?: { login: string; state: string }[];
 	mergeable?: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
 	closes?: number[];
+	labels?: { name: string; color: string }[];
 }
 
 export interface FakeRequest {
@@ -77,6 +78,9 @@ export interface FakeRequest {
 interface FakeRepo {
 	id: number;
 	name: string;
+	private: boolean;
+	/** Logins who can read it, if it's private. */
+	collaborators: Set<string>;
 }
 
 /** A delivery in the app's webhook delivery log. */
@@ -167,9 +171,46 @@ export class FakeGitHub {
 		return callback.toString();
 	}
 
-	addRepo(id: number, name: string): void {
-		this.repos.set(id, { id, name });
+	/**
+	 * A repository. Private ones are readable with a token for an
+	 * installation that includes them, a personal token (`personalTokens`),
+	 * or a user token whose user is a collaborator, where the app is installed
+	 * (GitHub App user tokens only reach installed repositories).
+	 */
+	addRepo(
+		id: number,
+		name: string,
+		options: { private?: boolean; collaborators?: string[] } = {},
+	): void {
+		this.repos.set(id, {
+			id,
+			name,
+			private: options.private ?? false,
+			collaborators: new Set(options.collaborators ?? []),
+		});
 		this.names.set(name.toLowerCase(), id);
+	}
+
+	/** Give someone read access to a private repository. */
+	addCollaborator(id: number, login: string): void {
+		this.repos.get(id)?.collaborators.add(login);
+	}
+
+	removeCollaborator(id: number, login: string): void {
+		this.repos.get(id)?.collaborators.delete(login);
+	}
+
+	setPrivate(id: number, isPrivate: boolean): void {
+		const repo = this.repos.get(id);
+		if (repo) repo.private = isPrivate;
+	}
+
+	/** Tokens that read everything, like a personal access token in `GITHUB_TOKEN`. */
+	readonly personalTokens = new Set<string>();
+
+	/** Install the app on repositories, as GitHub would before sending its webhook. */
+	install(id: number, account: string, repos: string[]): void {
+		this.installations.set(id, { account, repos: repos.map((repo) => repo.toLowerCase()) });
 	}
 
 	/** Rename or transfer: the old name keeps redirecting, as on GitHub. */
@@ -312,8 +353,39 @@ export class FakeGitHub {
 			}
 		}
 
-		return this.repositoryData(url);
+		if ((match = /^\/repositories\/(\d+)$/.exec(path))) {
+			const repo = this.repos.get(Number(match[1]));
+			if (!repo || !this.canSee(repo, auth)) return undefined;
+			return json(this.restRepo(repo));
+		}
+
+		return this.repositoryData(url, auth, request.headers.get("if-none-match"));
 	}
+
+	/** Whether a token (or none) can read a repository. */
+	canSee(repo: FakeRepo, auth: string | null): boolean {
+		if (!repo.private) return true;
+		if (!auth) return false;
+		if (this.personalTokens.has(auth)) return true;
+		const installation = this.installationForRepo(repo.name);
+		if (!installation) return false;
+		if (this.installationTokens.get(auth) === installation.id) return true;
+		const user = this.userFor(auth);
+		return Boolean(user && repo.collaborators.has(user.login));
+	}
+
+	private restRepo(repo: FakeRepo) {
+		return {
+			id: repo.id,
+			node_id: `R_${repo.id}`,
+			full_name: repo.name,
+			private: repo.private,
+			visibility: repo.private ? "private" : "public",
+		};
+	}
+
+	/** Responses to conditional list requests that came back 304. */
+	notModified = 0;
 
 	/** Private issues are only readable with a token for their installation. */
 	private privateIssue(repo: string, number: number, auth: string | null) {
@@ -331,12 +403,17 @@ export class FakeGitHub {
 	}
 
 	/** REST reads of repositories, issues and pull requests in the model. */
-	private repositoryData(url: URL): Response | undefined {
+	private repositoryData(
+		url: URL,
+		auth: string | null,
+		ifNoneMatch: string | null,
+	): Response | undefined {
 		const repoMatch = /^\/repos\/([^/]+\/[^/]+)(\/.*)?$/.exec(url.pathname);
 		const repo = repoMatch ? this.repoByName(repoMatch[1] ?? "") : undefined;
-		if (!repo) return undefined;
+		// Private repositories 404 for anyone who can't see them, as on GitHub.
+		if (!repo || !this.canSee(repo, auth)) return undefined;
 		const rest = repoMatch?.[2] ?? "";
-		if (rest === "") return json({ id: repo.id, node_id: `R_${repo.id}`, full_name: repo.name });
+		if (rest === "") return json(this.restRepo(repo));
 
 		const issue = /^\/issues\/(\d+)$/.exec(rest);
 		if (issue) {
@@ -354,8 +431,18 @@ export class FakeGitHub {
 				.filter(([key, item]) => key.startsWith(`${repo.id}#`) && item.updatedAt >= since)
 				.map(([, item]) => item)
 				.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+				.slice(0, Number(url.searchParams.get("per_page") ?? 30))
 				.map((item) => this.restIssue(repo, item));
-			return json(list);
+			const body = JSON.stringify(list);
+			const etag = `W/"${createHash("sha1").update(body).digest("hex")}"`;
+			if (ifNoneMatch === etag) {
+				this.notModified++;
+				return new Response(null, { status: 304, headers: { etag } });
+			}
+			return new Response(body, {
+				status: 200,
+				headers: { "content-type": "application/json", etag },
+			});
 		}
 		return undefined;
 	}
@@ -398,7 +485,9 @@ export class FakeGitHub {
 			return {
 				nodes: ids.map((id) => {
 					const found = this.byNodeId(id);
-					return found ? this.freshness(found.repo, found.item) : null;
+					return found && this.canSee(found.repo, auth)
+						? this.freshness(found.repo, found.item)
+						: null;
 				}),
 			};
 		}
@@ -406,14 +495,15 @@ export class FakeGitHub {
 		if (variables.ids) {
 			data.nodes = ids.map((id) => {
 				const found = this.byNodeId(id);
-				return found ? this.gqlItem(found.repo, found.item) : null;
+				return found && this.canSee(found.repo, auth) ? this.gqlItem(found.repo, found.item) : null;
 			});
 		}
 		if (/repo: (node|repository)\(/.test(query)) {
-			const repo =
+			const found =
 				typeof variables.repo === "string"
 					? this.repos.get(Number(variables.repo.replace(/^R_/, "")))
 					: this.repoByName(`${String(variables.owner)}/${String(variables.name)}`);
+			const repo = found && this.canSee(found, auth) ? found : undefined;
 			const name = `${String(variables.owner)}/${String(variables.name)}`;
 			if (!repo && typeof variables.owner === "string") {
 				data.repo = this.privateRepoFields(name, query, auth);
@@ -479,7 +569,7 @@ export class FakeGitHub {
 			updatedAt: item.updatedAt,
 			repository: { nameWithOwner: repo.name },
 			author: { login: "octocat", avatarUrl: "https://avatars.example/octocat" },
-			labels: { nodes: [] },
+			labels: { nodes: item.labels ?? [] },
 			assignees: { nodes: [] },
 			comments: { totalCount: 0 },
 			reactions: { totalCount: 0 },
@@ -511,7 +601,7 @@ export class FakeGitHub {
 					title: this.items.get(`${repo.id}#${number}`)?.title ?? "",
 					url: `https://github.com/${repo.name}/issues/${number}`,
 					issueState: "OPEN",
-					repository: { nameWithOwner: repo.name },
+					repository: { nameWithOwner: repo.name, isPrivate: repo.private },
 				})),
 			},
 			commits: { nodes: [{ commit: { statusCheckRollup: this.rollup(item) } }] },
@@ -528,7 +618,7 @@ export class FakeGitHub {
 			updated_at: item.updatedAt,
 			node_id: `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`,
 			comments: 0,
-			labels: [],
+			labels: item.labels ?? [],
 			assignees: [],
 			user: null,
 			...(item.kind === "pull"
@@ -559,7 +649,7 @@ export class FakeGitHub {
 			found ||= Boolean(issue);
 			fields[alias ?? ""] = issue
 				? this.gqlItem(
-						{ id: 0, name: repo },
+						{ id: 0, name: repo, private: true, collaborators: new Set() },
 						{
 							number: issue.number,
 							kind: "issue",

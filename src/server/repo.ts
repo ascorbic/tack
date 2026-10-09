@@ -10,7 +10,7 @@ import {
 	type ReadAuth,
 	type RepoIdentity,
 } from "./forges/index.ts";
-import { type Viewer, viewerToken } from "./identity.ts";
+import { userToken } from "./identity.ts";
 import { type Logger, log } from "./log.ts";
 import { boards } from "./namespaces.ts";
 
@@ -87,7 +87,7 @@ export class Repo extends DurableObject<Env> {
 	/** Don't poll before this, after the forge pushed back (rate limits). */
 	private pollRetryAt = 0;
 	/** Someone looking at a board with this repository, whose token can read public data. */
-	private reader: { viewer: Viewer; until: number } | null = null;
+	private reader: { userId: number; until: number } | null = null;
 	private readerToken: { id: number; token: string | null; until: number } | null = null;
 	/** Whether this instance has asked to hear about installation changes. */
 	private watchingInstall = false;
@@ -152,7 +152,7 @@ export class Repo extends DurableObject<Env> {
 		board: string,
 		keys: string[],
 		repo?: RepoIdentity,
-		watcher?: { reader: Viewer | null },
+		watcher?: { reader: number | null },
 	): Promise<Entry[]> {
 		if (watcher) {
 			// Someone's looking: this is the fetch on view, so no poll is due yet.
@@ -254,7 +254,7 @@ export class Repo extends DurableObject<Env> {
 	 * polled while watched, and never otherwise. `reader` is someone looking,
 	 * whose own token reads public data with a better rate limit than none.
 	 */
-	async watch(board: string, reader: Viewer | null = null): Promise<void> {
+	async watch(board: string, reader: number | null = null): Promise<void> {
 		this.lease(board, reader);
 		if (await this.checkStatus()) this.ctx.waitUntil(this.fanOutAll({ reason: "status" }));
 		if (this.status().live) return;
@@ -468,7 +468,7 @@ export class Repo extends DurableObject<Env> {
 		return log.with({ repo: this.identity()?.name, repoObject: this.ctx.id.name });
 	}
 
-	private lease(board: string, reader: Viewer | null): void {
+	private lease(board: string, reader: number | null): void {
 		const now = Date.now();
 		this.sql.exec(
 			"INSERT OR REPLACE INTO watchers (board, until) VALUES (?, ?)",
@@ -476,7 +476,8 @@ export class Repo extends DurableObject<Env> {
 			now + WATCH_LEASE_MS,
 		);
 		this.sql.exec("DELETE FROM watchers WHERE until < ?", now - WATCH_LEASE_MS);
-		if (reader && reader.id > 0) this.reader = { viewer: reader, until: now + WATCH_LEASE_MS };
+		if (reader !== null && reader > 0)
+			this.reader = { userId: reader, until: now + WATCH_LEASE_MS };
 	}
 
 	/** An entry as a board sees it: under the board's key, with the repository's status. */
@@ -654,11 +655,11 @@ export class Repo extends DurableObject<Env> {
 		const reader = this.reader;
 		if (!reader || reader.until <= Date.now()) return {};
 		const cached = this.readerToken;
-		if (cached && cached.id === reader.viewer.id && cached.until > Date.now()) {
+		if (cached && cached.id === reader.userId && cached.until > Date.now()) {
 			return { token: cached.token };
 		}
-		const token = await viewerToken(this.env, reader.viewer).catch(() => null);
-		this.readerToken = { id: reader.viewer.id, token, until: Date.now() + READER_TOKEN_TTL_MS };
+		const token = await userToken(this.env, reader.userId).catch(() => null);
+		this.readerToken = { id: reader.userId, token, until: Date.now() + READER_TOKEN_TTL_MS };
 		return { token };
 	}
 

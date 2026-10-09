@@ -252,6 +252,7 @@ function MissingCardView({ card, selected }: { card: MissingCard; selected?: boo
 		not_found: "This item doesn’t exist, or was deleted.",
 		unsupported: "This forge isn’t supported yet.",
 		error: "Couldn’t reach the forge. Retrying…",
+		private: "Private reference.",
 	}[card.reason];
 	return (
 		<article className="card missing" data-selected={selected}>

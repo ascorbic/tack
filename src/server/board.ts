@@ -2,17 +2,19 @@ import type { Connection, ConnectionContext } from "partyserver";
 import { YServer } from "y-partyserver";
 import * as Y from "yjs";
 import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
-import { type Card, type CardMessage, type MissingCard, isMissing } from "../shared/cards.ts";
-import { repoKeyOf } from "../shared/refs.ts";
+import type { BoardRequest, Card, CardMessage, MissingCard } from "../shared/cards.ts";
+import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
 import { REPAIR_ORIGIN, repairBoard } from "../shared/repair.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "./boards/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
-import type { MissingReason, RepoIdentity } from "./forges/index.ts";
+import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
+import { userToken } from "./identity.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
 import { repoObject, resolveRepo } from "./routing.ts";
+import { isPublic, visibleCard } from "./visibility.ts";
 
 /**
  * The Worker checks access before a connection reaches the board (see
@@ -40,11 +42,42 @@ const UNRESOLVED_TTL_MS = { error: 15_000, other: 60_000 };
 /** How long to wait after an edit before checking for dangling references. */
 const REPAIR_DELAY_MS = 250;
 
+/**
+ * How long to believe a viewer can, or can't, read a private repository.
+ * Losing access shows within `yes` (the periodic recheck), gaining it within
+ * `no`, or at once on reconnecting or asking to check again.
+ */
+const ACCESS_TTL_MS = { yes: 5 * 60_000, no: 2 * 60_000, error: 15_000 };
+/** A new connection reuses access checks younger than this, so reloads don't storm the forge. */
+const RECONNECT_GRACE_MS = 5_000;
+/** While anyone's connected: renew repository watches, and recheck access, this often. */
+const HEARTBEAT_MS = 60_000;
+/** Don't renew watches more often than this as people connect. */
+const WATCH_THROTTLE_MS = 20_000;
+/** How often a connection may ask for its access to be checked again. */
+const RECHECK_THROTTLE_MS = 5_000;
+
 type Entry = Card | MissingCard;
+
+/** Per connection: who it is (a GitHub user id, or null if signed out), and its queue of card messages. */
+interface Viewing {
+	userId: number | null;
+	/** Card messages to this connection go out in order, each after its access checks. */
+	queue: Promise<void>;
+	recheckedAt: number;
+}
 
 /**
  * One per board. Holds the Yjs document (layout and freeform content) and
  * relays live card data to clients as custom messages, outside the document.
+ *
+ * Card data comes from `Repo` objects, whose caches are shared across every
+ * board and viewer, so it's filtered per connection here (#10): cards from
+ * private repositories only reach viewers who can read them, checked with
+ * their own token, and everyone else gets a `private` placeholder carrying
+ * nothing but the key. Nothing else may send card data to clients: always
+ * go through `send`. Titles and other card fields never belong in logs, or
+ * in anything derived from the board (thumbnails, summaries), either.
  */
 export class Board extends YServer<Env> {
 	static override callbackOptions = { debounceWait: 2000, debounceMaxWait: 10_000 };
@@ -58,6 +91,32 @@ export class Board extends YServer<Env> {
 	private syncing: Promise<void> | null = null;
 	private resync = false;
 	private retry: ReturnType<typeof setTimeout> | undefined;
+
+	/** Connections by id: who's viewing. */
+	private viewing = new Map<string, Viewing>();
+	private connecting = 0;
+	/** The latest signed-in viewer (a user id), whose token can read public repositories. */
+	private reader: number | null = null;
+	/** Access checks, by viewer and repository. */
+	private access = new Map<string, { readable: boolean; checkedAt: number; until: number }>();
+	private checking = new Map<string, Promise<boolean>>();
+	private heartbeat: ReturnType<typeof setInterval> | undefined;
+	private watchedAt = 0;
+
+	override async fetch(request: Request): Promise<Response> {
+		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+			return super.fetch(request);
+		}
+		// Know who's connecting before the server starts, so its first fetches
+		// can use their token.
+		this.noteReader(readAccess(request)?.userId ?? null);
+		this.connecting++;
+		try {
+			return await super.fetch(request);
+		} finally {
+			this.connecting--;
+		}
+	}
 
 	override async onStart(): Promise<void> {
 		this.ctx.storage.sql.exec(`
@@ -160,12 +219,17 @@ export class Board extends YServer<Env> {
 		await this.updateIndex();
 	}
 
-	/** Keep the board's thumbnail and last activity current on the home page. */
+	/**
+	 * Keep the board's thumbnail and last activity current on the home page.
+	 * The thumbnail is shapes and colours only, never card data, and only
+	 * public cards lend it their state's colour: anyone who can see the board
+	 * in the index sees it, whatever repositories they can read.
+	 */
 	private async updateIndex(): Promise<void> {
 		try {
 			const thumbnail = boardThumbnail(this.document, (ref) => {
 				const card = this.cards.get(ref);
-				return card && !isMissing(card) ? card.state : "";
+				return card && isPublic(card) && !("missing" in card) ? card.state : "";
 			});
 			await directory(this.env).saved(this.name, thumbnail);
 		} catch (error) {
@@ -181,7 +245,18 @@ export class Board extends YServer<Env> {
 		}
 		connection.setState(access);
 		void super.onConnect(connection, ctx);
-		if (this.cards.size > 0) this.sendCards(connection, [...this.cards.values()]);
+		this.viewing.set(connection.id, {
+			userId: access.userId,
+			queue: Promise.resolve(),
+			recheckedAt: 0,
+		});
+		this.noteReader(access.userId);
+		this.startHeartbeat();
+		// A reconnect re-checks access, unless it was checked moments ago.
+		if (this.cards.size > 0) {
+			this.send(connection, [...this.cards.values()], { maxAge: RECONNECT_GRACE_MS });
+		}
+		this.watchRepos();
 	}
 
 	/** Viewers (and the public) can watch and be seen, but not change the document. */
@@ -192,7 +267,8 @@ export class Board extends YServer<Env> {
 	/**
 	 * Called by the Directory when a board's members or visibility change:
 	 * live connections pick up their new role straight away, and anyone who
-	 * lost access is disconnected.
+	 * lost access is disconnected. (Board roles never grant access to repo
+	 * data: that's checked per repository, whatever the role.)
 	 */
 	accessChanged(policy: Policy): void {
 		for (const connection of this.getConnections<ConnectionAccess>()) {
@@ -218,6 +294,39 @@ export class Board extends YServer<Env> {
 		);
 	}
 
+	/** Signed-in viewers (not dev sign-in users, who have no token) can lend theirs for reads. */
+	private noteReader(userId: number | null): void {
+		if (userId !== null && userId > 0) this.reader = userId;
+	}
+
+	override onClose(
+		connection: Connection,
+		code: number,
+		reason: string,
+		wasClean: boolean,
+	): void | Promise<void> {
+		this.viewing.delete(connection.id);
+		if (this.viewing.size === 0) this.stopHeartbeat();
+		return super.onClose(connection, code, reason, wasClean);
+	}
+
+	override onCustomMessage(connection: Connection, message: string): void {
+		let request: BoardRequest | null = null;
+		try {
+			request = JSON.parse(message) as BoardRequest;
+		} catch {
+			return;
+		}
+		if (request?.type !== "recheck") return;
+		const viewing = this.viewing.get(connection.id);
+		const now = Date.now();
+		if (!viewing || now - viewing.recheckedAt < RECHECK_THROTTLE_MS) return;
+		viewing.recheckedAt = now;
+		// Check every private repository again now, and resend what changed.
+		const cards = [...this.cards.values()].filter((entry) => !isPublic(entry));
+		if (cards.length > 0) this.send(connection, cards, { maxAge: 0 });
+	}
+
 	override onError(connection: Connection, error: unknown): void {
 		log.error("board.connection.error", { board: this.name, connection: connection.id, error });
 	}
@@ -236,12 +345,30 @@ export class Board extends YServer<Env> {
 		await this.cardsUpdated([card]);
 	}
 
+	/**
+	 * Called by `Instance` when the app is installed on (or removed from) a
+	 * repository this board couldn't read, so its cards appear without a reload.
+	 */
+	async repoInstallChanged(repoKey: string): Promise<void> {
+		log.info("board.installation", { board: this.name, repo: repoKey });
+		for (const key of this.unresolved.keys()) {
+			if (key.toLowerCase() === repoKey.toLowerCase()) {
+				this.unresolved.delete(key);
+				await this.installedOn(key, { fresh: true });
+			}
+		}
+		await this.syncSubscriptions();
+	}
+
 	/** Snapshot size in bytes, for measuring growth. */
 	snapshotSize(): number {
 		return Y.encodeStateAsUpdate(this.document).byteLength;
 	}
 
-	/** Cards this board is showing, for tests and debugging. */
+	/**
+	 * Cards this board is holding, unfiltered, for tests and debugging over
+	 * RPC only. Never expose this over HTTP: it includes private cards.
+	 */
 	liveCards(): Entry[] {
 		return [...this.cards.values()];
 	}
@@ -293,16 +420,53 @@ export class Board extends YServer<Env> {
 		const repo = await this.route(repoKey);
 		if (typeof repo === "string") {
 			// Not subscribed, so the next sync tries again (see `route`).
+			const installed =
+				repo === "not_found" || repo === "forbidden" ? await this.installedOn(repoKey) : undefined;
 			const news = keys.filter((key) => {
 				const card = this.cards.get(key);
-				return !card || !("missing" in card) || card.reason !== repo;
+				return (
+					!card || !("missing" in card) || card.reason !== repo || card.installed !== installed
+				);
 			});
-			this.publish(news.map((key) => ({ key, missing: true, reason: repo })));
+			this.publish(
+				news.map((key) => ({
+					key,
+					missing: true,
+					reason: repo,
+					...(installed === undefined ? {} : { installed }),
+				})),
+			);
 			return;
 		}
 		for (const key of keys) this.subscribed.add(key);
-		const cards = await repoObject(this.env, repo).subscribe(this.name, keys, repo);
+		// Someone's looking (or arriving), so the repository is being watched.
+		const watcher = this.hasAudience() ? { reader: this.reader } : undefined;
+		const cards = await repoObject(this.env, repo).subscribe(this.name, keys, repo, watcher);
 		this.publish(cards.filter((card) => this.subscribed.has(card.key)));
+	}
+
+	/**
+	 * For a repository that couldn't be read: whether the app is installed on
+	 * it. If it isn't, it may be private, so ask to hear when it is.
+	 */
+	private async installedOn(
+		repoKey: string,
+		options: { fresh?: boolean } = {},
+	): Promise<boolean | undefined> {
+		const parsed = parseRepoKey(repoKey);
+		const adapter = parsed && forge(parsed.forge);
+		if (!parsed || !adapter?.installed) return undefined;
+		const name = parsed.repo.toLowerCase();
+		const identity = { forge: parsed.forge, host: parsed.host, id: "", name };
+		const installed = await adapter.installed(identity, this.env, options).catch(() => undefined);
+		if (installed === false && adapter.watchInstallation) {
+			await adapter
+				.watchInstallation(name, this.env, { kind: "board", name: this.name })
+				.catch((error: unknown) =>
+					log.warn("board.installation.watch.failed", { board: this.name, error }),
+				);
+		}
+		return installed;
 	}
 
 	/**
@@ -346,26 +510,185 @@ export class Board extends YServer<Env> {
 	private publish(cards: Entry[]): void {
 		if (cards.length === 0) return;
 		for (const card of cards) this.cards.set(card.key, card);
-		for (const connection of this.getConnections()) this.sendCards(connection, cards);
+		for (const connection of this.getConnections()) this.send(connection, cards);
 	}
 
-	private sendCards(connection: Connection, cards: Entry[]): void {
-		const visible = this.visibleCards(connection, cards);
-		if (visible.length > 0) {
-			this.sendCustomMessage(connection, encode({ type: "cards", cards: visible }));
-		}
+	// --- Per-viewer filtering (#10) ------------------------------------------------
+
+	/**
+	 * Send cards to one connection, as its viewer may see them. Messages to a
+	 * connection go out in order, each after the access checks it needs.
+	 * `maxAge` makes access checks older than it count as stale.
+	 */
+	private send(connection: Connection, entries: Entry[], options: { maxAge?: number } = {}): void {
+		const viewing = this.viewing.get(connection.id);
+		// Not ready yet: it gets every card once it is (see onConnect).
+		if (!viewing || entries.length === 0) return;
+		viewing.queue = viewing.queue
+			.then(async () => {
+				const cards = await this.visibleTo(viewing.userId, entries, options.maxAge);
+				this.sendCustomMessage(connection, encode({ type: "cards", cards }));
+			})
+			.catch((error: unknown) =>
+				log.error("board.send.failed", { board: this.name, connection: connection.id, error }),
+			);
+	}
+
+	/** Entries as a viewer may see them: private cards they can't read become placeholders. */
+	private async visibleTo(
+		userId: number | null,
+		entries: Entry[],
+		maxAge?: number,
+	): Promise<Entry[]> {
+		const repoKeys = new Set(
+			entries.filter((entry) => !isPublic(entry)).map((entry) => repoKeyOf(entry.key)),
+		);
+		const readable = new Map(
+			await Promise.all(
+				[...repoKeys].map(
+					async (repoKey) => [repoKey, await this.canRead(userId, repoKey, maxAge)] as const,
+				),
+			),
+		);
+		return entries.map((entry) => visibleCard(entry, readable.get(repoKeyOf(entry.key)) ?? false));
 	}
 
 	/**
-	 * The hook for per-viewer filtering (#10): which of these cards this
-	 * connection may see. Board roles never grant access to repo data, so
-	 * cards from private repos must be checked against the viewer's own
-	 * forge access here (and swapped for a "private reference" placeholder).
-	 * `connection.state` says who they are. Until then, everyone who can
-	 * open the board sees every card on it.
+	 * Whether a viewer can read a repository, checked with their own token and
+	 * cached briefly. Anonymous viewers, and anyone without a token, can't.
+	 * Any doubt (no route, a failed check) means no.
 	 */
-	private visibleCards(_connection: Connection, cards: Entry[]): Entry[] {
-		return cards;
+	private async canRead(userId: number | null, repoKey: string, maxAge?: number): Promise<boolean> {
+		if (userId === null) return false;
+		const repo = this.routes.get(repoKey);
+		if (!repo) return false;
+		const adapter = forge(repo.forge);
+		if (!adapter.canRead) return true;
+		const id = `${userId}:${repo.host}/${repo.id}`;
+		const now = Date.now();
+		const cached = this.access.get(id);
+		if (cached && cached.until > now && (maxAge === undefined || now - cached.checkedAt < maxAge)) {
+			return cached.readable;
+		}
+		let pending = this.checking.get(id);
+		if (!pending) {
+			const started = Date.now();
+			pending = (async () => {
+				const token = await userToken(this.env, userId);
+				// Without their own token, nobody can show they may read it.
+				return token ? adapter.canRead!(repo, token, this.env) : false;
+			})()
+				.then(
+					(readable) => {
+						this.access.set(id, {
+							readable,
+							checkedAt: started,
+							until: started + (readable ? ACCESS_TTL_MS.yes : ACCESS_TTL_MS.no),
+						});
+						if (cached?.readable !== readable) {
+							log.info("board.access", {
+								board: this.name,
+								user: userId,
+								repo: repo.name,
+								readable,
+							});
+						}
+						return readable;
+					},
+					(error: unknown) => {
+						log.warn("board.access.failed", {
+							board: this.name,
+							user: userId,
+							repo: repo.name,
+							error,
+						});
+						this.access.set(id, {
+							readable: false,
+							checkedAt: started,
+							until: started + ACCESS_TTL_MS.error,
+						});
+						return false;
+					},
+				)
+				.finally(() => this.checking.delete(id));
+			this.checking.set(id, pending);
+		}
+		return pending;
+	}
+
+	/**
+	 * Recheck access that has gone stale for everyone connected, and resend
+	 * the cards of any repository whose answer changed.
+	 */
+	private async recheckAccess(): Promise<void> {
+		const privateRepos = new Map<string, Entry[]>();
+		for (const entry of this.cards.values()) {
+			if (isPublic(entry)) continue;
+			const repoKey = repoKeyOf(entry.key);
+			let list = privateRepos.get(repoKey);
+			if (!list) privateRepos.set(repoKey, (list = []));
+			list.push(entry);
+		}
+		if (privateRepos.size === 0) return;
+		const now = Date.now();
+		for (const connection of this.getConnections()) {
+			const viewing = this.viewing.get(connection.id);
+			if (viewing?.userId == null) continue;
+			for (const [repoKey, entries] of privateRepos) {
+				const repo = this.routes.get(repoKey);
+				if (!repo) continue;
+				const before = this.access.get(`${viewing.userId}:${repo.host}/${repo.id}`);
+				if (before && before.until > now) continue;
+				const readable = await this.canRead(viewing.userId, repoKey);
+				if (before?.readable !== readable) this.send(connection, entries);
+			}
+		}
+	}
+
+	// --- Watching repositories (#9) ------------------------------------------------
+
+	private hasAudience(): boolean {
+		return this.connecting > 0 || this.viewing.size > 0;
+	}
+
+	/**
+	 * Tell each repository on the board that someone's looking, so ones that
+	 * aren't live are fetched on view and polled while watched.
+	 */
+	private watchRepos(force = false): void {
+		const now = Date.now();
+		if (!force && now - this.watchedAt < WATCH_THROTTLE_MS) return;
+		this.watchedAt = now;
+		const repos = new Map<string, RepoIdentity>();
+		for (const key of this.subscribed) {
+			const repo = this.routes.get(repoKeyOf(key));
+			if (repo) repos.set(`${repo.host}/${repo.id}`, repo);
+		}
+		if (repos.size === 0) return;
+		const reader = this.reader;
+		this.ctx.waitUntil(
+			Promise.allSettled(
+				[...repos.values()].map((repo) => repoObject(this.env, repo).watch(this.name, reader)),
+			).then((results) => {
+				const failed = results.filter((result) => result.status === "rejected").length;
+				if (failed > 0) log.warn("board.watch.failed", { board: this.name, failed });
+			}),
+		);
+	}
+
+	private startHeartbeat(): void {
+		if (this.heartbeat) return;
+		this.heartbeat = setInterval(() => {
+			this.watchRepos(true);
+			void this.recheckAccess().catch((error: unknown) =>
+				log.error("board.access.failed", { board: this.name, error }),
+			);
+		}, HEARTBEAT_MS);
+	}
+
+	private stopHeartbeat(): void {
+		clearInterval(this.heartbeat);
+		this.heartbeat = undefined;
 	}
 }
 

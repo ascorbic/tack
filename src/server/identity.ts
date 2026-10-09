@@ -26,6 +26,11 @@ export async function getViewer(request: Request, env: Env): Promise<Viewer | nu
  * Refreshed automatically; null if they have none (or it was revoked).
  */
 export async function viewerToken(env: Env, viewer: Viewer): Promise<string | null> {
-	if (!env.TACK_SECRET) return null;
-	return instance(env).userToken(viewer.id);
+	return userToken(env, viewer.id);
+}
+
+/** The same, by GitHub user id (as board connections know their viewer). */
+export async function userToken(env: Env, userId: number): Promise<string | null> {
+	if (!env.TACK_SECRET || userId <= 0) return null;
+	return instance(env).userToken(userId);
 }
