@@ -1,0 +1,139 @@
+import type { Locator, Page } from "@playwright/test";
+import { drag, expect, nodePosition, openScenario, test } from "./fixtures.ts";
+
+// Sections and connectors: drawing, moving with contents, following,
+// detaching and undo.
+
+// By title: a pull request card also mentions the issues it links.
+const card = (page: Page, title: string): Locator =>
+	page.locator(".react-flow__node-card", {
+		has: page.locator(".card-title", { hasText: title }),
+	});
+const section = (page: Page, title: string): Locator =>
+	page.locator(".react-flow__node-section", { hasText: title });
+const connectors = (page: Page) => page.locator(".connector:not(.connector-draft)");
+
+async function box(locator: Locator) {
+	const rect = await locator.boundingBox();
+	if (!rect) throw new Error("no box");
+	return rect;
+}
+
+async function centre(locator: Locator): Promise<{ x: number; y: number }> {
+	const rect = await box(locator);
+	return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+}
+
+/** The connectors in the playground's document, with their ends. */
+function connectorEnds(page: Page) {
+	return page.evaluate(() => {
+		const sim = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } })
+			.tackPlayground;
+		const shapes = sim.doc.getMap("shapes") as import("yjs").Map<import("yjs").Map<unknown>>;
+		return [...shapes.entries()]
+			.filter(([, shape]) => shape.get("type") === "connector")
+			.map(([id, shape]) => ({
+				id,
+				from: shape.get("from") as { shape?: string },
+				to: shape.get("to") as { shape?: string },
+			}));
+	});
+}
+
+test("draw a section around cards, then move it with them", async ({ page }) => {
+	await openScenario(page, "planning");
+	// The second row, so the section's title has room above it.
+	const first = card(page, "Document the Bunny provider");
+	const second = card(page, "Keep Node 18 support");
+	const a = await box(first);
+	const b = await box(second);
+
+	await page.keyboard.press("f");
+	await page.mouse.move(a.x - 24, a.y - 24);
+	await page.mouse.down();
+	await page.mouse.move(b.x + b.width + 24, b.y + b.height + 24, { steps: 10 });
+	await page.mouse.up();
+
+	// The new section takes in both cards, and its title is ready to type.
+	const title = page.getByRole("textbox", { name: "Section title" });
+	await expect(title).toBeFocused();
+	await page.keyboard.type("Now");
+	await page.keyboard.press("Enter");
+	const now = section(page, "Now");
+	await expect(now.locator(".section-count")).toHaveText("2");
+
+	const before = { section: await nodePosition(now), card: await nodePosition(first) };
+	await drag(page, await centre(now.locator(".section-title")), { x: 120, y: 80 });
+	const after = { section: await nodePosition(now), card: await nodePosition(first) };
+	const moved = { x: after.section.x - before.section.x, y: after.section.y - before.section.y };
+	expect(moved.x).toBeGreaterThan(50);
+	expect(after.card).toEqual({ x: before.card.x + moved.x, y: before.card.y + moved.y });
+	await expect(now.locator(".section-count")).toHaveText("2");
+});
+
+test("undo puts a moved section and its contents back in one step", async ({ page }) => {
+	await openScenario(page, "sections");
+	const now = section(page, "Now");
+	const inside = card(page, "Drop Node 18 support");
+	const before = { section: await nodePosition(now), card: await nodePosition(inside) };
+
+	await drag(page, await centre(now.locator(".section-title")), { x: 90, y: 60 });
+	await expect.poll(() => nodePosition(inside)).not.toEqual(before.card);
+
+	await page.keyboard.press("ControlOrMeta+z");
+	await expect.poll(() => nodePosition(now)).toEqual(before.section);
+	await expect.poll(() => nodePosition(inside)).toEqual(before.card);
+});
+
+test("connect two cards, and the connector follows when one moves", async ({ page }) => {
+	await openScenario(page, "planning");
+	const from = card(page, "Drop Node 18 support");
+	const to = card(page, "Remove Node 18 from the CI");
+	await expect(connectors(page)).toHaveCount(0);
+
+	await page.keyboard.press("x");
+	const start = await centre(from);
+	const end = await centre(to);
+	await page.mouse.move(start.x, start.y);
+	await page.mouse.down();
+	await page.mouse.move(end.x, end.y, { steps: 10 });
+	await page.mouse.up();
+	await expect(connectors(page)).toHaveCount(1);
+	const [line] = await connectorEnds(page);
+	expect(line?.from.shape).toBeTruthy();
+	expect(line?.to.shape).toBeTruthy();
+
+	// Move the target card down; the line's far end goes with it.
+	const path = connectors(page).locator(".connector-line");
+	const target = await box(to);
+	await drag(page, { x: target.x + 40, y: target.y + 20 }, { x: 60, y: 260 });
+	const moved = await box(to);
+	const after = await box(path);
+	expect(after.y + after.height).toBeGreaterThan(moved.y - 20);
+	expect(after.x + after.width).toBeGreaterThan(moved.x - 20);
+});
+
+test("deleting a connected card leaves its connectors with a loose end", async ({ page }) => {
+	await openScenario(page, "connectors");
+	const count = (await connectorEnds(page)).length;
+	const doomed = card(page, "Remove Node 18 from the CI");
+	const id = await doomed.getAttribute("data-id");
+	const attached = (await connectorEnds(page)).filter(
+		(c) => c.from.shape === id || c.to.shape === id,
+	);
+	expect(attached.length).toBeGreaterThan(0);
+
+	const at = await centre(doomed);
+	await page.mouse.click(at.x, at.y);
+	await page.keyboard.press("Backspace");
+	await expect(doomed).toHaveCount(0);
+
+	const ends = await connectorEnds(page);
+	expect(ends).toHaveLength(count);
+	for (const { id: kept } of attached) {
+		const line = ends.find((c) => c.id === kept);
+		expect(line?.from.shape).not.toBe(id);
+		expect(line?.to.shape).not.toBe(id);
+	}
+	await expect(connectors(page)).toHaveCount(count);
+});

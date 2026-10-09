@@ -39,7 +39,8 @@ test("shift-click and shift-marquee add to the selection", async ({ page }) => {
 	await page.mouse.up();
 	await expect(selected(page)).toHaveCount(2);
 	await page.keyboard.down("Shift");
-	await page.mouse.move(20, 300);
+	// Start below the arrange toolbar, which now sits over (20, 300).
+	await page.mouse.move(20, 320);
 	await page.mouse.down();
 	await page.mouse.move(560, 420, { steps: 8 });
 	await page.mouse.up();
