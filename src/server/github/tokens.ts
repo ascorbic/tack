@@ -14,3 +14,11 @@ export async function repoToken(env: Env, _repoKey: string): Promise<string | nu
 export async function isInstalled(_env: Env, _repoKey: string): Promise<boolean> {
 	return false;
 }
+
+/**
+ * A JWT for calling GitHub as the app itself (e.g. listing and redelivering
+ * failed webhook deliveries, #13), or null if no app is configured.
+ */
+export async function appJwt(_env: Env): Promise<string | null> {
+	return null;
+}
