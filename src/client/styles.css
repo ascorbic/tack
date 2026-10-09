@@ -1086,11 +1086,27 @@ a.card-title:hover {
    Cursors
    ------------------------------------------------------------------------ */
 
+/* Above every node, including selected and dragged ones (React Flow raises
+   those inside its viewport), and below the toolbar and panels. */
+.cursors-layer {
+	position: absolute;
+	inset: 0;
+	z-index: 6;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.cursors-viewport {
+	position: absolute;
+	left: 0;
+	top: 0;
+	transform-origin: 0 0;
+}
+
 .cursor {
 	position: absolute;
 	left: 0;
 	top: 0;
-	z-index: 1000;
 	display: flex;
 	align-items: flex-start;
 	pointer-events: none;
