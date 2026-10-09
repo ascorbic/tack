@@ -347,6 +347,9 @@ function repoList(repos: readonly string[] | undefined): string {
 /** A helpful message, and what can be done, for every reason a push is refused. */
 export function failureCopy(refusal: Refusal): FailureCopy {
 	const repos = "repos" in refusal ? refusal.repos : undefined;
+	// The server says exactly what's in the way for these (another push, a
+	// change edited meanwhile, an unreachable forge), so use its words.
+	const said = refusal.message?.trim() || undefined;
 	switch (refusal.reason) {
 		case "signed_out":
 			return {
@@ -372,13 +375,17 @@ export function failureCopy(refusal: Refusal): FailureCopy {
 		case "missing_dependency":
 			return {
 				title: "A change needs an issue that isn’t in this push",
-				body: "Some changes refer to an issue that’s still to be created. Include it too, so it’s made first.",
+				body:
+					said ??
+					"Some changes refer to an issue that’s still to be created. Include it too, so it’s made first.",
 				actions: [{ kind: "include_dependencies" }],
 			};
 		case "busy":
 			return {
-				title: "Someone else is pushing this board",
-				body: "Another push is still going. Give it a moment, then try again: nothing has been sent twice.",
+				title: "Couldn’t start the push",
+				body:
+					said ??
+					"Another push is still going. Give it a moment, then try again: nothing has been sent twice.",
 				actions: [{ kind: "retry" }],
 			};
 		case "offline":

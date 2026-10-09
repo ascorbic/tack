@@ -190,7 +190,7 @@ test.describe("push sheet", () => {
 		["signed_out", "Sign in to push"],
 		["no_write_access", "You can stage but not push here"],
 		["not_installed", "Install the app on these repos"],
-		["busy", "Someone else is pushing this board"],
+		["busy", "Couldn’t start the push"],
 		["offline", "Couldn’t reach Tack"],
 	] as const) {
 		test(`explains a refusal: ${mode}`, async ({ page }) => {
@@ -250,7 +250,7 @@ test.describe("changes gallery", () => {
 			"You can stage but not push here",
 			"Install the app on these repos",
 			"A change needs an issue that isn’t in this push",
-			"Someone else is pushing this board",
+			"Couldn’t start the push",
 			"Couldn’t reach Tack",
 		]) {
 			await expect(sheets.locator(".push-refusal strong", { hasText: title })).toHaveCount(1);
