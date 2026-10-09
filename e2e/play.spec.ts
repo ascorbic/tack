@@ -8,6 +8,7 @@ const SCENARIOS = {
 	triage: { cards: 9, stickies: 0, texts: 0 },
 	stress: { cards: 500, stickies: 0, texts: 0 },
 	brainstorm: { cards: 0, stickies: 30, texts: 7 },
+	arrange: { cards: 4, stickies: 6, texts: 0 },
 	empty: { cards: 0, stickies: 0, texts: 0 },
 };
 
@@ -150,8 +151,10 @@ test("dragging a card commits its position", async ({ page }) => {
 	// Regression: the node must not stay in its dragging state after the drop.
 	await expect(node).not.toHaveClass(/\bdragging\b/);
 	const after = await nodePosition(node);
-	expect(Math.abs(after.x - (before.x + 220))).toBeLessThanOrEqual(2);
-	expect(Math.abs(after.y - (before.y + 130))).toBeLessThanOrEqual(2);
+	// Within snapping distance (6px) of the drop: it may have snapped to a
+	// neighbour's edge (see canvas.spec.ts).
+	expect(Math.abs(after.x - (before.x + 220))).toBeLessThanOrEqual(6);
+	expect(Math.abs(after.y - (before.y + 130))).toBeLessThanOrEqual(6);
 
 	// Committed to the document, so it stays put rather than snapping back.
 	await page.waitForTimeout(400);
