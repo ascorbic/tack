@@ -381,7 +381,7 @@ function ReviewView({
 								) : noisy ? (
 									<span className="push-notify" data-noisy="true">
 										<BellIcon size={13} />
-										Notifies {peopleCount(info.watchers)}
+										{info.watchers === 0 ? "No watchers" : `Notifies ${peopleCount(info.watchers)}`}
 									</span>
 								) : (
 									<span className="push-notify">
@@ -515,7 +515,9 @@ function ReviewView({
 								: "Won’t notify watchers: labels, milestones and links are quiet."
 							: estimate.loading
 								? "Checking who’s watching…"
-								: `Notifies ${peopleCount(estimate.watchers)} watching ${listRepos(estimate.noisyRepos)}.`}
+								: estimate.watchers === 0
+									? `Nobody’s watching ${listRepos(estimate.noisyRepos)}, so no watchers are notified.`
+									: `Notifies ${peopleCount(estimate.watchers)} watching ${listRepos(estimate.noisyRepos)}.`}
 						{estimate.assignees.length > 0 &&
 							` ${estimate.assignees.map((login) => `@${login}`).join(", ")} ${estimate.assignees.length === 1 ? "hears" : "hear"} about being assigned.`}
 					</span>

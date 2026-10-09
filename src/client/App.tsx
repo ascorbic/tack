@@ -6,7 +6,9 @@ import { AccountMenu, SignInButton } from "./auth/AccountMenu.tsx";
 import { personUser } from "./auth/me.ts";
 import { addCard } from "./board.ts";
 import { Board } from "./Board.tsx";
+import { type Operation, stageChange } from "../shared/changes.ts";
 import { pushApi } from "./changes/api.ts";
+import { stagerFor } from "./changes/context.ts";
 import { type BoardPageProps, BoardRoute, LegacyRedirect } from "./boards/BoardPage.tsx";
 import { HomeRoute } from "./boards/HomePage.tsx";
 import { useLiveBoard } from "./connection.ts";
@@ -34,6 +36,20 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 	const [guest] = useState(localUser);
 	const user = useMemo(() => (me.viewer ? personUser(me.viewer) : guest), [me.viewer, guest]);
 	const push = useMemo(() => pushApi(id), [id]);
+
+	// Development only: stage changes from the console, e.g. to try a push
+	// against the fake forge before there's UI for every kind.
+	//   tackBoard.stage({ kind: "issue.create", repo: "fake.tack/demo/app", title: "Hi" })
+	useEffect(() => {
+		if (!import.meta.env.DEV) return;
+		Object.assign(window, {
+			tackBoard: {
+				doc: source.doc,
+				stage: (op: Operation, options?: Parameters<typeof stageChange>[3]) =>
+					stageChange(source.doc, op, stagerFor(user), options),
+			},
+		});
+	}, [source.doc, user]);
 
 	// Stress mode: fill an empty board with synthetic cards once synced.
 	useEffect(() => {
