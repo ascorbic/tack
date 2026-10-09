@@ -1,5 +1,9 @@
 This file provides guidance to agentic coding tools when working with code in this repository.
 
+## Design principle: delight
+
+The UI must be delightful, with FigJam as the bar: considered typography, micro-interactions, and lots of small details (how a card lifts when picked up, how a live update lands, how a push confirms). Treat polish as a feature, not a follow-up. Respect `prefers-reduced-motion`, and keep interactions at 60fps.
+
 ## Repository Structure
 
 Tack: a GitHub-native collaborative whiteboard for open source planning, built as a Cloudflare Worker with Vite+ and the Cloudflare Vite plugin.
@@ -7,10 +11,11 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `src/index.ts` — the Worker entrypoint: webhook route, partyserver routing, DO exports
 - `src/server/board.ts` — `Board` Durable Object (one per board): Yjs document via y-partyserver, live card relay via custom messages
 - `src/server/repo.ts` — `Repo` Durable Object (one per repository): card cache, board subscriptions, webhook log and fan-out
-- `src/server/webhooks.ts` — GitHub webhook signature verification and routing
-- `src/shared/` — card types/normalisation and the Yjs shape schema, used by both server and client
+- `src/server/forges/` — forge adapters (GitHub, plus a synthetic `fake.tack` forge for tests and stress boards): fetching items, verifying and normalising webhooks, capabilities. Everything outside this folder is forge-neutral
+- `src/server/webhooks.ts` — `POST /webhooks/:forge` routing
+- `src/shared/` — forge-neutral item keys (`{host}/{repo}{#|!}{n}`, see `refs.ts`), card types and the Yjs shape schema, used by both server and client
 - `src/client/` — React + React Flow canvas (own `tsconfig.json` with DOM types); `index.html` at the repo root is its entry
-- `scripts/send-webhook.ts` — send a signed webhook to a local dev server (reads `WEBHOOK_SECRET` from `.dev.vars`)
+- `scripts/send-webhook.ts` — send a signed webhook to a local dev server (reads `GITHUB_WEBHOOK_SECRET` from `.dev.vars`)
 - `docs/spike.md` — spike findings: performance, Yjs growth, design decisions
 - `test/` — Vitest tests, run inside workerd via `@cloudflare/vitest-plugin`
 - `cloudflare.config.ts` — Worker configuration (the experimental `cf`-CLI-native format; there is no wrangler.jsonc)

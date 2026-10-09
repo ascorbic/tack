@@ -18,7 +18,7 @@ export default defineConfig({
 							Board: { className: "Board", useSQLite: true },
 							Repo: { className: "Repo", useSQLite: true },
 						},
-						bindings: { WEBHOOK_SECRET: "test-secret", GITHUB_TOKEN: "" },
+						bindings: { GITHUB_WEBHOOK_SECRET: "test-secret", GITHUB_TOKEN: "" },
 					},
 				}),
 			]

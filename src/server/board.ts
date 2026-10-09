@@ -1,7 +1,8 @@
 import type { Connection, ConnectionContext } from "partyserver";
 import { YServer } from "y-partyserver";
 import * as Y from "yjs";
-import { type Card, type CardMessage, type MissingCard, repoKey } from "../shared/cards.ts";
+import type { Card, CardMessage, MissingCard } from "../shared/cards.ts";
+import { repoKeyOf } from "../shared/refs.ts";
 import { cardRefs } from "../shared/shapes.ts";
 import { repos } from "./namespaces.ts";
 
@@ -119,6 +120,6 @@ function encode(message: CardMessage): string {
 
 function groupByRepo(keys: string[]): Record<string, string[]> {
 	const groups: Record<string, string[]> = {};
-	for (const key of keys) (groups[repoKey(key)] ??= []).push(key);
+	for (const key of keys) (groups[repoKeyOf(key)] ??= []).push(key);
 	return groups;
 }

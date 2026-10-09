@@ -14,7 +14,7 @@ export default defineWorker({
 	env: {
 		Board: bindings.durableObject({ workerName: "tack", exportName: "Board" }),
 		Repo: bindings.durableObject({ workerName: "tack", exportName: "Repo" }),
-		WEBHOOK_SECRET: bindings.secret(),
+		GITHUB_WEBHOOK_SECRET: bindings.secret(),
 		GITHUB_TOKEN: bindings.secret(),
 	},
 	exports: {

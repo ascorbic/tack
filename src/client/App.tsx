@@ -9,7 +9,7 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { cardKey, parseRef } from "../shared/cards.ts";
+import { itemKey, parseRef } from "../shared/refs.ts";
 import { shapesMap } from "../shared/shapes.ts";
 import {
 	type ShapeNode,
@@ -58,7 +58,7 @@ function Board() {
 		const columns = Math.ceil(Math.sqrt(stressCount));
 		doc.transact(() => {
 			for (let i = 0; i < stressCount; i++) {
-				addCard(doc, `tack-stress/cards#${i + 1}`, {
+				addCard(doc, `fake.tack/stress/cards#${i + 1}`, {
 					x: (i % columns) * 260,
 					y: Math.floor(i / columns) * 200,
 				});
@@ -137,7 +137,7 @@ function Board() {
 			const ref = parseRef(event.clipboardData?.getData("text") ?? "");
 			if (!ref) return;
 			event.preventDefault();
-			addCard(doc, cardKey(ref), centre());
+			addCard(doc, itemKey(ref), centre());
 		};
 		window.addEventListener("paste", onPaste);
 		return () => window.removeEventListener("paste", onPaste);
@@ -152,7 +152,7 @@ function Board() {
 			setRefError(true);
 			return;
 		}
-		addCard(doc, cardKey(ref), centre());
+		addCard(doc, itemKey(ref), centre());
 		setRefInput("");
 		setRefError(false);
 	};
@@ -172,7 +172,7 @@ function Board() {
 							value={refInput}
 							aria-invalid={refError}
 							onChange={(event) => setRefInput(event.target.value)}
-							placeholder="owner/repo#123 or paste a GitHub URL"
+							placeholder="owner/repo#123 or paste an issue or PR URL"
 						/>
 						<button type="submit">Add card</button>
 					</form>

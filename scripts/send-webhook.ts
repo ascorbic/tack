@@ -3,7 +3,7 @@
 //
 //   node scripts/send-webhook.ts <event> <payload.json> [url]
 //
-// Reads WEBHOOK_SECRET from .dev.vars.
+// Reads GITHUB_WEBHOOK_SECRET from .dev.vars.
 
 import { createHmac, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -14,9 +14,9 @@ if (!event || !file) {
 	process.exit(1);
 }
 
-const secret = /^WEBHOOK_SECRET=(.*)$/m.exec(readFileSync(".dev.vars", "utf8"))?.[1];
+const secret = /^GITHUB_WEBHOOK_SECRET=(.*)$/m.exec(readFileSync(".dev.vars", "utf8"))?.[1];
 if (!secret) {
-	console.error("WEBHOOK_SECRET not found in .dev.vars");
+	console.error("GITHUB_WEBHOOK_SECRET not found in .dev.vars");
 	process.exit(1);
 }
 

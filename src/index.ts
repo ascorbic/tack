@@ -8,8 +8,9 @@ export default {
 	async fetch(request, env): Promise<Response> {
 		const url = new URL(request.url);
 
-		if (url.pathname === "/webhooks/github" && request.method === "POST") {
-			return handleWebhook(request, env);
+		const webhook = /^\/webhooks\/([a-z]+)$/.exec(url.pathname);
+		if (webhook?.[1] && request.method === "POST") {
+			return handleWebhook(request, env, webhook[1]);
 		}
 
 		// Board sync: /parties/board/:name

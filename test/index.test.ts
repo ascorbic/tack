@@ -1,7 +1,10 @@
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { fakeCard } from "../src/server/forges/fake.ts";
+import { sign, verifySignature } from "../src/server/forges/hmac.ts";
 import { repos } from "../src/server/namespaces.ts";
-import { sign, verifySignature } from "../src/server/webhooks.ts";
+
+const REPO = "github.com/acme/widgets";
 
 function issuePayload(overrides: Record<string, unknown> = {}) {
 	return {
@@ -23,10 +26,10 @@ function issuePayload(overrides: Record<string, unknown> = {}) {
 
 async function deliver(
 	payload: unknown,
-	opts: { event?: string; id?: string; secret?: string } = {},
+	opts: { event?: string; id?: string; secret?: string; forge?: string } = {},
 ) {
 	const body = JSON.stringify(payload);
-	return exports.default.fetch("https://example.com/webhooks/github", {
+	return exports.default.fetch(`https://example.com/webhooks/${opts.forge ?? "github"}`, {
 		method: "POST",
 		body,
 		headers: {
@@ -50,15 +53,23 @@ describe("webhook signatures", () => {
 		const response = await deliver(issuePayload(), { secret: "wrong" });
 		expect(response.status).toBe(401);
 	});
+
+	it("404s forges that don't take webhooks", async () => {
+		expect((await deliver(issuePayload(), { forge: "fake" })).status).toBe(404);
+		expect((await deliver(issuePayload(), { forge: "nope" })).status).toBe(404);
+	});
 });
 
 describe("webhook ingest", () => {
 	it("normalises and caches an issue", async () => {
 		const response = await deliver(issuePayload());
 		expect(response.status).toBe(202);
-		expect(await response.json()).toMatchObject({ status: "updated", key: "acme/widgets#7" });
+		expect(await response.json()).toMatchObject({
+			status: "processed",
+			updated: [`${REPO}#7`],
+		});
 
-		const card = await repos(env).getByName("acme/widgets").getCard("acme/widgets#7");
+		const card = await repos(env).getByName(REPO).getCard(`${REPO}#7`);
 		expect(card).toMatchObject({ title: "Widgets wobble", state: "open", kind: "issue" });
 	});
 
@@ -74,13 +85,13 @@ describe("webhook ingest", () => {
 		const stale = await deliver(
 			issuePayload({ title: "Older", updated_at: "2026-10-02T00:00:00Z" }),
 		);
-		expect(await stale.json()).toMatchObject({ status: "stale" });
-		const card = await repos(env).getByName("acme/widgets").getCard("acme/widgets#7");
+		expect(await stale.json()).toMatchObject({ stale: [`${REPO}#7`], updated: [] });
+		const card = await repos(env).getByName(REPO).getCard(`${REPO}#7`);
 		expect(card?.title).toBe("Newer");
 	});
 
 	it("marks merged pull requests as merged", async () => {
-		const response = await deliver(
+		await deliver(
 			{
 				action: "closed",
 				repository: { full_name: "acme/widgets" },
@@ -96,36 +107,36 @@ describe("webhook ingest", () => {
 			},
 			{ event: "pull_request" },
 		);
-		expect(await response.json()).toMatchObject({ status: "updated", key: "acme/widgets#8" });
-		const card = await repos(env).getByName("acme/widgets").getCard("acme/widgets#8");
+		const card = await repos(env).getByName(REPO).getCard(`${REPO}#8`);
 		expect(card).toMatchObject({ kind: "pull", state: "merged" });
 	});
 });
 
 describe("board subscriptions", () => {
-	it("fans webhook updates out to subscribed boards", async () => {
-		const repo = repos(env).getByName("tack-stress/cards");
-		const [card] = await repo.subscribe("board-a", ["tack-stress/cards#2"]);
-		expect(card).toMatchObject({ key: "tack-stress/cards#2", state: "closed" });
-		expect(await repo.subscribers("tack-stress/cards#2")).toEqual(["board-a"]);
+	it("serves cards from any forge and fans updates out to subscribed boards", async () => {
+		const key = "fake.tack/stress/cards#2";
+		const repo = repos(env).getByName("fake.tack/stress/cards");
 
-		const response = await deliver(
-			{
-				action: "reopened",
-				repository: { full_name: "tack-stress/cards" },
-				issue: {
-					number: 2,
-					title: "Reopened",
-					state: "open",
-					html_url: "https://github.com/tack-stress/cards/issues/2",
-					updated_at: "2026-10-09T00:00:00Z",
-				},
-			},
-			{ event: "issues" },
-		);
-		expect(await response.json()).toMatchObject({ status: "updated", boards: 1 });
+		const [card] = await repo.subscribe("board-a", [key]);
+		expect(card).toMatchObject({ key, forge: "fake", state: "closed" });
+		expect(await repo.subscribers(key)).toEqual(["board-a"]);
 
-		await repo.unsubscribe("board-a", ["tack-stress/cards#2"]);
-		expect(await repo.subscribers("tack-stress/cards#2")).toEqual([]);
+		const reopened = {
+			...fakeCard("stress/cards", 2),
+			state: "open" as const,
+			updatedAt: "2026-10-09T00:00:00Z",
+		};
+		const result = await repo.ingest({
+			id: crypto.randomUUID(),
+			event: "test",
+			action: null,
+			repoKey: "fake.tack/stress/cards",
+			payload: "{}",
+			cards: [reopened],
+		});
+		expect(result).toMatchObject({ status: "processed", updated: [key], boards: 1 });
+
+		await repo.unsubscribe("board-a", [key]);
+		expect(await repo.subscribers(key)).toEqual([]);
 	});
 });

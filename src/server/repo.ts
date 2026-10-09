@@ -1,63 +1,19 @@
 import { DurableObject } from "cloudflare:workers";
 import { getServerByName } from "partyserver";
-import {
-	type Card,
-	type GitHubIssueLike,
-	type MissingCard,
-	normaliseIssue,
-	parseRef,
-} from "../shared/cards.ts";
+import type { Card, MissingCard } from "../shared/cards.ts";
+import { type ItemRef, parseKey } from "../shared/refs.ts";
 import type { Board } from "./board.ts";
+import { type Delivery, forge } from "./forges/index.ts";
 import { boards } from "./namespaces.ts";
-
-// Synthetic repo for stress tests: cards are generated, never fetched.
-const STRESS_REPO = "tack-stress/cards#";
-const STRESS_LABELS = [
-	{ name: "bug", color: "d73a4a" },
-	{ name: "enhancement", color: "a2eeef" },
-	{ name: "docs", color: "0075ca" },
-	{ name: "good first issue", color: "7057ff" },
-];
-
-function stressCard(key: string): Card {
-	const n = Number(key.slice(STRESS_REPO.length));
-	const states = ["open", "open", "closed", "merged", "draft"] as const;
-	const state = states[n % states.length] ?? "open";
-	return {
-		key,
-		kind: state === "merged" || state === "draft" ? "pull" : "issue",
-		repo: "tack-stress/cards",
-		number: n,
-		title: `Synthetic card ${n}: a reasonably long title so it wraps onto two lines`,
-		state,
-		stateReason: state === "closed" ? "completed" : null,
-		labels: STRESS_LABELS.slice(0, (n % 3) + 1),
-		assignees: [],
-		author: null,
-		comments: n % 17,
-		reactions: n % 9,
-		url: `https://github.com/tack-stress/cards/issues/${n}`,
-		updatedAt: new Date(0).toISOString(),
-	};
-}
 
 export type IngestResult =
 	| { status: "duplicate" }
-	| { status: "ignored"; reason: string }
-	| { status: "stale"; key: string }
-	| { status: "updated"; key: string; boards: number };
-
-export interface WebhookPayload {
-	action?: string;
-	repository?: { full_name: string };
-	issue?: GitHubIssueLike;
-	pull_request?: GitHubIssueLike;
-}
+	| { status: "processed"; updated: string[]; stale: string[]; boards: number };
 
 /**
- * One per repository. Caches normalised cards, records which boards reference
- * which cards, keeps a raw log of webhook deliveries, and fans card updates out
- * to subscribed boards.
+ * One per repository, on any forge. Caches normalised cards, records which
+ * boards reference which cards, keeps a raw log of webhook deliveries, and
+ * fans card updates out to subscribed boards.
  */
 export class Repo extends DurableObject<Env> {
 	private sql = this.ctx.storage.sql;
@@ -90,7 +46,7 @@ export class Repo extends DurableObject<Env> {
 		for (const key of keys) {
 			this.sql.exec("INSERT OR IGNORE INTO subscriptions (key, board) VALUES (?, ?)", key, board);
 		}
-		return Promise.all(keys.map((key) => this.cardOrFetch(key)));
+		return this.cardsOrFetch(keys);
 	}
 
 	unsubscribe(board: string, keys: string[]): void {
@@ -113,44 +69,50 @@ export class Repo extends DurableObject<Env> {
 			.map((row) => row.board);
 	}
 
-	async ingest(deliveryId: string, event: string, payload: WebhookPayload): Promise<IngestResult> {
+	async ingest(delivery: Delivery): Promise<IngestResult> {
 		const seen = this.sql
-			.exec("SELECT 1 FROM events WHERE delivery_id = ?", deliveryId)
+			.exec("SELECT 1 FROM events WHERE delivery_id = ?", delivery.id)
 			.toArray().length;
 		if (seen) return { status: "duplicate" };
 
 		this.sql.exec(
 			"INSERT INTO events (delivery_id, event, action, payload, received_at) VALUES (?, ?, ?, ?, ?)",
-			deliveryId,
-			event,
-			payload.action ?? null,
-			JSON.stringify(payload),
+			delivery.id,
+			delivery.event,
+			delivery.action,
+			delivery.payload,
 			new Date().toISOString(),
 		);
 
-		const repo = payload.repository?.full_name;
-		const item =
-			event === "issues"
-				? payload.issue
-				: event === "pull_request"
-					? payload.pull_request
-					: undefined;
-		if (!repo || !item) return { status: "ignored", reason: `unhandled event ${event}` };
+		const updated: Card[] = [];
+		const stale: string[] = [];
+		for (const card of delivery.cards) {
+			const existing = this.getCard(card.key);
+			// Deliveries can arrive out of order: never let an older payload win.
+			if (existing && existing.updatedAt > card.updatedAt) {
+				stale.push(card.key);
+				continue;
+			}
+			this.store(card);
+			updated.push(card);
+		}
 
-		const card = normaliseIssue(repo, item, event === "pull_request");
-		const existing = this.getCard(card.key);
-		// Webhooks can arrive out of order: never let an older payload win.
-		if (existing && existing.updatedAt > card.updatedAt) return { status: "stale", key: card.key };
-
-		this.store(card);
-		const subscribed = this.subscribers(card.key);
+		const notified = new Set<string>();
 		await Promise.allSettled(
-			subscribed.map(async (name) => {
-				const board = await getServerByName<Env, Board>(boards(this.env), name);
-				await board.cardUpdated(card);
-			}),
+			updated.flatMap((card) =>
+				this.subscribers(card.key).map(async (name) => {
+					notified.add(name);
+					const board = await getServerByName<Env, Board>(boards(this.env), name);
+					await board.cardUpdated(card);
+				}),
+			),
 		);
-		return { status: "updated", key: card.key, boards: subscribed.length };
+		return {
+			status: "processed",
+			updated: updated.map((card) => card.key),
+			stale,
+			boards: notified.size,
+		};
 	}
 
 	private store(card: Card): void {
@@ -162,40 +124,24 @@ export class Repo extends DurableObject<Env> {
 		);
 	}
 
-	private async cardOrFetch(key: string): Promise<Card | MissingCard> {
-		const cached = this.getCard(key);
-		if (cached) return cached;
-		const card = key.startsWith(STRESS_REPO) ? stressCard(key) : await this.fetchFromGitHub(key);
-		if (!("missing" in card)) this.store(card);
-		return card;
-	}
-
-	// Spike: REST with an optional token. The real thing uses installation
-	// tokens and batched GraphQL `nodes()` queries.
-	private async fetchFromGitHub(key: string): Promise<Card | MissingCard> {
-		const ref = parseRef(key);
-		if (!ref) return { key, missing: true, reason: "not_found" };
-		const headers: HeadersInit = {
-			accept: "application/vnd.github+json",
-			"user-agent": "tack",
-			...(this.env.GITHUB_TOKEN ? { authorization: `Bearer ${this.env.GITHUB_TOKEN}` } : {}),
-		};
-		const base = `https://api.github.com/repos/${ref.owner}/${ref.repo}`;
-		try {
-			const res = await fetch(`${base}/issues/${ref.number}`, { headers });
-			if (res.status === 404) return { key, missing: true, reason: "not_found" };
-			if (res.status === 403 || res.status === 401)
-				return { key, missing: true, reason: "forbidden" };
-			if (!res.ok) return { key, missing: true, reason: "error" };
-			const issue = await res.json<GitHubIssueLike>();
-			if (issue.pull_request) {
-				// The issues endpoint doesn't say whether a PR is a draft.
-				const pr = await fetch(`${base}/pulls/${ref.number}`, { headers });
-				if (pr.ok) Object.assign(issue, { draft: (await pr.json<GitHubIssueLike>()).draft });
-			}
-			return normaliseIssue(`${ref.owner}/${ref.repo}`, issue);
-		} catch {
-			return { key, missing: true, reason: "error" };
+	private async cardsOrFetch(keys: string[]): Promise<(Card | MissingCard)[]> {
+		const result = new Map<string, Card | MissingCard>();
+		const toFetch: ItemRef[] = [];
+		for (const key of keys) {
+			const cached = this.getCard(key);
+			const ref = cached ? null : parseKey(key);
+			if (cached) result.set(key, cached);
+			else if (ref) toFetch.push(ref);
+			else result.set(key, { key, missing: true, reason: "unsupported" });
 		}
+		// Every key in one Repo shares a host, so one adapter fetches them all.
+		const first = toFetch[0];
+		if (first) {
+			for (const card of await forge(first.forge).fetchItems(toFetch, this.env)) {
+				if (!("missing" in card)) this.store(card);
+				result.set(card.key, card);
+			}
+		}
+		return keys.map((key) => result.get(key) ?? { key, missing: true, reason: "error" });
 	}
 }

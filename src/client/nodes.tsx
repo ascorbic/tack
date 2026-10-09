@@ -76,7 +76,7 @@ export const CardNode = memo(function CardNode({ data, selected }: NodeProps<Sha
 					<StateIcon card={card} />
 				</span>
 				<span className="mono">
-					{card.repo.split("/")[1]} #{card.number}
+					{card.repo.split("/").at(-1)} {card.item}
 				</span>
 				<span className="chip state">{stateLabel(card)}</span>
 			</div>
