@@ -21,6 +21,8 @@ import { transactLocal, updateShapes } from "../shared/shapes.ts";
 import { addSection, resizeSection } from "../shared/structure.ts";
 import { type ShapeNode, focusWhenMounted, isFresh, takeFocus } from "./board.ts";
 import { DocContext, ReadOnlyContext, SectionContext, type SectionUI } from "./DocContext.ts";
+import { TrayIcon } from "./inbox/icons.tsx";
+import { inboxUI, useTray } from "./inbox/useTray.ts";
 import "./sections.css";
 
 const HANDLES: ResizeHandle[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
@@ -106,12 +108,27 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 					>
 						{count}
 					</span>
+					{shape.inbox && <InboxBadge id={id} shape={shape} />}
 				</div>
 				{selected && doc && !readOnly && (
 					<SectionColors
 						color={color as SectionColor}
 						onColor={(next) => updateShapes(doc, [id], { color: next })}
 					/>
+				)}
+				{alone && doc && !readOnly && !shape.inbox && (
+					<button
+						type="button"
+						className="section-make-inbox nodrag nopan"
+						title="Collect new matches for a search in this section"
+						onClick={(event) => {
+							event.stopPropagation();
+							inboxUI.edit(id);
+						}}
+					>
+						<TrayIcon size={14} />
+						Make inbox
+					</button>
 				)}
 			</div>
 			{selected &&
@@ -125,6 +142,33 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 });
 
 export const sectionNodeTypes = { section: SectionNode };
+
+/** An inbox section's title says how many new matches wait in its tray. */
+function InboxBadge({ id, shape }: { id: string; shape: ShapeNode["data"]["shape"] }) {
+	const doc = useContext(DocContext);
+	const tray = useTray(doc, id, shape);
+	const count = tray.items.length;
+	return (
+		<button
+			type="button"
+			className="section-inbox nodrag nopan"
+			data-new={count > 0}
+			title={count > 0 ? `${count} new in the inbox` : "Inbox: nothing new"}
+			aria-label={count > 0 ? `Inbox: ${count} new` : "Inbox: nothing new"}
+			onClick={(event) => {
+				event.stopPropagation();
+				inboxUI.toggle(id);
+			}}
+		>
+			<TrayIcon size={12} />
+			{count > 0 && (
+				<span key={count} className="section-inbox-count">
+					{count}
+				</span>
+			)}
+		</button>
+	);
+}
 
 function TitleInput({
 	value,

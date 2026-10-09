@@ -4,7 +4,9 @@ import type { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 import type { BoardMessage, Role } from "../shared/boards.ts";
 import type { BoardRequest, CardMessage } from "../shared/cards.ts";
+import type { WidgetMessage } from "../shared/widgets.ts";
 import { cardStore } from "./cardStore.ts";
+import { inboxStore } from "./inbox/store.ts";
 
 /** Everything a board needs to render, whether live or simulated. */
 export interface BoardSource {
@@ -35,13 +37,16 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		const doc = new Y.Doc();
 		const provider = new YProvider(location.host, name, doc, { party: "board" });
 		provider.on("custom-message", (raw: string) => {
-			const message = JSON.parse(raw) as CardMessage | BoardMessage;
+			const message = JSON.parse(raw) as CardMessage | BoardMessage | WidgetMessage;
 			switch (message.type) {
 				case "access":
 					handlers.current.onRole?.(message.role);
 					return;
 				case "renamed":
 					handlers.current.onRenamed?.(message.title, message.slug);
+					return;
+				case "widget-data":
+					inboxStore.apply(message);
 					return;
 				default:
 					cardStore.apply(message);
@@ -54,13 +59,18 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		});
 		cardStore.recheck = () =>
 			provider.sendMessage(JSON.stringify({ type: "recheck" } satisfies BoardRequest));
+		inboxStore.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
 		return { doc, provider };
 	});
 	const [synced, setSynced] = useState(false);
 
 	useEffect(() => {
 		const { provider } = connection;
-		const onSync = (isSynced: boolean) => setSynced(isSynced);
+		const onSync = (isSynced: boolean) => {
+			setSynced(isSynced);
+			// A new connection knows nothing of what this one was watching.
+			if (isSynced) inboxStore.rewatch();
+		};
 		provider.on("sync", onSync);
 		return () => {
 			provider.off("sync", onSync);
