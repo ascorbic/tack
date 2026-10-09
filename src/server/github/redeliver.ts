@@ -1,3 +1,4 @@
+import { log } from "../log.ts";
 import { appJwt } from "./tokens.ts";
 
 // GitHub doesn't retry failed webhook deliveries, so a cron asks it to. The
@@ -32,14 +33,37 @@ interface HookDelivery {
 	event: string;
 }
 
-/** Redeliver recent webhook deliveries that failed, if a GitHub App is configured. */
+/**
+ * Redeliver recent webhook deliveries that failed, if a GitHub App is
+ * configured. Logs the outcome as `github.redelivery`, or
+ * `github.redelivery.failed`.
+ */
 export async function redeliverFailedWebhooks(
 	env: Env,
 	options?: RedeliveryOptions,
 ): Promise<RedeliveryReport> {
-	const jwt = await appJwt(env);
-	if (!jwt) return { status: "skipped", reason: "no GitHub App configured" };
-	return redeliver(jwt, options);
+	let report: RedeliveryReport;
+	try {
+		const jwt = await appJwt(env);
+		report = jwt
+			? await redeliver(jwt, options)
+			: { status: "skipped", reason: "no GitHub App configured" };
+	} catch (error) {
+		log.error("github.redelivery.failed", { error });
+		return { status: "error", reason: String(error) };
+	}
+	if (report.status === "error") log.error("github.redelivery.failed", { reason: report.reason });
+	else if (report.status === "skipped") log.info("github.redelivery", report);
+	else {
+		log.info("github.redelivery", {
+			status: report.status,
+			checked: report.checked,
+			failed: report.failed,
+			redelivered: report.redelivered.length,
+			gaveUp: report.gaveUp.length,
+		});
+	}
+	return report;
 }
 
 /**
@@ -106,12 +130,16 @@ export async function redeliver(
 			headers,
 		});
 		if (response.ok) redelivered.push(guid);
-		else console.warn(`Redelivering ${guid} failed: ${response.status}`);
+		else {
+			log.warn("github.redelivery.failed", {
+				guid,
+				delivery: latest.id,
+				event: latest.event,
+				status: response.status,
+			});
+		}
 	}
 
-	if (redelivered.length + gaveUp.length > 0) {
-		console.log(`Webhook redelivery: ${redelivered.length} redelivered, ${gaveUp.length} gave up`);
-	}
 	return {
 		status: "done",
 		checked: attempts.size,

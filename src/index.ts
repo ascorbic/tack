@@ -36,11 +36,8 @@ export default {
 	},
 
 	async scheduled(_controller, env, ctx): Promise<void> {
-		// GitHub doesn't retry failed webhook deliveries; ask it to.
-		ctx.waitUntil(
-			redeliverFailedWebhooks(env).then((report) => {
-				if (report.status === "error") console.error("Webhook redelivery", report.reason);
-			}),
-		);
+		// GitHub doesn't retry failed webhook deliveries; ask it to. Logged as
+		// `github.redelivery`.
+		ctx.waitUntil(redeliverFailedWebhooks(env));
 	},
 } satisfies ExportedHandler<Env>;

@@ -10,7 +10,7 @@ import { addShape, nextZ } from "../src/shared/shapes.ts";
 import { sign } from "../src/server/forges/hmac.ts";
 import { repoObjectName } from "../src/server/routing.ts";
 import { FakeGitHub, type FakeRequest } from "./fake-github.ts";
-import { repoStub, startWorker, type WorkerOptions } from "./harness.ts";
+import { instanceStub, repoStub, startWorker, type WorkerOptions } from "./harness.ts";
 
 // Integration tests for GitHub data: real Boards and Repos in Miniflare,
 // talking to a fake GitHub, with boards opened over WebSockets like the app.
@@ -375,5 +375,55 @@ describe("webhook redelivery", () => {
 		const result = await (await mf.getWorker()).scheduled({ cron: "*/10 * * * *" });
 		expect(result.outcome).toBe("ok");
 		expect(github.count((r) => r.path.startsWith("/app"))).toBe(0);
+	});
+
+	it("redelivers failed deliveries once the GitHub App is set up", async () => {
+		const github = fakeGitHub();
+		const mf = worker(github);
+
+		// Create the app from its manifest, as an instance's first admin would.
+		const setup = await mf.dispatchFetch("https://tack.test/api/setup");
+		const { state } = (await setup.json()) as { state: string };
+		const cookie = setup.headers
+			.getSetCookie()
+			.map((header) => header.split(";")[0])
+			.join("; ");
+		await mf.dispatchFetch(
+			`https://tack.test/setup/callback?code=${github.manifestCode}&state=${state}`,
+			{ headers: { cookie }, redirect: "manual" },
+		);
+		expect(await (await instanceStub(mf)).isConfigured()).toBe(true);
+
+		const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+		github.hookDeliveries = [
+			{
+				id: 3,
+				guid: "dropped",
+				delivered_at: ago(2),
+				redelivery: false,
+				status_code: 502,
+				event: "check_run",
+			},
+			{
+				id: 2,
+				guid: "fine",
+				delivered_at: ago(3),
+				redelivery: false,
+				status_code: 202,
+				event: "issues",
+			},
+			{
+				id: 1,
+				guid: "rejected",
+				delivered_at: ago(4),
+				redelivery: false,
+				status_code: 401,
+				event: "issues",
+			},
+		];
+		const result = await (await mf.getWorker()).scheduled({ cron: "*/10 * * * *" });
+		expect(result.outcome).toBe("ok");
+		// The fake checks the app JWT on every call, so these used a real one.
+		await vi.waitFor(() => expect(github.redelivered).toEqual([3]));
 	});
 });
