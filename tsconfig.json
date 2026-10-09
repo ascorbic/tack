@@ -19,15 +19,14 @@
 		"allowImportingTsExtensions": true,
 		"noEmit": true,
 		"lib": ["es2022"],
-		"types": ["@cloudflare/vitest-plugin/types"]
+		"types": []
 	},
 	"include": [
 		"src",
-		"test",
 		"cloudflare.config.ts",
 		"compatibility.ts",
 		"vite.config.ts",
-		"worker-configuration.d.ts"
+		".cloudflare/types"
 	],
-	"exclude": ["src/client"]
+	"exclude": ["src/client", "test"]
 }

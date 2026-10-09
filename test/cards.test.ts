@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import { normaliseIssue } from "../src/server/forges/github.ts";
 import { itemKey, parseKey, parseRef, repoKeyOf } from "../src/shared/refs.ts";

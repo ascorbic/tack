@@ -1,8 +1,14 @@
-import { env, exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import type { Miniflare } from "miniflare";
+import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { fakeCard } from "../src/server/forges/fake.ts";
 import { sign, verifySignature } from "../src/server/forges/hmac.ts";
-import { repos } from "../src/server/namespaces.ts";
+import { repoStub, startWorker } from "./harness.ts";
+
+let mf: Miniflare;
+beforeAll(() => {
+	mf = startWorker();
+});
+afterAll(() => mf.dispose());
 
 const REPO = "github.com/acme/widgets";
 
@@ -29,7 +35,7 @@ async function deliver(
 	opts: { event?: string; id?: string; secret?: string; forge?: string } = {},
 ) {
 	const body = JSON.stringify(payload);
-	return exports.default.fetch(`https://example.com/webhooks/${opts.forge ?? "github"}`, {
+	return mf.dispatchFetch(`https://example.com/webhooks/${opts.forge ?? "github"}`, {
 		method: "POST",
 		body,
 		headers: {
@@ -69,7 +75,7 @@ describe("webhook ingest", () => {
 			updated: [`${REPO}#7`],
 		});
 
-		const card = await repos(env).getByName(REPO).getCard(`${REPO}#7`);
+		const card = await (await repoStub(mf, REPO)).getCard(`${REPO}#7`);
 		expect(card).toMatchObject({ title: "Widgets wobble", state: "open", kind: "issue" });
 	});
 
@@ -86,7 +92,7 @@ describe("webhook ingest", () => {
 			issuePayload({ title: "Older", updated_at: "2026-10-02T00:00:00Z" }),
 		);
 		expect(await stale.json()).toMatchObject({ stale: [`${REPO}#7`], updated: [] });
-		const card = await repos(env).getByName(REPO).getCard(`${REPO}#7`);
+		const card = await (await repoStub(mf, REPO)).getCard(`${REPO}#7`);
 		expect(card?.title).toBe("Newer");
 	});
 
@@ -107,7 +113,7 @@ describe("webhook ingest", () => {
 			},
 			{ event: "pull_request" },
 		);
-		const card = await repos(env).getByName(REPO).getCard(`${REPO}#8`);
+		const card = await (await repoStub(mf, REPO)).getCard(`${REPO}#8`);
 		expect(card).toMatchObject({ kind: "pull", state: "merged" });
 	});
 });
@@ -115,7 +121,7 @@ describe("webhook ingest", () => {
 describe("board subscriptions", () => {
 	it("serves cards from any forge and fans updates out to subscribed boards", async () => {
 		const key = "fake.tack/stress/cards#2";
-		const repo = repos(env).getByName("fake.tack/stress/cards");
+		const repo = await repoStub(mf, "fake.tack/stress/cards");
 
 		const [card] = await repo.subscribe("board-a", [key]);
 		expect(card).toMatchObject({ key, forge: "fake", state: "closed" });
