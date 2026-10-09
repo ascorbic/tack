@@ -40,7 +40,7 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - The entrypoint uses the `with { type: "cf-worker" }` import attribute. This is what makes `Env` and `exports` inference work — keep that form when changing the entrypoint.
 - **Bindings**: declare them in `cloudflare.config.ts` (e.g. `env: { MY_KV: bindings.kv() }` with `bindings` from the same import). The `Env` type is inferred from them — run `pnpm types` after config changes. Durable Object bindings to this same Worker are untyped; `src/server/namespaces.ts` restores the class types. Integration tests declare the same bindings for Miniflare in `test/harness.ts`, so keep the two in step.
 - **`compatibility.ts`** exists so the test runtime (`test/harness.ts`) always matches the deployed runtime. Extra exports are not allowed in `cloudflare.config.ts` (its exports are schema-validated), which is why this is a separate file.
-- **Version pins that must move together**: the `vitest` devDependency and the `vitest` override in `pnpm-workspace.yaml` are pinned to the version bundled by vite-plus (check with `pnpm exec vp toolchain`). `vite` is aliased to `@voidzero-dev/vite-plus-core` (as a devDependency and an override) so every package resolves the same Vite — do not add a real `vite` dependency.
+- **Version pins that must move together**: the `vite@*` and `vitest@*` overrides in `pnpm-workspace.yaml` pin Vite to `@voidzero-dev/vite-plus-core` at the installed `vite-plus` version, and Vitest to the version `vp toolchain vitest` reports. Update them whenever `vite-plus` changes. There are no direct `vite` or `vitest` dependencies: import test APIs from `vite-plus/test`.
 
 ## Testing
 

@@ -1,5 +1,5 @@
 import type { Miniflare } from "miniflare";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { fakeCard } from "../src/server/forges/fake.ts";
 import { sign, verifySignature } from "../src/server/forges/hmac.ts";
 import { repoStub, startWorker } from "./harness.ts";
