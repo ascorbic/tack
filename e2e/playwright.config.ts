@@ -46,5 +46,8 @@ export default defineConfig({
 		timeout: 120_000,
 		stdout: "ignore",
 		stderr: "pipe",
+		// Sign-in for e2e/auth.spec.ts, without GitHub. Only used where there's
+		// no .dev.vars (as in CI): the Cloudflare plugin prefers that file.
+		env: { TACK_SECRET: "e2e-only-secret", TACK_DEV_AUTH: "1" },
 	},
 });

@@ -39,7 +39,7 @@ export function devAuthEnabled(request: Request, env: Env): boolean {
 }
 
 function signInError(error: string, returnTo = "/"): Response {
-	log.warn("auth.signin_failed", { reason: error });
+	log.warn("auth.signin.failed", { reason: error });
 	const params = new URLSearchParams({ error, return_to: returnTo });
 	return redirect(`/signin?${params.toString()}`);
 }
@@ -134,13 +134,13 @@ async function callback(request: Request, env: Env, url: URL): Promise<Response>
 
 async function signOut(request: Request, env: Env): Promise<Response> {
 	if (isCrossSite(request)) {
-		log.warn("auth.cross_site", { path: "/auth/signout" });
+		log.warn("auth.rejected", { path: "/auth/signout" });
 		return new Response("Forbidden", { status: 403 });
 	}
 	const id = await sessionId(request, env);
 	if (id) {
 		await instance(env).signOut(id);
-		log.info("auth.signed_out");
+		log.info("auth.signout");
 	}
 	const cookie = clearSessionCookie(request);
 	if (request.headers.get("accept")?.includes("application/json")) {

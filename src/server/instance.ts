@@ -241,7 +241,7 @@ export class Instance extends DurableObject<Env> {
 			const id = await this.installationFor(repo);
 			return id === null ? null : await this.installationToken(id);
 		} catch (error) {
-			log.warn("github.installation_token_failed", { repo, error });
+			log.warn("github.token.failed", { repo, error });
 			return null;
 		}
 	}
@@ -373,7 +373,7 @@ export class Instance extends DurableObject<Env> {
 	installationEvent(event: string, payload: InstallationPayload): void {
 		const installation = payload.installation;
 		if (!installation) return;
-		log.info("github.installation_event", {
+		log.info("github.installation", {
 			event,
 			action: payload.action,
 			installation: installation.id,
@@ -442,7 +442,7 @@ export class Instance extends DurableObject<Env> {
 			}
 			return true;
 		} catch (error) {
-			log.error("github.installation_sync_failed", { installation: id, error });
+			log.error("github.installation.failed", { installation: id, error });
 			return false;
 		}
 	}
@@ -470,7 +470,7 @@ export class Instance extends DurableObject<Env> {
 				redirectUri: options.redirectUri,
 			});
 		} catch (error) {
-			log.warn("auth.signin_failed", { reason: "exchange", error });
+			log.warn("auth.signin.failed", { reason: "exchange", error });
 			return { ok: false, error: error instanceof OAuthError ? error.code : "exchange_failed" };
 		}
 
@@ -478,7 +478,7 @@ export class Instance extends DurableObject<Env> {
 		try {
 			user = await ghJson<GitHubUser>("/user", { auth: `Bearer ${tokens.accessToken}` });
 		} catch (error) {
-			log.warn("auth.signin_failed", { reason: "user", error });
+			log.warn("auth.signin.failed", { reason: "user", error });
 			return { ok: false, error: "user_failed" };
 		}
 
@@ -489,7 +489,7 @@ export class Instance extends DurableObject<Env> {
 
 		await this.upsertUser(user, { orgs, tokens, admin });
 		const result = await this.startSession(user.id);
-		log.info("auth.signed_in", {
+		log.info("auth.signin", {
 			login: user.login,
 			user: user.id,
 			admin: result.ok && result.session.admin,
@@ -533,7 +533,7 @@ export class Instance extends DurableObject<Env> {
 			access.orgs.includes(org),
 		);
 		await this.upsertUser(user, { orgs, tokens: null, admin: options.admin === true });
-		log.info("auth.dev_signed_in", { login: user.login, user: user.id });
+		log.info("auth.signin.dev", { login: user.login, user: user.id });
 		return this.startSession(user.id);
 	}
 
@@ -619,7 +619,7 @@ export class Instance extends DurableObject<Env> {
 			await this.storeUserTokens(userId, fresh);
 			return fresh.accessToken;
 		} catch (error) {
-			log.warn("auth.refresh_failed", { user: userId, error });
+			log.warn("auth.refresh.failed", { user: userId, error });
 			// A rejected refresh token is dead for good; a network blip isn't.
 			if (error instanceof OAuthError) {
 				await this.storeUserTokens(userId, null);
@@ -740,7 +740,7 @@ export class Instance extends DurableObject<Env> {
 					try {
 						if ((await attempt()).status === 204) return org;
 					} catch (error) {
-						log.warn("auth.org_check_failed", { login, org, error });
+						log.warn("auth.orgcheck.failed", { login, org, error });
 					}
 				}
 				return null;
