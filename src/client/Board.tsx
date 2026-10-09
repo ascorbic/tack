@@ -228,13 +228,24 @@ export function Board({
 			const changes = snapping.snapChanges(incoming);
 			const selection = changes.filter((change) => change.type === "select");
 			if (selection.length > 0) {
+				// Read it now: the update below can run after the marquee has ended.
+				const base = marqueeBase.current;
+				for (const change of selection) {
+					// React Flow's marquee replaces the selection, so it marks the
+					// shapes a Shift-marquee keeps as unselected in its own copies
+					// before telling us. It only re-reads a shape given to it as a new
+					// object, so make sure it is, or React Flow goes on treating it as
+					// unselected: no highlight, and left behind when the selection is
+					// dragged.
+					if (!change.selected && base?.has(change.id)) merged.current.delete(change.id);
+				}
 				setSelected((current) => {
 					const next = new Set(current);
 					for (const change of selection) {
 						if (change.selected) next.add(change.id);
 						else next.delete(change.id);
 					}
-					for (const id of marqueeBase.current ?? []) next.add(id);
+					for (const id of base ?? []) next.add(id);
 					return next;
 				});
 			}
@@ -415,7 +426,12 @@ export function Board({
 						selectionKeyCode={null}
 						multiSelectionKeyCode={["Shift", "Meta", "Control"]}
 						onSelectionStart={(event) => {
-							marqueeBase.current = event.shiftKey ? new Set(selected) : null;
+							// React Flow has just deselected every shape, before calling
+							// this. A plain marquee replaces the whole selection,
+							// connectors too; with Shift, it adds to what was selected.
+							const base = event.shiftKey ? new Set(selected) : null;
+							marqueeBase.current = base;
+							setSelected(new Set(base));
 						}}
 						onSelectionEnd={() => {
 							marqueeBase.current = null;

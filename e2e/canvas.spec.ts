@@ -16,9 +16,22 @@ async function centre(node: Locator): Promise<{ x: number; y: number }> {
 }
 
 /**
+ * While a marquee is within this distance of the canvas's edge, React Flow
+ * pans the canvas every frame (`autoPanOnSelection`; the default distance
+ * in @xyflow/system's `calcAutoPan`), so how far it pans, and what ends up
+ * in the box, depends on how long the drag takes.
+ */
+const AUTO_PAN_EDGE = 40;
+
+const viewportTransform = (page: Page) =>
+	page.locator(".react-flow__viewport").evaluate((el) => (el as HTMLElement).style.transform);
+
+/**
  * Drag a selection marquee. It must start on empty canvas: if a toolbar (or
- * anything else) is under the start point, the drag would hit that instead,
- * so fail clearly rather than flake.
+ * anything else) is under the start point, the drag would hit that instead.
+ * And it must stay clear of the canvas's edges, where it would pan the
+ * canvas by however far a slow machine lets it. Fail clearly on either
+ * rather than flake.
  */
 async function marquee(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
 	const onCanvas = await page.evaluate(
@@ -26,10 +39,25 @@ async function marquee(page: Page, from: { x: number; y: number }, to: { x: numb
 		from,
 	);
 	expect(onCanvas, `marquee starts on empty canvas at ${from.x},${from.y}`).toBe(true);
+	const pane = await page.locator(".react-flow__pane").boundingBox();
+	if (!pane) throw new Error("no canvas");
+	for (const { x, y } of [from, to]) {
+		const clearance = Math.min(
+			x - pane.x,
+			pane.x + pane.width - x,
+			y - pane.y,
+			pane.y + pane.height - y,
+		);
+		expect(clearance, `marquee point ${x},${y} is clear of the auto-pan edge`).toBeGreaterThan(
+			AUTO_PAN_EDGE,
+		);
+	}
+	const before = await viewportTransform(page);
 	await page.mouse.move(from.x, from.y);
 	await page.mouse.down();
 	await page.mouse.move(to.x, to.y, { steps: 8 });
 	await page.mouse.up();
+	expect(await viewportTransform(page), "the marquee didn't pan the canvas").toBe(before);
 }
 
 test.beforeEach(async ({ page }) => openScenario(page, "arrange"));
@@ -52,21 +80,59 @@ test("shift-click and shift-marquee add to the selection", async ({ page }) => {
 	await page.keyboard.press("Escape");
 	// Let the deselect land before starting a marquee that builds on it.
 	await expect(selected(page)).toHaveCount(0);
-	await marquee(page, { x: 20, y: 300 }, { x: 120, y: 790 });
+	// Down the left column of stickies: "Ship the Astro…" and "Benchmark…".
+	await marquee(page, { x: 60, y: 380 }, { x: 120, y: 700 });
 	await expect(selected(page)).toHaveCount(2);
-	// The arrange toolbar springs in above the new selection. Wait for it to
-	// settle so it can't be under the next marquee's start point mid-animation.
-	const arrange = page.getByRole("toolbar", { name: "Arrange selection" });
-	await expect(arrange).toBeVisible();
-	await arrange.evaluate((el) =>
-		Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)),
-	);
+	await expect(page.getByRole("toolbar", { name: "Arrange selection" })).toBeVisible();
 	await page.keyboard.down("Shift");
-	// Start below the arrange toolbar, which sits over (20, 300).
-	await marquee(page, { x: 20, y: 320 }, { x: 560, y: 420 });
+	// Right to left across the top row, adding "Docs…" and "Who owns…". This
+	// starts well away from the arrange toolbar above the selection.
+	await marquee(page, { x: 760, y: 480 }, { x: 300, y: 520 });
 	await page.keyboard.up("Shift");
 	await expect(selected(page)).toHaveCount(4);
 	await expect(page.getByRole("toolbar", { name: "Arrange selection" })).toBeVisible();
+});
+
+test("a shift-marquee keeps the shapes already selected, and they move with it", async ({
+	page,
+}) => {
+	const left = [sticky(page, "Ship the Astro"), sticky(page, "Benchmark")];
+	const top = [sticky(page, "Docs before features"), sticky(page, "Who owns")];
+	// Select by clicking this time (the test above starts with a marquee).
+	const ship = await centre(left[0]!);
+	await page.mouse.click(ship.x, ship.y);
+	await page.keyboard.down("Shift");
+	const benchmark = await centre(left[1]!);
+	await page.mouse.click(benchmark.x, benchmark.y);
+	await page.keyboard.up("Shift");
+	await expect(selected(page)).toHaveCount(2);
+
+	// Over empty canvas, Shift keeps the selection as it is.
+	await page.keyboard.down("Shift");
+	await marquee(page, { x: 760, y: 480 }, { x: 800, y: 520 });
+	await page.keyboard.up("Shift");
+	await expect(selected(page)).toHaveCount(2);
+
+	// Over more shapes, it adds them, and the earlier ones stay selected even
+	// though the box never touched them.
+	await page.keyboard.down("Shift");
+	await marquee(page, { x: 760, y: 480 }, { x: 300, y: 520 });
+	await page.keyboard.up("Shift");
+	for (const node of [...left, ...top]) await expect(node).toHaveClass(/\bselected\b/);
+	await expect(selected(page)).toHaveCount(4);
+
+	// So dragging one of them moves all four, by the same amount (which
+	// snapping may adjust a little).
+	const all = [...top, ...left];
+	const before = await Promise.all(all.map(nodePosition));
+	await drag(page, await centre(top[0]!), { x: 60, y: 40 });
+	const moves = async () => {
+		const after = await Promise.all(all.map(nodePosition));
+		return after.map((at, i) => `${at.x - before[i]!.x},${at.y - before[i]!.y}`);
+	};
+	await expect.poll(async () => (await moves())[0]).not.toBe("0,0");
+	const [dragged] = await moves();
+	expect(await moves()).toEqual(Array(4).fill(dragged));
 });
 
 test("copy, paste, undo and redo", async ({ page }) => {
