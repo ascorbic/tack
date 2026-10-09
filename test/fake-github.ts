@@ -113,6 +113,15 @@ export interface FakeFailure {
 	message?: string;
 	/** Only for a write whose path (or GraphQL operation) includes this. */
 	match?: string;
+	/** Do the write first, then fail: as when GitHub did it but the answer was lost. */
+	after?: boolean;
+}
+
+function failed(failure: FakeFailure): Response {
+	return new Response(JSON.stringify({ message: failure.message ?? "Failed" }), {
+		status: failure.status,
+		headers: { "content-type": "application/json", ...failure.headers },
+	});
 }
 
 interface FakeComment {
@@ -652,14 +661,23 @@ export class FakeGitHub {
 				: json({ message: "Requires authentication" }, 401);
 		}
 		const failure = this.takeFailure(url.pathname);
-		if (failure) {
-			return new Response(JSON.stringify({ message: failure.message ?? "Failed" }), {
-				status: failure.status,
-				headers: { "content-type": "application/json", ...failure.headers },
-			});
-		}
+		if (failure && !failure.after) return failed(failure);
 		const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+		const response = this.write(repo, rest, method, body, login, now);
+		// The write happened, but the answer was lost.
+		return failure && response ? failed(failure) : response;
+	}
+
+	private write(
+		repo: FakeRepo,
+		rest: string,
+		method: string,
+		body: Record<string, unknown>,
+		login: string,
+		now: string,
+	): Response | undefined {
 		const drop = this.dropWrites;
+		let match: RegExpExecArray | null;
 
 		if (rest === "/issues" && method === "POST") {
 			const number = Math.max(0, ...this.itemsIn(repo.id).map((i) => i.number)) + 1;

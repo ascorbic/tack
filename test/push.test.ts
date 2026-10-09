@@ -152,7 +152,7 @@ async function until(
 }
 
 /** Alice, on a new board of hers, with the push engine's pauses shortened. */
-async function setup(options: { confirmMs?: number } = {}) {
+async function setup(options: { confirmMs?: number; backoffMs?: number } = {}) {
 	const github = fakeGitHub();
 	const mf = await configured(github);
 	const alice = await signInWithGitHub(mf, github, ALICE);
@@ -163,6 +163,7 @@ async function setup(options: { confirmMs?: number } = {}) {
 	).pushTiming({
 		spacingMs: 10,
 		confirmMs: options.confirmMs ?? 60_000,
+		backoffMs: options.backoffMs ?? 50,
 	});
 	const stage = async (id: string, op: Operation, effect?: Parameters<typeof stageChange>[3]) => {
 		stageChange(client.doc, op, STAGER, { id, ...effect });
@@ -481,6 +482,38 @@ describe("rate limits and retries", () => {
 		await until(client, "two", "applied");
 		expect(github.comments.map((c) => c.body)).toEqual(["One", "Two"]);
 		expect(writes(github).filter((w) => w.endsWith("/comments"))).toHaveLength(3);
+	});
+
+	it("doesn't make anything twice when GitHub did it but the answer was lost", async () => {
+		const { github, mf, alice, board, client, stage } = await setup();
+		github.failWrites(
+			{ status: 502, match: "/issues", after: true },
+			{ status: 504, match: "/comments", after: true },
+		);
+		await stage("issue", { kind: "issue.create", repo: REPO, title: "Only once" });
+		await stage("comment", { kind: "item.comment", target: { key: ISSUE }, body: "Only once" });
+		await push(mf, board, alice, ["issue", "comment"]);
+		expect(await until(client, "issue", "applied")).toMatchObject({
+			result: { key: `${REPO}#13` },
+		});
+		await until(client, "comment", "applied");
+		expect(github.itemsIn(WIDGETS).map((item) => item.title)).toEqual([
+			"Widgets wobble",
+			"Only once",
+		]);
+		expect(github.comments).toHaveLength(1);
+	});
+
+	it("gives up on a change that keeps failing, and carries on with the rest", async () => {
+		const { github, mf, alice, board, client, stage } = await setup({ backoffMs: 5 });
+		github.failWrites(...Array.from({ length: 8 }, () => ({ status: 500, match: "/labels" })));
+		await stage("label", { kind: "item.labels", target: { key: ISSUE }, add: ["bug"] });
+		await stage("comment", { kind: "item.comment", target: { key: ISSUE }, body: "Still here" });
+		await push(mf, board, alice, ["label", "comment"]);
+		expect(await until(client, "label", "failed")).toMatchObject({
+			error: expect.stringMatching(/^Gave up after 8 tries\. GitHub had a problem \(500\)/),
+		});
+		await until(client, "comment", "applied");
 	});
 });
 

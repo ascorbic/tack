@@ -74,6 +74,8 @@ export interface PushTiming {
 	spacingMs: number;
 	/** How long a `sent` change waits for its card to show it before reconciling. */
 	confirmMs: number;
+	/** The first wait before retrying a failure that doesn't say when (a timeout, a 5xx). */
+	backoffMs: number;
 }
 
 /** What the engine needs from its board. */
@@ -92,12 +94,12 @@ export interface PushHost {
 	alarmAt(at: number): Promise<void>;
 }
 
-const DEFAULT_TIMING: PushTiming = { spacingMs: 1_000, confirmMs: 2 * 60_000 };
+const DEFAULT_TIMING: PushTiming = { spacingMs: 1_000, confirmMs: 2 * 60_000, backoffMs: 5_000 };
 /** Writes per alarm, so one push never holds the board's object for long. */
 const BATCH = 25;
 const MAX_ATTEMPTS = 8;
-/** Waits before retrying failures that don't say when (timeouts, 5xx). */
-const BACKOFF_MS = [5_000, 15_000, 45_000, 2 * 60_000, 5 * 60_000, 10 * 60_000, 15 * 60_000];
+/** Waits before retrying failures that don't say when, in `backoffMs`: 5s, 15s, 45s… up to 15 minutes. */
+const BACKOFF = [1, 3, 9, 24, 60, 120, 180];
 /** Rate limits that won't lift for longer than this fail rather than wait. */
 const MAX_WAIT_MS = 70 * 60_000;
 /** Pushes kept in the audit log. */
@@ -569,7 +571,8 @@ export class PushEngine {
 		result: Extract<ApplyResult, { ok: false }>,
 	): "done" | "wait" {
 		const now = Date.now();
-		const backoff = BACKOFF_MS[Math.max(0, row.attempts - 1)] ?? BACKOFF_MS.at(-1) ?? 60_000;
+		const backoff =
+			this.timing.backoffMs * (BACKOFF[Math.max(0, row.attempts - 1)] ?? BACKOFF.at(-1) ?? 1);
 		const at = result.retryAt ?? now + backoff;
 		if (!result.retryable || row.attempts >= MAX_ATTEMPTS || at - now > MAX_WAIT_MS) {
 			this.fail(
