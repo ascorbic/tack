@@ -9,6 +9,14 @@
 //   redirecting), issues and pull requests with CI and reviews, over REST and
 //   the GraphQL queries Tack makes (see src/server/forges/github*.ts).
 //
+// - Writes (M2): creating issues, labels, milestones, assignees, state,
+//   sub-issues, dependencies, comments, branches with commits (the git data
+//   API) and pull requests, and discussions over GraphQL. Writing needs an
+//   installation token, or a user token for someone in the repository's
+//   `writers` where the app is installed. `failWrites` makes the next writes
+//   fail (rate limits, outages), and `dropWrites` accepts writes without
+//   doing them.
+//
 // Every request is recorded twice: as `METHOD url` lines in `log`, and as
 // structured `requests` (with GraphQL operation names and variables) so
 // tests can count fetches.
@@ -62,6 +70,13 @@ export interface FakeItem {
 	mergeable?: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
 	closes?: number[];
 	labels?: { name: string; color: string }[];
+	assignees?: string[];
+	milestone?: string | null;
+	stateReason?: string | null;
+	body?: string;
+	createdAt?: string;
+	/** Pull requests: the branch they're from. */
+	headRef?: string;
 }
 
 export interface FakeRequest {
@@ -81,6 +96,41 @@ interface FakeRepo {
 	private: boolean;
 	/** Logins who can read it, if it's private. */
 	collaborators: Set<string>;
+	/** Logins with push access. */
+	writers: Set<string>;
+	labels: { name: string; color: string; description?: string }[];
+	milestones: { number: number; title: string; due_on: string | null }[];
+	/** Logins that can be assigned. */
+	assignable: Set<string>;
+	discussionCategories: string[];
+	watchers: number;
+}
+
+/** A canned failure for the next write (see `failWrites`). */
+export interface FakeFailure {
+	status: number;
+	headers?: Record<string, string>;
+	message?: string;
+	/** Only for a write whose path (or GraphQL operation) includes this. */
+	match?: string;
+}
+
+interface FakeComment {
+	id: number;
+	repoId: number;
+	number: number;
+	body: string;
+	login: string;
+	createdAt: string;
+}
+
+interface FakeDiscussion {
+	repoId: number;
+	number: number;
+	title: string;
+	body: string;
+	category: string;
+	createdAt: string;
 }
 
 /** A delivery in the app's webhook delivery log. */
@@ -180,15 +230,123 @@ export class FakeGitHub {
 	addRepo(
 		id: number,
 		name: string,
-		options: { private?: boolean; collaborators?: string[] } = {},
+		options: {
+			private?: boolean;
+			collaborators?: string[];
+			writers?: string[];
+			labels?: { name: string; color: string; description?: string }[];
+			milestones?: string[];
+			assignable?: string[];
+			discussionCategories?: string[];
+			watchers?: number;
+			/** Files on the default branch, `main`. */
+			files?: Record<string, string>;
+		} = {},
 	): void {
 		this.repos.set(id, {
 			id,
 			name,
 			private: options.private ?? false,
 			collaborators: new Set(options.collaborators ?? []),
+			writers: new Set(options.writers ?? []),
+			labels: options.labels ?? [],
+			milestones: (options.milestones ?? []).map((title, i) => ({
+				number: i + 1,
+				title,
+				due_on: null,
+			})),
+			assignable: new Set(options.assignable ?? options.writers ?? []),
+			discussionCategories: options.discussionCategories ?? [],
+			watchers: options.watchers ?? 0,
 		});
 		this.names.set(name.toLowerCase(), id);
+		const tree = this.storeTree(new Map(Object.entries(options.files ?? {})));
+		this.refs.set(`${id}:main`, this.storeCommit(tree, [], "Initial commit"));
+	}
+
+	// --- Writes (M2) ---------------------------------------------------------
+
+	/** The next writes fail like this, in order (rate limits, outages). */
+	failWrites(...failures: FakeFailure[]): void {
+		this.writeFailures.push(...failures);
+	}
+
+	/** Answer writes as if they worked, without doing them (a write that never shows up). */
+	dropWrites = false;
+
+	/** Comments, oldest first. */
+	readonly comments: FakeComment[] = [];
+	readonly discussions: FakeDiscussion[] = [];
+	/** Sub-issue links: parent `repoId#number` → child database ids. */
+	readonly subIssues = new Map<string, number[]>();
+	/** Dependencies: blocked `repoId#number` → blocking database ids. */
+	readonly blockedBy = new Map<string, number[]>();
+	/** Branches, `repoId:name` → commit sha. */
+	readonly refs = new Map<string, string>();
+	readonly commits = new Map<string, { tree: string; parents: string[]; message: string }>();
+	readonly trees = new Map<string, Map<string, string>>();
+
+	private writeFailures: FakeFailure[] = [];
+
+	private takeFailure(path: string): FakeFailure | undefined {
+		const index = this.writeFailures.findIndex((f) => !f.match || path.includes(f.match));
+		return index < 0 ? undefined : this.writeFailures.splice(index, 1)[0];
+	}
+
+	/** A user token for someone, without the OAuth flow, for calling the API directly. */
+	userTokenFor(user: FakeUser): string {
+		const access = token("ghu");
+		this.userTokens.set(access, { user, expiresAt: Date.now() + this.userTokenTtl * 1000 });
+		return access;
+	}
+
+	/** An installation token, without an app JWT, for calling the API directly. */
+	installationTokenFor(installation: number): string {
+		const minted = token("ghs");
+		this.installationTokens.set(minted, installation);
+		return minted;
+	}
+
+	/** An item, for assertions. */
+	item(repoId: number, number: number): FakeItem | undefined {
+		return this.items.get(`${repoId}#${number}`);
+	}
+
+	/** Items in a repository, by number. */
+	itemsIn(repoId: number): FakeItem[] {
+		return [...this.items.entries()]
+			.filter(([key]) => key.startsWith(`${repoId}#`))
+			.map(([, item]) => item)
+			.sort((a, b) => a.number - b.number);
+	}
+
+	/** Database ids, which sub-issues and dependencies use instead of numbers. */
+	databaseId(repoId: number, number: number): number {
+		return repoId * 1_000_000 + number;
+	}
+
+	/** Files on a branch, for assertions. */
+	filesOn(repoId: number, branch: string): Map<string, string> | null {
+		const sha = this.refs.get(`${repoId}:${branch}`);
+		const commit = sha ? this.commits.get(sha) : undefined;
+		return commit ? (this.trees.get(commit.tree) ?? null) : null;
+	}
+
+	private storeTree(files: Map<string, string>): string {
+		// Content-addressed, as in git: the same files make the same tree.
+		const sha = createHash("sha1")
+			.update(JSON.stringify([...files].sort(([a], [b]) => a.localeCompare(b))))
+			.digest("hex");
+		this.trees.set(sha, files);
+		return sha;
+	}
+
+	private storeCommit(tree: string, parents: string[], message: string): string {
+		const sha = createHash("sha1")
+			.update(JSON.stringify({ tree, parents, message, salt: randomBytes(4).toString("hex") }))
+			.digest("hex");
+		this.commits.set(sha, { tree, parents, message });
+		return sha;
 	}
 
 	/** Give someone read access to a private repository. */
@@ -356,10 +514,13 @@ export class FakeGitHub {
 		if ((match = /^\/repositories\/(\d+)$/.exec(path))) {
 			const repo = this.repos.get(Number(match[1]));
 			if (!repo || !this.canSee(repo, auth)) return undefined;
-			return json(this.restRepo(repo));
+			return json(this.restRepo(repo, auth));
 		}
 
-		return this.repositoryData(url, auth, request.headers.get("if-none-match"));
+		return (
+			(await this.repositoryWrites(request, url, auth)) ??
+			this.repositoryData(url, auth, request.headers.get("if-none-match"))
+		);
 	}
 
 	/** Whether a token (or none) can read a repository. */
@@ -374,13 +535,317 @@ export class FakeGitHub {
 		return Boolean(user && repo.collaborators.has(user.login));
 	}
 
-	private restRepo(repo: FakeRepo) {
+	private restRepo(repo: FakeRepo, auth: string | null = null) {
+		const user = auth ? this.userFor(auth) : null;
 		return {
 			id: repo.id,
 			node_id: `R_${repo.id}`,
 			full_name: repo.name,
 			private: repo.private,
 			visibility: repo.private ? "private" : "public",
+			default_branch: "main",
+			subscribers_count: repo.watchers,
+			has_discussions: repo.discussionCategories.length > 0,
+			// What the token's holder may do, as GitHub reports it for user tokens.
+			...(user
+				? {
+						permissions: {
+							pull: true,
+							push: repo.writers.has(user.login),
+							admin: false,
+						},
+					}
+				: {}),
+		};
+	}
+
+	/**
+	 * Who a token writes as, if it may write to a repository: an installation
+	 * token for an installation that includes it, or a user token for a writer
+	 * where the app is installed (GitHub App user tokens are bounded by the
+	 * installation).
+	 */
+	private writer(repo: FakeRepo, auth: string | null): string | null {
+		if (!auth) return null;
+		if (this.personalTokens.has(auth)) return "personal";
+		const installation = this.installationForRepo(repo.name);
+		if (!installation) return null;
+		if (this.installationTokens.get(auth) === installation.id) return `${this.app.slug}[bot]`;
+		const user = this.userFor(auth);
+		return user && repo.writers.has(user.login) ? user.login : null;
+	}
+
+	/** Write endpoints, and the reads only writes need. */
+	private async repositoryWrites(
+		request: Request,
+		url: URL,
+		auth: string | null,
+	): Promise<Response | undefined> {
+		const repoMatch = /^\/repos\/([^/]+\/[^/]+)(\/.*)$/.exec(url.pathname);
+		const repo = repoMatch ? this.repoByName(repoMatch[1] ?? "") : undefined;
+		if (!repo || !this.canSee(repo, auth)) return undefined;
+		const rest = repoMatch?.[2] ?? "";
+		const method = request.method;
+		const now = new Date().toISOString();
+		let match: RegExpExecArray | null;
+
+		// Reads.
+		if (method === "GET") {
+			if (rest === "/labels") return json(repo.labels);
+			if (rest === "/milestones") return json(repo.milestones);
+			if (rest === "/assignees") return json([...repo.assignable].map((login) => ({ login })));
+			if ((match = /^\/contents\/?(.*)$/.exec(rest))) {
+				const dir = decodeURIComponent(match[1] ?? "").replace(/\/$/, "");
+				const prefix = dir ? `${dir}/` : "";
+				const names = new Set<string>();
+				for (const path of this.filesOn(repo.id, "main")?.keys() ?? []) {
+					if (!path.startsWith(prefix)) continue;
+					const [name = "", ...more] = path.slice(prefix.length).split("/");
+					names.add(more.length > 0 ? `${name}/` : name);
+				}
+				if (names.size === 0) return undefined;
+				return json(
+					[...names].map((name) =>
+						name.endsWith("/") ? { name: name.slice(0, -1), type: "dir" } : { name, type: "file" },
+					),
+				);
+			}
+			if ((match = /^\/issues\/(\d+)\/(sub_issues|dependencies\/blocked_by)$/.exec(rest))) {
+				const links = (match[2] === "sub_issues" ? this.subIssues : this.blockedBy).get(
+					`${repo.id}#${match[1]}`,
+				);
+				return json((links ?? []).flatMap((id) => this.issueByDatabaseId(id) ?? []));
+			}
+			if ((match = /^\/issues\/(\d+)\/comments$/.exec(rest))) {
+				const since = url.searchParams.get("since") ?? "";
+				return json(
+					this.comments
+						.filter((c) => c.repoId === repo.id && c.number === Number(match?.[1]))
+						.filter((c) => c.createdAt >= since)
+						.map((c) => this.restComment(repo, c)),
+				);
+			}
+			if ((match = /^\/git\/ref\/heads\/(.+)$/.exec(rest))) {
+				const sha = this.refs.get(`${repo.id}:${decodeURIComponent(match[1] ?? "")}`);
+				return sha ? json({ object: { sha, type: "commit" } }) : undefined;
+			}
+			if ((match = /^\/git\/commits\/(\w+)$/.exec(rest))) {
+				const commit = this.commits.get(match[1] ?? "");
+				return commit ? json({ sha: match[1], tree: { sha: commit.tree } }) : undefined;
+			}
+			if (rest === "/pulls") {
+				const head = url.searchParams.get("head")?.split(":")[1];
+				return json(
+					this.itemsIn(repo.id)
+						.filter((item) => item.kind === "pull" && (!head || item.headRef === head))
+						.map((item) => this.restPull(repo, item)),
+				);
+			}
+			return undefined;
+		}
+
+		// Writes.
+		const login = this.writer(repo, auth);
+		if (!login) {
+			return auth
+				? json({ message: "Resource not accessible by integration" }, 403)
+				: json({ message: "Requires authentication" }, 401);
+		}
+		const failure = this.takeFailure(url.pathname);
+		if (failure) {
+			return new Response(JSON.stringify({ message: failure.message ?? "Failed" }), {
+				status: failure.status,
+				headers: { "content-type": "application/json", ...failure.headers },
+			});
+		}
+		const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+		const drop = this.dropWrites;
+
+		if (rest === "/issues" && method === "POST") {
+			const number = Math.max(0, ...this.itemsIn(repo.id).map((i) => i.number)) + 1;
+			const milestone = repo.milestones.find((m) => m.number === body.milestone);
+			const item: FakeItem = {
+				number,
+				kind: "issue",
+				title: String(body.title),
+				body: typeof body.body === "string" ? body.body : "",
+				updatedAt: now,
+				createdAt: now,
+				labels: ((body.labels as string[] | undefined) ?? []).map((name) => this.label(repo, name)),
+				assignees: ((body.assignees as string[] | undefined) ?? []).filter((l) =>
+					repo.assignable.has(l),
+				),
+				milestone: milestone?.title ?? null,
+			};
+			if (!drop) this.setItem(repo.id, item);
+			return json(this.restIssue(repo, item), 201);
+		}
+
+		if (rest === "/git/trees" && method === "POST") {
+			const base = this.trees.get(String(body.base_tree)) ?? new Map<string, string>();
+			const files = new Map(base);
+			for (const entry of body.tree as { path: string; content: string }[]) {
+				files.set(entry.path, entry.content);
+			}
+			return json({ sha: this.storeTree(files) }, 201);
+		}
+		if (rest === "/git/commits" && method === "POST") {
+			const sha = this.storeCommit(
+				String(body.tree),
+				body.parents as string[],
+				String(body.message),
+			);
+			return json({ sha }, 201);
+		}
+		if (rest === "/git/refs" && method === "POST") {
+			const branch = String(body.ref).replace(/^refs\/heads\//, "");
+			if (this.refs.has(`${repo.id}:${branch}`)) {
+				return json({ message: "Reference already exists" }, 422);
+			}
+			if (!drop) this.refs.set(`${repo.id}:${branch}`, String(body.sha));
+			return json({ ref: body.ref, object: { sha: body.sha } }, 201);
+		}
+		if (rest === "/pulls" && method === "POST") {
+			const branch = String(body.head);
+			if (!this.refs.has(`${repo.id}:${branch}`)) {
+				return json({ message: "Validation Failed", errors: [{ message: "No head branch" }] }, 422);
+			}
+			const number = Math.max(0, ...this.itemsIn(repo.id).map((i) => i.number)) + 1;
+			const item: FakeItem = {
+				number,
+				kind: "pull",
+				title: String(body.title),
+				body: String(body.body ?? ""),
+				state: "open",
+				updatedAt: now,
+				createdAt: now,
+				headRef: branch,
+			};
+			if (!drop) this.setItem(repo.id, item);
+			return json(this.restPull(repo, item), 201);
+		}
+
+		const issueMatch = /^\/issues\/(\d+)(\/.*)?$/.exec(rest);
+		const item = issueMatch ? this.items.get(`${repo.id}#${issueMatch[1]}`) : undefined;
+		if (!issueMatch || !item) return undefined;
+		const sub = issueMatch[2] ?? "";
+		const key = `${repo.id}#${item.number}`;
+		const touch = () => {
+			if (!drop)
+				item.updatedAt = new Date(
+					Math.max(Date.now(), Date.parse(item.updatedAt) + 1),
+				).toISOString();
+		};
+
+		if (sub === "" && method === "PATCH") {
+			if (!drop) {
+				if (body.state === "closed") {
+					item.state = "closed";
+					item.stateReason =
+						typeof body.state_reason === "string" ? body.state_reason : "completed";
+				} else if (body.state === "open") {
+					item.state = "open";
+					item.stateReason = null;
+				}
+				if ("milestone" in body) {
+					item.milestone =
+						body.milestone === null
+							? null
+							: (repo.milestones.find((m) => m.number === body.milestone)?.title ?? null);
+				}
+			}
+			touch();
+			return json(this.restIssue(repo, item));
+		}
+		if (sub === "/labels" && method === "POST") {
+			if (!drop) {
+				const labels = item.labels ?? [];
+				for (const name of body.labels as string[]) {
+					if (!labels.some((l) => l.name.toLowerCase() === name.toLowerCase())) {
+						labels.push(this.label(repo, name));
+					}
+				}
+				item.labels = labels;
+			}
+			touch();
+			return json(item.labels ?? []);
+		}
+		if ((match = /^\/labels\/(.+)$/.exec(sub)) && method === "DELETE") {
+			const name = decodeURIComponent(match[1] ?? "");
+			if (!(item.labels ?? []).some((l) => l.name === name)) {
+				return json({ message: "Label does not exist" }, 404);
+			}
+			if (!drop) item.labels = (item.labels ?? []).filter((l) => l.name !== name);
+			touch();
+			return json(item.labels ?? []);
+		}
+		if (sub === "/assignees") {
+			const logins = (body.assignees as string[]) ?? [];
+			if (!drop) {
+				const current = new Set(item.assignees ?? []);
+				for (const login of logins) {
+					if (method === "POST" && repo.assignable.has(login)) current.add(login);
+					if (method === "DELETE") current.delete(login);
+				}
+				item.assignees = [...current];
+			}
+			touch();
+			return json(this.restIssue(repo, item), method === "POST" ? 201 : 200);
+		}
+		if (sub === "/comments" && method === "POST") {
+			const comment: FakeComment = {
+				id: this.comments.length + 1,
+				repoId: repo.id,
+				number: item.number,
+				body: String(body.body),
+				login,
+				createdAt: now,
+			};
+			if (!drop) this.comments.push(comment);
+			return json(this.restComment(repo, comment), 201);
+		}
+		if ((sub === "/sub_issues" || sub === "/dependencies/blocked_by") && method === "POST") {
+			const id = Number(sub === "/sub_issues" ? body.sub_issue_id : body.issue_id);
+			if (!this.issueByDatabaseId(id)) return json({ message: "Not Found" }, 404);
+			const links = sub === "/sub_issues" ? this.subIssues : this.blockedBy;
+			const list = links.get(key) ?? [];
+			if (list.includes(id)) {
+				return json({ message: "Validation Failed", errors: [{ message: "already linked" }] }, 422);
+			}
+			if (sub === "/sub_issues") {
+				for (const children of this.subIssues.values()) {
+					if (children.includes(id)) {
+						return json(
+							{ message: "Validation Failed", errors: [{ message: "Issue already has a parent" }] },
+							422,
+						);
+					}
+				}
+			}
+			if (!drop) links.set(key, [...list, id]);
+			return json(this.restIssue(repo, item), 201);
+		}
+		return undefined;
+	}
+
+	private label(repo: FakeRepo, name: string): { name: string; color: string } {
+		const known = repo.labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+		return { name: known?.name ?? name, color: known?.color ?? "ededed" };
+	}
+
+	private issueByDatabaseId(id: number) {
+		const repo = this.repos.get(Math.floor(id / 1_000_000));
+		const item = repo && this.items.get(`${repo.id}#${id % 1_000_000}`);
+		return repo && item ? this.restIssue(repo, item) : null;
+	}
+
+	private restComment(repo: FakeRepo, comment: FakeComment) {
+		return {
+			id: comment.id,
+			body: comment.body,
+			user: { login: comment.login },
+			created_at: comment.createdAt,
+			html_url: `https://github.com/${repo.name}/issues/${comment.number}#issuecomment-${comment.id}`,
 		};
 	}
 
@@ -427,10 +892,15 @@ export class FakeGitHub {
 		}
 		if (rest === "/issues") {
 			const since = url.searchParams.get("since") ?? "";
+			const created = url.searchParams.get("sort") === "created";
 			const list = [...this.items.entries()]
 				.filter(([key, item]) => key.startsWith(`${repo.id}#`) && item.updatedAt >= since)
 				.map(([, item]) => item)
-				.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+				.sort((a, b) =>
+					created
+						? (b.createdAt ?? b.updatedAt).localeCompare(a.createdAt ?? a.updatedAt)
+						: b.updatedAt.localeCompare(a.updatedAt),
+				)
 				.slice(0, Number(url.searchParams.get("per_page") ?? 30))
 				.map((item) => this.restIssue(repo, item));
 			const body = JSON.stringify(list);
@@ -459,7 +929,95 @@ export class FakeGitHub {
 		record.operation = body.operationName;
 		record.variables = body.variables;
 		record.aliases = [...body.query.matchAll(/(i\d+): issueOrPullRequest/g)].map((m) => m[1] ?? "");
+		const discussions = this.discussionsGraphQL(body.operationName, body.variables, auth);
+		if (discussions) return discussions;
 		return json({ data: this.graphql(body.operationName, body.query, body.variables, auth) });
+	}
+
+	/** The discussion queries and mutation Tack makes (src/server/forges/github-write.ts). */
+	private discussionsGraphQL(
+		operation: string,
+		variables: Record<string, unknown>,
+		auth: string,
+	): Response | undefined {
+		const named = (owner: unknown, name: unknown) => {
+			const repo = this.repoByName(`${String(owner)}/${String(name)}`);
+			return repo && this.canSee(repo, auth) ? repo : undefined;
+		};
+		const categories = (repo: FakeRepo) =>
+			repo.discussionCategories.map((name, i) => ({
+				id: `DC_${repo.id}_${i}`,
+				name,
+				slug: name.toLowerCase().replace(/\s+/g, "-"),
+			}));
+		const url = (repo: FakeRepo, d: FakeDiscussion) =>
+			`https://github.com/${repo.name}/discussions/${d.number}`;
+		if (operation === "TackDiscussionTarget" || operation === "TackDiscussionCategories") {
+			const repo = named(variables.owner, variables.name);
+			return json({
+				data: {
+					repository: repo
+						? {
+								id: `R_${repo.id}`,
+								hasDiscussionsEnabled: repo.discussionCategories.length > 0,
+								discussionCategories: { nodes: categories(repo) },
+							}
+						: null,
+				},
+			});
+		}
+		if (operation === "TackRecentDiscussions") {
+			const repo = named(variables.owner, variables.name);
+			return json({
+				data: {
+					repository: repo
+						? {
+								discussions: {
+									nodes: this.discussions
+										.filter((d) => d.repoId === repo.id)
+										.reverse()
+										.map((d) => ({ title: d.title, url: url(repo, d), createdAt: d.createdAt })),
+								},
+							}
+						: null,
+				},
+			});
+		}
+		if (operation === "TackCreateDiscussion") {
+			const input = variables.input as Record<string, string>;
+			const repo = this.repos.get(Number(String(input.repositoryId).replace(/^R_/, "")));
+			if (!repo || !this.writer(repo, auth)) {
+				return json({
+					data: null,
+					errors: [{ type: "FORBIDDEN", message: "Resource not accessible" }],
+				});
+			}
+			const failure = this.takeFailure("TackCreateDiscussion");
+			if (failure) {
+				return new Response(JSON.stringify({ message: failure.message ?? "Failed" }), {
+					status: failure.status,
+					headers: { "content-type": "application/json", ...failure.headers },
+				});
+			}
+			const category = categories(repo).find((c) => c.id === input.categoryId);
+			const discussion: FakeDiscussion = {
+				repoId: repo.id,
+				number: 1000 + this.discussions.length,
+				title: input.title ?? "",
+				body: input.body ?? "",
+				category: category?.name ?? "",
+				createdAt: new Date().toISOString(),
+			};
+			if (!this.dropWrites) this.discussions.push(discussion);
+			return json({
+				data: {
+					createDiscussion: {
+						discussion: { url: url(repo, discussion), number: discussion.number },
+					},
+				},
+			});
+		}
+		return undefined;
 	}
 
 	private repoByName(name: string): FakeRepo | undefined {
@@ -570,7 +1128,12 @@ export class FakeGitHub {
 			repository: { nameWithOwner: repo.name },
 			author: { login: "octocat", avatarUrl: "https://avatars.example/octocat" },
 			labels: { nodes: item.labels ?? [] },
-			assignees: { nodes: [] },
+			assignees: {
+				nodes: (item.assignees ?? []).map((login) => ({
+					login,
+					avatarUrl: `https://avatars.example/${login}`,
+				})),
+			},
 			comments: { totalCount: 0 },
 			reactions: { totalCount: 0 },
 		};
@@ -578,7 +1141,8 @@ export class FakeGitHub {
 			return {
 				...common,
 				issueState: item.state === "closed" ? "CLOSED" : "OPEN",
-				stateReason: item.state === "closed" ? "COMPLETED" : null,
+				stateReason:
+					item.state === "closed" ? (item.stateReason ?? "completed").toUpperCase() : null,
 			};
 		}
 		return {
@@ -610,16 +1174,24 @@ export class FakeGitHub {
 
 	private restIssue(repo: FakeRepo, item: FakeItem) {
 		return {
+			id: this.databaseId(repo.id, item.number),
 			number: item.number,
 			title: item.title,
+			body: item.body ?? "",
 			state: item.state === "open" || !item.state ? "open" : "closed",
+			state_reason: item.state === "closed" ? (item.stateReason ?? "completed") : null,
+			created_at: item.createdAt ?? item.updatedAt,
+			milestone: item.milestone ? { title: item.milestone } : null,
 			html_url: `https://github.com/${repo.name}/${item.kind === "pull" ? "pull" : "issues"}/${item.number}`,
 			repository_url: `https://api.github.com/repos/${repo.name}`,
 			updated_at: item.updatedAt,
 			node_id: `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`,
 			comments: 0,
 			labels: item.labels ?? [],
-			assignees: [],
+			assignees: (item.assignees ?? []).map((login) => ({
+				login,
+				avatar_url: `https://avatars.example/${login}`,
+			})),
 			user: null,
 			...(item.kind === "pull"
 				? { pull_request: { merged_at: item.state === "merged" ? item.updatedAt : null } }
