@@ -16,10 +16,23 @@
 		"fix": "vp check --fix",
 		"deploy": "cf deploy"
 	},
+	"dependencies": {
+		"@xyflow/react": "^12.12.0",
+		"fractional-indexing": "^4.0.0",
+		"partyserver": "^0.5.10",
+		"react": "^19.3.0",
+		"react-dom": "^19.3.0",
+		"valibot": "^1.5.0",
+		"y-partyserver": "^2.2.0",
+		"yjs": "^13.6.33"
+	},
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "^1.53.0",
 		"@cloudflare/vitest-plugin": "^1.0.0",
 		"@types/node": "^26.2.0",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"@vitejs/plugin-react": "^6.1.2",
 		"cf": "^0.6.0",
 		"typescript": "^5.9.3",
 		"vite": "npm:@voidzero-dev/vite-plus-core@^0.2.9",

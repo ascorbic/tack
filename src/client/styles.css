@@ -1,0 +1,286 @@
+:root {
+	--ground: #f4f3ef;
+	--surface: #ffffff;
+	--ink: #17191c;
+	--muted: #5a5f66;
+	--border: #e2e0da;
+	--accent: #3b4cca;
+	--open: #1a6431;
+	--open-bg: #e3f4e7;
+	--merged: #5b2fa6;
+	--merged-bg: #f0e8fb;
+	--closed: #4a4f56;
+	--closed-bg: #ecebe4;
+	--sticky-yellow: #ffe99a;
+	font-family:
+		"Geist",
+		ui-sans-serif,
+		system-ui,
+		-apple-system,
+		sans-serif;
+	color: var(--ink);
+	background: var(--ground);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+}
+
+.mono {
+	font-family: "Geist Mono", ui-monospace, monospace;
+}
+
+.muted {
+	color: var(--muted);
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+.app {
+	display: flex;
+	flex-direction: column;
+	height: 100dvh;
+}
+
+.topbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	padding: 8px 16px;
+	background: var(--surface);
+	border-bottom: 1px solid var(--border);
+	font-size: 14px;
+}
+
+.brand {
+	font-size: 15px;
+}
+
+.topbar button,
+.topbar input {
+	height: 34px;
+	border-radius: 8px;
+	border: 1px solid #d6d3cb;
+	background: var(--surface);
+	font: inherit;
+	font-size: 13px;
+	padding: 0 12px;
+}
+
+.topbar button {
+	cursor: pointer;
+	font-weight: 500;
+}
+
+.add-card {
+	display: flex;
+	gap: 6px;
+	margin-left: auto;
+}
+
+.add-card input {
+	width: min(320px, 60vw);
+}
+
+.add-card input[aria-invalid="true"] {
+	border-color: #c2372b;
+}
+
+.add-card button {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #fff;
+}
+
+.status {
+	font-size: 12px;
+	color: var(--muted);
+}
+
+.canvas {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
+.react-flow {
+	--xy-background-color: var(--ground);
+	--xy-background-pattern-color: #cfcbc1;
+}
+
+.card {
+	width: 240px;
+	padding: 12px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	box-shadow:
+		0 1px 2px rgb(23 25 28 / 6%),
+		0 4px 12px rgb(23 25 28 / 5%);
+	font-size: 12px;
+}
+
+.card[data-selected="true"],
+.sticky[data-selected="true"] {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.card-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.card-head .chip.state {
+	margin-left: auto;
+}
+
+.state-icon svg {
+	display: block;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+}
+
+.state-icon .fill {
+	fill: currentColor;
+	stroke: none;
+}
+
+.card[data-state="open"] .state-icon,
+.card[data-state="open"] .chip.state {
+	color: var(--open);
+}
+.card[data-state="open"] .chip.state {
+	background: var(--open-bg);
+}
+.card[data-state="merged"] .state-icon,
+.card[data-state="merged"] .chip.state,
+.card[data-state="closed"] .state-icon {
+	color: var(--merged);
+}
+.card[data-state="merged"] .chip.state,
+.card[data-state="closed"] .chip.state {
+	background: var(--merged-bg);
+	color: var(--merged);
+}
+.card[data-state="draft"] .state-icon,
+.card[data-state="draft"] .chip.state {
+	color: var(--closed);
+}
+.card[data-state="draft"] .chip.state {
+	background: var(--closed-bg);
+}
+
+.card-title {
+	display: block;
+	margin: 8px 0 6px;
+	font-size: 13.5px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: inherit;
+	text-decoration: none;
+}
+
+a.card-title:hover {
+	text-decoration: underline;
+}
+
+.card.loading,
+.card.missing {
+	background: #f7f6f2;
+}
+
+.labels {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 0 7px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 500;
+	line-height: 18px;
+	white-space: nowrap;
+	background: #f1efea;
+	color: #3f444b;
+}
+
+.card-foot {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 10px;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.avatars {
+	display: flex;
+}
+
+.avatars img {
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	border: 2px solid var(--surface);
+	margin-right: -6px;
+}
+
+.sticky {
+	width: 160px;
+	min-height: 140px;
+	padding: 10px;
+	border-radius: 4px;
+	background: var(--sticky-yellow);
+	box-shadow:
+		0 1px 1px rgb(0 0 0 / 6%),
+		0 6px 14px rgb(0 0 0 / 8%);
+	display: flex;
+}
+
+.sticky textarea {
+	flex: 1;
+	min-height: 120px;
+	border: 0;
+	background: transparent;
+	resize: none;
+	font: inherit;
+	font-size: 13px;
+	line-height: 1.4;
+	color: var(--ink);
+	outline: none;
+}
+
+.fps {
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	padding: 4px 10px;
+	border-radius: 8px;
+	background: var(--ink);
+	color: #fff;
+	font:
+		600 13px ui-monospace,
+		monospace;
+	z-index: 10;
+}

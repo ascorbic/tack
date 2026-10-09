@@ -1,0 +1,7 @@
+import { createRoot } from "react-dom/client";
+import "@xyflow/react/dist/style.css";
+import "./styles.css";
+import { App } from "./App.tsx";
+
+const root = document.getElementById("root");
+if (root) createRoot(root).render(<App />);

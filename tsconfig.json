@@ -28,5 +28,6 @@
 		"compatibility.ts",
 		"vite.config.ts",
 		"worker-configuration.d.ts"
-	]
+	],
+	"exclude": ["src/client"]
 }
