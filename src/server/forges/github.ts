@@ -1,9 +1,16 @@
 import type { Card, CardState, MissingCard, PullDetails } from "../../shared/cards.ts";
+import { OPERATION_KINDS } from "../../shared/changes.ts";
 import { itemKey } from "../../shared/refs.ts";
 import { forgetRepoToken, isInstalled, repoToken, watchInstallation } from "../github/tokens.ts";
 import { log } from "../log.ts";
 import { INSTALLATION_EVENTS, installationEvent, verifyWebhook } from "../github/webhooks.ts";
 import { fetchItemsGraphQL, GraphQLUnavailable, staleItemsGraphQL } from "./github-graphql.ts";
+import {
+	applyGitHub,
+	canWriteGitHub,
+	listDirectoryGitHub,
+	repoMetaGitHub,
+} from "./github-write.ts";
 import type {
 	FetchRef,
 	ForgeAdapter,
@@ -326,7 +333,7 @@ export const github: ForgeAdapter = {
 		discussions: true,
 		draftPulls: true,
 		ciStatus: true,
-		writes: [],
+		writes: [...OPERATION_KINDS],
 	},
 
 	async resolveRepo(_host, name, env) {
@@ -424,6 +431,12 @@ export const github: ForgeAdapter = {
 		if (reason === "error") throw new Error(`Access check failed: ${res.status}`);
 		return false;
 	},
+
+	// Writing (M2): see github-write.ts.
+	apply: (op, repo, auth, _env, options) => applyGitHub(op, repo, auth, options),
+	canWrite: (repo, token) => canWriteGitHub(repo, token),
+	repoMeta: repoMetaGitHub,
+	listDirectory: listDirectoryGitHub,
 
 	async receiveWebhook(request, env) {
 		const body = await request.text();

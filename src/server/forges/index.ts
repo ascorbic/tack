@@ -4,6 +4,8 @@ import { github } from "./github.ts";
 import type { ForgeAdapter } from "./types.ts";
 
 export type {
+	ApplyOptions,
+	ApplyResult,
 	Delivery,
 	FetchRef,
 	ForgeAdapter,
@@ -13,6 +15,7 @@ export type {
 	ReadAuth,
 	RepoIdentity,
 	WebhookResult,
+	WriteAuth,
 } from "./types.ts";
 
 const ADAPTERS: Record<ForgeId, ForgeAdapter> = { github, fake };

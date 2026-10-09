@@ -24,20 +24,34 @@ function githubRepo(repoKey: string): string | null {
  * `GITHUB_TOKEN`, if set, where the app isn't installed.
  */
 export async function repoToken(env: Env, repoKey: string): Promise<string | null> {
+	return (await cachedInstallationToken(env, repoKey)) ?? (env.GITHUB_TOKEN || null);
+}
+
+/**
+ * An installation token for writing to a repository as the app (M2), or
+ * null if the app isn't installed on it. Never `GITHUB_TOKEN`: writes as
+ * the app go through the installation or not at all. Asks the Instance
+ * afresh rather than trusting this isolate's memory of a miss.
+ */
+export async function installationToken(env: Env, repoKey: string): Promise<string | null> {
 	const repo = githubRepo(repoKey);
-	if (repo && env.TACK_SECRET) {
-		const now = Date.now();
-		let entry = cache.get(repo);
-		if (!entry || entry.freshUntil <= now) {
-			const minted = await instance(env).repoToken(repo);
-			entry = minted
-				? { token: minted.token, freshUntil: minted.expiresAt - REFRESH_MARGIN }
-				: { token: null, freshUntil: now + MISS_TTL };
-			cache.set(repo, entry);
-		}
-		if (entry.token) return entry.token;
+	if (repo && cache.get(repo)?.token === null) cache.delete(repo);
+	return cachedInstallationToken(env, repoKey);
+}
+
+async function cachedInstallationToken(env: Env, repoKey: string): Promise<string | null> {
+	const repo = githubRepo(repoKey);
+	if (!repo || !env.TACK_SECRET) return null;
+	const now = Date.now();
+	let entry = cache.get(repo);
+	if (!entry || entry.freshUntil <= now) {
+		const minted = await instance(env).repoToken(repo);
+		entry = minted
+			? { token: minted.token, freshUntil: minted.expiresAt - REFRESH_MARGIN }
+			: { token: null, freshUntil: now + MISS_TTL };
+		cache.set(repo, entry);
 	}
-	return env.GITHUB_TOKEN || null;
+	return entry.token;
 }
 
 /** Whether the GitHub App is installed on a repository (#9). */

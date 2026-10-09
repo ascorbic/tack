@@ -119,6 +119,17 @@ export type ApplyResult =
 			retryAt?: number;
 	  };
 
+/** How to apply: context the adapter needs to keep retries from writing twice. */
+export interface ApplyOptions {
+	/**
+	 * Set when this operation was tried before (ms since the epoch of the
+	 * first attempt), which may have gone through without our hearing back
+	 * (a timeout, a 5xx). Adapters check for what that attempt would have
+	 * made, such as an issue or comment, before making it again.
+	 */
+	retryOf?: number;
+}
+
 export interface ForgeAdapter {
 	id: ForgeId;
 	capabilities: ForgeCapabilities;
@@ -190,7 +201,13 @@ export interface ForgeAdapter {
 	// (see `resolveTargets` in src/shared/changes.ts).
 
 	/** Apply one operation. Never throws for forge errors: returns them. */
-	apply?(op: Operation, repo: RepoIdentity, auth: WriteAuth, env: Env): Promise<ApplyResult>;
+	apply?(
+		op: Operation,
+		repo: RepoIdentity,
+		auth: WriteAuth,
+		env: Env,
+		options?: ApplyOptions,
+	): Promise<ApplyResult>;
 	/**
 	 * Whether the holder of `token` can write to a repository (push access on
 	 * GitHub). Pushing needs this even when writing as the app.
