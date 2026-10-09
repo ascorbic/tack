@@ -10,7 +10,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
       - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1.17.0
+        uses: voidzero-dev/setup-vp@v1.21.1
         with:
           node-version: "24"
           cache: true
