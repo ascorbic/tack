@@ -2,7 +2,13 @@
    Tokens
    ------------------------------------------------------------------------ */
 
-:root {
+/* Colours come in two themes. `data-theme` on the root element is set from
+   the viewer's choice (light, dark, or following the system; see theme.ts).
+   Any subtree can set it too, so the gallery can show both themes at once.
+   test/theme.test.ts checks text pairs in both themes against WCAG AA. */
+:root,
+[data-theme="light"] {
+	color-scheme: light;
 	--ground: #f4f3ef;
 	--ground-dots: #d3cfc5;
 	--surface: #ffffff;
@@ -13,8 +19,23 @@
 	--line: rgb(23 25 28 / 9%);
 	--line-strong: rgb(23 25 28 / 16%);
 	--accent: #3b4cca;
+	--accent-hover: #3343b8;
 	--accent-soft: rgb(59 76 202 / 14%);
+	--on-accent: #ffffff;
+	--danger: #c2372b;
 	--highlight: rgb(255 210 92 / 75%);
+
+	/* Quiet fills: chips, hovered tools, the wells behind segmented controls. */
+	--chip: #f1efea;
+	--hover: #f1efea;
+	--well: #efede7;
+	/* Translucent chrome floating over the canvas: bars, toolbars, panels. */
+	--chrome: rgb(255 255 255 / 86%);
+	--chrome-strong: rgb(255 255 255 / 94%);
+	--tooltip: #17191c;
+	--on-tooltip: #ffffff;
+	--skeleton: #ebe9e3;
+	--skeleton-shine: #f6f5f1;
 
 	--open: #1a6431;
 	--open-bg: #e3f4e7;
@@ -23,13 +44,93 @@
 	--closed: #4a4f56;
 	--closed-bg: #ecebe4;
 
-	--font-ui: "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
-	--font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
-	--font-display: "Bricolage Grotesque Variable", var(--font-ui);
+	/* Sticky paper, and the ink written on it. Stickies stay light in both
+	   themes, like paper on a dark desk, so their ink stays dark. */
+	--sticky-yellow: #ffe58f;
+	--sticky-pink: #ffc9da;
+	--sticky-blue: #c7ddff;
+	--sticky-green: #c9efcf;
+	--sticky-purple: #e2d4ff;
+	--sticky-ink: rgb(23 25 28 / 90%);
+	--sticky-ink-soft: rgb(23 25 28 / 70%);
+	--sticky-shadow: 0 1px 1px rgb(0 0 0 / 6%), 0 12px 18px -10px rgb(0 0 0 / 25%);
+	--sticky-shadow-lifted: 0 2px 4px rgb(0 0 0 / 8%), 0 26px 34px -14px rgb(0 0 0 / 30%);
 
 	--shadow-rest: 0 1px 1px rgb(23 25 28 / 4%), 0 2px 6px rgb(23 25 28 / 5%);
 	--shadow-hover: 0 1px 2px rgb(23 25 28 / 5%), 0 6px 16px rgb(23 25 28 / 8%);
 	--shadow-lifted: 0 4px 10px rgb(23 25 28 / 8%), 0 22px 44px rgb(23 25 28 / 16%);
+}
+
+[data-theme="dark"] {
+	color-scheme: dark;
+	--ground: #141518;
+	--ground-dots: #34363c;
+	--surface: #1f2125;
+	--surface-muted: #1a1c1f;
+	--ink: #eceef1;
+	--ink-soft: #c9cdd3;
+	--muted: #a0a6ae;
+	--line: rgb(255 255 255 / 8%);
+	--line-strong: rgb(255 255 255 / 15%);
+	--accent: #95a0ff;
+	--accent-hover: #aab3ff;
+	--accent-soft: rgb(149 160 255 / 18%);
+	--on-accent: #10121a;
+	--danger: #ff8a7d;
+	--highlight: rgb(255 200 70 / 32%);
+
+	--chip: #2b2e33;
+	--hover: #2a2c31;
+	--well: #141518;
+	--chrome: rgb(30 32 36 / 86%);
+	--chrome-strong: rgb(33 35 39 / 94%);
+	--tooltip: #eceef1;
+	--on-tooltip: #17191c;
+	--skeleton: #26282d;
+	--skeleton-shine: #31343a;
+
+	--open: #6fd38a;
+	--open-bg: #183323;
+	--merged: #bfa2ff;
+	--merged-bg: #2b2342;
+	--closed: #b3b8bf;
+	--closed-bg: #2b2d32;
+
+	/* A touch deeper than daylight paper, so a wall of stickies doesn't glare
+	   on a dark board, but each colour keeps its character. */
+	--sticky-yellow: #f2d77c;
+	--sticky-pink: #f2b7ca;
+	--sticky-blue: #b4cbf2;
+	--sticky-green: #b6deba;
+	--sticky-purple: #d0c1f3;
+	--sticky-shadow: 0 1px 1px rgb(0 0 0 / 30%), 0 12px 20px -10px rgb(0 0 0 / 60%);
+	--sticky-shadow-lifted: 0 2px 4px rgb(0 0 0 / 30%), 0 28px 36px -14px rgb(0 0 0 / 70%);
+
+	--shadow-rest: 0 1px 1px rgb(0 0 0 / 30%), 0 2px 6px rgb(0 0 0 / 22%);
+	--shadow-hover: 0 1px 2px rgb(0 0 0 / 35%), 0 6px 16px rgb(0 0 0 / 30%);
+	--shadow-lifted: 0 4px 10px rgb(0 0 0 / 30%), 0 22px 44px rgb(0 0 0 / 50%);
+}
+
+/* Before the theme is applied, at least paint the page dark in dark mode. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme]) {
+		color-scheme: dark;
+		--ground: #141518;
+	}
+}
+
+/* Text in a themed subtree follows that subtree's ink. */
+[data-theme] {
+	color: var(--ink);
+}
+
+:root {
+	--font-ui: "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+	--font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
+	--font-display: "Bricolage Grotesque Variable", var(--font-ui);
+	/* Shantell Sans: an OFL handwriting face that stays legible small, for
+	   stickies and text that should feel hand-written. */
+	--font-hand: "Shantell Sans Variable", "Comic Sans MS", var(--font-ui);
 
 	/* Motion. Every duration is scaled by --motion, so the playground's slow
 	   motion and reduced-motion modes apply everywhere. */
@@ -160,7 +261,7 @@ textarea {
 	align-items: center;
 	gap: 8px 14px;
 	padding: 10px 16px;
-	background: rgb(255 255 255 / 86%);
+	background: var(--chrome);
 	backdrop-filter: blur(12px) saturate(1.4);
 	border-bottom: 1px solid var(--line);
 }
@@ -211,7 +312,7 @@ textarea {
 
 .topbar button,
 .topbar input,
-.gallery button {
+.gallery-actions button {
 	height: 34px;
 	border-radius: 9px;
 	border: 1px solid var(--line-strong);
@@ -225,18 +326,18 @@ textarea {
 }
 
 .topbar button,
-.gallery button {
+.gallery-actions button {
 	cursor: pointer;
 	font-weight: 550;
 }
 
 .topbar button:hover,
-.gallery button:hover {
+.gallery-actions button:hover {
 	background: var(--surface-muted);
 }
 
 .topbar button:active,
-.gallery button:active,
+.gallery-actions button:active,
 .play-buttons button:active {
 	transform: scale(0.96);
 }
@@ -244,14 +345,15 @@ textarea {
 button.primary {
 	background: var(--accent);
 	border-color: var(--accent);
-	color: #fff;
+	color: var(--on-accent);
 	box-shadow:
-		0 1px 2px rgb(59 76 202 / 30%),
+		0 1px 2px color-mix(in srgb, var(--accent) 30%, transparent),
 		inset 0 1px 0 rgb(255 255 255 / 18%);
 }
 
 button.primary:hover {
-	background: #3343b8;
+	background: var(--accent-hover);
+	border-color: var(--accent-hover);
 }
 
 .people {
@@ -312,8 +414,16 @@ button.primary:hover {
 .react-flow {
 	--xy-background-color: var(--ground);
 	--xy-background-pattern-color: var(--ground-dots);
-	--xy-selection-background-color: rgb(59 76 202 / 6%);
-	--xy-selection-border: 1px solid rgb(59 76 202 / 40%);
+	--xy-selection-background-color: color-mix(in srgb, var(--accent) 6%, transparent);
+	--xy-selection-border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+	--xy-controls-button-background-color: var(--surface);
+	--xy-controls-button-background-color-hover: var(--hover);
+	--xy-controls-button-color: var(--ink-soft);
+	--xy-controls-button-color-hover: var(--ink);
+	--xy-controls-button-border-color: var(--line);
+	--xy-minimap-background-color: var(--surface);
+	--xy-minimap-mask-background-color: color-mix(in srgb, var(--ground) 72%, transparent);
+	--xy-minimap-node-background-color: var(--line-strong);
 }
 
 .react-flow__node {
@@ -362,7 +472,8 @@ button.primary:hover {
 }
 
 .card[data-enter="true"],
-.sticky[data-enter="true"] {
+.sticky[data-enter="true"],
+.text-block[data-enter="true"] {
 	animation: drop-in var(--t-settle) var(--ease-spring) backwards;
 }
 
@@ -505,7 +616,7 @@ a.card-title:hover {
 	font-weight: 550;
 	line-height: 19px;
 	white-space: nowrap;
-	background: #f1efea;
+	background: var(--chip);
 	color: var(--ink-soft);
 }
 
@@ -513,6 +624,14 @@ a.card-title:hover {
 	background: color-mix(in srgb, var(--label) 16%, white);
 	color: color-mix(in srgb, var(--label) 55%, black);
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label) 28%, transparent);
+}
+
+/* On a dark card the label's colour tints the chip, and its text is lifted
+   towards white instead of pushed towards black. */
+[data-theme="dark"] .chip.label {
+	background: color-mix(in srgb, var(--label) 22%, var(--surface));
+	color: color-mix(in srgb, var(--label) 45%, white);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label) 40%, transparent);
 }
 
 .card-foot {
@@ -584,7 +703,12 @@ a.card-title:hover {
 	height: 11px;
 	margin-top: 9px;
 	border-radius: 6px;
-	background: linear-gradient(90deg, #ebe9e3 25%, #f6f5f1 50%, #ebe9e3 75%);
+	background: linear-gradient(
+		90deg,
+		var(--skeleton) 25%,
+		var(--skeleton-shine) 50%,
+		var(--skeleton) 75%
+	);
 	background-size: 200% 100%;
 	animation: shimmer calc(1400ms * var(--motion)) linear infinite;
 }
@@ -623,10 +747,10 @@ a.card-title:hover {
 
 @keyframes ripple {
 	from {
-		box-shadow: 0 0 0 0 rgb(59 76 202 / 45%);
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
 	}
 	to {
-		box-shadow: 0 0 0 16px rgb(59 76 202 / 0%);
+		box-shadow: 0 0 0 16px color-mix(in srgb, var(--accent) 0%, transparent);
 	}
 }
 
@@ -709,24 +833,27 @@ a.card-title:hover {
    Stickies
    ------------------------------------------------------------------------ */
 
+/* A sticky is a fixed square of paper. Its text shrinks to fit (see
+   textFit.ts), so the note never grows and a wall of them stays a grid. The
+   text box's size here must match STICKY_TEXT_BOX in StickyNode.tsx. */
 .sticky {
-	--sticky: #ffe58f;
+	--sticky: var(--sticky-yellow);
 	position: relative;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 	width: 176px;
-	min-height: 176px;
-	padding: 14px;
+	height: 176px;
+	padding: 16px;
 	border-radius: 3px 3px 14px 3px;
 	background: var(--sticky);
-	box-shadow:
-		0 1px 1px rgb(0 0 0 / 6%),
-		0 12px 18px -10px rgb(0 0 0 / 25%);
+	color: var(--sticky-ink);
+	box-shadow: var(--sticky-shadow);
 	transform: rotate(var(--tilt, 0deg));
 	transition:
 		transform var(--t-settle) var(--ease-settle),
-		box-shadow var(--t-base) var(--ease-out);
+		box-shadow var(--t-base) var(--ease-out),
+		background-color var(--t-base) var(--ease-out);
 }
 
 /* The folded corner. */
@@ -741,20 +868,20 @@ a.card-title:hover {
 	background: linear-gradient(135deg, rgb(0 0 0 / 0%) 50%, rgb(0 0 0 / 8%) 50%);
 }
 
-.sticky[data-color="yellow"] {
-	--sticky: #ffe58f;
+[data-color="yellow"] {
+	--sticky: var(--sticky-yellow);
 }
-.sticky[data-color="pink"] {
-	--sticky: #ffc9da;
+[data-color="pink"] {
+	--sticky: var(--sticky-pink);
 }
-.sticky[data-color="blue"] {
-	--sticky: #c7ddff;
+[data-color="blue"] {
+	--sticky: var(--sticky-blue);
 }
-.sticky[data-color="green"] {
-	--sticky: #c9efcf;
+[data-color="green"] {
+	--sticky: var(--sticky-green);
 }
-.sticky[data-color="purple"] {
-	--sticky: #e2d4ff;
+[data-color="purple"] {
+	--sticky: var(--sticky-purple);
 }
 
 .react-flow__node:hover .sticky {
@@ -764,9 +891,7 @@ a.card-title:hover {
 .react-flow__node.dragging .sticky,
 .react-flow__node.remote-drag .sticky {
 	transform: rotate(calc(var(--tilt, 0deg) - 3deg)) scale(1.05);
-	box-shadow:
-		0 2px 4px rgb(0 0 0 / 8%),
-		0 26px 34px -14px rgb(0 0 0 / 30%);
+	box-shadow: var(--sticky-shadow-lifted);
 	transition:
 		transform var(--t-quick) var(--ease-out),
 		box-shadow var(--t-quick) var(--ease-out);
@@ -777,32 +902,69 @@ a.card-title:hover {
 	outline-offset: 4px;
 }
 
-.sticky textarea,
-.sticky-text {
+/* The type on a sticky, shared by the text, the editor and the hidden
+   measuring copy, so all three wrap identically and editing never shifts a
+   line. The size comes from --fit-size. */
+.sticky-type {
+	font-family: var(--font-ui);
+	font-size: var(--fit-size, 16px);
+	font-weight: 520;
+	line-height: 1.26;
+	letter-spacing: -0.012em;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	text-wrap: pretty;
+}
+
+.sticky-type[data-font="hand"] {
+	font-family: var(--font-hand);
+	font-weight: 470;
+	font-variation-settings: "INFM" 65;
+	line-height: 1.22;
+	letter-spacing: 0;
+}
+
+.sticky-body {
+	position: relative;
 	flex: 1;
-	min-height: 140px;
+	min-height: 0;
+}
+
+.sticky-body textarea,
+.sticky-text {
+	display: block;
+	width: 100%;
+	height: 100%;
+	margin: 0;
 	border: 0;
 	padding: 0;
 	background: transparent;
+	color: inherit;
 	resize: none;
-	font-size: 15px;
-	font-weight: 480;
-	line-height: 1.4;
-	letter-spacing: -0.005em;
-	color: rgb(23 25 28 / 88%);
 	outline: none;
+	overflow: hidden;
 }
 
-.sticky textarea::placeholder,
+.sticky-body textarea[data-overflow="true"] {
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+
+.sticky-body textarea::placeholder,
 .sticky-text[data-empty="true"] {
-	color: rgb(23 25 28 / 35%);
+	color: var(--sticky-ink-soft);
+	opacity: 0.7;
 }
 
 .sticky-text {
-	white-space: pre-wrap;
 	overflow-wrap: anywhere;
-	overflow: hidden;
 	user-select: none;
+}
+
+/* Text that still doesn't fit at the smallest size fades out at the bottom
+   rather than being cut mid-line. */
+.sticky-text[data-overflow="true"] {
+	mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
 }
 
 .sticky[data-editing="true"] {
@@ -813,14 +975,21 @@ a.card-title:hover {
 	cursor: text;
 }
 
-/* Who made it, like FigJam: quiet until you look for it. */
+/* Who made it, like FigJam: small and quiet, but still readable. */
 .sticky-author {
 	display: flex;
 	align-items: center;
 	gap: 5px;
+	min-width: 0;
+	height: 14px;
 	font-size: 11px;
-	font-weight: 550;
-	color: rgb(23 25 28 / 55%);
+	font-weight: 540;
+	line-height: 14px;
+	color: var(--sticky-ink-soft);
+}
+
+.sticky-author-name {
+	min-width: 0;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -833,6 +1002,30 @@ a.card-title:hover {
 	height: 7px;
 	border-radius: 50%;
 	background: var(--author);
+	box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--sticky) 60%, white);
+}
+
+/* The hidden copy that text is measured in. Strict containment keeps each
+   measurement from touching the layout of the board. */
+.fit-mirror {
+	position: fixed;
+	left: 0;
+	top: 0;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+	visibility: hidden;
+	pointer-events: none;
+	contain: strict;
+}
+
+.fit-mirror > * {
+	position: absolute;
+	left: 0;
+	top: 0;
+	/* Never break inside a word while measuring, so a long word shrinks the
+	   type until it fits on a line. */
+	overflow-wrap: normal;
 }
 
 /* The sticky that follows the pointer while the sticky tool is active. */
@@ -845,6 +1038,138 @@ a.card-title:hover {
 	box-shadow: 0 10px 24px rgb(0 0 0 / 12%);
 	transition: none;
 	animation: pop-in var(--t-base) var(--ease-spring);
+}
+
+/* ---------------------------------------------------------------------------
+   Text blocks
+   ------------------------------------------------------------------------ */
+
+/* Free text on the board. It's as wide as its longest line, up to a limit,
+   and comes in four sizes; large sizes switch to the display face. */
+.text-block {
+	--text-size: 20px;
+	position: relative;
+	padding: 4px 6px;
+	border-radius: 6px;
+	color: var(--ink);
+	transition: box-shadow var(--t-base) var(--ease-out);
+}
+
+.text-block[data-selected="true"] {
+	box-shadow: 0 0 0 2px var(--accent);
+}
+
+.react-flow__node:hover .text-block:not([data-selected="true"]) {
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.text-type {
+	font-family: var(--font-ui);
+	font-size: var(--text-size);
+	font-weight: 500;
+	line-height: 1.32;
+	letter-spacing: -0.01em;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+.text-block[data-size="s"] {
+	--text-size: 14px;
+}
+
+.text-block[data-size="s"] .text-type {
+	font-weight: 460;
+	line-height: 1.45;
+	letter-spacing: 0;
+}
+
+.text-block[data-size="l"] .text-type,
+.text-block[data-size="xl"] .text-type {
+	font-family: var(--font-display);
+	font-weight: 700;
+	line-height: 1.12;
+	letter-spacing: -0.025em;
+}
+
+.text-block[data-size="l"] {
+	--text-size: 34px;
+}
+
+.text-block[data-size="xl"] {
+	--text-size: 56px;
+}
+
+.text-block[data-size="xl"] .text-type {
+	font-weight: 760;
+	line-height: 1.04;
+	letter-spacing: -0.035em;
+}
+
+.text-block[data-font="hand"] .text-type {
+	font-family: var(--font-hand);
+	font-weight: 480;
+	font-variation-settings: "INFM" 65;
+	letter-spacing: 0;
+}
+
+/* Auto width: the text and an invisible copy share one grid cell, so the
+   block (and the editor in it) is exactly as wide as the text. */
+.text-sizer {
+	position: relative;
+	display: grid;
+	width: max-content;
+	max-width: 760px;
+	min-width: 1ch;
+}
+
+.text-sizer::after {
+	content: attr(data-value) " ";
+	visibility: hidden;
+}
+
+.text-sizer::after,
+.text-sizer > * {
+	grid-area: 1 / 1;
+	min-width: 0;
+}
+
+/* The editor lies over the copy, so its own intrinsic width (a textarea has
+   one) never sizes the block. */
+.text-sizer textarea {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	letter-spacing: inherit;
+	font-variation-settings: inherit;
+	white-space: inherit;
+	overflow-wrap: inherit;
+	margin: 0;
+	border: 0;
+	padding: 0;
+	background: transparent;
+	color: inherit;
+	resize: none;
+	outline: none;
+	overflow: hidden;
+}
+
+.text-sizer textarea::placeholder,
+.text-block-text[data-empty="true"] {
+	color: var(--muted);
+}
+
+.text-block-text {
+	user-select: none;
+}
+
+.text-block[data-editing="true"],
+.react-flow__node:has(.text-block[data-editing="true"]) {
+	cursor: text;
+}
+
+.canvas[data-tool="text"] .react-flow__pane {
+	cursor: text;
 }
 
 .canvas[data-tool="sticky"] .react-flow__pane {
@@ -878,7 +1203,7 @@ a.card-title:hover {
 	pointer-events: auto;
 	display: flex;
 	align-items: center;
-	background: rgb(255 255 255 / 94%);
+	background: var(--chrome-strong);
 	backdrop-filter: blur(14px) saturate(1.4);
 	border: 1px solid var(--line);
 	box-shadow: var(--shadow-lifted);
@@ -929,7 +1254,7 @@ a.card-title:hover {
 }
 
 .tool:hover {
-	background: #f1efea;
+	background: var(--hover);
 }
 
 .tool:active {
@@ -949,8 +1274,8 @@ a.card-title:hover {
 	left: 50%;
 	padding: 5px 9px;
 	border-radius: 7px;
-	background: var(--ink);
-	color: #fff;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
 	font-size: 12px;
 	font-weight: 550;
 	white-space: pre;
@@ -981,7 +1306,7 @@ a.card-title:hover {
 	width: 22px;
 	height: 22px;
 	border-radius: 2px 2px 7px 2px;
-	background: var(--sticky, #ffe58f);
+	background: var(--sticky, var(--sticky-yellow));
 	box-shadow:
 		0 1px 1px rgb(0 0 0 / 8%),
 		0 4px 6px -3px rgb(0 0 0 / 25%);
@@ -1000,6 +1325,17 @@ a.card-title:hover {
 	padding: 7px 10px;
 	border-radius: 13px;
 	animation: tray-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes shake {
+	20%,
+	60% {
+		transform: translateX(-4px);
+	}
+	40%,
+	80% {
+		transform: translateX(4px);
+	}
 }
 
 @keyframes tray-in {
@@ -1038,27 +1374,6 @@ a.card-title:hover {
 		0 0 0 4px var(--accent);
 }
 
-.swatch[data-color="yellow"],
-.tool-sticky-paper[data-color="yellow"] {
-	--sticky: #ffe58f;
-}
-.swatch[data-color="pink"],
-.tool-sticky-paper[data-color="pink"] {
-	--sticky: #ffc9da;
-}
-.swatch[data-color="blue"],
-.tool-sticky-paper[data-color="blue"] {
-	--sticky: #c7ddff;
-}
-.swatch[data-color="green"],
-.tool-sticky-paper[data-color="green"] {
-	--sticky: #c9efcf;
-}
-.swatch[data-color="purple"],
-.tool-sticky-paper[data-color="purple"] {
-	--sticky: #e2d4ff;
-}
-
 .card-options input {
 	width: min(300px, 60vw);
 	height: 34px;
@@ -1076,7 +1391,7 @@ a.card-title:hover {
 }
 
 .card-options input[aria-invalid="true"] {
-	border-color: #c2372b;
+	border-color: var(--danger);
 	animation: shake calc(360ms * var(--motion)) var(--ease-out);
 }
 
@@ -1119,7 +1434,9 @@ a.card-title:hover {
 	align-items: flex-start;
 	pointer-events: none;
 	transform-origin: 0 0;
-	transition: transform calc(90ms * var(--motion)) linear;
+	transition:
+		transform calc(90ms * var(--motion)) linear,
+		opacity var(--t-settle) var(--ease-out);
 	animation: cursor-in var(--t-settle) var(--ease-spring) backwards;
 }
 
@@ -1148,6 +1465,738 @@ a.card-title:hover {
 	box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
 }
 
+/* Idle and away people fade back, but stay where they were. */
+.cursor[data-status="idle"] {
+	opacity: 0.45;
+}
+
+.cursor[data-status="away"] {
+	opacity: 0.28;
+}
+
+.cursor-status {
+	font-weight: 500;
+	opacity: 0.8;
+}
+
+/* ---------------------------------------------------------------------------
+   Cursor chat
+   ------------------------------------------------------------------------ */
+
+/* A speech bubble in the speaker's colour, growing out of their cursor. */
+.cursor-chat {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	width: max-content;
+	max-width: 260px;
+	margin: 13px 0 0 -3px;
+	padding: 6px 12px 7px;
+	border-radius: 4px 15px 15px 15px;
+	background: var(--cursor);
+	color: #fff;
+	box-shadow:
+		0 2px 4px rgb(0 0 0 / 10%),
+		0 8px 20px rgb(0 0 0 / 16%);
+	transform-origin: 0 0;
+	animation: chat-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.cursor-chat[data-leaving="true"] {
+	animation: chat-out calc(320ms * var(--motion)) var(--ease-out) forwards;
+}
+
+@keyframes chat-in {
+	from {
+		opacity: 0;
+		transform: scale(0.5);
+	}
+}
+
+@keyframes chat-out {
+	to {
+		opacity: 0;
+		transform: translateY(-6px) scale(0.94);
+	}
+}
+
+.cursor-chat-name {
+	font-size: 10.5px;
+	font-weight: 650;
+	letter-spacing: 0.01em;
+	opacity: 0.8;
+}
+
+.cursor-chat-text {
+	font-size: 14px;
+	font-weight: 540;
+	line-height: 1.32;
+	overflow-wrap: anywhere;
+	text-wrap: pretty;
+}
+
+.cursor-chat-caret {
+	display: inline-block;
+	width: 1.5px;
+	height: 1.05em;
+	margin-left: 1px;
+	vertical-align: -0.17em;
+	background: currentColor;
+	animation: caret-blink calc(1000ms * var(--motion)) steps(1) infinite;
+}
+
+@keyframes caret-blink {
+	50% {
+		opacity: 0;
+	}
+}
+
+/* Someone has opened chat but not typed yet. */
+.cursor-chat-dots {
+	display: inline-flex;
+	gap: 3px;
+	padding: 6px 0 4px;
+}
+
+.cursor-chat-dots span {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: currentColor;
+	animation: typing-dot calc(1100ms * var(--motion)) var(--ease-out) infinite;
+}
+
+.cursor-chat-dots span:nth-child(2) {
+	animation-delay: calc(140ms * var(--motion));
+}
+
+.cursor-chat-dots span:nth-child(3) {
+	animation-delay: calc(280ms * var(--motion));
+}
+
+@keyframes typing-dot {
+	0%,
+	60%,
+	100% {
+		opacity: 0.45;
+		transform: none;
+	}
+	30% {
+		opacity: 1;
+		transform: translateY(-3px);
+	}
+}
+
+/* Your own bubble follows your pointer in screen space. */
+.cursor-chat-anchor {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 30;
+	pointer-events: none;
+}
+
+.cursor-chat-anchor .cursor-chat {
+	margin: 0;
+	pointer-events: auto;
+}
+
+.cursor-chat input {
+	min-width: 0;
+	max-width: 236px;
+	border: 0;
+	padding: 0;
+	background: transparent;
+	color: #fff;
+	font-size: 14px;
+	font-weight: 540;
+	line-height: 1.32;
+	outline: none;
+	caret-color: #fff;
+}
+
+.cursor-chat input::placeholder {
+	color: rgb(255 255 255 / 72%);
+}
+
+/* ---------------------------------------------------------------------------
+   People and following
+   ------------------------------------------------------------------------ */
+
+.avatar {
+	position: relative;
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		filter var(--t-base) var(--ease-out),
+		transform var(--t-base) var(--ease-spring),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.people button.avatar {
+	height: 28px;
+	padding: 0;
+	border: 2px solid var(--surface);
+	border-radius: 50%;
+	background: var(--avatar);
+	color: #fff;
+	font-size: 10.5px;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.people button.avatar:hover {
+	z-index: 1;
+	background: var(--avatar);
+	transform: translateY(-2px);
+}
+
+.people button.avatar:active {
+	transform: scale(0.92);
+}
+
+/* The person you're following gets a ring in their colour. */
+.avatar[aria-pressed="true"] {
+	z-index: 1;
+	box-shadow:
+		0 0 0 2px var(--surface),
+		0 0 0 4px var(--avatar);
+}
+
+.avatar[data-status="idle"] {
+	opacity: 0.5;
+	filter: saturate(0.4);
+}
+
+.avatar[data-status="away"] {
+	opacity: 0.35;
+	filter: saturate(0.2);
+}
+
+.avatar-more {
+	background: var(--chip);
+	color: var(--ink-soft);
+}
+
+/* An eye on the avatar of someone following you. */
+.avatar-badge {
+	position: absolute;
+	right: -5px;
+	bottom: -4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 15px;
+	height: 15px;
+	border-radius: 50%;
+	background: var(--surface);
+	color: var(--ink-soft);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.avatar-badge svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.2;
+}
+
+.avatar-badge circle {
+	fill: currentColor;
+	stroke: none;
+}
+
+/* Tooltips under avatars: who, how they are, and what a click does. */
+.avatar[data-tooltip]::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	top: calc(100% + 8px);
+	right: -6px;
+	z-index: 2;
+	padding: 5px 9px;
+	border-radius: 7px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 12px;
+	font-weight: 550;
+	line-height: 1.4;
+	letter-spacing: 0;
+	text-align: left;
+	white-space: pre;
+	opacity: 0;
+	transform: translateY(-4px);
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.avatar[data-tooltip]:hover::after {
+	opacity: 1;
+	transform: none;
+	transition-delay: calc(300ms * var(--motion));
+}
+
+/* While following, the canvas is framed in their colour. */
+.follow {
+	position: absolute;
+	inset: 0;
+	z-index: 8;
+	pointer-events: none;
+}
+
+.follow-frame {
+	position: absolute;
+	inset: 0;
+	box-shadow: inset 0 0 0 3px var(--follow);
+	animation: fade-in var(--t-base) var(--ease-out);
+}
+
+.follow-pill {
+	position: absolute;
+	top: 12px;
+	left: 50%;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 4px 4px 4px 13px;
+	border-radius: 999px;
+	background: var(--follow);
+	color: #fff;
+	font-size: 12.5px;
+	font-weight: 520;
+	white-space: nowrap;
+	box-shadow: var(--shadow-lifted);
+	pointer-events: auto;
+	transform: translateX(-50%);
+	animation: pill-in var(--t-settle) var(--ease-spring);
+}
+
+.follow-pill strong {
+	font-weight: 700;
+}
+
+.follow-pill-dot {
+	opacity: 0.6;
+}
+
+.follow-pill > button {
+	height: 24px;
+	padding: 0 11px;
+	border: 0;
+	border-radius: 999px;
+	background: rgb(255 255 255 / 22%);
+	color: #fff;
+	font-size: 12px;
+	font-weight: 650;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.follow-pill > button:hover {
+	background: rgb(255 255 255 / 34%);
+}
+
+@keyframes pill-in {
+	from {
+		opacity: 0;
+		transform: translate(-50%, -10px) scale(0.9);
+	}
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+}
+
+/* ---------------------------------------------------------------------------
+   Theme toggle
+   ------------------------------------------------------------------------ */
+
+.theme-toggle {
+	display: inline-flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: 9px;
+	background: var(--well);
+	box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.theme-toggle button,
+.topbar .theme-toggle button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-width: 28px;
+	height: 26px;
+	padding: 0 6px;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 550;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.theme-toggle button:not([aria-checked="true"]):hover,
+.topbar .theme-toggle button:not([aria-checked="true"]):hover {
+	background: transparent;
+	color: var(--ink);
+}
+
+.theme-toggle button[aria-checked="true"] {
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-rest);
+}
+
+.theme-toggle svg {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.theme-toggle button[aria-checked="true"] svg {
+	animation: icon-turn var(--t-settle) var(--ease-spring);
+}
+
+@keyframes icon-turn {
+	from {
+		transform: rotate(-60deg) scale(0.6);
+	}
+}
+
+.theme-toggle[data-labelled="true"] {
+	display: flex;
+}
+
+.theme-toggle[data-labelled="true"] button {
+	flex: 1;
+	height: 28px;
+}
+
+/* Switching theme cross-fades the whole page. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: var(--t-settle);
+	animation-timing-function: var(--ease-out);
+}
+
+/* ---------------------------------------------------------------------------
+   Shape toolbar
+   ------------------------------------------------------------------------ */
+
+/* Floats above the selected stickies and text. */
+.shape-toolbar {
+	display: flex;
+	align-items: center;
+	padding: 5px;
+	border-radius: 13px;
+	background: var(--chrome-strong);
+	backdrop-filter: blur(14px) saturate(1.4);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-lifted);
+	transform-origin: 50% 100%;
+	animation: shape-toolbar-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes shape-toolbar-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px) scale(0.92);
+	}
+}
+
+.shape-toolbar-group {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 0 5px;
+}
+
+.shape-toolbar-group + .shape-toolbar-group {
+	margin-left: 3px;
+	padding-left: 8px;
+	border-left: 1px solid var(--line-strong);
+}
+
+.shape-toolbar .swatch {
+	width: 22px;
+	height: 22px;
+}
+
+.shape-toolbar-option {
+	min-width: 30px;
+	height: 28px;
+	padding: 0 7px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	font-weight: 620;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.shape-toolbar-option:hover {
+	background: var(--hover);
+}
+
+.shape-toolbar-option:active {
+	transform: scale(0.92);
+}
+
+.shape-toolbar-option[aria-checked="true"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.shape-toolbar-font[data-font="hand"] {
+	font-family: var(--font-hand);
+	font-size: 14px;
+	font-weight: 520;
+	font-variation-settings: "INFM" 65;
+}
+
+/* ---------------------------------------------------------------------------
+   Minimap
+   ------------------------------------------------------------------------ */
+
+.react-flow__minimap-node.minimap-yellow {
+	fill: var(--sticky-yellow);
+}
+.react-flow__minimap-node.minimap-pink {
+	fill: var(--sticky-pink);
+}
+.react-flow__minimap-node.minimap-blue {
+	fill: var(--sticky-blue);
+}
+.react-flow__minimap-node.minimap-green {
+	fill: var(--sticky-green);
+}
+.react-flow__minimap-node.minimap-purple {
+	fill: var(--sticky-purple);
+}
+.react-flow__minimap-node.minimap-text {
+	fill: var(--muted);
+	opacity: 0.45;
+}
+
+/* ---------------------------------------------------------------------------
+   Empty board
+   ------------------------------------------------------------------------ */
+
+/* A first-run guide in the middle of a new board. The canvas behind stays
+   clickable; only the hints take the pointer. */
+.empty-board {
+	position: absolute;
+	left: 50%;
+	top: 46%;
+	z-index: 6;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: min(400px, calc(100% - 32px));
+	text-align: center;
+	pointer-events: none;
+	transform: translate(-50%, -50%);
+}
+
+.empty-board > * {
+	animation: empty-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.empty-board > :nth-child(2) {
+	animation-delay: calc(60ms * var(--motion));
+}
+.empty-board > :nth-child(3) {
+	animation-delay: calc(110ms * var(--motion));
+}
+.empty-board > :nth-child(4) {
+	animation-delay: calc(160ms * var(--motion));
+}
+
+@keyframes empty-in {
+	from {
+		opacity: 0;
+		transform: translateY(10px) scale(0.97);
+	}
+}
+
+.empty-board[data-leaving="true"] {
+	animation: empty-out calc(360ms * var(--motion)) var(--ease-out) forwards;
+}
+
+@keyframes empty-out {
+	to {
+		opacity: 0;
+		transform: translate(-50%, -50%) scale(0.96);
+	}
+}
+
+/* Three notes and a pin. Hover and they fan out a little. */
+.empty-board-art {
+	position: relative;
+	width: 136px;
+	height: 92px;
+	margin-bottom: 16px;
+	pointer-events: auto;
+}
+
+.empty-note {
+	position: absolute;
+	top: 22px;
+	width: 56px;
+	height: 56px;
+	border-radius: 2px 2px 9px 2px;
+	background: var(--sticky);
+	box-shadow: var(--sticky-shadow);
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.empty-note:nth-child(1) {
+	left: 8px;
+	transform: rotate(-9deg);
+}
+.empty-note:nth-child(2) {
+	top: 8px;
+	left: 40px;
+	z-index: 1;
+	transform: rotate(3deg);
+}
+.empty-note:nth-child(3) {
+	left: 72px;
+	transform: rotate(11deg);
+}
+
+.empty-board-art:hover .empty-note:nth-child(1) {
+	transform: translate(-8px, 2px) rotate(-15deg);
+}
+.empty-board-art:hover .empty-note:nth-child(2) {
+	transform: translateY(-4px) rotate(-1deg);
+}
+.empty-board-art:hover .empty-note:nth-child(3) {
+	transform: translate(8px, 2px) rotate(17deg);
+}
+
+.empty-pin {
+	position: absolute;
+	top: 3px;
+	left: 63px;
+	z-index: 2;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--accent);
+	box-shadow:
+		0 2px 3px rgb(0 0 0 / 25%),
+		inset -2px -2px 0 rgb(0 0 0 / 18%);
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.empty-board-art:hover .empty-pin {
+	transform: translateY(-3px);
+}
+
+.empty-board-title {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 26px;
+	font-weight: 750;
+	letter-spacing: -0.03em;
+}
+
+.empty-board-lede {
+	margin: 6px 0 18px;
+	color: var(--muted);
+	font-size: 14px;
+	text-wrap: balance;
+}
+
+.empty-board-hints {
+	display: grid;
+	gap: 6px;
+	width: 100%;
+	max-width: 300px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	pointer-events: auto;
+}
+
+.empty-board-hints li > button,
+.empty-board-hints li > span {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	padding: 6px 12px 6px 6px;
+	border-radius: 11px;
+	border: 1px solid var(--line);
+	background: var(--chrome-strong);
+	color: var(--ink-soft);
+	font-size: 13px;
+	font-weight: 500;
+	text-align: left;
+}
+
+.empty-board-hints li > button {
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.empty-board-hints li > button:hover {
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-hover);
+	transform: translateY(-1px);
+}
+
+.empty-board-hints li > button:active {
+	transform: scale(0.98);
+}
+
+.empty-board-keys {
+	display: inline-flex;
+	justify-content: flex-end;
+	gap: 3px;
+	min-width: 58px;
+}
+
+kbd {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 22px;
+	height: 22px;
+	padding: 0 6px;
+	border-radius: 6px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	box-shadow: 0 1px 0 var(--line-strong);
+	color: var(--ink);
+	font-family: var(--font-ui);
+	font-size: 11.5px;
+	font-weight: 620;
+}
+
 /* ---------------------------------------------------------------------------
    Playground and gallery (development only)
    ------------------------------------------------------------------------ */
@@ -1162,7 +2211,7 @@ a.card-title:hover {
 	overflow: auto;
 	padding: 6px 14px 14px;
 	border-radius: 14px;
-	background: rgb(255 255 255 / 92%);
+	background: var(--chrome-strong);
 	backdrop-filter: blur(14px) saturate(1.4);
 	border: 1px solid var(--line);
 	box-shadow: var(--shadow-lifted);
@@ -1186,6 +2235,10 @@ a.card-title:hover {
 	letter-spacing: 0.05em;
 	text-transform: uppercase;
 	color: var(--muted);
+}
+
+.play-label-spaced {
+	margin-top: 12px;
 }
 
 .play-hint {
@@ -1224,7 +2277,7 @@ a.card-title:hover {
 }
 
 .play-buttons button:hover {
-	background: #efede7;
+	background: var(--hover);
 }
 
 .play-buttons button:disabled {
@@ -1236,7 +2289,7 @@ a.card-title:hover {
 	display: flex;
 	padding: 3px;
 	border-radius: 9px;
-	background: #efede7;
+	background: var(--well);
 }
 
 .segmented label {
@@ -1341,4 +2394,84 @@ a.card-title:hover {
 	margin-top: 10px;
 	font-size: 12px;
 	color: var(--muted);
+}
+
+.gallery-split {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr));
+	gap: 24px;
+	margin-top: 32px;
+}
+
+.gallery-pane {
+	padding: 0 24px 32px;
+	border-radius: 18px;
+	border: 1px solid var(--line);
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 20px 20px;
+}
+
+.gallery-grid.stickies {
+	grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+}
+
+.gallery-text {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 32px 40px;
+}
+
+.gallery-with-toolbar {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+}
+
+.gallery-cursors {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px 32px;
+}
+
+.gallery-cursor {
+	position: relative;
+	width: 240px;
+	height: 92px;
+}
+
+.gallery-people {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 24px 56px;
+	margin-top: 20px;
+}
+
+.gallery-people .people {
+	margin-left: 0;
+	padding-left: 6px;
+}
+
+.gallery-frame {
+	position: relative;
+	height: 150px;
+	margin-top: 32px;
+	overflow: hidden;
+	border-radius: 16px;
+	border: 1px solid var(--line);
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 20px 20px;
+}
+
+.gallery-frame figcaption {
+	position: absolute;
+	left: 16px;
+	bottom: 12px;
+}
+
+.gallery-empty {
+	height: 540px;
 }

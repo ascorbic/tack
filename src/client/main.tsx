@@ -3,13 +3,16 @@ import { createRoot } from "react-dom/client";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource-variable/shantell-sans/infm.css";
 import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import { App } from "./App.tsx";
 import { ErrorBoundary } from "./ErrorBoundary.tsx";
 import { installErrorHandlers } from "./errors.ts";
+import { initTheme } from "./useTheme.ts";
 
 installErrorHandlers();
+initTheme();
 
 // The playground and gallery are development tools, left out of production
 // builds entirely.

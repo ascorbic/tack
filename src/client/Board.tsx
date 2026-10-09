@@ -25,16 +25,24 @@ import {
 	type StickyColor,
 	addCard,
 	addSticky,
+	addText,
 	applyNodeChanges,
 	focusWhenMounted,
 	useShapeNodes,
 } from "./board.ts";
 import type { BoardSource } from "./connection.ts";
 import { BrandMark } from "./BrandMark.tsx";
+import { CursorChat } from "./CursorChat.tsx";
 import { Cursors } from "./Cursors.tsx";
+import { EmptyBoard } from "./EmptyBoard.tsx";
+import { FollowIndicator, ViewPublisher, useFollow } from "./Follow.tsx";
 import { DocContext, nodeTypes } from "./nodes.tsx";
+import { People } from "./People.tsx";
 import { type User, usePresence } from "./presence.ts";
+import { ShapeToolbar } from "./ShapeToolbar.tsx";
+import { ThemeToggle } from "./ThemeToggle.tsx";
 import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar } from "./Toolbar.tsx";
+import { usePublishStatus } from "./useActivity.ts";
 
 interface BoardProps extends BoardSource {
 	name: string;
@@ -47,6 +55,8 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 	const shapeNodes = useShapeNodes(doc);
 	const flow = useReactFlow();
 	const presence = usePresence(awareness, user);
+	const follow = useFollow(awareness, presence.people);
+	usePublishStatus(awareness);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [measured, setMeasured] = useState<Map<string, { width: number; height: number }>>(
 		() => new Map(),
@@ -178,10 +188,23 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 	);
 
 	const onPaneClick = (event: MouseEvent) => {
-		if (tool !== "sticky") return;
-		placeSticky(flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }), stickyColor);
+		const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+		if (tool === "sticky") {
+			placeSticky(at, stickyColor);
+		} else if (tool === "text") {
+			const id = addText(doc, at);
+			focusWhenMounted(id);
+			setSelected(new Set([id]));
+		} else {
+			return;
+		}
 		setTool("select");
 	};
+
+	const selectedNodes = useMemo(
+		() => nodes.filter((node) => selected.has(node.id)),
+		[nodes, selected],
+	);
 
 	// Drag a sticky straight off the toolbar.
 	const onDragOver = (event: DragEvent) => {
@@ -216,25 +239,14 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 						tack
 					</span>
 					<span className="board-name">{name}</span>
-					<span className="people" aria-label="People here">
-						<span
-							className="avatar"
-							style={{ "--avatar": user.color } as React.CSSProperties}
-							title={`${user.name} (you)`}
-						>
-							{initials(user.name)}
-						</span>
-						{presence.people.map((person) => (
-							<span
-								key={person.clientId}
-								className="avatar"
-								style={{ "--avatar": person.user.color } as React.CSSProperties}
-								title={person.user.name}
-							>
-								{initials(person.user.name)}
-							</span>
-						))}
-					</span>
+					<People
+						user={user}
+						selfId={awareness.clientID}
+						people={presence.people}
+						following={follow.following}
+						onFollow={follow.follow}
+					/>
+					<ThemeToggle />
 					<span className="status" data-synced={synced}>
 						{synced ? "Synced" : "Connecting…"}
 					</span>
@@ -259,6 +271,7 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 						nodeTypes={nodeTypes}
 						onNodesChange={onNodesChange}
 						onPaneClick={onPaneClick}
+						onMoveStart={follow.onMoveStart}
 						proOptions={{ hideAttribution: true }}
 						onlyRenderVisibleElements
 						selectionOnDrag={tool === "select"}
@@ -270,9 +283,16 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 						deleteKeyCode={["Backspace", "Delete"]}
 					>
 						<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-						<Controls showInteractive={false} />
-						<MiniMap pannable zoomable />
+						<Controls
+							showInteractive={false}
+							onZoomIn={follow.stop}
+							onZoomOut={follow.stop}
+							onFitView={follow.stop}
+						/>
+						<MiniMap pannable zoomable nodeClassName={minimapClass} />
 						<Cursors people={presence.people} />
+						<ViewPublisher awareness={awareness} />
+						<ShapeToolbar doc={doc} selected={selectedNodes} onStickyColor={setStickyColor} />
 						{ghost && (
 							<ViewportPortal>
 								<div
@@ -286,6 +306,9 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 							</ViewportPortal>
 						)}
 					</ReactFlow>
+					<EmptyBoard empty={synced && shapeNodes.length === 0} onTool={setTool} />
+					<FollowIndicator person={follow.target} onStop={follow.stop} />
+					<CursorChat awareness={awareness} user={user} />
 					<Toolbar
 						tool={tool}
 						onTool={setTool}
@@ -300,11 +323,8 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 	);
 }
 
-function initials(name: string): string {
-	return name
-		.split(/\s+/)
-		.map((word) => word[0] ?? "")
-		.join("")
-		.slice(0, 2)
-		.toUpperCase();
+/** Minimap shapes take their own colour: stickies show as their paper. */
+function minimapClass(node: ShapeNode): string {
+	const { type, color } = node.data.shape;
+	return type === "sticky" ? `minimap-sticky minimap-${color ?? "yellow"}` : `minimap-${type}`;
 }

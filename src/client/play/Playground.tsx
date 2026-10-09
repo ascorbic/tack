@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { Card } from "../../shared/cards.ts";
 import { Board } from "../Board.tsx";
 import { cardStore } from "../cardStore.ts";
+import type { Status } from "../activity.ts";
 import { localUser } from "../presence.ts";
+import { ThemeToggle } from "../ThemeToggle.tsx";
 import { fixture, LABELS } from "./fixtures.ts";
 import { SCENARIOS } from "./scenarios.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
@@ -16,6 +18,28 @@ const STICKY_LINES = [
 	"needs an RFC first",
 	"I can take this one",
 ];
+
+const CHAT_LINES = [
+	"over here!",
+	"ooh, I like this one",
+	"should we group these?",
+	"wait, is #412 still blocked?",
+	"brb, coffee",
+	"let's vote in 5 minutes",
+];
+
+const BRAINSTORM_LINES = [
+	"Better errors",
+	"Benchmarks in CI",
+	"A logo?",
+	"Fewer options, better defaults",
+	"Show the generated URL in devtools",
+	"Write down why we chose each default, so the next person doesn't have to guess",
+	"Video walkthrough",
+	"Hmm",
+];
+
+const NEXT_STATUS: Record<Status, Status> = { active: "idle", idle: "away", away: "active" };
 
 function pick<T>(list: T[]): T | undefined {
 	return list[Math.floor(Math.random() * list.length)];
@@ -106,6 +130,34 @@ export default function Playground() {
 				y: 100 + Math.random() * 400,
 			});
 		},
+		say: () => void someone().say(pick(CHAT_LINES) ?? ""),
+		lookAround: () => void someone().lookAround(),
+		status: () => {
+			const person = someone();
+			person.setStatus(NEXT_STATUS[person.status]);
+			setPeople([...sim.people]);
+		},
+		followMe: () => {
+			const person = someone();
+			person.follow(person.following === null ? sim.awareness.clientID : null);
+			setPeople([...sim.people]);
+		},
+		brainstorm: () => {
+			while (sim.people.length < 3) sim.join();
+			setPeople([...sim.people]);
+			// Everyone adds a few stickies at once, each in their own patch
+			// below whatever is on the board already.
+			const top = Math.max(0, ...sim.shapeIds().map((id) => sim.shapePosition(id)?.y ?? 0)) + 320;
+			sim.people.forEach(async (person, n) => {
+				for (let i = 0; i < 3; i++) {
+					await person.addSticky(
+						{ x: 120 + n * 420 + Math.random() * 220, y: top + i * 190 + Math.random() * 30 },
+						pick(BRAINSTORM_LINES) ?? "",
+						Math.random() < 0.3 ? "hand" : undefined,
+					);
+				}
+			});
+		},
 		addSticky: () => {
 			void someone().addSticky(
 				{ x: 200 + Math.random() * 700, y: 120 + Math.random() * 400 },
@@ -153,7 +205,11 @@ export default function Playground() {
 	useEffect(() => {
 		if (!autoplay) return;
 		const all = Object.values(actions).filter(
-			(action) => action !== actions.leave && action !== actions.join,
+			(action) =>
+				action !== actions.leave &&
+				action !== actions.join &&
+				action !== actions.brainstorm &&
+				action !== actions.followMe,
 		);
 		const timer = setInterval(() => pick(all)?.(), 1800);
 		return () => clearInterval(timer);
@@ -209,7 +265,32 @@ export default function Playground() {
 							<button type="button" onClick={actions.addSticky}>
 								Add a sticky
 							</button>
+							<button type="button" onClick={actions.brainstorm}>
+								Brainstorm
+							</button>
 						</div>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Presence</h2>
+						<div className="play-buttons">
+							<button type="button" onClick={actions.say}>
+								Cursor chat
+							</button>
+							<button type="button" onClick={actions.lookAround}>
+								Pan and zoom
+							</button>
+							<button type="button" onClick={actions.status}>
+								Idle → away → back
+							</button>
+							<button type="button" onClick={actions.followMe}>
+								Follow me (toggle)
+							</button>
+						</div>
+						<p className="play-hint">
+							Press / for your own cursor chat. Click an avatar to follow someone, then try Pan and
+							zoom.
+						</p>
 					</div>
 
 					<div className="play-section">
@@ -251,6 +332,8 @@ export default function Playground() {
 								</label>
 							))}
 						</div>
+						<h2 className="play-label play-label-spaced">Theme</h2>
+						<ThemeToggle labelled />
 						<label className="play-toggle">
 							<input
 								type="checkbox"
@@ -260,7 +343,7 @@ export default function Playground() {
 							Autoplay random events
 						</label>
 						<a className="play-link" href="/play/cards">
-							Card gallery →
+							Gallery →
 						</a>
 					</div>
 				</aside>

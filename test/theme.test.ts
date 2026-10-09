@@ -1,0 +1,127 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vite-plus/test";
+import { AA_TEXT, composite, contrastRatio, parseColor } from "../src/client/contrast.ts";
+import { parsePreference, resolveTheme } from "../src/client/theme.ts";
+
+// Both themes' text colours, checked against WCAG AA using the real tokens
+// from styles.css.
+
+// Tests run from the repository root.
+const css = readFileSync("src/client/styles.css", "utf8");
+
+function block(selector: string): Record<string, string> {
+	const start = css.indexOf(`${selector} {`);
+	if (start === -1) throw new Error(`No ${selector} block in styles.css`);
+	const body = css.slice(start, css.indexOf("\n}", start));
+	const tokens: Record<string, string> = {};
+	for (const [, name, value] of body.matchAll(/^\s*--([\w-]+):\s*([^;]+);/gm)) {
+		if (name && value) tokens[name] = value.trim();
+	}
+	return tokens;
+}
+
+const light = block(':root,\n[data-theme="light"]');
+// The dark block overrides the light one; anything it leaves out (sticky
+// ink, for one) comes from the light block.
+const dark = { ...light, ...block('[data-theme="dark"]') };
+
+/** An opaque colour: translucent ones are painted over what's beneath. */
+function solid(tokens: Record<string, string>, name: string, over = "ground"): string {
+	const value = tokens[name];
+	if (!value) throw new Error(`No --${name} token`);
+	const colour = parseColor(value);
+	if (colour.a === 1) return value;
+	const { r, g, b } = composite(colour, parseColor(solid(tokens, over)));
+	return `rgb(${r} ${g} ${b})`;
+}
+
+// [text, background, what it is]
+const PAIRS: [string, string, string][] = [
+	["ink", "ground", "board text"],
+	["ink", "surface", "card titles"],
+	["ink-soft", "surface", "secondary text"],
+	["muted", "surface", "card metadata"],
+	["muted", "surface-muted", "unavailable cards"],
+	["muted", "ground", "hints on the board"],
+	["muted", "well", "unchosen theme options"],
+	["ink-soft", "chip", "chips"],
+	["accent", "surface", "links and selected tools"],
+	["on-accent", "accent", "primary buttons"],
+	["on-tooltip", "tooltip", "tooltips"],
+	["open", "open-bg", "open state chip"],
+	["merged", "merged-bg", "merged state chip"],
+	["closed", "closed-bg", "draft state chip"],
+	["sticky-ink", "sticky-yellow", "yellow sticky"],
+	["sticky-ink", "sticky-pink", "pink sticky"],
+	["sticky-ink", "sticky-blue", "blue sticky"],
+	["sticky-ink", "sticky-green", "green sticky"],
+	["sticky-ink", "sticky-purple", "purple sticky"],
+	["sticky-ink-soft", "sticky-yellow", "author on a yellow sticky"],
+	["sticky-ink-soft", "sticky-pink", "author on a pink sticky"],
+	["sticky-ink-soft", "sticky-blue", "author on a blue sticky"],
+	["sticky-ink-soft", "sticky-green", "author on a green sticky"],
+	["sticky-ink-soft", "sticky-purple", "author on a purple sticky"],
+];
+
+describe.each([
+	["light", light],
+	["dark", dark],
+] as const)("%s theme", (_, tokens) => {
+	it.each(PAIRS)("--%s on --%s (%s) passes AA", (text, background) => {
+		expect(contrastRatio(tokens[text] ?? "", solid(tokens, background))).toBeGreaterThanOrEqual(
+			AA_TEXT,
+		);
+	});
+
+	it("passes AA for text on the floating chrome", () => {
+		const chrome = solid(tokens, "chrome-strong");
+		expect(contrastRatio(tokens.ink ?? "", chrome)).toBeGreaterThanOrEqual(AA_TEXT);
+		expect(contrastRatio(tokens.muted ?? "", chrome)).toBeGreaterThanOrEqual(AA_TEXT);
+	});
+
+	it("passes AA for the accent on its own tint", () => {
+		const tint = composite(
+			parseColor(tokens["accent-soft"] ?? ""),
+			parseColor(solid(tokens, "chrome-strong")),
+		);
+		const background = `rgb(${tint.r} ${tint.g} ${tint.b})`;
+		expect(contrastRatio(tokens.accent ?? "", background)).toBeGreaterThanOrEqual(AA_TEXT);
+	});
+});
+
+describe("contrastRatio", () => {
+	it("is 21 for black on white and 1 for a colour on itself", () => {
+		expect(contrastRatio("#000", "#fff")).toBeCloseTo(21, 5);
+		expect(contrastRatio("#3b4cca", "#3b4cca")).toBeCloseTo(1, 5);
+	});
+
+	it("composites translucent text over the background", () => {
+		expect(contrastRatio("rgb(0 0 0 / 0%)", "#ffffff")).toBeCloseTo(1, 5);
+		expect(contrastRatio("rgb(0 0 0 / 50%)", "#ffffff")).toBeCloseTo(
+			contrastRatio("#808080", "#ffffff"),
+			1,
+		);
+	});
+
+	it("parses the colour forms the tokens use", () => {
+		expect(parseColor("#abc")).toEqual({ r: 170, g: 187, b: 204, a: 1 });
+		expect(parseColor("rgb(23 25 28 / 9%)")).toEqual({ r: 23, g: 25, b: 28, a: 0.09 });
+		expect(parseColor("rgba(255, 255, 255, 0.5)")).toEqual({ r: 255, g: 255, b: 255, a: 0.5 });
+		expect(() => parseColor("color-mix(in srgb, red, blue)")).toThrow();
+	});
+});
+
+describe("theme", () => {
+	it("follows the system unless told otherwise", () => {
+		expect(resolveTheme("system", true)).toBe("dark");
+		expect(resolveTheme("system", false)).toBe("light");
+		expect(resolveTheme("light", true)).toBe("light");
+		expect(resolveTheme("dark", false)).toBe("dark");
+	});
+
+	it("treats anything unrecognised in storage as system", () => {
+		expect(parsePreference("dark")).toBe("dark");
+		expect(parsePreference(null)).toBe("system");
+		expect(parsePreference("sepia")).toBe("system");
+	});
+});
