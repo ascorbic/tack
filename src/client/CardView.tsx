@@ -164,7 +164,7 @@ function LiveCard({
 					{stateLabel(card)}
 				</span>
 			</div>
-			<a className="card-title nodrag" href={card.url} target="_blank" rel="noreferrer">
+			<a className="card-title" href={card.url} target="_blank" rel="noreferrer" draggable={false}>
 				<span key={title.key} data-flash={title.on}>
 					{card.title}
 				</span>
@@ -187,7 +187,13 @@ function LiveCard({
 				{card.assignees.length > 0 && (
 					<span className="avatars">
 						{card.assignees.slice(0, 3).map((a) => (
-							<img key={a.login} src={a.avatarUrl} alt={a.login} title={a.login} />
+							<img
+								key={a.login}
+								src={a.avatarUrl}
+								alt={a.login}
+								title={a.login}
+								draggable={false}
+							/>
 						))}
 					</span>
 				)}

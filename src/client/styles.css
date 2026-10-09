@@ -476,6 +476,14 @@ button.primary:hover {
 	text-wrap: pretty;
 }
 
+/* Cards move as a whole: links and images inside them aren't separately
+   draggable, so the browser's native link drag never kicks in. */
+.card a,
+.card img {
+	-webkit-user-drag: none;
+	user-select: none;
+}
+
 a.card-title:hover {
 	text-decoration: underline;
 	text-decoration-color: var(--line-strong);
