@@ -79,7 +79,10 @@ describe("handleClientError", () => {
 
 	it("rate limits each client", async () => {
 		vi.spyOn(console, "error").mockImplementation(() => {});
-		const limiter = new RateLimiter({ limit: 2, windowMs: 60_000 }, { limit: 100, windowMs: 60_000 });
+		const limiter = new RateLimiter(
+			{ limit: 2, windowMs: 60_000 },
+			{ limit: 100, windowMs: 60_000 },
+		);
 		const send = (ip: string) =>
 			handleClientError(report(valid, { "cf-connecting-ip": ip }), limiter);
 		expect((await send("a")).status).toBe(204);

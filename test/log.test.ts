@@ -28,9 +28,9 @@ describe("log", () => {
 	it("serialises errors in context", () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		log.error("board.save.failed", { error: new TypeError("nope") });
-		const [entry] = captured(error);
-		expect(entry?.error).toMatchObject({ name: "TypeError", message: "nope" });
-		expect((entry?.error as { stack: string }).stack).toContain("TypeError: nope");
+		const entry = captured(error)[0] as { error: { name: string; message: string; stack: string } };
+		expect(entry.error).toMatchObject({ name: "TypeError", message: "nope" });
+		expect(entry.error.stack).toContain("TypeError: nope");
 	});
 
 	it("binds context with `with`", () => {
