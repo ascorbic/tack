@@ -2676,3 +2676,40 @@ a.push-button {
 		display: none;
 	}
 }
+
+/* Reduced motion: nothing loops. Waiting states hold still instead. */
+@media (prefers-reduced-motion: reduce) {
+	.changes-button[data-pushing] .changes-button-icon::after,
+	.status-glyph[data-status="sending"] > .status-ring,
+	.changes-empty-note,
+	.staged-outline[data-status="sending"],
+	.staged-outline[data-status="sent"],
+	.staged-flag[data-status="sending"],
+	.staged-ghost[data-status="sending"],
+	.staged-ghost[data-status="sent"],
+	.staged-label[data-status="sending"],
+	.push-notify[data-loading],
+	.push-button[data-busy] {
+		animation: none;
+	}
+}
+
+:root[data-motion="reduced"] .changes-button[data-pushing] .changes-button-icon::after {
+	animation: none;
+}
+
+:root[data-motion="reduced"]
+	:is(
+		.status-glyph[data-status="sending"] > .status-ring,
+		.changes-empty-note,
+		.staged-outline[data-status="sending"],
+		.staged-outline[data-status="sent"],
+		.staged-flag[data-status="sending"],
+		.staged-ghost[data-status="sending"],
+		.staged-ghost[data-status="sent"],
+		.staged-label[data-status="sending"],
+		.push-notify[data-loading],
+		.push-button[data-busy]
+	) {
+	animation: none;
+}
