@@ -26,11 +26,12 @@ Tack cards, issues and ideas to a shared board, change tack together, and say _t
 
 ```sh
 pnpm dev      # dev server (with the Cloudflare local explorer at /cdn-cgi/local/explorer)
-pnpm test     # run tests inside the Workers runtime
+pnpm test     # unit and integration tests (the built Worker in Miniflare)
+pnpm e2e      # Playwright smoke tests over /play (starts its own dev server)
 pnpm check    # format, lint, and type check
 pnpm fix      # same, but auto-fix
 pnpm build    # production build
-pnpm deploy   # build and deploy via cf
+pnpm run deploy   # build and deploy via cf (`pnpm deploy` is a different, built-in pnpm command)
 ```
 
 ## Configuration
