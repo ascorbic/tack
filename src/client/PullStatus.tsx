@@ -184,6 +184,9 @@ function describeChecks(checks: Checks): string {
 function CiSummary({ checks, changes }: { checks: Checks; changes: PullChanges }) {
 	const total = checks.passed + checks.failed + checks.pending + checks.skipped;
 	const hidden = checks.failed - Math.min(checks.failing.length, SHOWN_FAILURES);
+	// Skipped and neutral checks are part of the total, so say so, or the
+	// counts don't add up ("1 of 46 running · 38 passed").
+	const skipped = checks.skipped > 0 ? ` · ${checks.skipped} skipped` : "";
 	return (
 		<div className="ci" data-ci={checks.state}>
 			<CiBar checks={checks} replay={changes.ci} tone={changes.tone} />
@@ -196,6 +199,7 @@ function CiSummary({ checks, changes }: { checks: Checks; changes: PullChanges }
 						<strong>{checks.failed} failing</strong>
 						<span className="ci-rest">
 							{checks.pending > 0 && ` · ${checks.pending} running`} · {checks.passed} passed
+							{skipped}
 						</span>
 					</>
 				) : checks.state === "pending" ? (
@@ -203,14 +207,18 @@ function CiSummary({ checks, changes }: { checks: Checks; changes: PullChanges }
 						<strong>
 							{checks.pending} of {total} running
 						</strong>
-						{checks.passed > 0 && <span className="ci-rest"> · {checks.passed} passed</span>}
+						<span className="ci-rest">
+							{checks.passed > 0 && ` · ${checks.passed} passed`}
+							{skipped}
+						</span>
 					</>
+				) : checks.skipped > 0 && checks.passed === 0 ? (
+					<strong>{total} skipped</strong>
 				) : (
-					<strong>
-						{checks.skipped > 0 && checks.passed === 0
-							? `${total} skipped`
-							: `All ${checks.passed} checks passed`}
-					</strong>
+					<>
+						<strong>All {checks.passed} checks passed</strong>
+						<span className="ci-rest">{skipped}</span>
+					</>
 				)}
 			</p>
 			{checks.failing.length > 0 && (
