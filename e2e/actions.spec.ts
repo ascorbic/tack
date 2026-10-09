@@ -224,9 +224,17 @@ test("cards without the app can't be changed", async ({ page }) => {
 test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
-	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(5);
-	await expect(page.locator(".action-popover")).toHaveCount(15);
+	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
+	await expect(page.locator(".action-popover")).toHaveCount(21);
 	await expect(page.locator(".backlink-snapshot img")).toHaveCount(2);
 	await expect(page.getByText("Tack can’t write to")).toBeVisible();
 	await expect(page.getByText("Make “Benchmarks in CI” an issue first")).toBeVisible();
+	// Expand related: loading, ready, switched off, nothing, all here, and rate limited.
+	const related = page.locator("section", { hasText: /^Expand related/ });
+	await expect(related.locator(".related-panel")).toHaveCount(6);
+	await expect(related.locator(".related-group")).toHaveCount(5 + 5 + 2);
+	await expect(related.locator(".related-group[data-on=false]")).toHaveCount(2);
+	await expect(related.getByText("Nothing’s linked to this issue yet")).toBeVisible();
+	await expect(related.getByText("Everything’s here and connected.")).toBeVisible();
+	await expect(related.getByText("rate limit is used up")).toBeVisible();
 });

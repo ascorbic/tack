@@ -43,6 +43,21 @@ test("every card state renders", async ({ page }) => {
 	await expect(page.locator(".card.missing")).toHaveCount(6);
 });
 
+test("every provenance state renders", async ({ page }) => {
+	const section = page
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Provenance", exact: true }) });
+	await expect(section.locator("figure")).toHaveCount(5);
+	for (const via of ["inbox", "list", "rule"]) {
+		await expect(section.locator(`.provenance[data-via=${via}]`).first()).toBeVisible();
+	}
+	await expect(section.getByRole("note", { name: "From the “Triage” inbox" })).toHaveCount(2);
+	await expect(section.locator(".card[data-unmatched=true]")).toHaveCount(2);
+	// Only boards you can edit offer to keep or remove.
+	await expect(section.getByRole("button", { name: "Keep" })).toHaveCount(1);
+	await expect(section.getByRole("button", { name: "Remove" })).toHaveCount(1);
+});
+
 test("every pull request state renders, and CI lands", async ({ page }) => {
 	const pulls = page
 		.locator("section")

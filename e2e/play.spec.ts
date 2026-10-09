@@ -5,7 +5,7 @@ import { drag, expect, nodePosition, openScenario, test } from "./fixtures.ts";
 
 const SCENARIOS: Record<
 	string,
-	{ cards: number; stickies: number; texts: number; decisions?: number }
+	{ cards: number; stickies: number; texts: number; decisions?: number; sections?: number }
 > = {
 	planning: { cards: 8, stickies: 4, texts: 0 },
 	triage: { cards: 9, stickies: 0, texts: 0 },
@@ -13,6 +13,7 @@ const SCENARIOS: Record<
 	brainstorm: { cards: 0, stickies: 30, texts: 7 },
 	arrange: { cards: 4, stickies: 6, texts: 0 },
 	decisions: { cards: 4, stickies: 0, texts: 0, decisions: 4 },
+	related: { cards: 6, stickies: 1, texts: 0, sections: 1 },
 	empty: { cards: 0, stickies: 0, texts: 0 },
 };
 
@@ -21,7 +22,8 @@ test.describe("scenarios render", () => {
 		test(scenario, async ({ page }) => {
 			await openScenario(page, scenario);
 			const decisions = expected.decisions ?? 0;
-			const total = expected.cards + expected.stickies + expected.texts + decisions;
+			const sections = expected.sections ?? 0;
+			const total = expected.cards + expected.stickies + expected.texts + decisions + sections;
 			await expect(page.locator(".react-flow__node-decision")).toHaveCount(decisions);
 
 			// The minimap draws every shape, even those culled from the canvas.

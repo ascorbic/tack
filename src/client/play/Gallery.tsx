@@ -31,6 +31,7 @@ import {
 } from "./ci.ts";
 import { DecisionGallery } from "./DecisionGallery.tsx";
 import { ACCESS_GALLERY, GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
+import { PROVENANCE_GALLERY } from "./related.ts";
 
 const MISSING: { label: string; card: MissingCard }[] = [
 	{
@@ -444,6 +445,22 @@ function Sections({
 					{[...cards.slice(0, 4), ...pulls.slice(0, 3)].map((card) => (
 						<figure key={card.key}>
 							<CardView card={card} cardKey={card.key} compact />
+						</figure>
+					))}
+				</div>
+			</section>
+
+			<section>
+				<h2>Provenance</h2>
+				<p className="gallery-note">
+					What brought a card, when it wasn’t a person: point at the glyph to read it. A card that
+					no longer matches its inbox or rule says so, and offers to keep or remove it.
+				</p>
+				<div className="gallery-grid">
+					{PROVENANCE_GALLERY.map(({ label, card, origin, unmatched }) => (
+						<figure key={label}>
+							<CardView card={card} cardKey={card.key} origin={origin} unmatched={unmatched} />
+							<figcaption>{label}</figcaption>
 						</figure>
 					))}
 				</div>

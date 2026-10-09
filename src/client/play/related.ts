@@ -5,6 +5,7 @@ import { addShape, nextZ, shapesMap } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
 import type { Provenance, QueryError, RelatedResult } from "../../shared/widgets.ts";
 import { cardStore } from "../cardStore.ts";
+import type { CardOrigin, CardUnmatched } from "../Provenance.tsx";
 import { pullDetails, makeChecks, reviewer } from "./ci.ts";
 import { LABELS, PLANNING_CARDS, fixture } from "./fixtures.ts";
 
@@ -183,19 +184,19 @@ export async function playRelated(itemKey: string): Promise<RelatedResult | Quer
 export function seedRelated(doc: Y.Doc): void {
 	for (const card of RELATED_CARDS) cardStore.set(card);
 	doc.transact(() => {
-		// The card to expand, with a sticky where its parent would go, and the
+		// The card to expand, a question about it, and the
 		// issue blocking it already on the board, off to one side.
-		addCardShape(doc, "related-source", { ref: node18.key, x: 640, y: 420 });
+		addCardShape(doc, "related-source", { ref: node18.key, x: 640, y: 400 });
 		addShape(doc, crypto.randomUUID(), {
 			type: "sticky",
 			text: "Is 5.0 the right time for this?",
 			color: "yellow",
 			author: { name: "Kai Andersen", color: "#1f7a6b" },
-			x: 500,
-			y: 200,
+			x: 360,
+			y: 0,
 			z: nextZ(doc),
 		});
-		addCardShape(doc, crypto.randomUUID(), { ref: key(444), x: 60, y: 820 });
+		addCardShape(doc, crypto.randomUUID(), { ref: key(444), x: 360, y: 180 });
 
 		// An inbox's cards, one of which no longer matches; a rule's; a list's
 		// whose list is gone. The inbox's section is drawn around them.
@@ -206,17 +207,59 @@ export function seedRelated(doc: Y.Doc): void {
 			addCardShape(doc, id, { ref: key(n), x, y }, provenance);
 			return id;
 		};
-		brought(450, 1530, 130, { via: "inbox", source: inbox });
-		const stale = brought(451, 1820, 130, { via: "inbox", source: inbox });
-		brought(452, 1820, 380, { via: "rule", source: "rule-beside" });
-		brought(453, 1530, 380, { via: "list", source: "a-list-thats-gone" });
+		brought(450, 48, 100, { via: "inbox", source: inbox });
+		const stale = brought(451, 48, 270, { via: "inbox", source: inbox });
+		brought(452, 48, 470, { via: "rule", source: "rule-beside" });
+		brought(453, 48, 640, { via: "list", source: "a-list-thats-gone" });
 		shapesMap(doc)
 			.get(stale)
 			?.set("unmatched", new Date(Date.now() - 3_600_000).toISOString());
 		addSection(
 			doc,
-			{ x: 1500, y: 60, w: 600, h: 560 },
+			{ x: 24, y: 40, w: 300, h: 760 },
 			{ title: "Triage", color: "orange", id: inbox },
 		);
 	});
 }
+
+const card = (n: number) => RELATED_CARDS.find((c) => c.key === key(n)) as Card;
+
+/** Every provenance state a card can show, for the gallery. */
+export const PROVENANCE_GALLERY: {
+	label: string;
+	card: Card;
+	origin: CardOrigin;
+	unmatched?: CardUnmatched;
+}[] = [
+	{
+		label: "From an inbox",
+		card: card(450),
+		origin: { via: "inbox", label: "From the “Triage” inbox" },
+	},
+	{
+		label: "From a list",
+		card: card(453),
+		origin: { via: "list", label: "From the “Bugs” list" },
+	},
+	{
+		label: "Placed by a rule",
+		card: card(452),
+		origin: { via: "rule", label: "Placed by rule: PRs beside their issues" },
+	},
+	{
+		label: "No longer matches: keep or remove",
+		card: card(451),
+		origin: { via: "inbox", label: "From the “Triage” inbox" },
+		unmatched: {
+			text: "No longer matches the “Triage” inbox",
+			onKeep: () => {},
+			onRemove: () => {},
+		},
+	},
+	{
+		label: "No longer matches, view only",
+		card: card(445),
+		origin: { via: "rule", label: "Placed by rule: Blocked work" },
+		unmatched: { text: "No longer matches the rule “Blocked work”" },
+	},
+];

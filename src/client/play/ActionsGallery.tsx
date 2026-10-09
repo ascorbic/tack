@@ -6,6 +6,12 @@ import { type Action, ActionButton } from "../actions/ActionBar.tsx";
 import { BacklinkPanel } from "../actions/BacklinkPanel.tsx";
 import { BlockedByAction } from "../actions/BlockedBy.tsx";
 import {
+	type ExpandSummary,
+	type RelatedState,
+	RelatedPanelView,
+	groupViews,
+} from "../actions/ExpandRelated.tsx";
+import {
 	BacklinkIcon,
 	CloseIssueIcon,
 	IssueIcon,
@@ -13,6 +19,7 @@ import {
 	MilestoneIcon,
 	ParentIcon,
 	PersonIcon,
+	RelatedIcon,
 } from "../actions/icons.tsx";
 import { MakeIssuesPanel, ParentIssuePanel } from "../actions/IssuePanels.tsx";
 import {
@@ -31,6 +38,7 @@ import { ThemeToggle } from "../ThemeToggle.tsx";
 import "../connectors.css";
 import { ToastStore } from "../Toasts.tsx";
 import { History } from "../undo.ts";
+import { RELATED_CARDS, relatedFor } from "./related.ts";
 import { fakeMeta, playServices, WRITES_CARDS } from "./writes.ts";
 
 // Every state of the selection actions (#32, #33): the bars, each picker
@@ -99,6 +107,18 @@ const BARS: { label: string; actions: Action[]; open?: string; install?: boolean
 		],
 	},
 	{ label: "Cards, labels open", actions: CARD_ACTIONS, open: "labels" },
+	{
+		label: "One card",
+		actions: [
+			{
+				id: "expandRelated",
+				label: "Expand related items",
+				icon: <RelatedIcon />,
+				text: "Related",
+			},
+			...CARD_ACTIONS.slice(0, 5),
+		],
+	},
 	{
 		label: "Cards without the app",
 		actions: CARD_ACTIONS.slice(0, 5).map((a) => ({
@@ -184,6 +204,73 @@ function useBlockedDoc() {
 	useEffect(() => () => state.history.destroy(), [state]);
 	return state;
 }
+
+const NODE18 = RELATED_CARDS[0];
+const NODE18_RELATED = NODE18 ? relatedFor(NODE18.key) : null;
+const ON_BOARD = new Set(["fake.tack/acme/imagekit#444"]);
+const NONE = { add: 0, connect: 0, links: 0 };
+
+/** Expand related's panel in each state it can be in. */
+const RELATED_PANELS: {
+	label: string;
+	state: RelatedState;
+	off?: string[];
+	/** Every item is already on the board. */
+	allHere?: boolean;
+	summary: ExpandSummary;
+}[] = NODE18_RELATED
+	? [
+			{ label: "Loading", state: { status: "loading" }, summary: NONE },
+			{
+				label: "Everything related, one already on the board",
+				state: { status: "ready", result: NODE18_RELATED },
+				summary: { add: 10, connect: 1, links: 11 },
+			},
+			{
+				label: "Sub-issues and blocking switched off",
+				state: { status: "ready", result: NODE18_RELATED },
+				off: ["subIssues", "blocking"],
+				summary: { add: 3, connect: 1, links: 4 },
+			},
+			{
+				label: "Nothing related",
+				state: {
+					status: "ready",
+					result: {
+						...NODE18_RELATED,
+						parent: undefined,
+						subIssues: [],
+						blockedBy: [],
+						blocking: [],
+						linkedPulls: [],
+						cards: [],
+					},
+				},
+				summary: NONE,
+			},
+			{
+				label: "Everything’s already here and connected",
+				state: {
+					status: "ready",
+					result: { ...NODE18_RELATED, subIssues: [], blocking: [], linkedPulls: [] },
+				},
+				allHere: true,
+				summary: NONE,
+			},
+			{
+				label: "Rate limited",
+				state: {
+					status: "error",
+					error: {
+						kind: "error",
+						reason: "rate_limited",
+						message: "GitHub’s rate limit is used up for now.",
+					},
+				},
+				summary: NONE,
+			},
+		]
+	: [];
 
 export default function ActionsGallery() {
 	const [services] = useState(playServices);
@@ -407,6 +494,40 @@ export default function ActionsGallery() {
 						))}
 					</div>
 				</section>
+
+				{NODE18 && (
+					<section key={`related${round}`}>
+						<h2>Expand related</h2>
+						<div className="gallery-grid actions-panels">
+							{RELATED_PANELS.map(({ label, state, off, allHere, summary }) => {
+								const groups =
+									state.status === "ready"
+										? groupViews(state.result, (key) => allHere === true || ON_BOARD.has(key))
+										: [];
+								const enabled = new Set(
+									groups.map((g) => g.group).filter((g) => !off?.includes(g)),
+								);
+								return (
+									<figure key={label}>
+										<Panel wide>
+											<RelatedPanelView
+												source={NODE18}
+												state={state}
+												groups={groups}
+												enabled={enabled}
+												summary={summary}
+												onToggle={() => {}}
+												onLayOut={() => {}}
+												onRetry={() => {}}
+											/>
+										</Panel>
+										<figcaption>{label}</figcaption>
+									</figure>
+								);
+							})}
+						</div>
+					</section>
+				)}
 
 				<section key={`blocked${round}`}>
 					<h2>Blocked by</h2>

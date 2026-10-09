@@ -129,7 +129,11 @@ export function UnmatchedBand({ unmatched }: { unmatched: CardUnmatched }) {
 				<path d="M2.5 3.5h11l-4.2 5v4.3l-2.6 1v-5.3z" />
 				<path d="M2 14 14 2" className="strike" />
 			</svg>
-			<span className="card-unmatched-text">{unmatched.text}</span>
+			{/* Too narrow to name the inbox or rule: the glyph above does, and the tooltip. */}
+			<span className="card-unmatched-text" title={unmatched.text}>
+				<span aria-hidden="true">No longer matches</span>
+				<span className="visually-hidden">{unmatched.text}</span>
+			</span>
 			{unmatched.onKeep && (
 				<span className="card-unmatched-actions">
 					<button type="button" className="nodrag" onClick={unmatched.onKeep}>

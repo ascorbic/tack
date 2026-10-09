@@ -500,7 +500,7 @@ export const SCENARIOS: Record<string, Scenario> = {
 	related: {
 		name: "Related and provenance",
 		description:
-			"Select “Drop Node 18 support” and Expand related (⌥E) to lay out its web around it. On the right, cards an inbox, a rule and a list brought: one no longer matches.",
+			"Select “Drop Node 18 support” and Expand related (⌥E) to lay out its web around it. On the left, cards an inbox, a rule and a list brought: one no longer matches.",
 		seed: seedRelated,
 	},
 	empty: {

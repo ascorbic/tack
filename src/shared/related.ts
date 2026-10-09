@@ -76,10 +76,19 @@ export const CARD_WIDTH = 252;
  */
 export function estimateCardHeight(card: Card | MissingCard | undefined): number {
 	if (!card || "missing" in card) return 124;
-	let height = 112;
-	if (card.title.length > 64) height += 20;
-	if (card.labels.length > 0) height += 30;
-	if (card.pull) height += card.pull.detail === "full" ? 56 : 30;
+	// Measured against the gallery's cards, and a little generous.
+	const lines = Math.min(4, Math.max(1, Math.ceil(card.title.length / 26)));
+	let height = 98 + (lines - 1) * 19 + 8;
+	if (card.labels.length > 0) height += 27;
+	const pull = card.pull;
+	if (pull?.detail === "basic") height += 80;
+	else if (pull) {
+		height += 10;
+		if (pull.checks && pull.checks.state !== "none") height += 27;
+		if (pull.review || pull.reviewers.length > 0) height += 26;
+		height += Math.min(pull.linked.length, 3) * 23;
+		if (pull.checks?.failing.length) height += 10 + Math.min(pull.checks.failing.length, 4) * 20;
+	}
 	return height;
 }
 
