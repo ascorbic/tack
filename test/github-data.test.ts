@@ -84,6 +84,13 @@ interface BoardClient {
 /** Open a board the way the app does: a Yjs provider over a WebSocket. */
 async function openBoard(mf: Miniflare, name: string): Promise<BoardClient> {
 	const url = await mf.ready;
+	// Boards must be in the index; adopt this one as a guest would from `/?board=name`.
+	const adopted = await mf.dispatchFetch(new URL("/api/boards/legacy", url).toString(), {
+		method: "POST",
+		headers: { origin: url.origin, "content-type": "application/json" },
+		body: JSON.stringify({ name }),
+	});
+	expect(adopted.status).toBe(200);
 	const doc = new Y.Doc();
 	const cards = new Map<string, Card | MissingCard>();
 	const provider = new YProvider(url.host, name, doc, { party: "board" });
