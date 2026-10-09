@@ -2,6 +2,7 @@ import { generateNKeysBetween } from "fractional-indexing";
 import * as v from "valibot";
 import * as Y from "yjs";
 import { DECISION_UNCOPIED } from "../shared/decisions.ts";
+import { CARD_UNCOPIED } from "../shared/provenance.ts";
 import { itemKey, parseRef } from "../shared/refs.ts";
 import { nextZ, shapesMap } from "../shared/shapes.ts";
 
@@ -162,9 +163,13 @@ export function payloadBounds(payload: ClipboardPayload): Rect | null {
 /**
  * Properties that stay with the original rather than travel with a copy: a
  * decision's write-back, and the pull request it was written to, belong to
- * that decision. A pasted one can be written back on its own.
+ * that decision. A pasted one can be written back on its own. A card's
+ * provenance stays too: whoever pastes a copy placed it.
  */
-const UNCOPIED: Record<string, readonly string[]> = { decision: DECISION_UNCOPIED };
+const UNCOPIED: Record<string, readonly string[]> = {
+	decision: DECISION_UNCOPIED,
+	card: CARD_UNCOPIED,
+};
 
 /**
  * Add copied shapes to the document, moved by `offset`, with new ids and on

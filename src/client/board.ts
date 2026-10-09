@@ -2,6 +2,7 @@ import type { Node, NodeChange } from "@xyflow/react";
 import { useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
 import { addDecision } from "../shared/decisions.ts";
+import { type Provenance, addCardShape } from "../shared/provenance.ts";
 import { NOMINAL_SIZE, type SizeOf, readStructure } from "../shared/sections.ts";
 import {
 	type Author,
@@ -194,10 +195,20 @@ export function moveShape(doc: Y.Doc, id: string, position: Position, sizeOf?: S
 	transactLocal(doc, () => commitMoves(doc, new Map([[id, position]]), sizeOf));
 }
 
-export function addCard(doc: Y.Doc, ref: string, at: { x: number; y: number }): string {
+/**
+ * Add a card with its top-left corner at `at`, and return its id. Say how
+ * it arrived (see shared/provenance.ts): a list widget's drag, an inbox or a
+ * rule; leave it out for cards a person placed.
+ */
+export function addCard(
+	doc: Y.Doc,
+	ref: string,
+	at: { x: number; y: number },
+	provenance?: Provenance,
+): string {
 	const id = crypto.randomUUID();
 	transactLocal(doc, () => {
-		addShape(doc, id, { type: "card", ref, x: at.x, y: at.y, z: nextZ(doc) });
+		addCardShape(doc, id, { ref, x: at.x, y: at.y }, provenance);
 		placeInSections(doc, [id]);
 	});
 	return id;

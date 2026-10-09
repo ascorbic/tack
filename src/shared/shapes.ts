@@ -43,6 +43,11 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | votes        | decision           | nested Y.Map of voter key → `Vote`, so votes  |
 // |              |                    | from different people merge (decisions.ts)    |
 // | writeback    | decision           | id of its write-back in `changes`             |
+// | provenance   | card               | how it arrived (`Provenance`); absent means   |
+// |              |                    | placed by hand. See provenance.ts             |
+// | unmatched    | card               | when it stopped matching the inbox or rule    |
+// |              |                    | that brought it, ISO 8601; absent if it still |
+// |              |                    | matches (or nothing brought it)               |
 //
 // Decisions link to items with ordinary connectors: a connector between a
 // decision and a card links that card (see `linkedItems` in decisions.ts).
@@ -142,6 +147,11 @@ export interface ShapeProps {
 	inbox?: InboxConfig;
 	/** Cards: how the card arrived. Absent means placed by hand. */
 	provenance?: Provenance;
+	/**
+	 * Cards: when it stopped matching the inbox or rule that brought it (ISO
+	 * 8601). People decide whether to keep or remove it (see provenance.ts).
+	 */
+	unmatched?: string;
 }
 
 /**
