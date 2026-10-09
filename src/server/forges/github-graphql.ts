@@ -63,7 +63,7 @@ fragment TackPull on PullRequest {${COMMON}
 		}
 	}
 	closingIssuesReferences(first: 5) {
-		nodes { number title url issueState: state repository { nameWithOwner } }
+		nodes { number title url issueState: state repository { nameWithOwner isPrivate } }
 	}
 	commits(last: 1) {
 		nodes {
@@ -159,7 +159,7 @@ interface GqlPull extends Common {
 			title: string;
 			url: string;
 			issueState: "OPEN" | "CLOSED";
-			repository: { nameWithOwner: string };
+			repository: { nameWithOwner: string; isPrivate?: boolean };
 		} | null)[];
 	};
 	commits: { nodes: ({ commit: { statusCheckRollup: Rollup | null } } | null)[] };
@@ -415,6 +415,9 @@ export function normaliseGqlPull(node: GqlPull): Card {
 					title: issue.title,
 					state: issue.issueState === "OPEN" ? "open" : "closed",
 					url: issue.url,
+					...(issue.repository.isPrivate === undefined
+						? {}
+						: { private: issue.repository.isPrivate }),
 				},
 			];
 		}),

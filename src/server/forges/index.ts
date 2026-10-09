@@ -9,6 +9,8 @@ export type {
 	ForgeAdapter,
 	ForgeCapabilities,
 	MissingReason,
+	PollResult,
+	ReadAuth,
 	RepoIdentity,
 	WebhookResult,
 } from "./types.ts";

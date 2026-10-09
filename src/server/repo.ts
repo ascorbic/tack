@@ -3,7 +3,14 @@ import { getServerByName } from "partyserver";
 import { type Card, isMissing, type MissingCard } from "../shared/cards.ts";
 import { itemKey, itemOf, parseKey } from "../shared/refs.ts";
 import type { Board } from "./board.ts";
-import { type Delivery, type FetchRef, forge, type RepoIdentity } from "./forges/index.ts";
+import {
+	type Delivery,
+	type FetchRef,
+	forge,
+	type ReadAuth,
+	type RepoIdentity,
+} from "./forges/index.ts";
+import { type Viewer, viewerToken } from "./identity.ts";
 import { type Logger, log } from "./log.ts";
 import { boards } from "./namespaces.ts";
 
@@ -18,6 +25,30 @@ const MERGEABLE_RETRIES = 3;
 const RECONCILE_INTERVAL_MS = 5 * 60_000;
 /** Delivery ids are kept this long for dedupe: GitHub redelivers for three days. */
 const EVENT_RETENTION_MS = 3 * 24 * 60 * 60_000;
+/**
+ * A board's interest in a repository (someone has it open) lasts this long
+ * unless renewed. Boards renew every minute while anyone's connected.
+ */
+const WATCH_LEASE_MS = 3 * 60_000;
+/**
+ * Repositories that aren't live are polled this often while watched. With
+ * a token, a 304 costs no rate limit; anonymously, every poll counts against
+ * a small hourly budget, so it's much slower.
+ */
+const POLL_INTERVAL_MS = { token: 60_000, anonymous: 5 * 60_000 };
+/** When someone opens a board, poll at once if the last poll is older than this. */
+const POLL_ON_VIEW_MS = { token: 15_000, anonymous: 60_000 };
+/** How long to believe whether the app is installed, between notifications. */
+const INSTALLED_TTL_MS = 10 * 60_000;
+/** How long to reuse a viewer's token for reading, before asking for it again. */
+const READER_TOKEN_TTL_MS = 60_000;
+
+/** What a repository's cards say about where their data comes from (#9). */
+export interface RepoStatus {
+	live: boolean;
+	writable: boolean;
+	visibility: "public" | "private";
+}
 
 export type IngestResult =
 	| { status: "duplicate" }
@@ -50,6 +81,16 @@ export class Repo extends DurableObject<Env> {
 	/** When this instance last reconciled. Null until it has since waking. */
 	private reconciledAt: number | null = null;
 	private reconciling: Promise<unknown> | null = null;
+	/** When this instance last polled (repositories that aren't live). Null since waking. */
+	private polledAt: number | null = null;
+	private polling: Promise<void> | null = null;
+	/** Don't poll before this, after the forge pushed back (rate limits). */
+	private pollRetryAt = 0;
+	/** Someone looking at a board with this repository, whose token can read public data. */
+	private reader: { viewer: Viewer; until: number } | null = null;
+	private readerToken: { id: number; token: string | null; until: number } | null = null;
+	/** Whether this instance has asked to hear about installation changes. */
+	private watchingInstall = false;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -87,6 +128,10 @@ export class Repo extends DurableObject<Env> {
 				due_at INTEGER NOT NULL,
 				attempts INTEGER NOT NULL
 			);
+			CREATE TABLE IF NOT EXISTS watchers (
+				board TEXT PRIMARY KEY,
+				until INTEGER NOT NULL
+			);
 		`);
 	}
 
@@ -103,8 +148,24 @@ export class Repo extends DurableObject<Env> {
 	 * `repo` is the board's idea of the repository's identity, which only
 	 * seeds an object that has none yet: the board's name for it may be old.
 	 */
-	async subscribe(board: string, keys: string[], repo?: RepoIdentity): Promise<Entry[]> {
-		if (repo && !this.identity()) this.saveIdentity(repo);
+	async subscribe(
+		board: string,
+		keys: string[],
+		repo?: RepoIdentity,
+		watcher?: { reader: Viewer | null },
+	): Promise<Entry[]> {
+		if (watcher) {
+			// Someone's looking: this is the fetch on view, so no poll is due yet.
+			this.lease(board, watcher.reader);
+			this.polledAt ??= Date.now();
+		}
+		const known = this.identity();
+		if (repo && !known) this.saveIdentity(repo);
+		// Objects from before visibility was recorded learn it from the board.
+		else if (repo && known && known.private === undefined && repo.private !== undefined) {
+			if (repo.id === known.id) this.saveIdentity({ ...known, private: repo.private });
+		}
+		if (await this.checkStatus()) this.ctx.waitUntil(this.fanOutAll({ reason: "status" }));
 
 		const results = new Map<string, Entry>();
 		const misses: { key: string; ref: FetchRef }[] = [];
@@ -147,8 +208,11 @@ export class Repo extends DurableObject<Env> {
 			if (others.length > 0) await this.fanOut(others);
 		}
 
+		// Not live: poll while it's watched.
+		if (watcher) await this.armAlarm();
+		const status = this.status();
 		return keys.map((key) =>
-			withKey(results.get(key) ?? { key, missing: true, reason: "error" }, key),
+			this.present(results.get(key) ?? { key, missing: true, reason: "error" }, key, status),
 		);
 	}
 
@@ -162,7 +226,86 @@ export class Repo extends DurableObject<Env> {
 	getCard(key: string): Card | null {
 		const item = itemOf(key);
 		const card = item ? this.cached(item) : null;
-		return card ? withKey(card, key) : null;
+		return card ? this.present(card, key) : null;
+	}
+
+	/**
+	 * Where this repository's data comes from: live (the app is installed,
+	 * so webhooks arrive), writable, and whether it's public. Unknown
+	 * visibility counts as private, so its cards only reach people who can
+	 * read it.
+	 */
+	status(): RepoStatus {
+		const identity = this.identity();
+		if (!identity) return { live: false, writable: false, visibility: "private" };
+		const adapter = forge(identity.forge);
+		// Forges that can't say whether the app is installed are live (no webhooks to miss).
+		const installed = adapter.installed ? (this.installedState()?.installed ?? false) : true;
+		return {
+			live: installed,
+			writable: installed && adapter.installed !== undefined,
+			visibility: !adapter.canRead || identity.private === false ? "public" : "private",
+		};
+	}
+
+	/**
+	 * A board has this repository open (someone's connected), for the next
+	 * few minutes. Repositories that aren't live are fetched on view and
+	 * polled while watched, and never otherwise. `reader` is someone looking,
+	 * whose own token reads public data with a better rate limit than none.
+	 */
+	async watch(board: string, reader: Viewer | null = null): Promise<void> {
+		this.lease(board, reader);
+		if (await this.checkStatus()) this.ctx.waitUntil(this.fanOutAll({ reason: "status" }));
+		if (this.status().live) return;
+		if (this.pollDue(POLL_ON_VIEW_MS)) this.ctx.waitUntil(this.poll());
+		await this.armAlarm();
+	}
+
+	/** Boards whose lease hasn't lapsed, for tests and debugging. */
+	watchers(): string[] {
+		return this.sql
+			.exec<{ board: string }>("SELECT board FROM watchers WHERE until > ?", Date.now())
+			.toArray()
+			.map((row) => row.board);
+	}
+
+	/**
+	 * The app was installed on this repository, or removed from it (called by
+	 * `Instance`). Re-checks, and if it's now live, refetches every watched
+	 * card with the installation's token (fuller data, and private items),
+	 * then sends them all out so cards upgrade in place.
+	 */
+	async installationChanged(): Promise<RepoStatus> {
+		const before = this.status();
+		await this.checkStatus({ fresh: true });
+		const after = this.status();
+		this.logger().info("repo.installation", {
+			live: after.live,
+			changed: before.live !== after.live,
+		});
+		if (before.live === after.live && before.writable === after.writable) return after;
+		const identity = this.identity();
+		if (after.live && identity) {
+			const items = this.watchedCards().map((card) => card.item);
+			if (items.length > 0) {
+				const refs = items.map((item) => ({
+					forge: identity.forge,
+					host: identity.host,
+					repo: identity.name,
+					item,
+					nodeId: this.cached(item)?.nodeId,
+				}));
+				this.apply([...(await this.fetchFresh(refs)).values()]);
+			}
+		}
+		await this.fanOutAll({ reason: "installation" });
+		return after;
+	}
+
+	/** Poll now, if this repository isn't live and someone's watching, for tests and debugging. */
+	async pollNow(): Promise<void> {
+		if (!this.status().live && this.watched()) await this.poll();
 	}
 
 	subscribers(key: string): string[] {
@@ -250,16 +393,13 @@ export class Repo extends DurableObject<Env> {
 		const adapter = identity && forge(identity.forge);
 		this.reconciledAt = Date.now();
 		if (!identity || !adapter?.reconcile) return { checked: 0, updated: [] };
-		const cards = this.sql
-			.exec<{ data: string }>(
-				"SELECT data FROM items WHERE item IN (SELECT DISTINCT item FROM subscribers)",
-			)
-			.toArray()
-			.map((row) => JSON.parse(row.data) as Card);
+		const cards = this.watchedCards();
 		if (cards.length === 0) return { checked: 0, updated: [] };
 
 		const started = Date.now();
-		const changed = this.apply(await adapter.reconcile(identity, cards, this.env));
+		const changed = this.apply(
+			await adapter.reconcile(identity, cards, this.env, await this.readAuth()),
+		);
 		this.logger().info("repo.reconcile", {
 			checked: cards.length,
 			updated: changed.length,
@@ -313,6 +453,12 @@ export class Repo extends DurableObject<Env> {
 			});
 			await this.fanOut(changed, { reason: "refetch" });
 		}
+		// Not live, and someone's looking: poll, and reconcile now and then
+		// (which, with a token, also catches CI changes).
+		if (!this.status().live && this.watched() && this.pollDue(POLL_INTERVAL_MS)) {
+			await this.poll();
+			this.reconcileIfIdle();
+		}
 		await this.armAlarm();
 	}
 
@@ -320,6 +466,200 @@ export class Repo extends DurableObject<Env> {
 
 	private logger(): Logger {
 		return log.with({ repo: this.identity()?.name, repoObject: this.ctx.id.name });
+	}
+
+	private lease(board: string, reader: Viewer | null): void {
+		const now = Date.now();
+		this.sql.exec(
+			"INSERT OR REPLACE INTO watchers (board, until) VALUES (?, ?)",
+			board,
+			now + WATCH_LEASE_MS,
+		);
+		this.sql.exec("DELETE FROM watchers WHERE until < ?", now - WATCH_LEASE_MS);
+		if (reader && reader.id > 0) this.reader = { viewer: reader, until: now + WATCH_LEASE_MS };
+	}
+
+	/** An entry as a board sees it: under the board's key, with the repository's status. */
+	private present<T extends Entry>(entry: T, key: string, status = this.status()): T {
+		const keyed = withKey(entry, key);
+		return isMissing(keyed) ? keyed : { ...keyed, ...status };
+	}
+
+	private installedState(): { installed: boolean; checkedAt: number } | null {
+		const row = this.sql
+			.exec<{ value: string }>("SELECT value FROM meta WHERE key = 'installed'")
+			.toArray()[0];
+		return row ? (JSON.parse(row.value) as { installed: boolean; checkedAt: number }) : null;
+	}
+
+	/**
+	 * Make sure the status is current: whether the app is installed (asked
+	 * at most every ten minutes, or now if `fresh`), and the repository's
+	 * visibility if it isn't known. Also asks, once per wake, to hear about
+	 * installation changes. Returns whether the status changed.
+	 */
+	private async checkStatus({ fresh = false } = {}): Promise<boolean> {
+		const identity = this.identity();
+		if (!identity) return false;
+		const adapter = forge(identity.forge);
+		const before = this.status();
+
+		if (!this.watchingInstall && adapter.watchInstallation) {
+			this.watchingInstall = true;
+			this.ctx.waitUntil(
+				adapter
+					.watchInstallation(identity.name, this.env, {
+						kind: "repo",
+						name: this.ctx.id.name ?? "",
+					})
+					.catch((error: unknown) => {
+						this.watchingInstall = false;
+						this.logger().warn("repo.installation.watch.failed", { error });
+					}),
+			);
+		}
+
+		if (identity.private === undefined && adapter.canRead && adapter.resolveRepo) {
+			const resolved = await adapter
+				.resolveRepo(identity.host, identity.name, this.env)
+				.catch(() => "error" as const);
+			if (typeof resolved !== "string" && resolved.id === identity.id) {
+				this.saveIdentity({ ...identity, private: resolved.private });
+			}
+		}
+
+		if (adapter.installed) {
+			const state = this.installedState();
+			if (fresh || !state || Date.now() - state.checkedAt > INSTALLED_TTL_MS) {
+				const installed = await adapter
+					.installed(identity, this.env, { fresh })
+					.catch(() => state?.installed ?? false);
+				this.sql.exec(
+					"INSERT OR REPLACE INTO meta (key, value) VALUES ('installed', ?)",
+					JSON.stringify({ installed, checkedAt: Date.now() }),
+				);
+			}
+		}
+
+		const after = this.status();
+		return (
+			before.live !== after.live ||
+			before.writable !== after.writable ||
+			before.visibility !== after.visibility
+		);
+	}
+
+	/** Whether any board has this repository open right now. */
+	private watched(): boolean {
+		return (
+			this.sql.exec("SELECT 1 FROM watchers WHERE until > ? LIMIT 1", Date.now()).toArray().length >
+			0
+		);
+	}
+
+	/** Cached cards some board is subscribed to. */
+	private watchedCards(): Card[] {
+		return this.sql
+			.exec<{ data: string }>(
+				"SELECT data FROM items WHERE item IN (SELECT DISTINCT item FROM subscribers)",
+			)
+			.toArray()
+			.map((row) => JSON.parse(row.data) as Card);
+	}
+
+	/** Send every watched card out again, e.g. because the repository's status changed. */
+	private async fanOutAll(context: Record<string, unknown>): Promise<number> {
+		return this.fanOut(this.watchedCards(), context);
+	}
+
+	/** Whether there's someone whose token can be used to read. */
+	private hasReader(): boolean {
+		return Boolean(this.env.GITHUB_TOKEN) || (this.reader?.until ?? 0) > Date.now();
+	}
+
+	private pollDue(intervals: { token: number; anonymous: number }): boolean {
+		const now = Date.now();
+		if (now < this.pollRetryAt) return false;
+		const interval = this.hasReader() ? intervals.token : intervals.anonymous;
+		return this.polledAt === null || now - this.polledAt >= interval;
+	}
+
+	/** When the next poll is due, if this repository should be polled at all. */
+	private nextPollAt(): number | null {
+		if (this.status().live || !this.watched()) return null;
+		const interval = this.hasReader() ? POLL_INTERVAL_MS.token : POLL_INTERVAL_MS.anonymous;
+		return Math.max((this.polledAt ?? 0) + interval, this.pollRetryAt, Date.now());
+	}
+
+	/**
+	 * Ask the forge whether anything changed, in one conditional request,
+	 * and fan out the cards that did. One poll at a time.
+	 */
+	private poll(): Promise<void> {
+		this.polling ??= this.pollOnce()
+			.catch((error: unknown) => this.logger().error("repo.poll.failed", { error }))
+			.finally(() => {
+				this.polling = null;
+			});
+		return this.polling;
+	}
+
+	private async pollOnce(): Promise<void> {
+		const identity = this.identity();
+		const adapter = identity && forge(identity.forge);
+		this.polledAt = Date.now();
+		if (!identity || !adapter?.poll) return;
+		const cards = this.watchedCards();
+		if (cards.length === 0) return;
+
+		const row = this.sql
+			.exec<{ value: string }>("SELECT value FROM meta WHERE key = 'poll'")
+			.toArray()[0];
+		const state = row
+			? (JSON.parse(row.value) as { etag: string | null; since: string | null })
+			: { etag: null, since: null };
+		const started = Date.now();
+		const result = await adapter.poll(identity, cards, this.env, {
+			...(await this.readAuth()),
+			...state,
+		});
+		if (result.status === "error") {
+			if (result.retryAt) this.pollRetryAt = result.retryAt;
+			this.logger().warn("repo.poll", { status: "error", retryAt: result.retryAt ?? null });
+			return;
+		}
+		if (result.status === "unchanged") {
+			this.logger().info("repo.poll", { status: "unchanged", ms: Date.now() - started });
+			return;
+		}
+		this.sql.exec(
+			"INSERT OR REPLACE INTO meta (key, value) VALUES ('poll', ?)",
+			JSON.stringify({ etag: result.etag, since: new Date(started).toISOString() }),
+		);
+		const changed = this.apply(result.cards);
+		this.logger().info("repo.poll", {
+			status: "changed",
+			checked: cards.length,
+			updated: changed.length,
+			ms: Date.now() - started,
+		});
+		await this.fanOut(changed, { reason: "poll" });
+	}
+
+	/**
+	 * A watching viewer's own token, to read with where there's no
+	 * installation (the forge adapter prefers an installation's token).
+	 */
+	private async readAuth(): Promise<ReadAuth> {
+		const reader = this.reader;
+		if (!reader || reader.until <= Date.now()) return {};
+		const cached = this.readerToken;
+		if (cached && cached.id === reader.viewer.id && cached.until > Date.now()) {
+			return { token: cached.token };
+		}
+		const token = await viewerToken(this.env, reader.viewer).catch(() => null);
+		this.readerToken = { id: reader.viewer.id, token, until: Date.now() + READER_TOKEN_TTL_MS };
+		return { token };
 	}
 
 	private cached(item: string): Card | null {
@@ -357,11 +697,30 @@ export class Repo extends DurableObject<Env> {
 			if (repo.forge && repo.host && repo.id) this.saveIdentity(repo as RepoIdentity);
 			return [];
 		}
-		const next = { ...current, ...repo, nodeId: repo.nodeId ?? current.nodeId };
-		if (next.name === current.name && next.nodeId === current.nodeId) return [];
+		const next = {
+			...current,
+			...repo,
+			nodeId: repo.nodeId ?? current.nodeId,
+			private: repo.private ?? current.private,
+		};
+		if (
+			next.name === current.name &&
+			next.nodeId === current.nodeId &&
+			next.private === current.private
+		) {
+			return [];
+		}
 		this.saveIdentity(next);
-		if (next.name === current.name) return [];
+		// Made public or private: every card goes out again, so boards filter
+		// them for each viewer afresh.
+		const resend = next.private !== current.private ? this.watchedCards() : [];
+		if (next.private !== current.private) {
+			this.logger().info("repo.visibility", { private: next.private ?? null });
+		}
+		if (next.name === current.name) return resend;
 		this.logger().info("repo.renamed", { from: current.name, to: next.name, id: next.id });
+		// Installation watches are by name.
+		this.watchingInstall = false;
 
 		const renamed: Card[] = [];
 		for (const row of this.sql.exec<{ data: string }>("SELECT data FROM items").toArray()) {
@@ -410,7 +769,12 @@ export class Repo extends DurableObject<Env> {
 		const first = refs[0];
 		if (!first) return new Map();
 		const adapter = forge(identity?.forge ?? first.forge);
-		const results = await adapter.fetchItems(refs, this.env, identity ?? undefined);
+		const results = await adapter.fetchItems(
+			refs,
+			this.env,
+			identity ?? undefined,
+			await this.readAuth(),
+		);
 		const unavailable = results.filter(isMissing);
 		const errors = unavailable.filter((card) => card.reason === "error").length;
 		(errors > 0 ? this.logger().warn : this.logger().info)("repo.fetch", {
@@ -473,9 +837,11 @@ export class Repo extends DurableObject<Env> {
 	}
 
 	private async armAlarm(): Promise<void> {
-		const next = this.sql
+		const refetch = this.sql
 			.exec<{ due: number | null }>("SELECT MIN(due_at) AS due FROM refetch")
 			.toArray()[0]?.due;
+		const poll = this.nextPollAt();
+		const next = refetch == null ? poll : poll == null ? refetch : Math.min(refetch, poll);
 		if (next == null) return;
 		const current = await this.ctx.storage.getAlarm();
 		if (current === null || next < current) await this.ctx.storage.setAlarm(next);
@@ -484,6 +850,7 @@ export class Repo extends DurableObject<Env> {
 	/** Send changed cards to every board watching them, under each board's key. */
 	private async fanOut(entries: Entry[], context: Record<string, unknown> = {}): Promise<number> {
 		const byBoard = new Map<string, Entry[]>();
+		const status = this.status();
 		for (const entry of entries) {
 			const rows = this.sql
 				.exec<{ key: string; board: string }>(
@@ -494,7 +861,7 @@ export class Repo extends DurableObject<Env> {
 			for (const { key, board } of rows) {
 				let list = byBoard.get(board);
 				if (!list) byBoard.set(board, (list = []));
-				list.push(withKey(entry, key));
+				list.push(this.present(entry, key, status));
 			}
 		}
 		if (byBoard.size === 0) return 0;

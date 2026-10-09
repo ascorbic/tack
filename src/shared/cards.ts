@@ -33,6 +33,19 @@ export interface Card {
 	nodeId?: string;
 	/** Review and CI state, for pull requests. */
 	pull?: PullDetails;
+	/**
+	 * Whether updates arrive as they happen (the app is installed, so
+	 * webhooks flow), rather than being checked for while someone's looking.
+	 * Set by the server from the repository's status; absent in fixtures.
+	 */
+	live?: boolean;
+	/** Whether Tack may write to the item (the app is installed). Writes come in M2. */
+	writable?: boolean;
+	/**
+	 * Whether the repository is public. Anything but `public` is treated as
+	 * private: the server only sends it to viewers who can read the repository.
+	 */
+	visibility?: "public" | "private";
 }
 
 /** Pull request state beyond open/closed: CI, reviews, mergeability, links. */
@@ -92,6 +105,8 @@ export interface LinkedItem {
 	title: string;
 	state: CardState;
 	url: string;
+	/** Whether the linked item's repository is private, where the forge says. */
+	private?: boolean;
 }
 
 /** How many failing check names a card keeps. */
@@ -105,13 +120,30 @@ export function checksState(counts: Pick<Checks, "passed" | "failed" | "pending"
 	return "none" as const;
 }
 
-/** A card the server couldn't load, e.g. a private repo or a 404. */
+/**
+ * A card the server couldn't load (a 404, an unreachable forge), or won't
+ * show this viewer: `private` is the placeholder sent to viewers who can't
+ * read the repository, and carries nothing but the key the board already has.
+ */
 export interface MissingCard {
 	key: string;
 	missing: true;
-	reason: "not_found" | "forbidden" | "unsupported" | "error";
+	reason: "not_found" | "forbidden" | "unsupported" | "error" | "private";
+	/**
+	 * For repositories that couldn't be read: whether the app is installed
+	 * on it. If it isn't, the repository may be private, and installing the
+	 * app is the way to read it.
+	 */
+	installed?: boolean;
 }
 
+/**
+ * Client to server: `recheck` asks the board to check the viewer's access
+ * to private repositories again now (say, after they were added to one).
+ */
+export type BoardRequest = { type: "recheck" };
+
+/** Server to client, on the board's custom-message channel. */
 export type CardMessage =
 	| { type: "card"; card: Card }
 	| { type: "card-missing"; card: MissingCard }

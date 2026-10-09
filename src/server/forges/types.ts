@@ -23,6 +23,11 @@ export interface RepoIdentity {
 	name: string;
 	/** The forge's global id for the repository, where it has one. */
 	nodeId?: string;
+	/**
+	 * Whether the repository is private, where known. Unknown is treated as
+	 * private: its cards only reach viewers who can read it.
+	 */
+	private?: boolean;
 }
 
 export type MissingReason = MissingCard["reason"];
@@ -62,6 +67,23 @@ export type WebhookResult =
 	/** Handled without touching any repository: pings, bad signatures, ignored events. */
 	| { type: "response"; response: Response };
 
+/**
+ * How to read a repository the app isn't installed on. `token` is someone's
+ * own token (a viewer who's looking at the board), used where there's no
+ * installation: it only reaches public data there, but with a far better
+ * rate limit than reading anonymously.
+ */
+export interface ReadAuth {
+	token?: string | null;
+}
+
+export type PollResult =
+	/** Nothing changed since the last poll (a 304, which costs no rate limit with a token). */
+	| { status: "unchanged" }
+	| { status: "changed"; etag: string | null; cards: (Card | MissingCard)[] }
+	/** The forge couldn't be asked; try again no sooner than `retryAt`. */
+	| { status: "error"; retryAt?: number };
+
 export interface ForgeAdapter {
 	id: ForgeId;
 	capabilities: ForgeCapabilities;
@@ -76,12 +98,56 @@ export interface ForgeAdapter {
 	 * known; refs may use an older name for it. Results are in the order of
 	 * `refs`, and keyed by the repository's current name.
 	 */
-	fetchItems(refs: FetchRef[], env: Env, repo?: RepoIdentity): Promise<(Card | MissingCard)[]>;
+	fetchItems(
+		refs: FetchRef[],
+		env: Env,
+		repo?: RepoIdentity,
+		auth?: ReadAuth,
+	): Promise<(Card | MissingCard)[]>;
 	/**
 	 * Check cached cards against the forge, cheaply, and return fresh data for
 	 * the ones that changed. Unchanged cards are left out.
 	 */
-	reconcile?(repo: RepoIdentity, cards: Card[], env: Env): Promise<(Card | MissingCard)[]>;
+	reconcile?(
+		repo: RepoIdentity,
+		cards: Card[],
+		env: Env,
+		auth?: ReadAuth,
+	): Promise<(Card | MissingCard)[]>;
+	/**
+	 * Whether updates for a repository arrive by webhook (on GitHub: the app
+	 * is installed on it). Forges without this are treated as live.
+	 */
+	installed?(repo: RepoIdentity, env: Env, options?: { fresh?: boolean }): Promise<boolean>;
+	/**
+	 * Ask to be told when `installed` changes for a repository (a path, e.g.
+	 * `owner/repo`): the `Repo` object holding it gets `installationChanged`,
+	 * a board that couldn't read it at all gets `repoInstallChanged`.
+	 */
+	watchInstallation?(
+		name: string,
+		env: Env,
+		watcher: { kind: "repo" | "board"; name: string },
+	): Promise<void>;
+	/**
+	 * For repositories that aren't live: one cheap, conditional request
+	 * (`etag` from the last poll) that says whether anything changed, and
+	 * fresh data for the cached cards that did. `since` is when the last
+	 * successful poll ran, so the adapter can tell if it might have missed
+	 * something.
+	 */
+	poll?(
+		repo: RepoIdentity,
+		cards: Card[],
+		env: Env,
+		options: ReadAuth & { etag: string | null; since: string | null },
+	): Promise<PollResult>;
+	/**
+	 * Whether the holder of `token` (a viewer's own token, or null for an
+	 * anonymous viewer) can read a repository. Throws if the forge can't say.
+	 * Forges without this have no private repositories.
+	 */
+	canRead?(repo: RepoIdentity, token: string | null, env: Env): Promise<boolean>;
 	/** Verify and normalise an incoming webhook, for forges that send them. */
 	receiveWebhook?(request: Request, env: Env): Promise<WebhookResult>;
 }

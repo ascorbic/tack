@@ -50,6 +50,30 @@ export async function isInstalled(env: Env, repoKey: string): Promise<boolean> {
 }
 
 /**
+ * Forget this isolate's cached token (or lack of one) for a repository, when
+ * the app was just installed on it or removed from it (#9).
+ */
+export function forgetRepoToken(repoKey: string): void {
+	const repo = githubRepo(repoKey);
+	if (repo) cache.delete(repo);
+}
+
+/**
+ * Ask to hear when the app is installed on (or removed from) a repository,
+ * keyed like `github.com/owner/repo`: the `Repo` object holding its cards
+ * (`installationChanged`), or a board that couldn't read it at all
+ * (`repoInstallChanged`). See `Instance.watchInstallation`.
+ */
+export async function watchInstallation(
+	env: Env,
+	repoKey: string,
+	watcher: { kind: "repo" | "board"; name: string },
+): Promise<void> {
+	const repo = githubRepo(repoKey);
+	if (!repo || !env.TACK_SECRET) return;
+	await instance(env).watchInstallation(repo, watcher.kind, watcher.name);
+}
+/**
  * A JWT for calling GitHub as the app itself (e.g. listing and redelivering
  * failed webhook deliveries, #13), or null if no app is configured.
  */

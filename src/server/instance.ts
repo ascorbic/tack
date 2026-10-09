@@ -16,8 +16,11 @@ import type {
 	AccessUpdateRequest,
 	AccessUpdateResponse,
 } from "../shared/auth.ts";
+import { getServerByName } from "partyserver";
+import type { Board } from "./board.ts";
 import type { Viewer } from "./identity.ts";
 import { log } from "./log.ts";
+import { boards, repos } from "./namespaces.ts";
 
 const DAY = 24 * 60 * 60_000;
 export const SESSION_TTL = 30 * DAY;
@@ -140,6 +143,13 @@ export class Instance extends DurableObject<Env> {
 				repo TEXT PRIMARY KEY,
 				installation_id INTEGER,
 				checked_at INTEGER NOT NULL
+			);
+			CREATE TABLE IF NOT EXISTS install_watchers (
+				repo TEXT NOT NULL,
+				kind TEXT NOT NULL,
+				name TEXT NOT NULL,
+				at INTEGER NOT NULL,
+				PRIMARY KEY (repo, kind, name)
 			);
 		`);
 	}
@@ -380,27 +390,38 @@ export class Instance extends DurableObject<Env> {
 			account: installation.account?.login,
 		});
 		const names = (list?: { full_name: string }[]) => (list ?? []).map((repo) => repo.full_name);
+		// Account-wide installations cover repositories nobody listed.
+		const account =
+			installation.repository_selection === "all" || this.selection(installation.id) === "all"
+				? installation.account?.login
+				: undefined;
 
 		if (event === "installation") {
 			switch (payload.action) {
-				case "deleted":
+				case "deleted": {
+					const affected = this.installationRepos(installation.id);
 					this.forgetInstallation(installation.id);
+					this.notifyInstallChanged(affected, account);
 					return;
+				}
 				case "suspend":
 					this.tokens.delete(installation.id);
 					this.sql.exec(
 						"UPDATE installations SET suspended = 1, token = NULL, token_expires_at = NULL WHERE id = ?",
 						installation.id,
 					);
+					this.notifyInstallChanged(this.installationRepos(installation.id), account);
 					return;
 				case "unsuspend":
 					this.upsertInstallation(installation);
 					this.sql.exec("UPDATE installations SET suspended = 0 WHERE id = ?", installation.id);
+					this.notifyInstallChanged(this.installationRepos(installation.id), account);
 					return;
 				default:
 					// created, new_permissions_accepted
 					this.upsertInstallation(installation);
 					this.mapRepos(names(payload.repositories), installation.id);
+					this.notifyInstallChanged(names(payload.repositories), account);
 					return;
 			}
 		}
@@ -410,7 +431,89 @@ export class Instance extends DurableObject<Env> {
 			this.mapRepos(names(payload.repositories_added), installation.id);
 			// Removed repositories are remembered as not installed, then rechecked later.
 			this.mapRepos(names(payload.repositories_removed), null);
+			this.notifyInstallChanged(
+				[...names(payload.repositories_added), ...names(payload.repositories_removed)],
+				account,
+			);
 		}
+	}
+
+	/**
+	 * Hear when the app is installed on, or removed from, a repository
+	 * (`owner/name`). `repo` watchers are `Repo` objects holding its cards, and
+	 * stay registered; `board` watchers are boards that couldn't read it at
+	 * all, and are told once. Watchers that haven't renewed in a month lapse.
+	 */
+	watchInstallation(repo: string, kind: "repo" | "board", name: string): void {
+		const now = Date.now();
+		this.sql.exec(
+			"INSERT OR REPLACE INTO install_watchers (repo, kind, name, at) VALUES (?, ?, ?, ?)",
+			repo.toLowerCase(),
+			kind,
+			name,
+			now,
+		);
+		this.sql.exec("DELETE FROM install_watchers WHERE at < ?", now - 30 * DAY);
+	}
+
+	private selection(id: number): string | null {
+		return (
+			this.sql
+				.exec<{ selection: string }>("SELECT selection FROM installations WHERE id = ?", id)
+				.toArray()[0]?.selection ?? null
+		);
+	}
+
+	private installationRepos(id: number): string[] {
+		return this.sql
+			.exec<{ repo: string }>("SELECT repo FROM repositories WHERE installation_id = ?", id)
+			.toArray()
+			.map((row) => row.repo);
+	}
+
+	/**
+	 * Tell watchers of these repositories (and, for an account-wide
+	 * installation, of every repository the account owns) that the app's
+	 * installation changed, so not-live cards upgrade in place (#9).
+	 */
+	private notifyInstallChanged(changed: string[], account?: string): void {
+		const names = new Set(changed.map((repo) => repo.toLowerCase()));
+		const owner = account?.toLowerCase();
+		const watchers = this.sql
+			.exec<{ repo: string; kind: string; name: string }>(
+				"SELECT repo, kind, name FROM install_watchers",
+			)
+			.toArray()
+			.filter((row) => names.has(row.repo) || (owner && row.repo.startsWith(`${owner}/`)));
+		if (watchers.length === 0) return;
+		for (const row of watchers) {
+			if (row.kind === "board") {
+				this.sql.exec(
+					"DELETE FROM install_watchers WHERE repo = ? AND kind = 'board' AND name = ?",
+					row.repo,
+					row.name,
+				);
+			}
+		}
+		const notified = Promise.allSettled(
+			watchers.map(async (row) => {
+				if (row.kind === "repo") {
+					await repos(this.env).getByName(row.name).installationChanged();
+				} else {
+					const board = await getServerByName<Env, Board>(boards(this.env), row.name);
+					await board.repoInstallChanged(`github.com/${row.repo}`);
+				}
+			}),
+		).then((results) => {
+			const failed = results.filter((result) => result.status === "rejected");
+			(failed.length > 0 ? log.warn : log.info)("github.installation.notified", {
+				repos: watchers.filter((row) => row.kind === "repo").length,
+				boards: watchers.filter((row) => row.kind === "board").length,
+				failed: failed.length,
+				...(failed[0] ? { error: (failed[0] as PromiseRejectedResult).reason } : {}),
+			});
+		});
+		this.ctx.waitUntil(notified);
 	}
 
 	/**
@@ -429,17 +532,28 @@ export class Instance extends DurableObject<Env> {
 			this.upsertInstallation(installation);
 			this.sql.exec("UPDATE installations SET suspended = 0 WHERE id = ?", id);
 			const { token } = await this.installationToken(id);
+			const previous = this.installationRepos(id);
+			const current: string[] = [];
 			for (let page = 1; page <= 10; page++) {
 				const { repositories } = await ghJson<{ repositories: { full_name: string }[] }>(
 					`/installation/repositories?per_page=100&page=${page}`,
 					{ auth: `Bearer ${token}` },
 				);
+				current.push(...repositories.map((repo) => repo.full_name));
 				this.mapRepos(
 					repositories.map((repo) => repo.full_name),
 					id,
 				);
 				if (repositories.length < 100) break;
 			}
+			// Repositories taken out of the installation since.
+			const kept = new Set(current.map((repo) => repo.toLowerCase()));
+			const removed = previous.filter((repo) => !kept.has(repo));
+			this.mapRepos(removed, null);
+			this.notifyInstallChanged(
+				[...current, ...removed],
+				installation.repository_selection === "all" ? installation.account?.login : undefined,
+			);
 			return true;
 		} catch (error) {
 			log.error("github.installation.failed", { installation: id, error });

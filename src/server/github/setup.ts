@@ -4,6 +4,8 @@
 //   PUT /api/setup/access     admins: replace the allowlist and admins
 //   GET /setup/callback       GitHub sends the new app's code here
 //   GET /setup/installed      GitHub sends people here after installing the app
+//   GET /setup/install        off to GitHub to install the app (from a card that
+//                             isn't live), returning to `state`, a board path
 //
 // The `/setup` page itself is client-side.
 
@@ -36,8 +38,24 @@ export async function handleSetup(request: Request, env: Env): Promise<Response 
 			return setupCallback(request, env, url);
 		case "GET /setup/installed":
 			return installed(env, url);
+		case "GET /setup/install":
+			return install(env, url);
 	}
 	return null;
+}
+
+/**
+ * `GET /setup/install?state=/b/…`: off to GitHub to install the app, from a
+ * card that isn't live (#9). GitHub hands `state` back to `/setup/installed`,
+ * which returns to the board.
+ */
+async function install(env: Env, url: URL): Promise<Response> {
+	const app = env.TACK_SECRET ? await instance(env).appInfo() : null;
+	if (!app) return redirect("/setup");
+	const target = new URL(`https://github.com/apps/${app.slug}/installations/new`);
+	const state = safeReturnTo(url.searchParams.get("state"), "");
+	if (state) target.searchParams.set("state", state);
+	return redirect(target.toString());
 }
 
 async function setupInfo(request: Request, env: Env): Promise<Response> {

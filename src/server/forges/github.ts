@@ -1,6 +1,6 @@
 import type { Card, CardState, MissingCard, PullDetails } from "../../shared/cards.ts";
 import { itemKey } from "../../shared/refs.ts";
-import { repoToken } from "../github/tokens.ts";
+import { forgetRepoToken, isInstalled, repoToken, watchInstallation } from "../github/tokens.ts";
 import { log } from "../log.ts";
 import { INSTALLATION_EVENTS, installationEvent, verifyWebhook } from "../github/webhooks.ts";
 import { fetchItemsGraphQL, GraphQLUnavailable, staleItemsGraphQL } from "./github-graphql.ts";
@@ -8,6 +8,8 @@ import type {
 	FetchRef,
 	ForgeAdapter,
 	MissingReason,
+	PollResult,
+	ReadAuth,
 	RepoIdentity,
 	WebhookResult,
 } from "./types.ts";
@@ -46,6 +48,7 @@ interface GitHubRepository {
 	id: number;
 	node_id?: string;
 	full_name: string;
+	private?: boolean;
 }
 
 interface WithPulls {
@@ -149,8 +152,13 @@ function missingReason(response: Response): MissingReason {
 	return "error";
 }
 
-function tokenFor(env: Env, name: string): Promise<string | null> {
-	return repoToken(env, `${HOST}/${name}`.toLowerCase());
+/**
+ * The token to read a repository with: its installation's, `GITHUB_TOKEN`,
+ * or failing those a viewer's own (which only reaches public data where the
+ * app isn't installed, but with their rate limit rather than the anonymous one).
+ */
+async function tokenFor(env: Env, name: string, auth?: ReadAuth): Promise<string | null> {
+	return (await repoToken(env, `${HOST}/${name}`.toLowerCase())) ?? auth?.token ?? null;
 }
 
 // REST, one item at a time: the fallback when there's no token for GraphQL.
@@ -232,7 +240,65 @@ function repoIdentity(repository: GitHubRepository): RepoIdentity {
 		id: String(repository.id),
 		name: repository.full_name.toLowerCase(),
 		...(repository.node_id ? { nodeId: repository.node_id } : {}),
+		...(typeof repository.private === "boolean" ? { private: repository.private } : {}),
 	};
+}
+
+/** How many recently updated items a poll lists. */
+const POLL_PAGE = 50;
+
+/**
+ * One conditional request for the repository's most recently updated items.
+ * A 304 means nothing changed (and, with a token, costs no rate limit).
+ * Otherwise the cached cards that changed are refetched; if more changed
+ * since the last poll than one page shows, everything is reconciled instead.
+ */
+async function pollRest(
+	repo: RepoIdentity,
+	cards: Card[],
+	env: Env,
+	options: ReadAuth & { etag: string | null; since: string | null },
+): Promise<PollResult> {
+	const token = await tokenFor(env, repo.name, options);
+	const url = new URL(`${API}/repos/${repo.name}/issues`);
+	for (const [param, value] of Object.entries({
+		state: "all",
+		sort: "updated",
+		direction: "desc",
+		per_page: String(POLL_PAGE),
+	})) {
+		url.searchParams.set(param, value);
+	}
+	const headers = new Headers(restHeaders(token));
+	if (options.etag) headers.set("if-none-match", options.etag);
+	const res = await fetch(url, { headers }).catch(() => null);
+	if (!res) return { status: "error" };
+	if (res.status === 304) return { status: "unchanged" };
+	if (!res.ok) {
+		const reset = Number(res.headers.get("x-ratelimit-reset"));
+		return { status: "error", ...(reset > 0 ? { retryAt: reset * 1000 } : {}) };
+	}
+	const etag = res.headers.get("etag");
+	const list = await res.json<GitHubIssueLike[]>();
+	const oldest = list.at(-1)?.updated_at;
+	if (list.length === POLL_PAGE && oldest && options.since && oldest > options.since) {
+		// Busier than one page since the last poll: check every card.
+		return { status: "changed", etag, cards: await github.reconcile!(repo, cards, env, options) };
+	}
+	const cached = new Map(cards.map((card) => [card.item, card]));
+	const changed = list.filter((issue) => {
+		const card = cached.get(`#${issue.number}`);
+		return card && issue.updated_at > card.updatedAt;
+	});
+	if (changed.length === 0) return { status: "changed", etag, cards: [] };
+	const refs = changed.map((issue) => ({
+		forge: "github" as const,
+		host: HOST,
+		repo: repo.name,
+		item: `#${issue.number}`,
+		nodeId: cached.get(`#${issue.number}`)?.nodeId,
+	}));
+	return { status: "changed", etag, cards: await github.fetchItems(refs, env, repo, options) };
 }
 
 /** Items and commits whose CI or reviews a delivery says changed. */
@@ -275,7 +341,7 @@ export const github: ForgeAdapter = {
 		}
 	},
 
-	async fetchItems(refs, env, repo) {
+	async fetchItems(refs, env, repo, auth) {
 		const results = new Map<FetchRef, Card | MissingCard>();
 		const supported = refs.filter((ref) => {
 			const ok = /^#\d+$/.test(ref.item);
@@ -284,7 +350,7 @@ export const github: ForgeAdapter = {
 		});
 		const name = repo?.name ?? supported[0]?.repo;
 		if (name && supported.length > 0) {
-			const token = await tokenFor(env, name);
+			const token = await tokenFor(env, name, auth);
 			let fetched: Map<string, Card | MissingCard> | null = null;
 			if (token) {
 				try {
@@ -305,9 +371,9 @@ export const github: ForgeAdapter = {
 		);
 	},
 
-	async reconcile(repo, cards, env) {
+	async reconcile(repo, cards, env, auth) {
 		if (cards.length === 0) return [];
-		const token = await tokenFor(env, repo.name);
+		const token = await tokenFor(env, repo.name, auth);
 		if (token) {
 			try {
 				const { stale, gone } = await staleItemsGraphQL(cards, token);
@@ -333,6 +399,29 @@ export const github: ForgeAdapter = {
 			}
 		}
 		return reconcileRest(repo.name, cards, token);
+	},
+
+	installed(repo, env, options) {
+		// This isolate may remember that it had no token for the repository.
+		if (options?.fresh) forgetRepoToken(`${HOST}/${repo.name}`);
+		return isInstalled(env, `${HOST}/${repo.name}`);
+	},
+
+	watchInstallation(name, env, watcher) {
+		return watchInstallation(env, `${HOST}/${name}`, watcher);
+	},
+
+	poll: pollRest,
+
+	async canRead(repo, token) {
+		// By id, so renames don't matter. A GitHub App's user token only
+		// reaches private repositories the app is installed on, and only if
+		// the person can read them; anyone can read public ones.
+		const res = await fetch(`${API}/repositories/${repo.id}`, { headers: restHeaders(token) });
+		if (res.ok) return true;
+		const reason = missingReason(res);
+		if (reason === "error") throw new Error(`Access check failed: ${res.status}`);
+		return false;
 	},
 
 	async receiveWebhook(request, env) {

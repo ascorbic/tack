@@ -31,5 +31,6 @@ export async function resolveRepo(
 	const adapter = forge(parsed.forge);
 	if (adapter.resolveRepo) return adapter.resolveRepo(parsed.host, parsed.repo, env);
 	const name = parsed.repo.toLowerCase();
-	return { forge: parsed.forge, host: parsed.host, id: name, name };
+	// Forges that can't say who may read a repository have no private ones.
+	return { forge: parsed.forge, host: parsed.host, id: name, name, private: false };
 }
