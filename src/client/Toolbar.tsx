@@ -1,9 +1,15 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { STICKY_COLORS, type StickyColor } from "./board.ts";
 
-export type Tool = "select" | "hand" | "sticky" | "card";
+export type Tool = "select" | "hand" | "sticky" | "text" | "card";
 
-export const TOOL_KEYS: Record<string, Tool> = { v: "select", h: "hand", s: "sticky", c: "card" };
+export const TOOL_KEYS: Record<string, Tool> = {
+	v: "select",
+	h: "hand",
+	s: "sticky",
+	t: "text",
+	c: "card",
+};
 
 /** The MIME type for dragging a new sticky off the toolbar onto the canvas. */
 export const STICKY_DRAG_TYPE = "application/x-tack-sticky";
@@ -21,6 +27,11 @@ export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }:
 	return (
 		<div className="toolbar-dock">
 			{tool === "sticky" && <StickyOptions color={stickyColor} onColor={onStickyColor} />}
+			{tool === "text" && (
+				<div className="toolbar-options">
+					<span className="toolbar-hint">Click anywhere to start typing</span>
+				</div>
+			)}
 			{tool === "card" && <CardOptions onAddCard={onAddCard} onDone={() => onTool("select")} />}
 			<div className="toolbar" role="toolbar" aria-label="Tools">
 				<ToolButton tool="select" active={tool} onTool={onTool} label="Select" shortcut="V">
@@ -35,6 +46,9 @@ export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }:
 					color={stickyColor}
 					onSelect={() => onTool("sticky")}
 				/>
+				<ToolButton tool="text" active={tool} onTool={onTool} label="Text" shortcut="T">
+					<path d="M4.5 5.5V4h11v1.5M10 4v12M7.5 16h5" />
+				</ToolButton>
 				<ToolButton tool="card" active={tool} onTool={onTool} label="Issue or PR" shortcut="C">
 					<circle cx="10" cy="10" r="6.5" />
 					<circle cx="10" cy="10" r="1.8" className="fill" />

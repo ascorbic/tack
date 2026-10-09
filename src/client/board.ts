@@ -3,7 +3,9 @@ import { useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
 import {
 	type Author,
+	type ShapeFont,
 	type ShapeProps,
+	type TextSize,
 	addShape,
 	nextZ,
 	readShape,
@@ -141,13 +143,18 @@ export type StickyColor = (typeof STICKY_COLORS)[number];
 export function addSticky(
 	doc: Y.Doc,
 	at: { x: number; y: number },
-	{ color = "yellow", author }: { color?: StickyColor; author?: Author } = {},
+	{
+		color = "yellow",
+		author,
+		font,
+	}: { color?: StickyColor; author?: Author; font?: ShapeFont } = {},
 ): string {
 	const id = crypto.randomUUID();
 	addShape(doc, id, {
 		type: "sticky",
 		text: "",
 		color,
+		font,
 		author,
 		x: Math.round(at.x - STICKY_SIZE / 2),
 		y: Math.round(at.y - STICKY_SIZE / 2),
@@ -156,8 +163,35 @@ export function addSticky(
 	return id;
 }
 
-// A sticky this client just made, whose text box should take focus once it
-// mounts so you can type straight away.
+/** Text sizes in pixels, as styled by `.text-block[data-size]`. */
+export const TEXT_SIZES: Record<TextSize, number> = { s: 14, m: 20, l: 34, xl: 56 };
+
+/**
+ * Add an empty text block with its first line centred on `at`, so the caret
+ * lands where you clicked, and return its id.
+ */
+export function addText(
+	doc: Y.Doc,
+	at: { x: number; y: number },
+	{ size = "m", font }: { size?: TextSize; font?: ShapeFont } = {},
+): string {
+	const id = crypto.randomUUID();
+	// The block's padding (4px 6px), and half a line.
+	const halfLine = (TEXT_SIZES[size] * 1.3) / 2;
+	addShape(doc, id, {
+		type: "text",
+		text: "",
+		size,
+		font,
+		x: Math.round(at.x - 6),
+		y: Math.round(at.y - 4 - halfLine),
+		z: nextZ(doc),
+	});
+	return id;
+}
+
+// A sticky or text block this client just made, whose text box should take
+// focus once it mounts so you can type straight away.
 let focusOnMount: string | null = null;
 
 export function focusWhenMounted(id: string): void {

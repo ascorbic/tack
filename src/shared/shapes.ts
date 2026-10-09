@@ -5,7 +5,13 @@ import * as Y from "yjs";
 // Each property is its own key so concurrent edits to different properties
 // of the same shape merge cleanly.
 
-export type ShapeType = "card" | "sticky";
+export type ShapeType = "card" | "sticky" | "text";
+
+/** Typeface for stickies and text: the UI sans, or a handwriting face. */
+export type ShapeFont = "sans" | "hand";
+
+/** Text block sizes, small to extra large. */
+export type TextSize = "s" | "m" | "l" | "xl";
 
 export interface ShapeProps {
 	type: ShapeType;
@@ -15,9 +21,13 @@ export interface ShapeProps {
 	z: string;
 	/** Card shapes: the card key, `owner/repo#number`. */
 	ref?: string;
-	/** Sticky shapes: plain text for now. */
+	/** Sticky and text shapes: plain text for now. */
 	text?: string;
 	color?: string;
+	/** Sticky and text shapes: the typeface. Absent means sans. */
+	font?: ShapeFont;
+	/** Text shapes: the type size. Absent means medium. */
+	size?: TextSize;
 	/** Who made it, shown on stickies. */
 	author?: Author;
 }
@@ -92,4 +102,32 @@ function isValidZ(z: string): boolean {
 
 export function nextZ(doc: Y.Doc): string {
 	return topZ(doc) ?? generateKeyBetween(null, null);
+}
+
+/**
+ * Set properties on several shapes in one transaction, so a change like
+ * recolouring a selection is a single document write (and a single undo
+ * step). Keys that already hold the value are left alone, as every write
+ * leaves a tombstone.
+ */
+export function updateShapes(
+	doc: Y.Doc,
+	ids: Iterable<string>,
+	props: Partial<Omit<ShapeProps, "type">>,
+	origin: unknown = "local",
+): void {
+	const shapes = shapesMap(doc);
+	doc.transact(() => {
+		for (const id of ids) {
+			const shape = shapes.get(id);
+			if (!shape) continue;
+			for (const [key, value] of Object.entries(props)) {
+				if (value === undefined) {
+					if (shape.has(key)) shape.delete(key);
+				} else if (shape.get(key) !== value) {
+					shape.set(key, value);
+				}
+			}
+		}
+	}, origin);
 }
