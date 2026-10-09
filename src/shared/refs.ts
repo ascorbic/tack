@@ -43,6 +43,22 @@ export function repoKeyOf(key: string): string {
 	return match ? `${match[1]}/${match[2]}` : key;
 }
 
+/** The forge-native item part of a key: `#100` for `github.com/a/b#100`. */
+export function itemOf(key: string): string | null {
+	return KEY_RE.exec(key)?.[3] ?? null;
+}
+
+/** Parse a repository key, `{host}/{repo path}`, on a known forge. */
+export function parseRepoKey(
+	repoKey: string,
+): { forge: ForgeId; host: string; repo: string } | null {
+	const slash = repoKey.indexOf("/");
+	if (slash < 1 || slash === repoKey.length - 1) return null;
+	const host = repoKey.slice(0, slash);
+	const forge = forgeForHost(host);
+	return forge ? { forge, host, repo: repoKey.slice(slash + 1) } : null;
+}
+
 /** Parse a canonical item key back into a reference. */
 export function parseKey(key: string): ItemRef | null {
 	const match = KEY_RE.exec(key);

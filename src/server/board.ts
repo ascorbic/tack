@@ -4,11 +4,21 @@ import * as Y from "yjs";
 import type { Card, CardMessage, MissingCard } from "../shared/cards.ts";
 import { repoKeyOf } from "../shared/refs.ts";
 import { cardRefs } from "../shared/shapes.ts";
+import { watchCardRefs } from "./card-refs.ts";
+import type { MissingReason, RepoIdentity } from "./forges/index.ts";
 import { log } from "./log.ts";
-import { repos } from "./namespaces.ts";
+import { repoObject, resolveRepo } from "./routing.ts";
 
 // Durable Object storage rows max out at 2 MB, so snapshots are chunked.
 const CHUNK_SIZE = 512 * 1024;
+
+/** Subscription syncs wait for card changes to settle, but not for long. */
+const SYNC_WAIT_MS = 150;
+const SYNC_MAX_WAIT_MS = 1_000;
+/** How long to believe a repository couldn't be found or reached. */
+const UNRESOLVED_TTL_MS = { error: 15_000, other: 60_000 };
+
+type Entry = Card | MissingCard;
 
 /**
  * One per board. Holds the Yjs document (layout and freeform content) and
@@ -17,22 +27,32 @@ const CHUNK_SIZE = 512 * 1024;
 export class Board extends YServer<Env> {
 	static override callbackOptions = { debounceWait: 2000, debounceMaxWait: 10_000 };
 
-	private cards = new Map<string, Card | MissingCard>();
+	private cards = new Map<string, Entry>();
 	private subscribed = new Set<string>();
+	/** Repository identities by repository key, so each is resolved once. */
+	private routes = new Map<string, RepoIdentity>();
+	/** Repositories that couldn't be resolved, and until when to believe it. */
+	private unresolved = new Map<string, { reason: MissingReason; until: number }>();
+	private syncing: Promise<void> | null = null;
+	private resync = false;
+	private retry: ReturnType<typeof setTimeout> | undefined;
 
 	override async onStart(): Promise<void> {
-		this.ctx.storage.sql.exec(
-			"CREATE TABLE IF NOT EXISTS snapshot (seq INTEGER PRIMARY KEY, chunk BLOB NOT NULL)",
-		);
+		this.ctx.storage.sql.exec(`
+			CREATE TABLE IF NOT EXISTS snapshot (seq INTEGER PRIMARY KEY, chunk BLOB NOT NULL);
+			CREATE TABLE IF NOT EXISTS repo_routes (repo_key TEXT PRIMARY KEY, identity TEXT NOT NULL);
+		`);
+		for (const row of this.ctx.storage.sql.exec<{ repo_key: string; identity: string }>(
+			"SELECT repo_key, identity FROM repo_routes",
+		)) {
+			this.routes.set(row.repo_key, JSON.parse(row.identity) as RepoIdentity);
+		}
 		await super.onStart();
-		this.document.on("update", () => {
-			this.syncSubscriptions().catch((error: unknown) =>
-				log.error("board.subscriptions.failed", { board: this.name, error }),
-			);
+		watchCardRefs(this.document, () => void this.syncSubscriptions(), {
+			wait: SYNC_WAIT_MS,
+			maxWait: SYNC_MAX_WAIT_MS,
 		});
-		await this.syncSubscriptions().catch((error: unknown) =>
-			log.error("board.subscriptions.failed", { board: this.name, error }),
-		);
+		await this.syncSubscriptions();
 	}
 
 	override async onLoad(): Promise<Y.Doc | void> {
@@ -100,11 +120,14 @@ export class Board extends YServer<Env> {
 		log.error("board.exception", { board: this.name, error });
 	}
 
+	/** Called by Repo when subscribed cards change. */
+	async cardsUpdated(cards: Entry[]): Promise<void> {
+		this.publish(cards.filter((card) => this.subscribed.has(card.key)));
+	}
+
 	/** Called by Repo when a subscribed card changes. */
 	async cardUpdated(card: Card): Promise<void> {
-		if (!this.subscribed.has(card.key)) return;
-		this.cards.set(card.key, card);
-		this.broadcastCustomMessage(encode({ type: "card", card }));
+		await this.cardsUpdated([card]);
 	}
 
 	/** Snapshot size in bytes, for measuring growth. */
@@ -112,33 +135,112 @@ export class Board extends YServer<Env> {
 		return Y.encodeStateAsUpdate(this.document).byteLength;
 	}
 
+	/** Cards this board is showing, for tests and debugging. */
+	liveCards(): Entry[] {
+		return [...this.cards.values()];
+	}
+
+	/**
+	 * Subscribe to cards added to the document and unsubscribe from removed
+	 * ones. Runs once at a time; changes made meanwhile get one more pass.
+	 */
 	private async syncSubscriptions(): Promise<void> {
+		if (this.syncing) {
+			this.resync = true;
+			return this.syncing;
+		}
+		this.syncing = (async () => {
+			do {
+				this.resync = false;
+				await this.syncOnce();
+			} while (this.resync);
+		})()
+			.catch((error: unknown) =>
+				log.error("board.subscriptions.failed", { board: this.name, error }),
+			)
+			.finally(() => {
+				this.syncing = null;
+			});
+		return this.syncing;
+	}
+
+	private async syncOnce(): Promise<void> {
 		const refs = cardRefs(this.document);
+		for (const key of this.cards.keys()) if (!refs.has(key)) this.cards.delete(key);
 		const added = [...refs].filter((key) => !this.subscribed.has(key));
 		const removed = [...this.subscribed].filter((key) => !refs.has(key));
+		for (const key of removed) this.subscribed.delete(key);
 		if (added.length === 0 && removed.length === 0) return;
 
-		for (const key of added) this.subscribed.add(key);
-		for (const key of removed) {
-			this.subscribed.delete(key);
-			this.cards.delete(key);
-		}
-
 		await Promise.all([
-			...Object.entries(groupByRepo(removed)).map(([repo, keys]) =>
-				this.repo(repo).unsubscribe(this.name, keys),
-			),
-			...Object.entries(groupByRepo(added)).map(async ([repo, keys]) => {
-				const cards = await this.repo(repo).subscribe(this.name, keys);
-				const live = cards.filter((card) => this.subscribed.has(card.key));
-				for (const card of live) this.cards.set(card.key, card);
-				if (live.length > 0) this.broadcastCustomMessage(encode({ type: "cards", cards: live }));
+			...Object.entries(groupByRepo(removed)).map(async ([repoKey, keys]) => {
+				const repo = this.routes.get(repoKey);
+				if (repo) await repoObject(this.env, repo).unsubscribe(this.name, keys);
 			}),
+			...Object.entries(groupByRepo(added)).map(([repoKey, keys]) =>
+				this.subscribeTo(repoKey, keys),
+			),
 		]);
 	}
 
-	private repo(name: string) {
-		return repos(this.env).getByName(name);
+	private async subscribeTo(repoKey: string, keys: string[]): Promise<void> {
+		const repo = await this.route(repoKey);
+		if (typeof repo === "string") {
+			// Not subscribed, so the next sync tries again (see `route`).
+			const news = keys.filter((key) => {
+				const card = this.cards.get(key);
+				return !card || !("missing" in card) || card.reason !== repo;
+			});
+			this.publish(news.map((key) => ({ key, missing: true, reason: repo })));
+			return;
+		}
+		for (const key of keys) this.subscribed.add(key);
+		const cards = await repoObject(this.env, repo).subscribe(this.name, keys, repo);
+		this.publish(cards.filter((card) => this.subscribed.has(card.key)));
+	}
+
+	/**
+	 * The repository behind a repository key. Resolved once and kept, so a
+	 * board keeps reaching a renamed repository by its old name.
+	 */
+	private async route(repoKey: string): Promise<RepoIdentity | MissingReason> {
+		const known = this.routes.get(repoKey);
+		if (known) return known;
+		const failed = this.unresolved.get(repoKey);
+		if (failed && failed.until > Date.now()) return failed.reason;
+
+		const result = await resolveRepo(this.env, repoKey);
+		if (typeof result === "string") {
+			const ttl = result === "error" ? UNRESOLVED_TTL_MS.error : UNRESOLVED_TTL_MS.other;
+			(result === "error" ? log.warn : log.info)("board.route.unresolved", {
+				board: this.name,
+				repo: repoKey,
+				reason: result,
+			});
+			this.unresolved.set(repoKey, { reason: result, until: Date.now() + ttl });
+			this.retryIn(ttl);
+			return result;
+		}
+		this.unresolved.delete(repoKey);
+		this.routes.set(repoKey, result);
+		log.info("board.route.resolved", { board: this.name, repo: repoKey, id: result.id });
+		this.ctx.storage.sql.exec(
+			"INSERT OR REPLACE INTO repo_routes (repo_key, identity) VALUES (?, ?)",
+			repoKey,
+			JSON.stringify(result),
+		);
+		return result;
+	}
+
+	private retryIn(ms: number): void {
+		clearTimeout(this.retry);
+		this.retry = setTimeout(() => void this.syncSubscriptions(), ms);
+	}
+
+	private publish(cards: Entry[]): void {
+		if (cards.length === 0) return;
+		for (const card of cards) this.cards.set(card.key, card);
+		this.broadcastCustomMessage(encode({ type: "cards", cards }));
 	}
 }
 

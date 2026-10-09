@@ -3,7 +3,15 @@ import { fake } from "./fake.ts";
 import { github } from "./github.ts";
 import type { ForgeAdapter } from "./types.ts";
 
-export type { Delivery, ForgeAdapter, ForgeCapabilities, WebhookResult } from "./types.ts";
+export type {
+	Delivery,
+	FetchRef,
+	ForgeAdapter,
+	ForgeCapabilities,
+	MissingReason,
+	RepoIdentity,
+	WebhookResult,
+} from "./types.ts";
 
 const ADAPTERS: Record<ForgeId, ForgeAdapter> = { github, fake };
 

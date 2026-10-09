@@ -3,6 +3,7 @@
 
 import { Miniflare, type Request, type Response, convertV4MiniflareOptions } from "miniflare";
 import { compatibilityDate, compatibilityFlags } from "../compatibility.ts";
+import type { Board } from "../src/server/board.ts";
 import type { Instance } from "../src/server/instance.ts";
 import type { Repo } from "../src/server/repo.ts";
 
@@ -18,6 +19,8 @@ export interface WorkerOptions {
 	devAuth?: boolean;
 	/** Handles every outbound `fetch`, e.g. to fake GitHub (see `fake-github.ts`). */
 	outboundService?: (request: Request) => Response | Promise<Response>;
+	/** Keep Durable Object storage here, so a test can restart the Worker. */
+	persist?: string;
 }
 
 export function startWorker(options: WorkerOptions = {}): Miniflare {
@@ -40,6 +43,7 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 				...options.bindings,
 			},
 			...(options.outboundService ? { outboundService: options.outboundService } : {}),
+			...(options.persist ? { resourcePersistencePath: options.persist } : {}),
 		}),
 	);
 }
@@ -80,4 +84,13 @@ export async function signIn(
 		);
 	}
 	return cookie;
+}
+
+/** An RPC stub for the `Board` Durable Object with this name, started. */
+export async function boardStub(mf: Miniflare, name: string) {
+	const namespace = await mf.getDurableObjectNamespace("Board");
+	const stub = namespace.get(namespace.idFromName(name)) as unknown as DurableObjectStub<Board>;
+	// partyserver starts a server (loading its document) on its first named call.
+	await stub.setName(name);
+	return stub;
 }

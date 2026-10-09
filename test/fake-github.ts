@@ -1,7 +1,17 @@
 // A fake GitHub for integration tests, served to the Worker through
-// Miniflare's `outboundService`: app manifest conversion, the OAuth web flow
-// (with PKCE and refresh-token rotation), users and org membership, and
-// installation tokens minted against app JWTs that it really verifies.
+// Miniflare's `outboundService` (`startWorker({ outboundService: github.fetch })`).
+//
+// - The app: manifest conversion, the OAuth web flow (with PKCE and
+//   refresh-token rotation), users and org membership, installation tokens
+//   minted against app JWTs that it really verifies, and the app's webhook
+//   delivery log, with redelivery.
+// - Repository data: repositories (with ids, and renames that keep
+//   redirecting), issues and pull requests with CI and reviews, over REST and
+//   the GraphQL queries Tack makes (see src/server/forges/github*.ts).
+//
+// Every request is recorded twice: as `METHOD url` lines in `log`, and as
+// structured `requests` (with GraphQL operation names and variables) so
+// tests can count fetches.
 
 import { createHash, createVerify, generateKeyPairSync, randomBytes } from "node:crypto";
 import { type Request, Response } from "miniflare";
@@ -30,6 +40,53 @@ function token(prefix: string): string {
 
 function base64url(buffer: Buffer): string {
 	return buffer.toString("base64url");
+}
+
+export interface FakeCheck {
+	name: string;
+	/** A CheckRun state or conclusion: SUCCESS, FAILURE, IN_PROGRESS, SKIPPED… */
+	state: string;
+}
+
+export interface FakeItem {
+	number: number;
+	kind: "issue" | "pull";
+	title: string;
+	state?: "open" | "closed" | "merged";
+	draft?: boolean;
+	updatedAt: string;
+	head?: string;
+	checks?: FakeCheck[];
+	reviewDecision?: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
+	reviews?: { login: string; state: string }[];
+	mergeable?: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
+	closes?: number[];
+}
+
+export interface FakeRequest {
+	method: string;
+	path: string;
+	/** GraphQL operation name. */
+	operation?: string;
+	variables?: Record<string, unknown>;
+	/** Aliased items in a GraphQL query, e.g. `i7`. */
+	aliases?: string[];
+	authorized: boolean;
+}
+
+interface FakeRepo {
+	id: number;
+	name: string;
+}
+
+/** A delivery in the app's webhook delivery log. */
+export interface FakeHookDelivery {
+	id: number;
+	guid: string;
+	delivered_at: string;
+	redelivery: boolean;
+	status_code: number;
+	event: string;
 }
 
 export class FakeGitHub {
@@ -68,6 +125,18 @@ export class FakeGitHub {
 	readonly log: string[] = [];
 	readonly minted: { installation: number; token: string }[] = [];
 
+	/** Structured requests, for counting fetches. */
+	requests: FakeRequest[] = [];
+	/** The app's webhook delivery log, newest first. */
+	hookDeliveries: FakeHookDelivery[] = [];
+	/** Delivery ids GitHub was asked to redeliver. */
+	readonly redelivered: number[] = [];
+
+	private repos = new Map<number, FakeRepo>();
+	/** Current and old names, lowercased, to repository ids. */
+	private names = new Map<string, number>();
+	private items = new Map<string, FakeItem>();
+
 	private grants = new Map<string, Grant>();
 	private userTokens = new Map<string, UserToken>();
 	private refreshTokens = new Map<string, FakeUser>();
@@ -98,6 +167,33 @@ export class FakeGitHub {
 		return callback.toString();
 	}
 
+	addRepo(id: number, name: string): void {
+		this.repos.set(id, { id, name });
+		this.names.set(name.toLowerCase(), id);
+	}
+
+	/** Rename or transfer: the old name keeps redirecting, as on GitHub. */
+	rename(id: number, name: string): void {
+		const repo = this.repos.get(id);
+		if (!repo) throw new Error(`no repo ${id}`);
+		repo.name = name;
+		this.names.set(name.toLowerCase(), id);
+	}
+
+	setItem(repoId: number, item: FakeItem): void {
+		this.items.set(`${repoId}#${item.number}`, item);
+	}
+
+	updateItem(repoId: number, number: number, change: Partial<FakeItem>): void {
+		const item = this.items.get(`${repoId}#${number}`);
+		if (!item) throw new Error(`no item ${repoId}#${number}`);
+		Object.assign(item, change);
+	}
+
+	count(filter: (request: FakeRequest) => boolean): number {
+		return this.requests.filter(filter).length;
+	}
+
 	/** Forget every refresh token, as when people revoke the app. */
 	revokeRefreshTokens(): void {
 		this.refreshTokens.clear();
@@ -106,7 +202,16 @@ export class FakeGitHub {
 	readonly fetch = async (request: Request): Promise<Response> => {
 		const url = new URL(request.url);
 		this.log.push(`${request.method} ${url.origin}${url.pathname}`);
+		const record: FakeRequest = {
+			method: request.method,
+			path: url.pathname,
+			authorized: Boolean(request.headers.get("authorization")),
+		};
+		this.requests.push(record);
 		try {
+			if (url.origin === "https://api.github.com" && url.pathname === "/graphql") {
+				return await this.graphqlRequest(request, record);
+			}
 			return (await this.route(request, url)) ?? json({ message: "Not Found" }, 404);
 		} catch (error) {
 			return json({ message: String(error) }, 500);
@@ -187,22 +292,284 @@ export class FakeGitHub {
 			});
 		}
 
-		if ((match = /^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(path))) {
-			const repo = match[1] ?? "";
-			const issue = this.issues.get(`${repo}#${match[2]}`);
-			const installation = this.installationForRepo(repo);
-			const tokenInstallation = auth ? this.installationTokens.get(auth) : undefined;
-			if (!issue || !installation || tokenInstallation !== installation.id) return undefined;
-			return json({
-				number: Number(match[2]),
-				title: issue.title,
-				state: "open",
-				html_url: `https://github.com/${repo}/issues/${match[2]}`,
-				updated_at: "2026-10-01T00:00:00Z",
-			});
+		if (path === "/app/hook/deliveries" && request.method === "GET") {
+			this.verifyJwt(auth);
+			return json(this.hookDeliveries);
 		}
 
+		if ((match = /^\/app\/hook\/deliveries\/(\d+)\/attempts$/.exec(path))) {
+			this.verifyJwt(auth);
+			if (request.method !== "POST") return undefined;
+			this.redelivered.push(Number(match[1]));
+			return json({}, 202);
+		}
+
+		if ((match = /^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(path))) {
+			const repo = match[1] ?? "";
+			if (this.issues.has(`${repo.toLowerCase()}#${match[2]}`)) {
+				const issue = this.privateIssue(repo, Number(match[2]), auth);
+				return issue ? json(issue) : undefined;
+			}
+		}
+
+		return this.repositoryData(url);
+	}
+
+	/** Private issues are only readable with a token for their installation. */
+	private privateIssue(repo: string, number: number, auth: string | null) {
+		const issue = this.issues.get(`${repo.toLowerCase()}#${number}`);
+		const installation = this.installationForRepo(repo);
+		const tokenInstallation = auth ? this.installationTokens.get(auth) : undefined;
+		if (!issue || !installation || tokenInstallation !== installation.id) return null;
+		return {
+			number,
+			title: issue.title,
+			state: "open",
+			html_url: `https://github.com/${repo}/issues/${number}`,
+			updated_at: "2026-10-01T00:00:00Z",
+		};
+	}
+
+	/** REST reads of repositories, issues and pull requests in the model. */
+	private repositoryData(url: URL): Response | undefined {
+		const repoMatch = /^\/repos\/([^/]+\/[^/]+)(\/.*)?$/.exec(url.pathname);
+		const repo = repoMatch ? this.repoByName(repoMatch[1] ?? "") : undefined;
+		if (!repo) return undefined;
+		const rest = repoMatch?.[2] ?? "";
+		if (rest === "") return json({ id: repo.id, node_id: `R_${repo.id}`, full_name: repo.name });
+
+		const issue = /^\/issues\/(\d+)$/.exec(rest);
+		if (issue) {
+			const item = this.items.get(`${repo.id}#${issue[1]}`);
+			return item ? json(this.restIssue(repo, item)) : undefined;
+		}
+		const pull = /^\/pulls\/(\d+)$/.exec(rest);
+		if (pull) {
+			const item = this.items.get(`${repo.id}#${pull[1]}`);
+			return item?.kind === "pull" ? json(this.restPull(repo, item)) : undefined;
+		}
+		if (rest === "/issues") {
+			const since = url.searchParams.get("since") ?? "";
+			const list = [...this.items.entries()]
+				.filter(([key, item]) => key.startsWith(`${repo.id}#`) && item.updatedAt >= since)
+				.map(([, item]) => item)
+				.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+				.map((item) => this.restIssue(repo, item));
+			return json(list);
+		}
 		return undefined;
+	}
+
+	private async graphqlRequest(request: Request, record: FakeRequest): Promise<Response> {
+		if (request.method !== "POST") return json({ message: "Not Found" }, 404);
+		const auth = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? null;
+		if (!auth) return json({ message: "Requires authentication" }, 401);
+		const body = (await request.json()) as {
+			query: string;
+			variables: Record<string, unknown>;
+			operationName: string;
+		};
+		record.operation = body.operationName;
+		record.variables = body.variables;
+		record.aliases = [...body.query.matchAll(/(i\d+): issueOrPullRequest/g)].map((m) => m[1] ?? "");
+		return json({ data: this.graphql(body.operationName, body.query, body.variables, auth) });
+	}
+
+	private repoByName(name: string): FakeRepo | undefined {
+		const id = this.names.get(name.toLowerCase());
+		return id === undefined ? undefined : this.repos.get(id);
+	}
+
+	private byNodeId(nodeId: string): { repo: FakeRepo; item: FakeItem } | null {
+		const match = /^(?:I|PR)_(\d+)_(\d+)$/.exec(nodeId);
+		const repo = match && this.repos.get(Number(match[1]));
+		const item = match && this.items.get(`${match[1]}#${match[2]}`);
+		return repo && item ? { repo, item } : null;
+	}
+
+	private graphql(
+		operation: string,
+		query: string,
+		variables: Record<string, unknown>,
+		auth: string,
+	) {
+		const ids = (variables.ids as string[] | undefined) ?? [];
+		if (operation === "TackFreshness") {
+			return {
+				nodes: ids.map((id) => {
+					const found = this.byNodeId(id);
+					return found ? this.freshness(found.repo, found.item) : null;
+				}),
+			};
+		}
+		const data: Record<string, unknown> = {};
+		if (variables.ids) {
+			data.nodes = ids.map((id) => {
+				const found = this.byNodeId(id);
+				return found ? this.gqlItem(found.repo, found.item) : null;
+			});
+		}
+		if (/repo: (node|repository)\(/.test(query)) {
+			const repo =
+				typeof variables.repo === "string"
+					? this.repos.get(Number(variables.repo.replace(/^R_/, "")))
+					: this.repoByName(`${String(variables.owner)}/${String(variables.name)}`);
+			const name = `${String(variables.owner)}/${String(variables.name)}`;
+			if (!repo && typeof variables.owner === "string") {
+				data.repo = this.privateRepoFields(name, query, auth);
+			} else if (!repo) {
+				data.repo = null;
+			} else {
+				const fields: Record<string, unknown> = {};
+				for (const [, alias, number] of query.matchAll(
+					/(i\d+): issueOrPullRequest\(number: (\d+)\)/g,
+				)) {
+					const item = this.items.get(`${repo.id}#${number}`);
+					fields[alias!] = item ? this.gqlItem(repo, item) : null;
+				}
+				data.repo = fields;
+			}
+		}
+		return data;
+	}
+
+	private rollup(item: FakeItem) {
+		const checks = item.checks ?? [];
+		if (checks.length === 0) return null;
+		const counts = new Map<string, number>();
+		for (const check of checks) counts.set(check.state, (counts.get(check.state) ?? 0) + 1);
+		const failing = checks.some((c) => c.state === "FAILURE");
+		const pending = checks.some((c) => ["IN_PROGRESS", "QUEUED", "PENDING"].includes(c.state));
+		return {
+			state: failing ? "FAILURE" : pending ? "PENDING" : "SUCCESS",
+			contexts: {
+				checkRunCountsByState: [...counts].map(([state, count]) => ({ state, count })),
+				statusContextCountsByState: [],
+				nodes: checks.map((check) => ({
+					__typename: "CheckRun",
+					name: check.name,
+					status: ["IN_PROGRESS", "QUEUED"].includes(check.state) ? check.state : "COMPLETED",
+					conclusion: ["IN_PROGRESS", "QUEUED"].includes(check.state) ? null : check.state,
+					detailsUrl: `https://github.com/checks/${encodeURIComponent(check.name)}`,
+				})),
+			},
+		};
+	}
+
+	private freshness(repo: FakeRepo, item: FakeItem) {
+		const id = `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`;
+		if (item.kind === "issue") return { __typename: "Issue", id, updatedAt: item.updatedAt };
+		return {
+			__typename: "PullRequest",
+			id,
+			updatedAt: item.updatedAt,
+			headRefOid: item.head ?? "",
+			mergeable: item.mergeable ?? "MERGEABLE",
+			commits: { nodes: [{ commit: { statusCheckRollup: this.rollup(item) } }] },
+		};
+	}
+
+	private gqlItem(repo: FakeRepo, item: FakeItem) {
+		const common = {
+			__typename: item.kind === "pull" ? "PullRequest" : "Issue",
+			id: `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`,
+			number: item.number,
+			title: item.title,
+			url: `https://github.com/${repo.name}/${item.kind === "pull" ? "pull" : "issues"}/${item.number}`,
+			updatedAt: item.updatedAt,
+			repository: { nameWithOwner: repo.name },
+			author: { login: "octocat", avatarUrl: "https://avatars.example/octocat" },
+			labels: { nodes: [] },
+			assignees: { nodes: [] },
+			comments: { totalCount: 0 },
+			reactions: { totalCount: 0 },
+		};
+		if (item.kind === "issue") {
+			return {
+				...common,
+				issueState: item.state === "closed" ? "CLOSED" : "OPEN",
+				stateReason: item.state === "closed" ? "COMPLETED" : null,
+			};
+		}
+		return {
+			...common,
+			pullState: item.state === "merged" ? "MERGED" : item.state === "closed" ? "CLOSED" : "OPEN",
+			isDraft: item.draft ?? false,
+			mergeable: item.mergeable ?? "MERGEABLE",
+			reviewDecision: item.reviewDecision ?? null,
+			headRefOid: item.head ?? "",
+			latestReviews: {
+				nodes: (item.reviews ?? []).map((review) => ({
+					state: review.state,
+					author: { login: review.login, avatarUrl: `https://avatars.example/${review.login}` },
+				})),
+			},
+			reviewRequests: { nodes: [] },
+			closingIssuesReferences: {
+				nodes: (item.closes ?? []).map((number) => ({
+					number,
+					title: this.items.get(`${repo.id}#${number}`)?.title ?? "",
+					url: `https://github.com/${repo.name}/issues/${number}`,
+					issueState: "OPEN",
+					repository: { nameWithOwner: repo.name },
+				})),
+			},
+			commits: { nodes: [{ commit: { statusCheckRollup: this.rollup(item) } }] },
+		};
+	}
+
+	private restIssue(repo: FakeRepo, item: FakeItem) {
+		return {
+			number: item.number,
+			title: item.title,
+			state: item.state === "open" || !item.state ? "open" : "closed",
+			html_url: `https://github.com/${repo.name}/${item.kind === "pull" ? "pull" : "issues"}/${item.number}`,
+			repository_url: `https://api.github.com/repos/${repo.name}`,
+			updated_at: item.updatedAt,
+			node_id: `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`,
+			comments: 0,
+			labels: [],
+			assignees: [],
+			user: null,
+			...(item.kind === "pull"
+				? { pull_request: { merged_at: item.state === "merged" ? item.updatedAt : null } }
+				: {}),
+		};
+	}
+
+	private restPull(repo: FakeRepo, item: FakeItem) {
+		return {
+			...this.restIssue(repo, item),
+			draft: item.draft ?? false,
+			head: { sha: item.head ?? "" },
+			mergeable: { MERGEABLE: true, CONFLICTING: false, UNKNOWN: null }[
+				item.mergeable ?? "MERGEABLE"
+			],
+			requested_reviewers: [],
+		};
+	}
+	/** GraphQL for private issues, gated like REST. */
+	private privateRepoFields(repo: string, query: string, auth: string) {
+		const fields: Record<string, unknown> = {};
+		let found = false;
+		for (const [, alias, number] of query.matchAll(
+			/(i\d+): issueOrPullRequest\(number: (\d+)\)/g,
+		)) {
+			const issue = this.privateIssue(repo, Number(number), auth);
+			found ||= Boolean(issue);
+			fields[alias ?? ""] = issue
+				? this.gqlItem(
+						{ id: 0, name: repo },
+						{
+							number: issue.number,
+							kind: "issue",
+							title: issue.title,
+							updatedAt: issue.updated_at,
+						},
+					)
+				: null;
+		}
+		return found ? fields : null;
 	}
 
 	private accessToken(params: URLSearchParams): Response {

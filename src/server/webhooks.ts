@@ -1,6 +1,6 @@
 import { forgeByName } from "./forges/index.ts";
 import { log } from "./log.ts";
-import { repos } from "./namespaces.ts";
+import { repoObject, repoObjectName } from "./routing.ts";
 
 /** `POST /webhooks/:forge`: the adapter verifies and normalises, Repo ingests. */
 export async function handleWebhook(
@@ -33,12 +33,14 @@ export async function handleWebhook(
 		delivery: delivery.id,
 		event: delivery.event,
 		action: delivery.action,
-		repo: delivery.repoKey,
+		repo: delivery.repo.name,
+		repoId: repoObjectName(delivery.repo),
 	};
 	logger.info("webhook.verified", { ...context, cards: delivery.cards.length });
 
 	try {
-		const outcome = await repos(env).getByName(delivery.repoKey).ingest(delivery);
+		// Deliveries carry the repository id, so renames never split the cache.
+		const outcome = await repoObject(env, delivery.repo).ingest(delivery);
 		return Response.json(outcome, { status: 202 });
 	} catch (error) {
 		logger.error("webhook.failed", { ...context, error });

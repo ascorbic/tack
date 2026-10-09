@@ -2,6 +2,7 @@ import type { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { fakeCard } from "../src/server/forges/fake.ts";
 import { sign, verifySignature } from "../src/server/forges/hmac.ts";
+import { repoObjectName } from "../src/server/routing.ts";
 import { repoStub, startWorker } from "./harness.ts";
 
 let mf: Miniflare;
@@ -11,11 +12,12 @@ beforeAll(() => {
 afterAll(() => mf.dispose());
 
 const REPO = "github.com/acme/widgets";
+const REPO_OBJECT = repoObjectName({ host: "github.com", id: "1001" });
 
 function issuePayload(overrides: Record<string, unknown> = {}) {
 	return {
 		action: "edited",
-		repository: { full_name: "Acme/Widgets" },
+		repository: { id: 1001, full_name: "Acme/Widgets" },
 		issue: {
 			number: 7,
 			title: "Widgets wobble",
@@ -75,7 +77,7 @@ describe("webhook ingest", () => {
 			updated: [`${REPO}#7`],
 		});
 
-		const card = await (await repoStub(mf, REPO)).getCard(`${REPO}#7`);
+		const card = await (await repoStub(mf, REPO_OBJECT)).getCard(`${REPO}#7`);
 		expect(card).toMatchObject({ title: "Widgets wobble", state: "open", kind: "issue" });
 	});
 
@@ -92,7 +94,7 @@ describe("webhook ingest", () => {
 			issuePayload({ title: "Older", updated_at: "2026-10-02T00:00:00Z" }),
 		);
 		expect(await stale.json()).toMatchObject({ stale: [`${REPO}#7`], updated: [] });
-		const card = await (await repoStub(mf, REPO)).getCard(`${REPO}#7`);
+		const card = await (await repoStub(mf, REPO_OBJECT)).getCard(`${REPO}#7`);
 		expect(card?.title).toBe("Newer");
 	});
 
@@ -100,7 +102,7 @@ describe("webhook ingest", () => {
 		await deliver(
 			{
 				action: "closed",
-				repository: { full_name: "acme/widgets" },
+				repository: { id: 1001, full_name: "acme/widgets" },
 				pull_request: {
 					number: 8,
 					title: "Fix wobble",
@@ -113,7 +115,7 @@ describe("webhook ingest", () => {
 			},
 			{ event: "pull_request" },
 		);
-		const card = await (await repoStub(mf, REPO)).getCard(`${REPO}#8`);
+		const card = await (await repoStub(mf, REPO_OBJECT)).getCard(`${REPO}#8`);
 		expect(card).toMatchObject({ kind: "pull", state: "merged" });
 	});
 });
@@ -121,9 +123,15 @@ describe("webhook ingest", () => {
 describe("board subscriptions", () => {
 	it("serves cards from any forge and fans updates out to subscribed boards", async () => {
 		const key = "fake.tack/stress/cards#2";
-		const repo = await repoStub(mf, "fake.tack/stress/cards");
+		const identity = {
+			forge: "fake",
+			host: "fake.tack",
+			id: "stress/cards",
+			name: "stress/cards",
+		} as const;
+		const repo = await repoStub(mf, repoObjectName(identity));
 
-		const [card] = await repo.subscribe("board-a", [key]);
+		const [card] = await repo.subscribe("board-a", [key], identity);
 		expect(card).toMatchObject({ key, forge: "fake", state: "closed" });
 		expect(await repo.subscribers(key)).toEqual(["board-a"]);
 
@@ -136,7 +144,7 @@ describe("board subscriptions", () => {
 			id: crypto.randomUUID(),
 			event: "test",
 			action: null,
-			repoKey: "fake.tack/stress/cards",
+			repo: identity,
 			payload: "{}",
 			cards: [reopened],
 		});
