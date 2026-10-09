@@ -282,7 +282,9 @@ describe("blocked-by", () => {
 		});
 		expect(change?.effect).toEqual({ kind: "connect", shape: "conn" });
 		// The other way round is a different link.
-		expect(stageBlockedBy(doc, { ...link, blocked: link.blocker, blocker: link.blocked }, PRIYA)).not.toBe(id);
+		expect(
+			stageBlockedBy(doc, { ...link, blocked: link.blocker, blocker: link.blocked }, PRIYA),
+		).not.toBe(id);
 	});
 });
 
@@ -292,7 +294,12 @@ describe("triage", () => {
 
 	it("stages one change per item", () => {
 		const { doc } = board();
-		stageTriage(doc, [{ key: A, shape: "c1" }, { key: B }], { kind: "item.milestone", milestone: "5.0" }, PRIYA);
+		stageTriage(
+			doc,
+			[{ key: A, shape: "c1" }, { key: B }],
+			{ kind: "item.milestone", milestone: "5.0" },
+			PRIYA,
+		);
 		expect(ops(doc)).toEqual([
 			{ kind: "item.milestone", target: { key: A }, milestone: "5.0" },
 			{ kind: "item.milestone", target: { key: B }, milestone: "5.0" },
@@ -302,8 +309,18 @@ describe("triage", () => {
 
 	it("replaces your own staged milestone or state rather than adding another", () => {
 		const { doc } = board();
-		stageTriage(doc, [{ key: A }], { kind: "item.state", state: "closed", reason: "not_planned" }, PRIYA);
-		stageTriage(doc, [{ key: A }], { kind: "item.state", state: "closed", reason: "completed" }, PRIYA);
+		stageTriage(
+			doc,
+			[{ key: A }],
+			{ kind: "item.state", state: "closed", reason: "not_planned" },
+			PRIYA,
+		);
+		stageTriage(
+			doc,
+			[{ key: A }],
+			{ kind: "item.state", state: "closed", reason: "completed" },
+			PRIYA,
+		);
 		expect(ops(doc)).toEqual([
 			{ kind: "item.state", target: { key: A }, state: "closed", reason: "completed" },
 		]);
@@ -315,7 +332,12 @@ describe("triage", () => {
 	it("merges label edits, and unstages edits that cancel out", () => {
 		const { doc } = board();
 		stageTriage(doc, [{ key: A }], { kind: "item.labels", add: ["bug", "docs"] }, PRIYA);
-		stageTriage(doc, [{ key: A }], { kind: "item.labels", add: ["breaking"], remove: ["docs"] }, PRIYA);
+		stageTriage(
+			doc,
+			[{ key: A }],
+			{ kind: "item.labels", add: ["breaking"], remove: ["docs"] },
+			PRIYA,
+		);
 		expect(ops(doc)).toEqual([
 			{ kind: "item.labels", target: { key: A }, add: ["bug", "breaking"], remove: ["docs"] },
 		]);
@@ -334,8 +356,15 @@ describe("triage", () => {
 
 	it("leaves pushed changes alone", () => {
 		const { doc } = board();
-		const [id] = stageTriage(doc, [{ key: A }], { kind: "item.milestone", milestone: "5.0" }, PRIYA);
-		changesMap(doc).get(id as string)?.set("status", "sending");
+		const [id] = stageTriage(
+			doc,
+			[{ key: A }],
+			{ kind: "item.milestone", milestone: "5.0" },
+			PRIYA,
+		);
+		changesMap(doc)
+			.get(id as string)
+			?.set("status", "sending");
 		stageTriage(doc, [{ key: A }], { kind: "item.milestone", milestone: null }, PRIYA);
 		expect(ops(doc)).toHaveLength(2);
 		unstageChanges(doc, [id as string]);
@@ -347,9 +376,24 @@ describe("triage", () => {
 			{ key: A, names: ["bug", "docs"] },
 			{ key: B, names: ["docs"] },
 		];
-		expect(presenceOf(items.map((i) => i.names), "docs")).toBe("all");
-		expect(presenceOf(items.map((i) => i.names), "bug")).toBe("some");
-		expect(presenceOf(items.map((i) => i.names), "provider")).toBe("none");
+		expect(
+			presenceOf(
+				items.map((i) => i.names),
+				"docs",
+			),
+		).toBe("all");
+		expect(
+			presenceOf(
+				items.map((i) => i.names),
+				"bug",
+			),
+		).toBe("some");
+		expect(
+			presenceOf(
+				items.map((i) => i.names),
+				"provider",
+			),
+		).toBe("none");
 		const chosen = new Map([
 			["bug", "some" as const],
 			["docs", "none" as const],

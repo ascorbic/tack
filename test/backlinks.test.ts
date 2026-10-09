@@ -31,7 +31,9 @@ describe("snapshot audiences", () => {
 	});
 
 	it("groups items that can share a snapshot", () => {
-		const groups = groupByAudience([site, secret, board[2], pub("github.com/x/y#9")].flatMap((i) => (i ? [i] : [])));
+		const groups = groupByAudience(
+			[site, secret, board[2], pub("github.com/x/y#9")].flatMap((i) => (i ? [i] : [])),
+		);
 		expect([...groups.keys()]).toEqual([PUBLIC_AUDIENCE, "github.com/acme/secret"]);
 		expect(groups.get(PUBLIC_AUDIENCE)).toHaveLength(2);
 	});
