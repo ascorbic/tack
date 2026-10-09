@@ -103,7 +103,7 @@ interface ActionBarProps {
 	sizeOf: (id: string) => Size | undefined;
 }
 
-interface Action {
+export interface Action {
 	id: ActionCommand;
 	label: string;
 	icon: ReactNode;
@@ -335,12 +335,20 @@ export function ActionBar(props: ActionBarProps) {
 						repos={repos}
 						metas={metas}
 						onStage={(edits) => {
-							const kind = open === "labels" ? "item.labels" : "item.assignees";
-							const shapeOf = new Map(targets.map((t) => [t.key, t.shape]));
+							const labels = open === "labels";
+							const kind = labels ? "item.labels" : "item.assignees";
+							const byKey = new Map(targets.map((t) => [t.key, t]));
 							stageSetEdits(
 								doc,
 								kind,
-								edits.map((e) => ({ ...e, shape: shapeOf.get(e.key) })),
+								edits.map((e) => {
+									const card = byKey.get(e.key)?.card;
+									const current = labels
+										? card?.labels.map((l) => l.name)
+										: card?.assignees.map((a) => a.login);
+									return { ...e, shape: byKey.get(e.key)?.shape, current };
+								}),
+
 								stager,
 							);
 							close();
@@ -480,7 +488,7 @@ export function ActionBar(props: ActionBarProps) {
 	);
 }
 
-function ActionButton({
+export function ActionButton({
 	action,
 	pressed,
 	onClick,

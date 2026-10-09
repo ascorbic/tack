@@ -48,6 +48,7 @@ export function BlockedByAction({
 	toasts,
 	history,
 	requests,
+	defaultOpen = false,
 }: {
 	doc: Y.Doc;
 	connector: string;
@@ -55,8 +56,10 @@ export function BlockedByAction({
 	toasts: ToastStore;
 	history: History;
 	requests: ActionRequests;
+	/** Start open, for the gallery. */
+	defaultOpen?: boolean;
 }) {
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useState(defaultOpen);
 	const [swapped, setSwapped] = useState(false);
 	// Card kinds arrive asynchronously: re-read the ends as they do.
 	const raw = blockEnds(doc, connector, () => "issue");

@@ -33,6 +33,7 @@ export function Popover({
 	const ref = useRef<HTMLDivElement>(null);
 	const [side, setSide] = useState<"below" | "above">(prefer);
 	const [nudge, setNudge] = useState(0);
+	const [room, setRoom] = useState<number | null>(null);
 	const close = useRef(onClose);
 	close.current = onClose;
 
@@ -43,12 +44,18 @@ export function Popover({
 		if (!el || !bar) return;
 		const box = el.getBoundingClientRect();
 		const anchor = bar.getBoundingClientRect();
+		// Off screen (in a scrolling gallery, say): leave it be.
+		if (anchor.top > window.innerHeight || anchor.bottom < 0) return;
 		// Leave room for the tool dock along the bottom of the canvas.
 		const below = window.innerHeight - DOCK - anchor.bottom;
 		const above = anchor.top - HEADER;
 		const fits = (room: number) => room >= box.height + MARGIN;
-		if (prefer === "below" && !fits(below) && above > below) setSide("above");
-		if (prefer === "above" && !fits(above) && below > above) setSide("below");
+		let chosen = prefer;
+		if (prefer === "below" && !fits(below) && above > below) chosen = "above";
+		if (prefer === "above" && !fits(above) && below > above) chosen = "below";
+		setSide(chosen);
+		// Taller than the room it has? Then it scrolls, rather than running off screen.
+		setRoom(Math.max(180, (chosen === "above" ? above : below) - MARGIN));
 		if (box.left < MARGIN) setNudge(MARGIN - box.left);
 		else if (box.right > window.innerWidth - MARGIN)
 			setNudge(window.innerWidth - MARGIN - box.right);
@@ -78,7 +85,12 @@ export function Popover({
 			className={`action-popover nodrag nopan nowheel${className ? ` ${className}` : ""}`}
 			data-side={side}
 			data-wide={wide || undefined}
-			style={{ "--nudge": `${nudge}px` } as React.CSSProperties}
+			style={
+				{
+					"--nudge": `${nudge}px`,
+					...(room ? { "--room": `${room}px` } : {}),
+				} as React.CSSProperties
+			}
 			onKeyDown={(event) => {
 				if (event.key === "Escape") {
 					event.stopPropagation();

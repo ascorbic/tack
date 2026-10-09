@@ -120,10 +120,13 @@ export function RepoPicker({
 	const typed = parseRepoInput(query, host);
 	const words = query.trim().toLowerCase();
 	const shown = useMemo(() => {
-		const matches = options.filter((o) => !words || repoName(o.repo).includes(words));
-		if (typed && !options.some((o) => o.repo === typed)) matches.push({ repo: typed });
+		// A repository typed earlier stays in the list once chosen.
+		const all =
+			value && !options.some((o) => o.repo === value) ? [...options, { repo: value }] : options;
+		const matches = all.filter((o) => !words || repoName(o.repo).includes(words));
+		if (typed && !all.some((o) => o.repo === typed)) matches.push({ repo: typed });
 		return matches;
-	}, [options, words, typed]);
+	}, [options, words, typed, value]);
 	const { active, setActive, onKey } = useActive(shown.length);
 
 	const choose = (repo: string) => {

@@ -151,7 +151,7 @@
 	left: 50%;
 	z-index: 5;
 	width: 320px;
-	max-height: min(540px, 72vh);
+	max-height: min(540px, var(--room, 72vh));
 	overflow: auto;
 	overscroll-behavior: contain;
 	padding: 14px;
@@ -564,9 +564,14 @@
 	align-items: center;
 	justify-content: space-between;
 	gap: 10px;
+	position: sticky;
+	bottom: -14px;
+	z-index: 1;
 	margin: 14px -14px -14px;
 	padding: 10px 14px;
 	border-top: 1px solid var(--line);
+	border-radius: 0 0 14px 14px;
+	background: var(--chrome-strong);
 }
 
 .action-summary {
@@ -863,7 +868,7 @@
 	display: grid;
 	place-items: center;
 	margin: 0;
-	aspect-ratio: 16 / 10;
+	aspect-ratio: 16 / 9;
 	overflow: hidden;
 	border: 1px solid var(--line);
 	border-radius: 10px;
@@ -1013,4 +1018,38 @@
 	.selection-action:hover:not(:disabled) .action-icon {
 		transform: none;
 	}
+}
+
+/* The gallery (/play/actions): panels shown open, without a bar to hang from. */
+.action-popover[data-static] {
+	position: relative;
+	top: auto;
+	left: auto;
+	z-index: auto;
+	max-height: none;
+	translate: none;
+}
+
+.actions-gallery .gallery-grid.actions-panels {
+	grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
+	align-items: start;
+}
+
+.actions-gallery .actions-bars figure {
+	display: grid;
+	justify-items: start;
+	gap: 10px;
+}
+
+.gallery-blocked {
+	position: relative;
+	min-height: 400px;
+}
+
+.gallery-blocked .connector-toolbar-inner {
+	position: relative;
+	bottom: auto;
+	width: max-content;
+	translate: none;
+	animation: none;
 }

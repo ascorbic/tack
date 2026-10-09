@@ -42,6 +42,7 @@ export function BacklinkPanel({
 	sizeOf,
 	isPublicItem,
 	onStage,
+	draw,
 }: {
 	cards: SelectedCard[];
 	/** Every card on the board, with where it is. */
@@ -52,6 +53,8 @@ export function BacklinkPanel({
 	sizeOf: (id: string) => { width: number; height: number } | undefined;
 	/** Whether a linked item (on a pull request card) is from a public repository. */
 	isPublicItem: (key: string) => boolean;
+	/** Draw an audience's snapshot some other way (the gallery does). */
+	draw?: (audience: string) => Promise<Blob>;
 	/** Upload the snapshots and stage the comments. Throws to show an error. */
 	onStage: (
 		groups: { items: SelectedCard[]; snapshot: Blob | null }[],
@@ -89,19 +92,21 @@ export function BacklinkPanel({
 			await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 60)));
 			for (const [i, group] of groups.entries()) {
 				if (!live) return;
-				const element = flow();
 				let result: Render;
 				try {
-					if (!element) throw new Error("The board isn’t showing");
-					const blob = await renderSnapshot({
-						flow: element,
-						region,
-						hidden: group.hidden,
-						sizeOf,
-						hideLinked: (key) =>
-							!isPublicItem(key) &&
-							(group.audience === PUBLIC_AUDIENCE || repoKeyOf(key) !== group.audience),
-					});
+					const element = flow();
+					if (!draw && !element) throw new Error("The board isn’t showing");
+					const blob = draw
+						? await draw(group.audience)
+						: await renderSnapshot({
+								flow: element as HTMLElement,
+								region,
+								hidden: group.hidden,
+								sizeOf,
+								hideLinked: (key) =>
+									!isPublicItem(key) &&
+									(group.audience === PUBLIC_AUDIENCE || repoKeyOf(key) !== group.audience),
+							});
 					const url = URL.createObjectURL(blob);
 					urls.current.push(url);
 					result = { status: "ready", blob, url };
