@@ -210,6 +210,33 @@ export const SCENARIOS: Record<string, Scenario> = {
 			});
 		},
 	},
+	arrange: {
+		name: "Arrange",
+		description:
+			"A messy cluster to tidy: drag to snap, select a few to align or tidy up, then copy, paste and undo.",
+		seed(doc) {
+			const cards = PLANNING_CARDS.slice(0, 4);
+			for (const card of cards) cardStore.set(card);
+			doc.transact(() => {
+				cards.forEach((card, i) => {
+					addCard(doc, card.key, { x: 60 + i * 300 + ((i * 37) % 50), y: 60 + ((i * 53) % 70) });
+				});
+				const notes = [
+					["Ship the Astro adapter first", "yellow"],
+					["Docs before features", "pink"],
+					["Who owns the CDN list?", "blue"],
+					["Benchmark AVIF vs WebP", "green"],
+					["Cut scope for 5.0", "purple"],
+					["Ask Kai about the Vercel example", "yellow"],
+				] as const;
+				notes.forEach(([note, color], i) => {
+					const x = 80 + (i % 3) * 215 + ((i * 29) % 40);
+					const y = 340 + Math.floor(i / 3) * 210 + ((i * 41) % 36);
+					sticky(doc, note, color, x, y);
+				});
+			});
+		},
+	},
 	empty: {
 		name: "Empty",
 		description: "A brand new board.",

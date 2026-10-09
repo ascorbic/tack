@@ -82,6 +82,21 @@ export class SimulatedBoard {
 			.map(([id]) => id);
 	}
 
+	/**
+	 * The shape this browser made most recently (not a simulated person), to
+	 * show that undo leaves other people's work on it alone.
+	 */
+	lastLocalShape(): string | null {
+		let latest: { id: string; clock: number } | null = null;
+		for (const [id, shape] of shapesMap(this.doc)) {
+			const item = shape._item;
+			if (item?.id.client === this.doc.clientID && (!latest || item.id.clock > latest.clock)) {
+				latest = { id, clock: item.id.clock };
+			}
+		}
+		return latest?.id ?? null;
+	}
+
 	shapePosition(id: string): Position | null {
 		const shape = shapesMap(this.doc).get(id);
 		if (!shape) return null;

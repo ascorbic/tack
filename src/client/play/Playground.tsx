@@ -1,6 +1,7 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
 import type { Card, PullDetails } from "../../shared/cards.ts";
+import { shapesMap } from "../../shared/shapes.ts";
 import { Board } from "../Board.tsx";
 import { cardStore } from "../cardStore.ts";
 import type { Status } from "../activity.ts";
@@ -185,6 +186,16 @@ export default function Playground() {
 				}
 			});
 		},
+		editMine: () => {
+			const id = sim.lastLocalShape();
+			if (!id) return;
+			if (shapesMap(sim.doc).get(id)?.get("type") === "sticky") {
+				void someone().type(id, "and I added this");
+			} else {
+				const from = sim.shapePosition(id);
+				if (from) void someone().drag(id, { x: from.x + 160, y: from.y + 60 });
+			}
+		},
 		addSticky: () => {
 			void someone().addSticky(
 				{ x: 200 + Math.random() * 700, y: 120 + Math.random() * 400 },
@@ -302,7 +313,13 @@ export default function Playground() {
 							<button type="button" onClick={actions.brainstorm}>
 								Brainstorm
 							</button>
+							<button type="button" onClick={actions.editMine}>
+								Edit my last shape
+							</button>
 						</div>
+						<p className="play-hint">
+							Make something, have someone edit it, then undo: their work stays.
+						</p>
 					</div>
 
 					<div className="play-section">
