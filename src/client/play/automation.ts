@@ -64,6 +64,21 @@ export class SimulatedAutomation {
 		inboxStore.reset();
 		const previous = inboxStore.channel;
 		inboxStore.channel = { send: (request) => this.receive(request) };
+		const stop = this.start();
+		// Trays that mounted first asked before anyone was listening.
+		inboxStore.rewatch();
+		return () => {
+			stop();
+			inboxStore.channel = previous;
+		};
+	}
+
+	/**
+	 * Search again when someone edits a query, without taking over the inbox
+	 * store's channel (for a page with several boards, which routes requests
+	 * to each with `receive`).
+	 */
+	start(): () => void {
 		this.queries = this.readQueries();
 		const shapes = shapesMap(this.doc);
 		const observer = () => {
@@ -72,11 +87,8 @@ export class SimulatedAutomation {
 			this.queries = next;
 		};
 		shapes.observeDeep(observer);
-		// Trays that mounted first asked before anyone was listening.
-		inboxStore.rewatch();
 		return () => {
 			shapes.unobserveDeep(observer);
-			inboxStore.channel = previous;
 			for (const timer of this.timers) clearTimeout(timer);
 			this.timers.clear();
 		};
@@ -97,10 +109,12 @@ export class SimulatedAutomation {
 		return { kind: "search", total: matches.length, items: matches.slice(0, limit) };
 	}
 
-	private receive(request: WidgetRequest | InboxPreviewRequest): void {
+	/** A request from the inbox store. Only this board's inboxes are answered. */
+	receive(request: WidgetRequest | InboxPreviewRequest): void {
 		switch (request.type) {
 			case "widget-watch":
 				for (const id of request.ids) {
+					if (!shapesMap(this.doc).has(id)) continue;
 					this.watched.add(id);
 					this.respondLater(id);
 				}
@@ -113,6 +127,7 @@ export class SimulatedAutomation {
 				return;
 			case "inbox-preview": {
 				const { id, query } = request;
+				if (!shapesMap(this.doc).has(id)) return;
 				this.later(() => {
 					const result = queryRepos(query).length
 						? this.search(query)
@@ -140,14 +155,26 @@ export class SimulatedAutomation {
 		this.later(() => this.respond(id), ms);
 	}
 
+	/** Inboxes never answered, to show them loading (the gallery). */
+	readonly held = new Set<string>();
+
 	private respond(id: string): void {
-		if (!this.watched.has(id)) return;
+		if (!this.watched.has(id) || this.held.has(id)) return;
 		const query = inboxSections(this.doc).get(id);
 		if (!query) return;
 		this.send({
 			type: "widget-data",
 			id,
-			results: { [INBOX_QUERY]: this.search(query) },
+			results: {
+				[INBOX_QUERY]:
+					queryRepos(query).length > 0
+						? this.search(query)
+						: {
+								kind: "error",
+								reason: "invalid",
+								message: "Add repo:owner/name to search, so Tack knows where to look.",
+							},
+			},
 			at: new Date().toISOString(),
 		});
 	}

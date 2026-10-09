@@ -88,16 +88,17 @@ export function InboxLayer(props: InboxLayerProps) {
 	);
 }
 
-interface TrayProps extends InboxLayerProps {
+export interface TrayProps extends Omit<InboxLayerProps, "nodes"> {
 	id: string;
 	shape: ShapeProps;
-	x: number;
-	y: number;
+	/** The section's top-right corner, on the board. Without it, the tray sits in the page (the gallery). */
+	x?: number;
+	y?: number;
 	editing: boolean;
 	collapsed: boolean;
 }
 
-const InboxTray = memo(function InboxTray({
+export const InboxTray = memo(function InboxTray({
 	id,
 	shape,
 	x,
@@ -111,6 +112,8 @@ const InboxTray = memo(function InboxTray({
 	sizeOf,
 	onPlaced,
 }: TrayProps) {
+	const isStatic = x === undefined || y === undefined;
+	const anchor = isStatic ? undefined : { transform: `translate(${x + GAP}px, ${y}px)` };
 	const tray = useTray(doc, id, shape);
 	const refreshing = useRefreshing(id);
 	const [showDismissed, setShowDismissed] = useState(false);
@@ -125,7 +128,7 @@ const InboxTray = memo(function InboxTray({
 		if (!spot) {
 			const shapes = readShapes(doc);
 			spot = spotInSection(shapes, id, PLACED_CARD, sizeOf) ??
-				spotBelow(shapes, id, PLACED_CARD, sizeOf) ?? { x: x + GAP, y };
+				spotBelow(shapes, id, PLACED_CARD, sizeOf) ?? { x: (x ?? 0) + GAP, y: y ?? 0 };
 		}
 		const shapeId = sortFromInbox(doc, id, card.key, spot, LOCAL_ORIGIN);
 		focusWhenMounted(shapeId);
@@ -155,7 +158,7 @@ const InboxTray = memo(function InboxTray({
 
 	if (collapsed && !editing) {
 		return (
-			<div className="inbox-anchor" style={{ transform: `translate(${x + GAP}px, ${y}px)` }}>
+			<div className="inbox-anchor" data-static={isStatic || undefined} style={anchor}>
 				<button
 					type="button"
 					className="inbox-pill nodrag nopan"
@@ -174,7 +177,7 @@ const InboxTray = memo(function InboxTray({
 	}
 
 	return (
-		<div className="inbox-anchor" style={{ transform: `translate(${x + GAP}px, ${y}px)` }}>
+		<div className="inbox-anchor" data-static={isStatic || undefined} style={anchor}>
 			<aside
 				className="inbox-tray nodrag nopan nowheel"
 				data-state={state}

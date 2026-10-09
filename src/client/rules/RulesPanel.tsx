@@ -176,6 +176,7 @@ export function RulesPanel({
 	onReveal,
 	onUndo,
 	toasts,
+	initiallyComposing = false,
 }: {
 	doc: Y.Doc;
 	user: RuleAuthor;
@@ -185,9 +186,11 @@ export function RulesPanel({
 	/** Undo this person's last edit (deleting a rule is one). */
 	onUndo: () => void;
 	toasts: ToastStore;
+	/** Open with the composer showing (the gallery). */
+	initiallyComposing?: boolean;
 }) {
 	const { rules, log } = useRules(doc);
-	const [composing, setComposing] = useState(false);
+	const [composing, setComposing] = useState(initiallyComposing);
 	const now = useNow();
 	const title = sectionTitle(doc);
 	const recent = [...log].reverse().slice(0, 30);
@@ -533,7 +536,10 @@ function Composer({
 				{problem ??
 					(() => {
 						const { when, does } = describeRule({ trigger, action }, title);
-						return `${when}, ${does}.`;
+						// The query is right above.
+						const short =
+							trigger.kind === "matches" ? "When an item matching this search appears" : when;
+						return `${short}, ${does}.`;
 					})()}
 			</p>
 			<footer>

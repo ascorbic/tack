@@ -61,7 +61,7 @@ export function InboxEditor({
 	useEffect(() => {
 		const el = input.current;
 		if (!el) return;
-		el.focus();
+		el.focus({ preventScroll: true });
 		el.setSelectionRange(el.value.length, el.value.length);
 	}, []);
 

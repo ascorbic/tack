@@ -18,6 +18,15 @@
 	scale: var(--unzoom, 1);
 }
 
+/* In the gallery: in the page, not on a board. */
+.inbox-anchor[data-static] {
+	position: relative;
+}
+
+.inbox-anchor[data-static] > * {
+	scale: 1;
+}
+
 .auto-icon {
 	flex: none;
 	display: block;
@@ -930,4 +939,42 @@
 			0 0 0 2px transparent,
 			0 0 0 22px transparent;
 	}
+}
+
+/* The gallery (/play/inbox) ---------------------------------------------- */
+
+.inbox-gallery .inbox-gallery-trays {
+	grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+}
+
+.inbox-gallery-stage {
+	padding-left: 16px;
+}
+
+.inbox-gallery .inbox-gallery-cards {
+	grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+}
+
+.inbox-gallery-card {
+	position: relative;
+	width: 252px;
+	margin-top: 12px;
+}
+
+.inbox-gallery-card:hover .card-provenance-label {
+	max-width: 160px;
+}
+
+.inbox-gallery .inbox-gallery-panels {
+	grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
+}
+
+.inbox-gallery-panel {
+	position: relative;
+	height: 600px;
+}
+
+.inbox-gallery-panel .rules-panel {
+	inset: 0;
+	width: auto;
 }
