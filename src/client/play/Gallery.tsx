@@ -29,7 +29,7 @@ import {
 	conflictToggled,
 	reviewed,
 } from "./ci.ts";
-import { GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
+import { ACCESS_GALLERY, GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
 
 const MISSING: { label: string; card: MissingCard }[] = [
 	{
@@ -47,6 +47,23 @@ const MISSING: { label: string; card: MissingCard }[] = [
 	{
 		label: "Forge unreachable",
 		card: { key: "fake.tack/acme/imagekit#77", missing: true, reason: "error" },
+	},
+];
+
+/** What viewers who can't read a repository get, and repositories nobody can read yet. */
+const PRIVATE: { label: string; card: MissingCard }[] = [
+	{
+		label: "Private reference (you can’t see the repo)",
+		card: { key: "github.com/acme/roadmap#12", missing: true, reason: "private" },
+	},
+	{
+		label: "Private repo without the app",
+		card: {
+			key: "github.com/acme/vault#7",
+			missing: true,
+			reason: "not_found",
+			installed: false,
+		},
 	},
 ];
 
@@ -270,6 +287,19 @@ export default function Gallery() {
 	const [layout, setLayout] = useState<Layout>("page");
 	const [pulls, setPulls] = useState(() => PULL_GALLERY.map((entry) => entry.card));
 	const [ciRound, setCiRound] = useState(0);
+	const [access, setAccess] = useState(() => ACCESS_GALLERY.map((entry) => entry.card));
+	const installed = access.every((card) => card.live !== false);
+
+	/** Install the app on the upstream repository (or remove it again). */
+	const toggleApp = () => {
+		setAccess((current) =>
+			current.map((card, i) => {
+				const original = ACCESS_GALLERY[i]?.card;
+				if (original?.live !== false) return card;
+				return installed ? original : { ...card, live: true, writable: true };
+			}),
+		);
+	};
 
 	const stepCi = () => {
 		setPulls((current) => current.map((card) => stepPull(card, ciRound)));
@@ -288,6 +318,7 @@ export default function Gallery() {
 		setRound(0);
 		setPulls(PULL_GALLERY.map((entry) => entry.card));
 		setCiRound(0);
+		setAccess(ACCESS_GALLERY.map((entry) => entry.card));
 	};
 
 	return (
@@ -304,6 +335,9 @@ export default function Gallery() {
 					</button>
 					<button type="button" onClick={stepCi}>
 						CI: {CI_STEPS[ciRound % CI_STEPS.length]?.label}
+					</button>
+					<button type="button" onClick={toggleApp}>
+						{installed ? "Remove the app" : "Install the app"}
 					</button>
 					<button type="button" onClick={reset}>
 						Reset
@@ -330,14 +364,14 @@ export default function Gallery() {
 			{layout === "both" ? (
 				<div className="gallery-split">
 					<div className="gallery-pane" data-theme="light">
-						<Sections cards={cards} pulls={pulls} doc={doc} drops={drops} />
+						<Sections cards={cards} pulls={pulls} access={access} doc={doc} drops={drops} />
 					</div>
 					<div className="gallery-pane" data-theme="dark">
-						<Sections cards={cards} pulls={pulls} doc={doc} drops={drops} />
+						<Sections cards={cards} pulls={pulls} access={access} doc={doc} drops={drops} />
 					</div>
 				</div>
 			) : (
-				<Sections cards={cards} pulls={pulls} doc={doc} drops={drops} />
+				<Sections cards={cards} pulls={pulls} access={access} doc={doc} drops={drops} />
 			)}
 		</div>
 	);
@@ -346,11 +380,14 @@ export default function Gallery() {
 function Sections({
 	cards,
 	pulls,
+	access,
 	doc,
 	drops,
 }: {
 	cards: Card[];
 	pulls: Card[];
+	/** Cards from repositories with and without the app (#9). */
+	access: Card[];
 	/** A scratch document, so selected sections show their colour controls. */
 	doc: Y.Doc;
 	/** How many times something has dropped into the sample sections. */
@@ -377,6 +414,24 @@ function Sections({
 						<figure key={card.key}>
 							<CardView card={card} cardKey={card.key} />
 							<figcaption>{PULL_GALLERY[i]?.label}</figcaption>
+						</figure>
+					))}
+				</div>
+			</section>
+
+			<section>
+				<h2>Repository access</h2>
+				<div className="gallery-grid">
+					{access.map((card, i) => (
+						<figure key={card.key}>
+							<CardView card={card} cardKey={card.key} />
+							<figcaption>{ACCESS_GALLERY[i]?.label}</figcaption>
+						</figure>
+					))}
+					{PRIVATE.map(({ label, card }) => (
+						<figure key={label}>
+							<CardView card={card} cardKey={card.key} />
+							<figcaption>{label}</figcaption>
 						</figure>
 					))}
 				</div>

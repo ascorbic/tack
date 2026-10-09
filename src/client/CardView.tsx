@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { type Card, type MissingCard, isMissing } from "../shared/cards.ts";
+import { cardStore } from "./cardStore.ts";
 import { CiBar, PullStatus } from "./PullStatus.tsx";
 
 const STATE_LABEL: Record<Card["state"], string> = {
@@ -137,6 +138,7 @@ function LiveCard({
 	const repo = anim("repo", "r");
 	const repoName = card.repo.split("/").at(-1);
 	const checks = card.pull?.checks;
+	const liveness = useLiveness(card.live);
 
 	if (compact) {
 		return (
@@ -146,6 +148,7 @@ function LiveCard({
 				data-ci={checks?.state}
 				data-selected={selected}
 				data-enter={enter}
+				data-live={card.live === false ? "false" : undefined}
 			>
 				{total > 0 && <span key={total} className="card-pulse" aria-hidden="true" />}
 				<span className="state-icon" key={`s${state.key}`} data-pop={state.on}>
@@ -158,7 +161,13 @@ function LiveCard({
 	}
 
 	return (
-		<article className="card" data-state={card.state} data-selected={selected} data-enter={enter}>
+		<article
+			className="card"
+			data-state={card.state}
+			data-selected={selected}
+			data-enter={enter}
+			data-live={card.live === false ? "false" : undefined}
+		>
 			{total > 0 && <span key={total} className="card-pulse" aria-hidden="true" />}
 			<div className="card-head">
 				<span className="state-icon" key={`i${state.key}`} data-pop={state.on}>
@@ -222,6 +231,7 @@ function LiveCard({
 						{card.reactions}
 					</span>
 				)}
+				{liveness && <Liveness state={liveness} repo={card.repo} />}
 			</div>
 		</article>
 	);
@@ -246,18 +256,135 @@ function LoadingCard({
 	);
 }
 
+/** Off to GitHub to install the app, and back to this board afterwards. */
+export function installUrl(): string {
+	const here = typeof location === "undefined" ? "/" : location.pathname + location.search;
+	return `/setup/install?state=${encodeURIComponent(here)}`;
+}
+
+/** `owner/repo` from a card key like `github.com/owner/repo#1`. */
+function repoOfKey(key: string): string {
+	return key
+		.split("/")
+		.slice(1)
+		.join("/")
+		.replace(/[#!]\d+$/, "");
+}
+
+/**
+ * Whether a card is live. Not live: a quiet marker, with a tooltip saying
+ * why and how to fix it. Just turned live (the app was installed): a brief
+ * "Live" that lights up and fades away.
+ */
+function useLiveness(live: boolean | undefined): "lazy" | "upgraded" | null {
+	const previous = useRef(live);
+	const [upgraded, setUpgraded] = useState(false);
+	useEffect(() => {
+		const before = previous.current;
+		previous.current = live;
+		if (before === false && live === true) setUpgraded(true);
+		if (live === false) setUpgraded(false);
+	}, [live]);
+	if (live === false) return "lazy";
+	return upgraded ? "upgraded" : null;
+}
+
+function Liveness({ state, repo }: { state: "lazy" | "upgraded"; repo: string }) {
+	if (state === "upgraded") {
+		return (
+			<span className="liveness" data-live="true" role="status">
+				<span className="liveness-dot" aria-hidden="true" />
+				Live
+			</span>
+		);
+	}
+	return (
+		<span className="liveness" data-live="false" tabIndex={0} aria-label="Not live">
+			<span className="liveness-dot" aria-hidden="true" />
+			Not live
+			<span className="liveness-tip nodrag nopan" role="tooltip">
+				<strong>Updates while the board is open</strong>
+				<span>
+					The Tack app isn’t installed on <span className="mono">{repo}</span>, so changes show up
+					within a minute or so, and Tack can’t make changes there.
+				</span>
+				<a className="liveness-install nodrag" href={installUrl()}>
+					Install the app for live updates →
+				</a>
+			</span>
+		</span>
+	);
+}
+
+function LockIcon() {
+	return (
+		<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" className="lock-icon">
+			<rect x="3" y="7" width="10" height="7" rx="1.6" />
+			<path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+		</svg>
+	);
+}
+
+/** A card from a private repository this viewer can't read: nothing but its key. */
+function PrivateCardView({ card, selected }: { card: MissingCard; selected?: boolean }) {
+	const [checking, setChecking] = useState(false);
+	useEffect(() => {
+		if (!checking) return;
+		const timer = setTimeout(() => setChecking(false), 1800);
+		return () => clearTimeout(timer);
+	}, [checking]);
+	return (
+		<article className="card missing private" data-selected={selected}>
+			<div className="card-head">
+				<LockIcon />
+				<span className="mono">{card.key.split("/").slice(1).join("/")}</span>
+				<span className="chip private-chip">Private</span>
+			</div>
+			<div className="private-bars" aria-hidden="true">
+				<span style={{ width: "82%" }} />
+				<span style={{ width: "54%" }} />
+			</div>
+			<div className="missing-message">
+				This is in a private repository you can’t see on GitHub, so its details stay hidden.
+			</div>
+			<button
+				type="button"
+				className="card-action nodrag"
+				disabled={checking}
+				onClick={() => {
+					setChecking(true);
+					cardStore.recheck();
+				}}
+			>
+				{checking ? "Checking…" : "Got access? Check again"}
+			</button>
+		</article>
+	);
+}
+
 function MissingCardView({ card, selected }: { card: MissingCard; selected?: boolean }) {
-	const message = {
-		forbidden: "You don’t have access to this repository.",
-		not_found: "This item doesn’t exist, or was deleted.",
-		unsupported: "This forge isn’t supported yet.",
-		error: "Couldn’t reach the forge. Retrying…",
-		private: "Private reference.",
-	}[card.reason];
+	if (card.reason === "private") return <PrivateCardView card={card} selected={selected} />;
+	// Couldn't read the repository, and the app isn't on it: it may be private.
+	const installable =
+		card.installed === false && (card.reason === "not_found" || card.reason === "forbidden");
+	const message = installable
+		? `Tack can’t read ${repoOfKey(card.key)}. If it’s private, install the app on it.`
+		: {
+				forbidden: "You don’t have access to this repository.",
+				not_found: "This item doesn’t exist, or was deleted.",
+				unsupported: "This forge isn’t supported yet.",
+				error: "Couldn’t reach the forge. Retrying…",
+				private: "",
+			}[card.reason];
 	return (
 		<article className="card missing" data-selected={selected}>
 			<div className="card-head mono">{card.key.split("/").slice(1).join("/")}</div>
 			<div className="missing-message">{message}</div>
+			{installable && (
+				<a className="card-action nodrag" href={installUrl()}>
+					Install the app
+				</a>
+			)}
 		</article>
 	);
 }

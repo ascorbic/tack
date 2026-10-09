@@ -4,7 +4,7 @@ import { drag, expect, nodePosition, openScenario, test } from "./fixtures.ts";
 // responds to forge events, people, tools and drags.
 
 const SCENARIOS = {
-	planning: { cards: 6, stickies: 4, texts: 0 },
+	planning: { cards: 8, stickies: 4, texts: 0 },
 	triage: { cards: 9, stickies: 0, texts: 0 },
 	stress: { cards: 500, stickies: 0, texts: 0 },
 	brainstorm: { cards: 0, stickies: 30, texts: 7 },
@@ -70,6 +70,25 @@ test.describe("forge events", () => {
 		await page.getByRole("button", { name: "Close an issue" }).click();
 		await expect(closed).toHaveCount(2);
 		await expect(closed.locator(".chip.state", { hasText: /^Closed$/ })).toHaveCount(1);
+	});
+
+	test("installing the app upgrades not-live cards in place", async ({ page }) => {
+		const lazy = page.locator(".react-flow__node-card .card[data-live=false]");
+		await expect(lazy).toHaveCount(2);
+		const marker = lazy.first().locator(".liveness[data-live=false]");
+		await expect(marker).toHaveText(/Not live/);
+		// The tooltip says why, and offers the fix.
+		await marker.focus();
+		await expect(marker.getByRole("tooltip")).toBeVisible();
+		await expect(marker.getByRole("link", { name: /Install the app/ })).toHaveAttribute(
+			"href",
+			/^\/setup\/install\?state=%2Fplay/,
+		);
+
+		await page.getByRole("button", { name: "App installed" }).click();
+		await expect(lazy).toHaveCount(0);
+		await expect(page.locator(".liveness[data-live=true]")).toHaveCount(2);
+		await expect(page.locator(".liveness[data-live=true]").first()).toHaveText("Live");
 	});
 
 	test("editing a title and labels updates the card", async ({ page }) => {

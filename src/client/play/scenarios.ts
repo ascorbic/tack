@@ -13,7 +13,7 @@ import {
 import { type NewConnector, addConnector, addSection } from "../../shared/structure.ts";
 import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
-import { fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
+import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 
 export interface Scenario {
 	name: string;
@@ -154,12 +154,18 @@ const bound = (shape: string, anchor?: { x: number; y: number }): ConnectorEnd =
 export const SCENARIOS: Record<string, Scenario> = {
 	planning: {
 		name: "Planning",
-		description: "A handful of cards and stickies, the everyday case.",
+		description:
+			"A handful of cards and stickies, the everyday case, with two not-live cards from a public upstream repo.",
 		seed(doc) {
-			for (const card of PLANNING_CARDS) cardStore.set(card);
+			// Two cards from an upstream repo without the app: not live until it's installed.
+			const upstream = ACCESS_GALLERY.slice(0, 2).map((entry) => entry.card);
+			for (const card of [...PLANNING_CARDS, ...upstream]) cardStore.set(card);
 			doc.transact(() => {
 				PLANNING_CARDS.forEach((card, i) => {
 					addCard(doc, card.key, { x: 40 + (i % 3) * 290, y: 40 + Math.floor(i / 3) * 300 });
+				});
+				upstream.forEach((card, i) => {
+					addCard(doc, card.key, { x: 40 + i * 290, y: 640 });
 				});
 				sticky(doc, "Provider docs are hard to find, I end up reading source", "yellow", 960, 40);
 				sticky(doc, "CDN detection fails for custom domains", "pink", 1150, 60);

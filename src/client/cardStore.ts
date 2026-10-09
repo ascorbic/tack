@@ -26,6 +26,13 @@ class CardStore {
 		return this.cards.get(key);
 	}
 
+	/**
+	 * Ask the board to check this viewer's access to private repositories
+	 * again (say, they were just added to one). Wired to the live board's
+	 * connection; the playground swaps in its own.
+	 */
+	recheck: () => void = () => {};
+
 	subscribe(key: string, listener: () => void): () => void {
 		let set = this.listeners.get(key);
 		if (!set) this.listeners.set(key, (set = new Set()));

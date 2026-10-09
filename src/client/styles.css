@@ -847,6 +847,222 @@ a.card-title:hover {
 	color: var(--muted);
 }
 
+/* A quiet text action on a card: "Install the app", "Check again". */
+.card-action {
+	display: inline-block;
+	margin-top: 10px;
+	padding: 0;
+	border: 0;
+	background: none;
+	font: inherit;
+	font-size: 12px;
+	font-weight: 620;
+	color: var(--accent);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.card-action:hover {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.card-action:disabled {
+	color: var(--muted);
+	cursor: default;
+	text-decoration: none;
+}
+
+/* Private references: a card-shaped absence. The lock, the key, and two
+   redacted lines where the title would be. */
+.card.private .card-head {
+	gap: 5px;
+}
+
+.lock-icon {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linejoin: round;
+}
+
+.chip.private-chip {
+	margin-left: auto;
+	background: var(--chip);
+	color: var(--muted);
+}
+
+.private-bars span {
+	display: block;
+	height: 10px;
+	margin-top: 9px;
+	border-radius: 5px;
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--skeleton) 0 5px,
+		color-mix(in srgb, var(--skeleton) 55%, transparent) 5px 8px
+	);
+}
+
+.linked-private {
+	color: var(--muted);
+	font-style: italic;
+}
+
+/* Not live: the app isn't installed on the repository, so the card is
+   checked for changes while someone's looking rather than updated as they
+   happen. A quiet hollow dot, with the why (and the fix) on hover. */
+.liveness {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin-left: auto;
+	padding: 0 7px 0 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 550;
+	line-height: 19px;
+	white-space: nowrap;
+	color: var(--muted);
+	outline: none;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out);
+}
+
+.liveness[data-live="false"] {
+	cursor: help;
+}
+
+.liveness[data-live="false"]:hover,
+.liveness[data-live="false"]:focus-visible {
+	background: var(--chip);
+	color: var(--ink-soft);
+}
+
+.liveness:focus-visible {
+	box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.liveness-dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	border: 1.5px solid currentColor;
+	box-sizing: border-box;
+}
+
+.liveness-tip {
+	position: absolute;
+	right: -6px;
+	bottom: calc(100% + 8px);
+	z-index: 10;
+	display: grid;
+	gap: 4px;
+	width: 236px;
+	padding: 10px 12px 11px;
+	border-radius: 10px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	box-shadow: var(--shadow-lifted);
+	font-size: 12px;
+	font-weight: 450;
+	line-height: 1.4;
+	white-space: normal;
+	text-align: left;
+	cursor: default;
+	opacity: 0;
+	transform: translateY(4px) scale(0.98);
+	transform-origin: bottom right;
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+/* A bridge over the gap, so the pointer can travel from the dot to the link. */
+.liveness-tip::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 100%;
+	height: 10px;
+}
+
+.liveness-tip strong {
+	font-weight: 650;
+}
+
+.liveness-tip .mono {
+	font-size: 11.5px;
+}
+
+.liveness:hover .liveness-tip,
+.liveness:focus-within .liveness-tip {
+	opacity: 1;
+	transform: none;
+	pointer-events: auto;
+	transition-delay: calc(250ms * var(--motion));
+}
+
+.liveness-install {
+	margin-top: 4px;
+	color: inherit;
+	font-weight: 650;
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--on-tooltip) 40%, transparent);
+	text-underline-offset: 3px;
+}
+
+.liveness-install:hover {
+	text-decoration-color: currentColor;
+}
+
+/* Just went live: the dot fills, glows green, and the whole thing fades. */
+.liveness[data-live="true"] {
+	background: var(--open-bg);
+	color: var(--open);
+	animation: went-live calc(2800ms * var(--motion)) var(--ease-out) forwards;
+}
+
+.liveness[data-live="true"] .liveness-dot {
+	border: 0;
+	background: var(--pass);
+	animation: live-glow calc(1100ms * var(--motion)) var(--ease-out) 2;
+}
+
+@keyframes went-live {
+	0% {
+		opacity: 0;
+		transform: scale(0.7);
+	}
+	12% {
+		opacity: 1;
+		transform: scale(1.06);
+	}
+	20% {
+		transform: none;
+	}
+	78% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+@keyframes live-glow {
+	from {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--pass) 60%, transparent);
+	}
+	to {
+		box-shadow: 0 0 0 7px color-mix(in srgb, var(--pass) 0%, transparent);
+	}
+}
+
 /* ---------------------------------------------------------------------------
    Live updates landing
    ------------------------------------------------------------------------ */

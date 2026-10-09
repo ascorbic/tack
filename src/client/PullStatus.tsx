@@ -140,7 +140,11 @@ export function PullStatus({ pull }: { pull: PullDetails }) {
 							<IssueIcon closed={issue.state !== "open"} />
 							<span className="linked-verb">Closes</span>
 							<a href={issue.url} target="_blank" rel="noreferrer" draggable={false}>
-								<span className="mono">{issue.item}</span> {issue.title}
+								<span className="mono">{issue.item}</span>{" "}
+								{issue.title || (
+									// A private repository's title, kept from viewers who may not see it.
+									<span className="linked-private">in a private repository</span>
+								)}
 							</a>
 						</li>
 					))}

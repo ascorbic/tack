@@ -3,7 +3,7 @@ import YProvider from "y-partyserver/provider";
 import type { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 import type { BoardMessage, Role } from "../shared/boards.ts";
-import type { CardMessage } from "../shared/cards.ts";
+import type { BoardRequest, CardMessage } from "../shared/cards.ts";
 import { cardStore } from "./cardStore.ts";
 
 /** Everything a board needs to render, whether live or simulated. */
@@ -52,6 +52,8 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 			provider.disconnect();
 			handlers.current.onRevoked?.();
 		});
+		cardStore.recheck = () =>
+			provider.sendMessage(JSON.stringify({ type: "recheck" } satisfies BoardRequest));
 		return { doc, provider };
 	});
 	const [synced, setSynced] = useState(false);

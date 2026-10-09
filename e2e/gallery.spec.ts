@@ -40,7 +40,7 @@ test("every card state renders", async ({ page }) => {
 	await expect(page.locator(".card.compact .ci-bar")).toHaveCount(6);
 	await expect(page.locator(".card[data-selected=true]")).toHaveCount(1);
 	await expect(page.locator(".card.loading")).toHaveCount(1);
-	await expect(page.locator(".card.missing")).toHaveCount(4);
+	await expect(page.locator(".card.missing")).toHaveCount(6);
 });
 
 test("every pull request state renders, and CI lands", async ({ page }) => {
@@ -111,6 +111,35 @@ test("every sticky, text and presence state renders", async ({ page }) => {
 	await expect(
 		section("Empty board").getByRole("heading", { name: "A blank board" }),
 	).toBeVisible();
+});
+
+test("repository access states render, and installing the app upgrades cards", async ({ page }) => {
+	const section = page
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Repository access", exact: true }) });
+	await expect(section.locator("figure")).toHaveCount(5);
+	await expect(section.locator(".card[data-live=false]")).toHaveCount(2);
+	await expect(section.locator(".liveness[data-live=false]")).toHaveCount(2);
+
+	// A private reference shows nothing but its key, and offers a recheck.
+	const placeholder = section.locator(".card.private");
+	await expect(placeholder.locator(".chip")).toHaveText("Private");
+	await expect(placeholder.locator(".card-title")).toHaveCount(0);
+	await expect(placeholder.getByRole("button", { name: "Got access? Check again" })).toBeEnabled();
+	await placeholder.getByRole("button", { name: "Got access? Check again" }).click();
+	await expect(placeholder.getByRole("button", { name: "Checking…" })).toBeDisabled();
+
+	// A private repo without the app can't be read: install it.
+	await expect(section.getByRole("link", { name: "Install the app", exact: true })).toHaveAttribute(
+		"href",
+		"/setup/install?state=%2Fplay%2Fcards",
+	);
+
+	await page.getByRole("button", { name: "Install the app" }).click();
+	await expect(section.locator(".card[data-live=false]")).toHaveCount(0);
+	await expect(section.locator(".liveness[data-live=true]")).toHaveCount(2);
+	await page.getByRole("button", { name: "Remove the app" }).click();
+	await expect(section.locator(".card[data-live=false]")).toHaveCount(2);
 });
 
 test("both themes render side by side", async ({ page }) => {

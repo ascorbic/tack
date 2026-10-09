@@ -247,6 +247,15 @@ export default function Playground() {
 				}));
 			}
 		},
+		installApp: () => {
+			// The app is installed on every repo whose cards aren't live: they upgrade in place.
+			for (const key of sim.cardKeys()) {
+				const card = cardStore.get(key);
+				if (card && !("missing" in card) && card.live === false) {
+					sim.updateCard(key, () => ({ live: true, writable: true }));
+				}
+			}
+		},
 		comments: () => {
 			const key = randomCard();
 			if (key)
@@ -458,6 +467,9 @@ export default function Playground() {
 							</button>
 							<button type="button" onClick={actions.comments}>
 								New comments
+							</button>
+							<button type="button" onClick={actions.installApp}>
+								App installed
 							</button>
 						</div>
 					</div>

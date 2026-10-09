@@ -258,3 +258,57 @@ export const PULL_GALLERY: { label: string; card: Card }[] = [
 		}),
 	},
 ];
+
+/** A public upstream repository the app isn't installed on: read lazily, not live (#9). */
+export const UPSTREAM = "lovell/sharp";
+
+/** Cards from repositories with and without the app, and private references (#9, #10). */
+export const ACCESS_GALLERY: { label: string; card: Card }[] = [
+	{
+		label: "Not live: a public repo without the app",
+		card: fixture({
+			repo: UPSTREAM,
+			item: "#4012",
+			title: "AVIF output is darker than the source on some displays",
+			labels: [LABELS.bug],
+			comments: 9,
+			reactions: 4,
+			live: false,
+			writable: false,
+			visibility: "public",
+		}),
+	},
+	{
+		label: "Not live: a pull request (no CI without the app)",
+		card: fixture({
+			repo: UPSTREAM,
+			item: "#4031",
+			kind: "pull",
+			title: "Colour-managed AVIF encoding",
+			comments: 2,
+			live: false,
+			writable: false,
+			visibility: "public",
+			pull: pullDetails({
+				detail: "basic",
+				checks: null,
+				review: null,
+				reviewers: [reviewer("kai", "requested")],
+				mergeable: "unknown",
+			}),
+		}),
+	},
+	{
+		label: "Live: a private repo with the app",
+		card: fixture({
+			repo: "acme/roadmap",
+			item: "#12",
+			title: "Plan the 5.0 announcement",
+			labels: [LABELS.docs],
+			comments: 3,
+			live: true,
+			writable: true,
+			visibility: "private",
+		}),
+	},
+];
