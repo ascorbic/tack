@@ -6,6 +6,7 @@ import { AccountMenu, SignInButton } from "./auth/AccountMenu.tsx";
 import { personUser } from "./auth/me.ts";
 import { addCard } from "./board.ts";
 import { Board } from "./Board.tsx";
+import { pushApi } from "./changes/api.ts";
 import { type BoardPageProps, BoardRoute, LegacyRedirect } from "./boards/BoardPage.tsx";
 import { HomeRoute } from "./boards/HomePage.tsx";
 import { useLiveBoard } from "./connection.ts";
@@ -32,6 +33,7 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 	// Signed in: your GitHub identity. Otherwise a remembered guest name.
 	const [guest] = useState(localUser);
 	const user = useMemo(() => (me.viewer ? personUser(me.viewer) : guest), [me.viewer, guest]);
+	const push = useMemo(() => pushApi(id), [id]);
 
 	// Stress mode: fill an empty board with synthetic cards once synced.
 	useEffect(() => {
@@ -55,6 +57,7 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 				title={title}
 				readOnly={readOnly}
 				user={user}
+				push={push}
 				account={(label) => <AccountMenu me={me} user={user} label={label} />}
 				actions={
 					<>
