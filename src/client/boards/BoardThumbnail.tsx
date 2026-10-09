@@ -42,6 +42,7 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 	const r = Math.min(width, height) * 0.06;
 	switch (kind) {
 		case "frame":
+			// Sections, tinted like the real thing.
 			return (
 				<rect
 					className="thumb-frame"
@@ -50,6 +51,10 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 					width={width}
 					height={height}
 					rx={Math.min(width, height) * 0.03}
+					style={{
+						fill: `var(--section-${tone || "grey"}-fill, var(--section-grey-fill))`,
+						stroke: `var(--section-${tone || "grey"}-edge, var(--section-grey-edge))`,
+					}}
 				/>
 			);
 		case "sticky":

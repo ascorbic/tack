@@ -93,6 +93,7 @@ function shapeBox(props: Record<string, unknown>, cardTone: (ref: string) => str
 			const { lines, ...size } = textSize(props);
 			return { kind: "text", x, y, ...(sized ?? size), tone: String(lines) };
 		}
+		case "section":
 		case "frame":
 			return sized
 				? {
@@ -104,7 +105,7 @@ function shapeBox(props: Record<string, unknown>, cardTone: (ref: string) => str
 					}
 				: null;
 		default:
-			// Shapes this version doesn't know (connectors, drawings) are left out.
+			// Connectors (and anything newer) are left out: lines don't read at this size.
 			return null;
 	}
 }

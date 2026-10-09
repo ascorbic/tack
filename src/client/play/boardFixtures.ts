@@ -67,7 +67,7 @@ export function sketch(layout: Layout, seed = 1): Thumbnail {
 		case "planning":
 			for (let column = 0; column < 3; column++) {
 				const x = column * 340;
-				shapes.push(["frame", x, 0, 300, 760, ""]);
+				shapes.push(["frame", x, 0, 300, 760, ["blue", "orange", "green"][column] ?? "grey"]);
 				shapes.push(["text", x + 20, 20, 160, 44, "1"]);
 				const count = 3 + Math.floor(rand() * 2);
 				for (let i = 0; i < count; i++) {

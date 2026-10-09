@@ -134,12 +134,19 @@ describe("boardThumbnail", () => {
 		}
 	});
 
-	it("draws frames first, and skips shapes it can't place", () => {
+	it("draws sections first, and skips shapes it can't place", () => {
 		const doc = new Y.Doc();
 		addShape(doc, "s", { type: "sticky", x: 50, y: 50, z: "a1" });
 		const frame = new Y.Map<unknown>();
 		doc.getMap("shapes").set("f", frame);
-		for (const [k, v] of Object.entries({ type: "frame", x: 0, y: 0, width: 800, height: 600 })) {
+		for (const [k, v] of Object.entries({
+			type: "section",
+			x: 0,
+			y: 0,
+			w: 800,
+			h: 600,
+			color: "blue",
+		})) {
 			frame.set(k, v);
 		}
 		const bad = new Y.Map<unknown>();
