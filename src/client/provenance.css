@@ -1,0 +1,193 @@
+/* ---------------------------------------------------------------------------
+   Provenance (#41): what brought a card, and when it no longer matches
+   ------------------------------------------------------------------------ */
+
+/* A glyph in the card's foot that opens into its label. */
+.provenance {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	height: 19px;
+	margin-left: auto;
+	padding: 0 4px;
+	border-radius: 999px;
+	color: var(--muted);
+	outline: none;
+	cursor: default;
+	transition:
+		background var(--t-base) var(--ease-out),
+		color var(--t-base) var(--ease-out),
+		padding var(--t-settle) var(--ease-settle);
+}
+
+.card-foot .provenance + .liveness {
+	margin-left: 0;
+}
+
+.provenance-icon {
+	display: block;
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: rotate var(--t-settle) var(--ease-spring);
+}
+
+.provenance-icon .fill {
+	fill: currentColor;
+	stroke: none;
+}
+
+.provenance-label {
+	display: grid;
+	grid-template-columns: 0fr;
+	opacity: 0;
+	transition:
+		grid-template-columns var(--t-settle) var(--ease-settle),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.provenance-label > span {
+	min-width: 0;
+	max-width: 168px;
+	overflow: hidden;
+	padding-left: 0;
+	font-size: 11px;
+	font-weight: 550;
+	line-height: 19px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	transition: padding var(--t-settle) var(--ease-settle);
+}
+
+.provenance:hover,
+.provenance:focus-visible,
+.card[data-selected="true"] .provenance {
+	padding: 0 7px 0 6px;
+	background: var(--chip);
+	color: var(--ink-soft);
+}
+
+.provenance:focus-visible {
+	box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.provenance:hover .provenance-label,
+.provenance:focus-visible .provenance-label,
+.card[data-selected="true"] .provenance-label {
+	grid-template-columns: 1fr;
+	opacity: 1;
+}
+
+.provenance:hover .provenance-label > span,
+.provenance:focus-visible .provenance-label > span,
+.card[data-selected="true"] .provenance-label > span {
+	padding-left: 5px;
+}
+
+/* A rule's spark turns a little as it opens. */
+.provenance[data-via="rule"]:hover .provenance-icon {
+	rotate: 45deg;
+}
+
+/* No longer matches: the card's edge goes dashed, as if it's come loose,
+   and a band along its foot says so, offering to keep or remove it. */
+.card[data-unmatched="true"] {
+	border-style: dashed;
+	border-color: color-mix(in srgb, var(--pending) 60%, var(--line-strong));
+}
+
+.card-unmatched {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 10px -14px -12px;
+	padding: 5px 6px 5px 12px;
+	border-top: 1px dashed color-mix(in srgb, var(--pending) 50%, transparent);
+	border-radius: 0 0 11px 11px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-size: 11.5px;
+	font-weight: 560;
+	animation: unmatched-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.card-unmatched svg {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.card-unmatched .strike {
+	stroke-dasharray: 17;
+	stroke-dashoffset: 17;
+	animation: unmatched-strike calc(420ms * var(--motion)) var(--ease-out) forwards;
+	animation-delay: calc(200ms * var(--motion));
+}
+
+.card-unmatched-text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	line-height: 22px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.card-unmatched-actions {
+	display: flex;
+	flex: none;
+	gap: 1px;
+}
+
+.card-unmatched button {
+	height: 22px;
+	padding: 0 7px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 650;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		scale var(--t-quick) var(--ease-out);
+}
+
+.card-unmatched button:hover {
+	background: color-mix(in srgb, currentColor 13%, transparent);
+}
+
+.card-unmatched button[data-tone="remove"]:hover {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.card-unmatched button:active {
+	scale: 0.94;
+}
+
+.card-unmatched button:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+@keyframes unmatched-in {
+	from {
+		opacity: 0;
+		translate: 0 -4px;
+	}
+}
+
+@keyframes unmatched-strike {
+	to {
+		stroke-dashoffset: 0;
+	}
+}

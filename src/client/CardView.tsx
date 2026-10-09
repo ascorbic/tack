@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { type Card, type MissingCard, isMissing } from "../shared/cards.ts";
 import { cardStore } from "./cardStore.ts";
+import { type Entrance, entranceStyle } from "./entering.ts";
+import {
+	type CardOrigin,
+	type CardUnmatched,
+	ProvenanceBadge,
+	UnmatchedBand,
+} from "./Provenance.tsx";
 import { CiBar, PullStatus } from "./PullStatus.tsx";
 
 const STATE_LABEL: Record<Card["state"], string> = {
@@ -107,12 +114,44 @@ export interface CardViewProps {
 	compact?: boolean;
 	/** Animate in, for shapes that were just added. */
 	enter?: boolean;
+	/** Fly in from elsewhere, as Expand related's cards do (see entering.ts). */
+	entrance?: Entrance | null;
+	/** What brought it to the board, if it wasn't a person (see Provenance.tsx). */
+	origin?: CardOrigin | null;
+	/** It no longer matches the inbox or rule that brought it. */
+	unmatched?: CardUnmatched | null;
 }
 
-export function CardView({ card, cardKey, selected, compact, enter }: CardViewProps) {
-	if (!card) return <LoadingCard cardKey={cardKey} selected={selected} enter={enter} />;
+/** How a card arrives: flying in, dropping in, or not at all. */
+function arrival(enter?: boolean, entrance?: Entrance | null) {
+	if (entrance) return { "data-enter": "expand", style: entranceStyle(entrance) };
+	return { "data-enter": enter };
+}
+
+export function CardView({
+	card,
+	cardKey,
+	selected,
+	compact,
+	enter,
+	entrance,
+	origin,
+	unmatched,
+}: CardViewProps) {
+	if (!card)
+		return <LoadingCard cardKey={cardKey} selected={selected} enter={enter} entrance={entrance} />;
 	if (isMissing(card)) return <MissingCardView card={card} selected={selected} />;
-	return <LiveCard card={card} selected={selected} compact={compact} enter={enter} />;
+	return (
+		<LiveCard
+			card={card}
+			selected={selected}
+			compact={compact}
+			enter={enter}
+			entrance={entrance}
+			origin={origin}
+			unmatched={unmatched}
+		/>
+	);
 }
 
 function LiveCard({
@@ -120,11 +159,17 @@ function LiveCard({
 	selected,
 	compact,
 	enter,
+	entrance,
+	origin,
+	unmatched,
 }: {
 	card: Card;
 	selected?: boolean;
 	compact?: boolean;
 	enter?: boolean;
+	entrance?: Entrance | null;
+	origin?: CardOrigin | null;
+	unmatched?: CardUnmatched | null;
 }) {
 	const { counts, newLabels, total } = useChanges(card);
 	/** Key and flag for an element that animates when `field` changes. */
@@ -147,8 +192,9 @@ function LiveCard({
 				data-state={card.state}
 				data-ci={checks?.state}
 				data-selected={selected}
-				data-enter={enter}
+				{...arrival(enter, entrance)}
 				data-live={card.live === false ? "false" : undefined}
+				data-unmatched={unmatched ? true : undefined}
 			>
 				{total > 0 && <span key={total} className="card-pulse" aria-hidden="true" />}
 				<span className="state-icon" key={`s${state.key}`} data-pop={state.on}>
@@ -165,8 +211,9 @@ function LiveCard({
 			className="card"
 			data-state={card.state}
 			data-selected={selected}
-			data-enter={enter}
+			{...arrival(enter, entrance)}
 			data-live={card.live === false ? "false" : undefined}
+			data-unmatched={unmatched ? true : undefined}
 		>
 			{total > 0 && <span key={total} className="card-pulse" aria-hidden="true" />}
 			<div className="card-head">
@@ -231,8 +278,10 @@ function LiveCard({
 						{card.reactions}
 					</span>
 				)}
+				{origin && <ProvenanceBadge origin={origin} />}
 				{liveness && <Liveness state={liveness} repo={card.repo} />}
 			</div>
+			{unmatched && <UnmatchedBand unmatched={unmatched} />}
 		</article>
 	);
 }
@@ -241,13 +290,20 @@ function LoadingCard({
 	cardKey,
 	selected,
 	enter,
+	entrance,
 }: {
 	cardKey: string;
 	selected?: boolean;
 	enter?: boolean;
+	entrance?: Entrance | null;
 }) {
 	return (
-		<article className="card loading" data-selected={selected} data-enter={enter} aria-busy="true">
+		<article
+			className="card loading"
+			data-selected={selected}
+			{...arrival(enter, entrance)}
+			aria-busy="true"
+		>
 			<div className="card-head mono">{cardKey.split("/").slice(1).join("/")}</div>
 			<div className="skeleton" style={{ width: "86%" }} />
 			<div className="skeleton" style={{ width: "58%" }} />
