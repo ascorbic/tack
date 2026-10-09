@@ -1,5 +1,5 @@
 import type { ThemePreference } from "./theme.ts";
-import { setThemePreference, useTheme } from "./useTheme.ts";
+import { setThemePreference, toggleTheme, useTheme } from "./useTheme.ts";
 
 const OPTIONS: { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
 	{
@@ -30,10 +30,38 @@ const OPTIONS: { value: ThemePreference; label: string; icon: React.ReactNode }[
 ];
 
 /**
- * Light, dark, or follow the system. Icons only in the top bar; with
- * labels in the playground and gallery.
+ * The top bar gets a two-state switch: it shows the theme you're seeing and
+ * flips to the other one. "System" is the default rather than a choice you
+ * press (see toggledPreference). The playground and gallery, which are
+ * settings-like, get the explicit three-way control with labels.
  */
 export function ThemeToggle({ labelled = false }: { labelled?: boolean }) {
+	if (!labelled) return <ThemeSwitch />;
+	return <ThemeChoice />;
+}
+
+function ThemeSwitch() {
+	const { preference, theme } = useTheme();
+	const target = theme === "dark" ? "light" : "dark";
+	const following = preference === "system" ? " (following your system)" : "";
+	return (
+		<button
+			type="button"
+			className="theme-switch"
+			data-theme-shown={theme}
+			aria-label={`Switch to ${target} theme`}
+			title={`${theme === "dark" ? "Dark" : "Light"} theme${following}. Switch to ${target}`}
+			onClick={toggleTheme}
+		>
+			<svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
+				<g className="theme-switch-sun">{OPTIONS[0]?.icon}</g>
+				<g className="theme-switch-moon">{OPTIONS[1]?.icon}</g>
+			</svg>
+		</button>
+	);
+}
+
+function ThemeChoice({ labelled = true }: { labelled?: boolean }) {
 	const { preference } = useTheme();
 	return (
 		<div className="theme-toggle" role="radiogroup" aria-label="Theme" data-labelled={labelled}>

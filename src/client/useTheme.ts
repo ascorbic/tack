@@ -6,6 +6,7 @@ import {
 	type ThemePreference,
 	parsePreference,
 	resolveTheme,
+	toggledPreference,
 } from "./theme.ts";
 
 // The theme is page-wide state outside React: a preference in localStorage,
@@ -65,6 +66,11 @@ export function setThemePreference(preference: ThemePreference): void {
 	} else {
 		update(preference);
 	}
+}
+
+/** Switch to the opposite of the theme being shown (see toggledPreference). */
+export function toggleTheme(): void {
+	setThemePreference(toggledPreference(state.theme, darkQuery.matches));
 }
 
 function subscribe(listener: () => void) {

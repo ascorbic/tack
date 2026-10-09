@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 import { AA_TEXT, composite, contrastRatio, parseColor } from "../src/client/contrast.ts";
-import { parsePreference, resolveTheme } from "../src/client/theme.ts";
+import { parsePreference, resolveTheme, toggledPreference } from "../src/client/theme.ts";
 
 // Both themes' text colours, checked against WCAG AA using the real tokens
 // from styles.css.
@@ -129,5 +129,18 @@ describe("theme", () => {
 		expect(parsePreference("dark")).toBe("dark");
 		expect(parsePreference(null)).toBe("system");
 		expect(parsePreference("sepia")).toBe("system");
+	});
+});
+
+describe("the two-state theme switch", () => {
+	it("flips to the opposite of what's shown", () => {
+		expect(toggledPreference("light", false)).toBe("dark");
+		expect(toggledPreference("dark", true)).toBe("light");
+	});
+
+	it("goes back to following the system rather than pinning a matching theme", () => {
+		// Pinned dark on a light system: switching back means "follow the system".
+		expect(toggledPreference("dark", false)).toBe("system");
+		expect(toggledPreference("light", true)).toBe("system");
 	});
 });
