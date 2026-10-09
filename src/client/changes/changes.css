@@ -711,6 +711,7 @@
 }
 
 .include-toggle input {
+	z-index: 1;
 	position: absolute;
 	inset: 0;
 	margin: 0;

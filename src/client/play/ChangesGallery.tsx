@@ -494,7 +494,7 @@ function Sections({ landing, round }: { landing: PendingChange[] | null; round: 
 						<MarkSample key={sample.label} sample={sample} landing={null} />
 					))}
 					<MarkSample
-						key={`landing${round}`}
+						key="landing"
 						sample={{
 							label: `Landing: ${LANDING[round % LANDING.length]}`,
 							shape: "card",

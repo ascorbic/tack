@@ -113,6 +113,10 @@ export default function Playground() {
 		client.seedHistory(pastPushes());
 		return client;
 	}, [sim]);
+	// The pretend push server, e.g. to change how it answers mid-push.
+	useEffect(() => {
+		Object.assign(window, { tackPush: push });
+	}, [push]);
 	const [people, setPeople] = useState<RemotePerson[]>([]);
 	const [motion, setMotion] = useState<Motion>("normal");
 	const [autoplay, setAutoplay] = useState(false);
