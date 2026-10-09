@@ -1,7 +1,7 @@
 import { useStoreApi } from "@xyflow/react";
 import { type PointerEvent, type MouseEvent, useContext, useEffect, useRef, useState } from "react";
 import { HistoryContext, ReadOnlyContext } from "./DocContext.ts";
-import { isEditableTarget } from "./keys.ts";
+import { isOffBoardTarget } from "./keys.ts";
 
 /** Keys that start editing a selected shape and go into its text. */
 function isTypingKey(event: KeyboardEvent): boolean {
@@ -84,7 +84,7 @@ export function useEditing({
 	useEffect(() => {
 		if (!selected || editing || readOnly) return;
 		const onKey = (event: KeyboardEvent) => {
-			if (isEditableTarget(event.target)) return;
+			if (isOffBoardTarget(event.target)) return;
 			if (event.key !== "Enter" && !isTypingKey(event)) return;
 			let count = 0;
 			for (const node of store.getState().nodes) if (node.selected) count++;

@@ -9,7 +9,7 @@
 export function isOffBoardTarget(target: EventTarget | null): boolean {
 	return (
 		isEditableTarget(target) ||
-		(target instanceof Element && target.closest("[role='dialog']") !== null)
+		(target instanceof Element && target.closest("[role='dialog'], dialog") !== null)
 	);
 }
 
