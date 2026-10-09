@@ -36,6 +36,13 @@ export interface AccessSettings extends AccessList {
 	admins: Person[];
 }
 
+/** The parts of a GitHub App manifest the setup page reads or edits. */
+export interface AppManifest {
+	name: string;
+	hook_attributes: { url: string; active: boolean };
+	[key: string]: unknown;
+}
+
 /** `GET /api/setup` */
 export type SetupInfo =
 	| { status: "unavailable" }
@@ -44,7 +51,7 @@ export type SetupInfo =
 			/** Echoed back by GitHub to `/setup/callback`. */
 			state: string;
 			/** The GitHub App manifest, to POST to GitHub. */
-			manifest: Record<string, unknown>;
+			manifest: AppManifest;
 	  }
 	| {
 			status: "configured";

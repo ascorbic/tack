@@ -12,6 +12,9 @@ import type { View } from "./viewport.ts";
 export interface User {
 	name: string;
 	color: string;
+	/** Signed-in people only: their GitHub login and avatar. */
+	login?: string;
+	avatarUrl?: string;
 }
 
 export interface PresenceState {
@@ -46,7 +49,7 @@ export interface RemotePresence {
 	following: number | null;
 }
 
-const COLORS = ["#3b4cca", "#b4467a", "#1f7a6b", "#a35a12", "#7444c4", "#c2372b", "#2a7ab0"];
+export const COLORS = ["#3b4cca", "#b4467a", "#1f7a6b", "#a35a12", "#7444c4", "#c2372b", "#2a7ab0"];
 const ADJECTIVES = ["Curious", "Gentle", "Brave", "Quiet", "Swift", "Merry", "Sunny", "Clever"];
 const ANIMALS = ["Otter", "Heron", "Badger", "Lynx", "Puffin", "Fox", "Hare", "Wren"];
 
@@ -58,7 +61,7 @@ export function randomUser(): User {
 	return { name: `${pick(ADJECTIVES)} ${pick(ANIMALS)}`, color: pick(COLORS) };
 }
 
-/** This browser's identity until real sign-in exists. */
+/** This browser's identity when not signed in: a random, remembered name. */
 export function localUser(): User {
 	try {
 		const stored = localStorage.getItem("tack:user");

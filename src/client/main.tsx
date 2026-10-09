@@ -7,6 +7,7 @@ import "@fontsource-variable/shantell-sans/infm.css";
 import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import { App } from "./App.tsx";
+import { SignInRoute } from "./auth/AccessGate.tsx";
 import { ErrorBoundary } from "./ErrorBoundary.tsx";
 import { installErrorHandlers } from "./errors.ts";
 import { initTheme } from "./useTheme.ts";
@@ -14,15 +15,20 @@ import { initTheme } from "./useTheme.ts";
 installErrorHandlers();
 initTheme();
 
-// The playground and gallery are development tools, left out of production
-// builds entirely.
-const routes: Record<string, ComponentType> = import.meta.env.DEV
-	? {
-			"/play": lazy(() => import("./play/Playground.tsx")),
-			"/play/cards": lazy(() => import("./play/Gallery.tsx")),
-			"/play/crash": lazy(() => import("./play/Crash.tsx")),
-		}
-	: {};
+const routes: Record<string, ComponentType> = {
+	"/signin": SignInRoute,
+	"/setup": lazy(() => import("./auth/SetupPage.tsx")),
+	// The playground and galleries are development tools, left out of
+	// production builds entirely.
+	...(import.meta.env.DEV
+		? {
+				"/play": lazy(() => import("./play/Playground.tsx")),
+				"/play/cards": lazy(() => import("./play/Gallery.tsx")),
+				"/play/auth": lazy(() => import("./play/AuthGallery.tsx")),
+				"/play/crash": lazy(() => import("./play/Crash.tsx")),
+			}
+		: {}),
+};
 
 const Page = routes[location.pathname.replace(/\/$/, "")] ?? App;
 

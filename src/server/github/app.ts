@@ -93,8 +93,6 @@ export function appManifest(origin: string) {
 	};
 }
 
-export type AppManifest = ReturnType<typeof appManifest>;
-
 /** GitHub issues PKCS#1 keys (`BEGIN RSA PRIVATE KEY`); WebCrypto wants PKCS#8. */
 export function importPrivateKey(pem: string): Promise<CryptoKey> {
 	const pkcs1 = /-----BEGIN RSA PRIVATE KEY-----/.test(pem);

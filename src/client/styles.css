@@ -379,6 +379,23 @@ button.primary:hover {
 	animation: pop-in var(--t-settle) var(--ease-spring) backwards;
 }
 
+/* Signed-in people's GitHub avatars fade in over their initials. (Not
+   clipped by the avatar, which would clip its tooltip and badge too.) */
+.avatar-image {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	object-fit: cover;
+	opacity: 0;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.avatar-image[data-loaded="true"] {
+	opacity: 1;
+}
+
 .status {
 	display: inline-flex;
 	align-items: center;

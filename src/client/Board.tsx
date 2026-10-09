@@ -47,11 +47,27 @@ import { usePublishStatus } from "./useActivity.ts";
 interface BoardProps extends BoardSource {
 	name: string;
 	user: User;
+	/**
+	 * Your avatar in the top bar, e.g. an account menu, given the label the
+	 * plain avatar would have. Defaults to a plain avatar.
+	 */
+	account?: (label: string) => ReactNode;
+	/** Extra controls at the end of the top bar, e.g. a sign-in button. */
+	actions?: ReactNode;
 	/** Extra UI drawn over the canvas, e.g. the playground's controls. */
 	children?: ReactNode;
 }
 
-export function Board({ name, doc, awareness, synced, user, children }: BoardProps) {
+export function Board({
+	name,
+	doc,
+	awareness,
+	synced,
+	user,
+	account,
+	actions,
+	children,
+}: BoardProps) {
 	const shapeNodes = useShapeNodes(doc);
 	const flow = useReactFlow();
 	const presence = usePresence(awareness, user);
@@ -245,11 +261,13 @@ export function Board({ name, doc, awareness, synced, user, children }: BoardPro
 						people={presence.people}
 						following={follow.following}
 						onFollow={follow.follow}
+						self={account}
 					/>
 					<ThemeToggle />
 					<span className="status" data-synced={synced}>
 						{synced ? "Synced" : "Connecting…"}
 					</span>
+					{actions}
 				</header>
 				<main
 					className="canvas"
