@@ -134,7 +134,10 @@ test("the sticky tool places a sticky to type into", async ({ page }) => {
 
 test("dragging a card commits its position", async ({ page }) => {
 	await openScenario(page, "planning");
-	const node = page.locator(".react-flow__node-card", { hasText: "Drop Node 18 support" });
+	// By title: the PR that closes this issue mentions it too.
+	const node = page.locator(".react-flow__node-card", {
+		has: page.locator(".card-title", { hasText: "Drop Node 18 support" }),
+	});
 	const before = await nodePosition(node);
 	const box = await node.boundingBox();
 	if (!box) throw new Error("card has no box");

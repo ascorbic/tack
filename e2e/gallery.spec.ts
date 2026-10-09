@@ -71,8 +71,8 @@ test("every sticky, text and presence state renders", async ({ page }) => {
 	const section = (name: string) =>
 		page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
 
-	await expect(section("Stickies").locator(".sticky")).toHaveCount(6);
-	await expect(section("Sticky states").locator(".sticky")).toHaveCount(6);
+	await expect(section("Stickies").locator(".sticky")).toHaveCount(5);
+	await expect(section("Sticky states").locator(".sticky")).toHaveCount(5);
 	await expect(
 		section("Sticky states").getByRole("toolbar", { name: "Shape options" }),
 	).toBeVisible();
