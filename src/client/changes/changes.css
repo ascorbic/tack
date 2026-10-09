@@ -22,6 +22,11 @@
 
 /* Kinds of change, each with its own tint. */
 .change-kind,
+/* A section's title pill sits above its box: the flags go above that. */
+.staged-marks[data-shape="section"] .staged-flags {
+	bottom: calc(100% + 40px);
+}
+
 .staged-flag {
 	--kind: var(--accent);
 }

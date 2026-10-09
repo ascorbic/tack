@@ -14,7 +14,7 @@ import { StickyView } from "../StickyNode.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
 import { change, docWith, everyKind, midPush, someStaged } from "./changeFixtures.ts";
 import { ACCESS_GALLERY, PLANNING_CARDS } from "./fixtures.ts";
-import { IMAGEKIT, REPO_META, SimulatedPush, pastPushes } from "./push.ts";
+import { IMAGEKIT, SimulatedPush, pastPushes, playMeta } from "./push.ts";
 import "./changesGallery.css";
 
 // Every pending-changes state: the top bar button, the panel, the marks on
@@ -27,7 +27,7 @@ for (const card of [...PLANNING_CARDS, ...ACCESS_GALLERY.map((entry) => entry.ca
 
 const ME: User = { name: "Ana Lima", color: "#7444c4", login: "ana" };
 const GUEST: User = { name: "Curious Otter", color: "#2a7ab0" };
-const meta = (repo: string) => REPO_META[repo];
+const meta = (repo: string) => playMeta(repo);
 const key = (item: string) => `${IMAGEKIT}${item}`;
 const card = (item: string) => PLANNING_CARDS.find((c) => c.item === item);
 
@@ -270,7 +270,7 @@ function MarkSample({ sample, landing }: { sample: Sample; landing: PendingChang
 						changes={changes}
 						highlighted={sample.highlighted}
 						labelColorOf={(repo, name) => {
-							const color = REPO_META[repo]?.labels.find((label) => label.name === name)?.color;
+							const color = playMeta(repo).labels.find((label) => label.name === name)?.color;
 							return color ? `#${color}` : "#8b9098";
 						}}
 					/>

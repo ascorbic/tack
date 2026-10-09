@@ -138,7 +138,7 @@ export function everyKind(): PendingChange[] {
 			"tom",
 			{ minutesAgo: 4 },
 		),
-		change({ kind: "item.labels", target: { key: `${SHARP}#4012` }, add: ["triage"] }, "tom", {
+		change({ kind: "item.labels", target: { key: `${SHARP}#4012` }, add: ["question"] }, "tom", {
 			minutesAgo: 3,
 			included: false,
 		}),

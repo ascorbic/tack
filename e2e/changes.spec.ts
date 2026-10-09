@@ -47,7 +47,7 @@ test.describe("pending changes panel", () => {
 		await expect(flags.filter({ hasText: "Will close" })).toHaveCount(1);
 		await expect(flags.filter({ hasText: "Blocked by #418" })).toHaveCount(1);
 		await expect(page.locator(".staged-label").filter({ hasText: "needs review" })).toHaveCount(1);
-		await expect(page.locator(".staged-ghost")).toHaveCount(3);
+		await expect(page.locator(".staged-ghost")).toHaveCount(2);
 
 		// Clicking a mark opens the panel at its change.
 		await flags.filter({ hasText: "Will close" }).click();
@@ -118,7 +118,7 @@ test.describe("push sheet", () => {
 			"docs/decisions/0007-drop-node-18.md",
 		);
 		await expect(sheet(page).locator(".push-estimate")).toContainText(
-			"Notifies ~42 people watching acme/imagekit",
+			"Notifies ~214 people watching acme/imagekit",
 		);
 		await expect(sheet(page).locator(".push-repo-warning")).toContainText("isn’t installed here");
 
@@ -149,7 +149,7 @@ test.describe("push sheet", () => {
 	});
 
 	test("refused for repositories without the app, until they're left out", async ({ page }) => {
-		const upstream = panel(page).locator(".change-row", { hasText: "Add triage to #4012" });
+		const upstream = panel(page).locator(".change-row", { hasText: "Add question to #4012" });
 		await upstream.getByRole("checkbox").check();
 		await panel(page).getByRole("button", { name: "Review and push 11" }).click();
 		await sheet(page).getByRole("button", { name: "Push 11 changes" }).click();
@@ -319,4 +319,40 @@ test("a decision's write-back goes out through the push sheet", async ({ page })
 	await sheet(page).getByRole("button", { name: "Done" }).click();
 	// The decision now follows its pull request.
 	await expect(node.locator(".decision-record")).toContainText("ADR 0004");
+});
+
+test("changes staged by the selection actions show on shapes and push", async ({ page }) => {
+	await openScenario(page, "writes");
+	const shape = (text: string) => page.locator(".react-flow__node", { hasText: text }).first();
+	const stickies = page.locator(".react-flow__node-sticky");
+	const before = await stickies.count();
+
+	// A sticky becomes an issue (⌥I) and two cards get a label (⌥L).
+	await shape("Benchmarks in CI").click({ position: { x: 24, y: 14 } });
+	await page.keyboard.press("Alt+KeyI");
+	await page
+		.getByRole("dialog", { name: "Make issues from stickies" })
+		.getByRole("button", { name: /^Stage/ })
+		.click();
+	await shape("Drop Node 18").click({ position: { x: 24, y: 14 } });
+	await shape("Custom domains").click({ position: { x: 24, y: 14 }, modifiers: ["Shift"] });
+	await page.keyboard.press("Alt+KeyL");
+	await page.getByRole("dialog", { name: "Labels" }).getByRole("combobox").fill("docs");
+	await page.keyboard.press("Enter");
+	await page.keyboard.press("ControlOrMeta+Enter");
+
+	await expect(shape("Benchmarks in CI").locator(".staged-ghost")).toHaveCount(1);
+	await expect(page.locator(".staged-label", { hasText: "docs" })).toHaveCount(2);
+	await expect(page.locator(".changes-badge")).toHaveText("3");
+
+	await openPanel(page);
+	await panel(page).getByRole("button", { name: "Review and push 3" }).click();
+	await sheet(page).getByRole("button", { name: "Push 3 changes" }).click();
+	await expect(sheet(page).locator(".push-meter-title")).toHaveText("All 3 changes are on GitHub");
+	await sheet(page).getByRole("button", { name: "Done" }).click();
+
+	// The sticky is its issue's card now, and the labels landed.
+	await expect(stickies).toHaveCount(before - 1);
+	await expect(page.locator(".card", { hasText: "Benchmarks in CI" })).toBeVisible();
+	await expect(page.locator(".card .chip.label", { hasText: "docs" })).toHaveCount(3);
 });

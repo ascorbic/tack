@@ -162,7 +162,7 @@ test("labels, milestone and closing on selected cards", async ({ page }) => {
 
 test("a connector between issues becomes blocked-by", async ({ page }) => {
 	await page.locator(".connector-hit").first().click({ force: true });
-	await page.getByRole("button", { name: "Blocked by" }).click();
+	await page.getByRole("button", { name: "Blocked by", exact: true }).click();
 	const panel = page.getByRole("dialog", { name: "Blocked by" });
 	await expect(panel).toContainText("#377 will be marked as blocked by #412.");
 	await panel.getByRole("button", { name: "Swap which blocks which" }).click();
@@ -177,7 +177,7 @@ test("a connector between issues becomes blocked-by", async ({ page }) => {
 		blockedBy: { key: "fake.tack/acme/imagekit#412" },
 	});
 	expect(change?.effect?.kind).toBe("connect");
-	await expect(page.getByRole("button", { name: "Blocked by" })).toHaveAttribute(
+	await expect(page.getByRole("button", { name: "Blocked by", exact: true })).toHaveAttribute(
 		"data-staged",
 		"true",
 	);

@@ -279,7 +279,7 @@ function seedPush(doc: Y.Doc): void {
 		{ shapes: [idea], minutesAgo: 3 },
 	);
 	if (upstream) {
-		stageAs(doc, { kind: "item.labels", target: { key: upstream.key }, add: ["triage"] }, tom, {
+		stageAs(doc, { kind: "item.labels", target: { key: upstream.key }, add: ["question"] }, tom, {
 			shapes: [shape("upstream")],
 			included: false,
 			minutesAgo: 2,

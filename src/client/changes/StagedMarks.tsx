@@ -30,6 +30,8 @@ export interface MarksProps {
 	shapeId: string;
 	/** The card's item key, for working out which end of a link this shape is. */
 	cardKey?: string;
+	/** The shape's type: sections keep their title clear of the flags. */
+	shapeType?: string;
 	changes: readonly PendingChange[];
 	/** Every change on the board, to name new issues this shape's changes refer to. */
 	index?: ChangeIndex;
@@ -46,13 +48,25 @@ export function withStagedMarks(Node: ComponentType<NodeProps<ShapeNode>>) {
 		return (
 			<>
 				<Node {...props} />
-				<LiveMarks shapeId={props.id} cardKey={props.data.shape.ref} />
+				<LiveMarks
+					shapeId={props.id}
+					cardKey={props.data.shape.ref}
+					shapeType={props.data.shape.type}
+				/>
 			</>
 		);
 	});
 }
 
-function LiveMarks({ shapeId, cardKey }: { shapeId: string; cardKey?: string }) {
+function LiveMarks({
+	shapeId,
+	cardKey,
+	shapeType,
+}: {
+	shapeId: string;
+	cardKey?: string;
+	shapeType?: string;
+}) {
 	const ui = useChangesUI();
 	const changes = useShapeChanges(ui?.store ?? null, shapeId);
 	const highlighted = useHighlighted(ui?.store ?? null, shapeId);
@@ -77,6 +91,7 @@ function LiveMarks({ shapeId, cardKey }: { shapeId: string; cardKey?: string }) 
 		<StagedMarksView
 			shapeId={shapeId}
 			cardKey={cardKey}
+			shapeType={shapeType}
 			changes={changes}
 			index={index}
 			highlighted={highlighted}
@@ -116,6 +131,7 @@ interface Flag {
 export function StagedMarksView({
 	shapeId,
 	cardKey,
+	shapeType,
 	changes,
 	index: all,
 	highlighted = false,
@@ -133,12 +149,14 @@ export function StagedMarksView({
 			? target.key === cardKey
 			: (index.get(target.pending)?.shapes ?? []).includes(shapeId);
 
+	// Only a shape that will turn into the new item's card gets the ghost card
+	// behind it; a section that becomes a parent issue stays a section.
 	const ghost = visible.find(
 		(change) =>
-			(change.op.kind === "issue.create" ||
-				change.op.kind === "pr.create" ||
-				change.op.kind === "discussion.create") &&
-			change.status !== "applied",
+			change.op.kind === "issue.create" &&
+			change.status !== "applied" &&
+			change.effect?.kind === "replace" &&
+			change.effect.shapes.includes(shapeId),
 	);
 	const flags: Flag[] = [];
 	const labels: { change: PendingChange; name: string; mode: "add" | "remove"; repo: string }[] =
@@ -234,6 +252,7 @@ export function StagedMarksView({
 			className="staged-marks changes-ui"
 			data-highlighted={highlighted || undefined}
 			data-has-flags={flags.length > 0 || undefined}
+			data-shape={shapeType}
 		>
 			{ghost && (
 				<span className="staged-ghost" aria-hidden="true" {...state(ghost)}>

@@ -379,7 +379,7 @@ function ReviewView({
 										Checking watchers…
 									</span>
 								) : noisy ? (
-									<span className="push-notify" data-noisy="true">
+									<span className="push-notify" data-noisy={info.watchers > 0 || undefined}>
 										<BellIcon size={13} />
 										{info.watchers === 0 ? "No watchers" : `Notifies ${peopleCount(info.watchers)}`}
 									</span>
@@ -458,6 +458,11 @@ function ReviewView({
 															{change.status === "failed" && (
 																<span className="push-change-failed">
 																	Failed last time: {friendlyError(change.error)}
+																</span>
+															)}
+															{info?.writes && !info.writes.includes(change.op.kind) && (
+																<span className="push-change-failed">
+																	{repoName(group.repo)} doesn’t support this kind of change
 																</span>
 															)}
 														</div>

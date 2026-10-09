@@ -1,6 +1,5 @@
 import { createContext, useContext } from "react";
 import type * as Y from "yjs";
-import type { Stager } from "../../shared/changes.ts";
 import type { User } from "../presence.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import type { PushClient, RepoMetaCache } from "./api.ts";
@@ -50,10 +49,8 @@ export function useChangesUI(): ChangesUI | null {
 	return useContext(ChangesContext);
 }
 
-/** You, as the person staging a change. */
-export function stagerFor(user: User): Stager {
-	return { login: user.login, name: user.name, color: user.color };
-}
+/** You, as the person staging a change: the same as the selection actions record. */
+export { stagerFor } from "../actions/services.ts";
 
 export function signedIn(user: User): boolean {
 	return Boolean(user.login);

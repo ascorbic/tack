@@ -27,7 +27,8 @@ import {
 import { linkWrittenDecisions } from "../../shared/decisions.ts";
 import { scaledDuration } from "../motion.ts";
 import { avatar } from "./ci.ts";
-import { LABELS, UPSTREAM, fixture } from "./fixtures.ts";
+import { fakeMeta } from "./writes.ts";
+import { UPSTREAM, fixture } from "./fixtures.ts";
 
 // A pretend push server for the playground and gallery: it refuses pushes
 // for each of the real API's reasons on request, and otherwise walks each
@@ -51,46 +52,6 @@ export const PEOPLE: Record<string, Stager> = {
 export const IMAGEKIT = "fake.tack/acme/imagekit";
 export const ROADMAP = "fake.tack/acme/roadmap";
 export const SHARP = `fake.tack/${UPSTREAM}`;
-
-const META_LABELS = [
-	...Object.values(LABELS),
-	{ name: "wontfix", color: "ffffff" },
-	{ name: "performance", color: "f9d0c4" },
-	{ name: "question", color: "d876e3" },
-];
-
-export const REPO_META: Record<string, RepoMeta> = {
-	[IMAGEKIT]: {
-		repo: IMAGEKIT,
-		labels: META_LABELS,
-		milestones: [{ title: "5.0", dueOn: "2026-11-01" }, { title: "5.1" }],
-		assignees: ["priya", "kai", "tom", "jo"],
-		discussionCategories: ["Ideas", "Q&A", "Announcements"],
-		watchers: 42,
-		defaultBranch: "main",
-		writable: true,
-	},
-	[ROADMAP]: {
-		repo: ROADMAP,
-		labels: [LABELS.docs, { name: "launch", color: "c5def5" }],
-		milestones: [],
-		assignees: ["priya", "jo"],
-		discussionCategories: [],
-		watchers: 3,
-		defaultBranch: "main",
-		writable: true,
-	},
-	[SHARP]: {
-		repo: SHARP,
-		labels: [LABELS.bug, LABELS.enhancement, { name: "triage", color: "ededed" }],
-		milestones: [],
-		assignees: [],
-		discussionCategories: ["Ideas"],
-		watchers: 1290,
-		defaultBranch: "main",
-		writable: false,
-	},
-};
 
 /** How the pretend server answers. */
 export type PushMode =
@@ -119,6 +80,27 @@ const ERRORS = [
 ];
 
 let nextNumber = 520;
+
+/**
+ * Every playground repository's metadata, from the same fakes the
+ * selection actions' pickers use (play/writes.ts), so the pretend push
+ * server, the push sheet and the pickers agree. Repositories under
+ * `lovell/` don't have the app.
+ */
+export function playMeta(repo: string): RepoMeta {
+	return (
+		fakeMeta(repo) ?? {
+			repo,
+			labels: [],
+			milestones: [],
+			assignees: [],
+			discussionCategories: [],
+			watchers: 12,
+			defaultBranch: "main",
+			writable: true,
+		}
+	);
+}
 
 /** A monogram avatar for someone assigned, so nothing hits the network. */
 function avatarOf(login: string): string {
@@ -169,7 +151,7 @@ export class SimulatedPush implements PushClient {
 				return { ok: false, reason: "busy", message: "Another push is in progress." };
 		}
 		// The real server would refuse repositories without the app, too.
-		const uninstalled = repos.filter((repo) => REPO_META[repo]?.writable === false);
+		const uninstalled = repos.filter((repo) => playMeta(repo).writable === false);
 		if (uninstalled.length > 0) {
 			return {
 				ok: false,
@@ -198,22 +180,7 @@ export class SimulatedPush implements PushClient {
 
 	async repoMeta(repo: string): Promise<Loaded<RepoMeta>> {
 		await sleep(jitter(400));
-		const meta = REPO_META[repo];
-		return meta
-			? { ok: true, value: meta }
-			: {
-					ok: true,
-					value: {
-						repo,
-						labels: [],
-						milestones: [],
-						assignees: [],
-						discussionCategories: [],
-						watchers: 12,
-						defaultBranch: "main",
-						writable: true,
-					},
-				};
+		return { ok: true, value: playMeta(repo) };
 	}
 
 	/** Seed the audit log, for the history view. */
@@ -349,7 +316,7 @@ export class SimulatedPush implements PushClient {
 			}
 		};
 		const colour = (repo: string, name: string) =>
-			REPO_META[repo]?.labels.find((label) => label.name === name)?.color ?? "ededed";
+			playMeta(repo).labels.find((label) => label.name === name)?.color ?? "ededed";
 		switch (op.kind) {
 			case "issue.create": {
 				const key = created.get(change.id);
