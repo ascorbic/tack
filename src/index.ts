@@ -1,12 +1,13 @@
 import { routePartykitRequest } from "partyserver";
-import { requireInstanceAccess } from "./server/auth/access.ts";
 import { handleAuth } from "./server/auth/routes.ts";
+import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.ts";
 import { handleClientError } from "./server/clientErrors.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
 import { handleWebhook } from "./server/webhooks.ts";
 
 export { Board } from "./server/board.ts";
+export { Directory } from "./server/directory.ts";
 export { Instance } from "./server/instance.ts";
 export { Repo } from "./server/repo.ts";
 
@@ -25,10 +26,14 @@ export default {
 		const identity = (await handleAuth(request, env)) ?? (await handleSetup(request, env));
 		if (identity) return identity;
 
-		// Board sync: /parties/board/:name
+		// The board index, membership and visibility.
+		const boards = await handleBoards(request, env);
+		if (boards) return boards;
+
+		// Board sync: /parties/board/:id, checked per board (viewers get read-only connections).
 		const party = await routePartykitRequest(request, env, {
-			onBeforeConnect: (req) => requireInstanceAccess(req, env),
-			onBeforeRequest: (req) => requireInstanceAccess(req, env),
+			onBeforeConnect: (req, lobby) => authorizeBoardConnection(req, env, lobby),
+			onBeforeRequest: () => new Response("Not found", { status: 404 }),
 		});
 		if (party) return party;
 

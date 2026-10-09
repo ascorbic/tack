@@ -1,4 +1,5 @@
 import type { Board } from "./board.ts";
+import type { Directory } from "./directory.ts";
 import type { Instance } from "./instance.ts";
 import type { Repo } from "./repo.ts";
 
@@ -17,4 +18,9 @@ export function repos(env: Env): DurableObjectNamespace<Repo> {
 /** The singleton holding instance-wide state: the GitHub App, users, sessions, access. */
 export function instance(env: Env): DurableObjectStub<Instance> {
 	return (env.Instance as unknown as DurableObjectNamespace<Instance>).getByName("instance");
+}
+
+/** The singleton board index: boards, members, visibility, visits and thumbnails. */
+export function directory(env: Env): DurableObjectStub<Directory> {
+	return (env.Directory as unknown as DurableObjectNamespace<Directory>).getByName("directory");
 }

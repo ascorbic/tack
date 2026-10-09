@@ -28,6 +28,7 @@ export default defineConfig(({ isPreview, mode }) => ({
 			Board: bindings.durableObject({ worker: "tack", exportName: "Board" }),
 			Repo: bindings.durableObject({ worker: "tack", exportName: "Repo" }),
 			Instance: bindings.durableObject({ worker: "tack", exportName: "Instance" }),
+			Directory: bindings.durableObject({ worker: "tack", exportName: "Directory" }),
 			...(isPreview
 				? {}
 				: {
@@ -43,6 +44,7 @@ export default defineConfig(({ isPreview, mode }) => ({
 			Board: exports.durableObject({ storage: "sqlite" }),
 			Repo: exports.durableObject({ storage: "sqlite" }),
 			Instance: exports.durableObject({ storage: "sqlite" }),
+			Directory: exports.durableObject({ storage: "sqlite" }),
 		},
 		triggers: [
 			// Redeliver failed GitHub webhooks (src/server/github/redeliver.ts).

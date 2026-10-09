@@ -1,14 +1,33 @@
 import type { Connection, ConnectionContext } from "partyserver";
 import { YServer } from "y-partyserver";
 import * as Y from "yjs";
-import type { Card, CardMessage, MissingCard } from "../shared/cards.ts";
+import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
+import { type Card, type CardMessage, type MissingCard, isMissing } from "../shared/cards.ts";
 import { repoKeyOf } from "../shared/refs.ts";
 import { REPAIR_ORIGIN, repairBoard } from "../shared/repair.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
+import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
+import { boardThumbnail } from "./boards/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
 import type { MissingReason, RepoIdentity } from "./forges/index.ts";
 import { log } from "./log.ts";
+import { directory } from "./namespaces.ts";
 import { repoObject, resolveRepo } from "./routing.ts";
+
+/**
+ * The Worker checks access before a connection reaches the board (see
+ * `authorizeBoardConnection`) and passes who connected, and their role, in
+ * this header. Clients can't set it: the Worker always replaces it.
+ */
+export const ACCESS_HEADER = "x-tack-access";
+
+/** Who a live connection belongs to, and what they may do. */
+export interface ConnectionAccess extends VisitorKey {
+	role: Role;
+}
+
+/** WebSocket close code for a connection whose access was taken away. */
+export const ACCESS_REVOKED = 4403;
 
 // Durable Object storage rows max out at 2 MB, so snapshots are chunked.
 const CHUNK_SIZE = 512 * 1024;
@@ -138,16 +157,65 @@ export class Board extends YServer<Env> {
 			throw error;
 		}
 		log.info("board.save", context);
+		await this.updateIndex();
 	}
 
-	override onConnect(connection: Connection, ctx: ConnectionContext): void {
-		void super.onConnect(connection, ctx);
-		if (this.cards.size > 0) {
-			this.sendCustomMessage(
-				connection,
-				encode({ type: "cards", cards: [...this.cards.values()] }),
-			);
+	/** Keep the board's thumbnail and last activity current on the home page. */
+	private async updateIndex(): Promise<void> {
+		try {
+			const thumbnail = boardThumbnail(this.document, (ref) => {
+				const card = this.cards.get(ref);
+				return card && !isMissing(card) ? card.state : "";
+			});
+			await directory(this.env).saved(this.name, thumbnail);
+		} catch (error) {
+			log.error("board.index.failed", { board: this.name, error });
 		}
+	}
+
+	override onConnect(connection: Connection<ConnectionAccess>, ctx: ConnectionContext): void {
+		const access = readAccess(ctx.request);
+		if (!access) {
+			connection.close(ACCESS_REVOKED, "forbidden");
+			return;
+		}
+		connection.setState(access);
+		void super.onConnect(connection, ctx);
+		if (this.cards.size > 0) this.sendCards(connection, [...this.cards.values()]);
+	}
+
+	/** Viewers (and the public) can watch and be seen, but not change the document. */
+	override isReadOnly(connection: Connection<ConnectionAccess>): boolean {
+		return !canEdit(connection.state?.role ?? null);
+	}
+
+	/**
+	 * Called by the Directory when a board's members or visibility change:
+	 * live connections pick up their new role straight away, and anyone who
+	 * lost access is disconnected.
+	 */
+	accessChanged(policy: Policy): void {
+		for (const connection of this.getConnections<ConnectionAccess>()) {
+			const access = connection.state;
+			if (!access) continue;
+			const role = roleFor(policy, access);
+			if (!role) {
+				connection.close(ACCESS_REVOKED, "access_revoked");
+			} else if (role !== access.role) {
+				connection.setState({ ...access, role });
+				this.sendCustomMessage(
+					connection,
+					JSON.stringify({ type: "access", role } satisfies BoardMessage),
+				);
+			}
+		}
+	}
+
+	/** Called by the Directory when the board is renamed, so everyone's title updates. */
+	renamed(title: string, slug: string): void {
+		this.broadcastCustomMessage(
+			JSON.stringify({ type: "renamed", title, slug } satisfies BoardMessage),
+		);
 	}
 
 	override onError(connection: Connection, error: unknown): void {
@@ -278,7 +346,36 @@ export class Board extends YServer<Env> {
 	private publish(cards: Entry[]): void {
 		if (cards.length === 0) return;
 		for (const card of cards) this.cards.set(card.key, card);
-		this.broadcastCustomMessage(encode({ type: "cards", cards }));
+		for (const connection of this.getConnections()) this.sendCards(connection, cards);
+	}
+
+	private sendCards(connection: Connection, cards: Entry[]): void {
+		const visible = this.visibleCards(connection, cards);
+		if (visible.length > 0) {
+			this.sendCustomMessage(connection, encode({ type: "cards", cards: visible }));
+		}
+	}
+
+	/**
+	 * The hook for per-viewer filtering (#10): which of these cards this
+	 * connection may see. Board roles never grant access to repo data, so
+	 * cards from private repos must be checked against the viewer's own
+	 * forge access here (and swapped for a "private reference" placeholder).
+	 * `connection.state` says who they are. Until then, everyone who can
+	 * open the board sees every card on it.
+	 */
+	private visibleCards(_connection: Connection, cards: Entry[]): Entry[] {
+		return cards;
+	}
+}
+
+function readAccess(request: Request): ConnectionAccess | null {
+	const header = request.headers.get(ACCESS_HEADER);
+	if (!header) return null;
+	try {
+		return JSON.parse(header) as ConnectionAccess;
+	} catch {
+		return null;
 	}
 }
 

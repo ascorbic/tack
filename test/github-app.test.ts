@@ -140,6 +140,13 @@ describe("setup", () => {
 	});
 
 	it("leaves boards open until the app exists", async () => {
+		// A guest can adopt a board from before the index, which stays open to the instance.
+		const claim = await mf.dispatchFetch(`${ORIGIN}/api/boards/legacy`, {
+			method: "POST",
+			headers: { origin: ORIGIN, "content-type": "application/json" },
+			body: JSON.stringify({ name: "plan" }),
+		});
+		expect(claim.status).toBe(200);
 		expect((await connect()).status).toBe(101);
 	});
 

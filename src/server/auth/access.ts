@@ -17,9 +17,11 @@ export async function canUseInstance(env: Env, viewer: Viewer | null): Promise<b
 }
 
 /**
- * Turn away anyone who may not use the instance, for routes that need it
- * (board connections, for now). Access control is on once the GitHub App is
- * set up; before that, and on Previews, everything is open and anonymous.
+ * Turn away anyone who may not use the instance, for instance-wide routes
+ * that need it. Board connections are checked per board instead (see
+ * `authorizeBoardConnection`), since public boards open to anyone. Access
+ * control is on once the GitHub App is set up; before that, and on
+ * Previews, everything is open and anonymous.
  */
 export async function requireInstanceAccess(
 	request: Request,

@@ -14,7 +14,13 @@ async function me(mf: Miniflare, cookie?: string): Promise<Me> {
 	return response.json() as Promise<Me>;
 }
 
-function connect(mf: Miniflare, cookie?: string) {
+async function connect(mf: Miniflare, cookie?: string) {
+	// Boards must be in the index; this adopts one as a guest would from `/?board=auth-test`.
+	await mf.dispatchFetch(`${ORIGIN}/api/boards/legacy`, {
+		method: "POST",
+		headers: { origin: ORIGIN, "content-type": "application/json" },
+		body: JSON.stringify({ name: "auth-test" }),
+	});
 	return mf.dispatchFetch(`${ORIGIN}/parties/board/auth-test`, {
 		headers: { upgrade: "websocket", ...(cookie ? { cookie } : {}) },
 	});

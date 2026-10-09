@@ -1,0 +1,732 @@
+import { DurableObject } from "cloudflare:workers";
+import type { Person } from "../shared/auth.ts";
+import {
+	BOARD_ID,
+	type BoardInfo,
+	type BoardList,
+	type BoardMember,
+	type BoardMembers,
+	type BoardResult,
+	type CreateBoardRequest,
+	type InviteRequest,
+	type MemberRole,
+	type Role,
+	type Thumbnail,
+	type UpdateBoardRequest,
+	type Visibility,
+	cleanTitle,
+	slugify,
+} from "../shared/boards.ts";
+import { normaliseLogins } from "./auth/logins.ts";
+import {
+	type Policy,
+	type Visitor,
+	baseRole,
+	canManage,
+	roleFor,
+	visitorKey,
+} from "./boards/access.ts";
+import { log } from "./log.ts";
+import { boards } from "./namespaces.ts";
+
+/** Members shown on a board's tile, owner first. */
+const MEMBER_PREVIEW = 4;
+const RECENT_LIMIT = 12;
+const OPEN_LIMIT = 60;
+/** Refresh a person's cached profile at most this often. */
+const PROFILE_TTL = 60 * 60_000;
+const ID_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
+const ID_LENGTH = 10;
+
+interface BoardRow extends Record<string, SqlStorageValue> {
+	id: string;
+	slug: string;
+	title: string;
+	owner_id: number | null;
+	visibility: string;
+	instance_role: string;
+	created_at: number;
+	updated_at: number;
+	archived_at: number | null;
+	thumbnail: string | null;
+}
+
+interface MemberRow extends Record<string, SqlStorageValue> {
+	login: string;
+	user_id: number | null;
+	role: string;
+	name: string | null;
+	avatar_url: string | null;
+	current_login: string | null;
+}
+
+interface PersonRow extends Record<string, SqlStorageValue> {
+	id: number;
+	login: string;
+	name: string | null;
+	avatar_url: string;
+}
+
+const ok = <T>(value: T): BoardResult<T> => ({ ok: true, value });
+
+/**
+ * The board index: every board's title, slug, owner, visibility and
+ * members, who last opened what, and each board's thumbnail sketch. A
+ * singleton, like `Instance`, but separate from it: `Instance` holds
+ * credentials and serves the session lookup on every request, and keeping
+ * board traffic (thumbnail updates on every board save, listings) out of it
+ * keeps sign-in fast and its blast radius small. Board documents live in
+ * their own `Board` objects, keyed by board id.
+ */
+export class Directory extends DurableObject<Env> {
+	private sql = this.ctx.storage.sql;
+
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		this.sql.exec(`
+			CREATE TABLE IF NOT EXISTS boards (
+				id TEXT PRIMARY KEY,
+				slug TEXT NOT NULL,
+				title TEXT NOT NULL,
+				owner_id INTEGER,
+				visibility TEXT NOT NULL,
+				instance_role TEXT NOT NULL,
+				created_at INTEGER NOT NULL,
+				updated_at INTEGER NOT NULL,
+				archived_at INTEGER,
+				thumbnail TEXT
+			);
+			CREATE INDEX IF NOT EXISTS boards_owner ON boards (owner_id);
+			CREATE TABLE IF NOT EXISTS members (
+				board_id TEXT NOT NULL,
+				login TEXT NOT NULL,
+				user_id INTEGER,
+				role TEXT NOT NULL,
+				invited_by INTEGER,
+				created_at INTEGER NOT NULL,
+				PRIMARY KEY (board_id, login)
+			);
+			CREATE INDEX IF NOT EXISTS members_user ON members (user_id);
+			CREATE INDEX IF NOT EXISTS members_login ON members (login) WHERE user_id IS NULL;
+			CREATE TABLE IF NOT EXISTS people (
+				id INTEGER PRIMARY KEY,
+				login TEXT NOT NULL,
+				name TEXT,
+				avatar_url TEXT NOT NULL,
+				seen_at INTEGER NOT NULL
+			);
+			CREATE INDEX IF NOT EXISTS people_login ON people (lower(login));
+			CREATE TABLE IF NOT EXISTS visits (
+				user_id INTEGER NOT NULL,
+				board_id TEXT NOT NULL,
+				at INTEGER NOT NULL,
+				PRIMARY KEY (user_id, board_id)
+			);
+		`);
+	}
+
+	// ---------------------------------------------------------------------
+	// Listing and opening
+
+	list(visitor: Visitor): BoardList {
+		this.touch(visitor);
+		const who = visitorKey(visitor);
+		const userId = who.userId;
+		const infos = (rows: BoardRow[]) =>
+			rows
+				.map((row) => this.info(row, visitor))
+				.filter((info): info is BoardInfo => info.role !== null);
+
+		const recent =
+			userId === null
+				? []
+				: infos(
+						this.sql
+							.exec<BoardRow>(
+								`SELECT b.* FROM visits v JOIN boards b ON b.id = v.board_id
+								WHERE v.user_id = ? AND b.archived_at IS NULL
+								ORDER BY v.at DESC LIMIT ?`,
+								userId,
+								RECENT_LIMIT,
+							)
+							.toArray(),
+					);
+		const membership = (archived: boolean, owner: boolean) =>
+			userId === null
+				? []
+				: infos(
+						this.sql
+							.exec<BoardRow>(
+								`SELECT b.* FROM members m JOIN boards b ON b.id = m.board_id
+								WHERE m.user_id = ? AND (m.role = 'owner') = ?
+								AND (b.archived_at IS NOT NULL) = ?
+								ORDER BY b.updated_at DESC`,
+								userId,
+								owner ? 1 : 0,
+								archived ? 1 : 0,
+							)
+							.toArray(),
+					);
+		const archived = [...membership(true, true), ...membership(true, false)].sort(
+			(a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0),
+		);
+		const open = infos(
+			this.sql
+				.exec<BoardRow>(
+					`SELECT * FROM boards WHERE archived_at IS NULL AND visibility IN (${
+						visitor.allowed ? "'instance', 'public'" : "'public'"
+					}) ORDER BY updated_at DESC LIMIT ?`,
+					OPEN_LIMIT,
+				)
+				.toArray(),
+		);
+
+		return {
+			recent,
+			mine: membership(false, true),
+			shared: membership(false, false),
+			archived,
+			open,
+			canCreate: this.canCreate(visitor),
+		};
+	}
+
+	/** A board, as whoever's asking may see it. */
+	get(visitor: Visitor, id: string): BoardResult<BoardInfo> {
+		this.touch(visitor);
+		const row = this.row(id);
+		if (!row) return refuse("not_found");
+		const info = this.info(row, visitor);
+		return info.role ? ok(info) : this.denied(visitor);
+	}
+
+	/**
+	 * Someone is opening a live connection to a board: their role, which the
+	 * board's object enforces. Remembers the visit, for "Recent".
+	 */
+	join(visitor: Visitor, id: string): BoardResult<{ role: Role }> {
+		this.touch(visitor);
+		const row = this.row(id);
+		if (!row) return refuse("not_found");
+		const role = roleFor(this.policy(row), visitorKey(visitor));
+		if (!role) return this.denied(visitor);
+		if (visitor.user) {
+			this.sql.exec(
+				"INSERT OR REPLACE INTO visits (user_id, board_id, at) VALUES (?, ?, ?)",
+				visitor.user.id,
+				id,
+				Date.now(),
+			);
+		}
+		return ok({ role });
+	}
+
+	/** The access policy for a board, for its Durable Object. */
+	accessPolicy(id: string): Policy | null {
+		const row = this.row(id);
+		return row ? this.policy(row) : null;
+	}
+
+	// ---------------------------------------------------------------------
+	// Creating and changing boards
+
+	create(visitor: Visitor, request: CreateBoardRequest): BoardResult<BoardInfo> {
+		this.touch(visitor);
+		if (!this.canCreate(visitor)) return this.denied(visitor);
+		const title = cleanTitle(request.title);
+		const owner = visitor.user;
+		// Without sign-in (Previews), boards have no owner and stay open to everyone.
+		const visibility: Visibility = owner ? (request.visibility ?? "instance") : "instance";
+		const now = Date.now();
+		const id = this.newId();
+		this.ctx.storage.transactionSync(() => {
+			this.sql.exec(
+				`INSERT INTO boards (id, slug, title, owner_id, visibility, instance_role, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, 'editor', ?, ?)`,
+				id,
+				slugify(title),
+				title,
+				owner?.id ?? null,
+				visibility,
+				now,
+				now,
+			);
+			if (owner) this.addMember(id, owner.login, owner.id, "owner", owner.id);
+		});
+		log.info("board.created", { board: id, owner: owner?.login, visibility });
+		return this.get(visitor, id);
+	}
+
+	/**
+	 * Find or adopt a board from before the index (`/?board=name`). Its
+	 * document stays where it is: the old name becomes the board's id. It
+	 * stays open to everyone on the instance, as it was, and whoever brings
+	 * it over owns it.
+	 */
+	claimLegacy(visitor: Visitor, name: string): BoardResult<BoardInfo> {
+		this.touch(visitor);
+		if (!BOARD_ID.test(name)) return refuse("not_found");
+		const existing = this.row(name);
+		if (existing) return this.get(visitor, name);
+		if (!this.canCreate(visitor)) return this.denied(visitor);
+		const owner = visitor.user;
+		const now = Date.now();
+		this.ctx.storage.transactionSync(() => {
+			this.sql.exec(
+				`INSERT INTO boards (id, slug, title, owner_id, visibility, instance_role, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'instance', 'editor', ?, ?)`,
+				name,
+				slugify(name),
+				name,
+				owner?.id ?? null,
+				now,
+				now,
+			);
+			if (owner) this.addMember(name, owner.login, owner.id, "owner", owner.id);
+		});
+		log.info("board.legacy.claimed", { board: name, owner: owner?.login });
+		return this.get(visitor, name);
+	}
+
+	/**
+	 * Rename (editors), or change visibility or archive (owners). The slug
+	 * follows the title; old links keep working because they carry the id.
+	 */
+	async update(
+		visitor: Visitor,
+		id: string,
+		request: UpdateBoardRequest,
+	): Promise<BoardResult<BoardInfo>> {
+		this.touch(visitor);
+		const row = this.row(id);
+		if (!row) return refuse("not_found");
+		const policy = this.policy(row);
+		const who = visitorKey(visitor);
+		const role = roleFor(policy, who);
+		if (!role) return this.denied(visitor);
+
+		const managing =
+			request.visibility !== undefined ||
+			request.instanceRole !== undefined ||
+			request.archived !== undefined;
+		if (managing && !canManage(policy, who)) return refuse("owner_required");
+		// Renaming needs edit access, which archived boards don't give.
+		if (request.title !== undefined && role !== "owner" && role !== "editor") {
+			return refuse("forbidden");
+		}
+
+		const sets: string[] = [];
+		const values: SqlStorageValue[] = [];
+		if (request.title !== undefined) {
+			const title = cleanTitle(request.title);
+			sets.push("title = ?", "slug = ?");
+			values.push(title, slugify(title));
+		}
+		if (request.visibility !== undefined) {
+			sets.push("visibility = ?");
+			values.push(request.visibility);
+		}
+		if (request.instanceRole !== undefined) {
+			sets.push("instance_role = ?");
+			values.push(request.instanceRole);
+		}
+		if (request.archived !== undefined) {
+			sets.push("archived_at = ?");
+			values.push(request.archived ? (row.archived_at ?? Date.now()) : null);
+		}
+		if (sets.length === 0) return this.get(visitor, id);
+
+		sets.push("updated_at = ?");
+		values.push(Date.now());
+		this.sql.exec(`UPDATE boards SET ${sets.join(", ")} WHERE id = ?`, ...values, id);
+		log.info("board.updated", {
+			board: id,
+			by: visitor.user?.login,
+			fields: Object.keys(request).filter(
+				(key) => request[key as keyof UpdateBoardRequest] !== undefined,
+			),
+			visibility: request.visibility,
+			archived: request.archived,
+		});
+		if (managing) await this.notifyBoard(id);
+		return this.get(visitor, id);
+	}
+
+	/** Called by a board's Durable Object when it saves: last activity, and its thumbnail. */
+	saved(id: string, thumbnail: Thumbnail | null): void {
+		this.sql.exec(
+			"UPDATE boards SET updated_at = ?, thumbnail = ? WHERE id = ?",
+			Date.now(),
+			thumbnail ? JSON.stringify(thumbnail) : null,
+			id,
+		);
+	}
+
+	// ---------------------------------------------------------------------
+	// Members
+
+	members(visitor: Visitor, id: string): BoardResult<BoardMembers> {
+		this.touch(visitor);
+		const row = this.row(id);
+		if (!row) return refuse("not_found");
+		if (!roleFor(this.policy(row), visitorKey(visitor))) return this.denied(visitor);
+		return ok({ members: this.memberList(id) });
+	}
+
+	/** Invite people by GitHub login. Re-inviting someone changes their role. */
+	async invite(
+		visitor: Visitor,
+		id: string,
+		request: InviteRequest,
+	): Promise<BoardResult<BoardMembers>> {
+		const checked = this.managing(visitor, id);
+		if (!checked.ok) return checked;
+		const logins = normaliseLogins(request.logins);
+		if (logins.invalid.length > 0) {
+			return { ok: false, error: "invalid_login", logins: logins.invalid };
+		}
+		if (logins.valid.length === 0) return refuse("invalid");
+
+		const members = new Map(this.memberRows(id).map((member) => [member.login, member]));
+		const ownerLogin = [...members.values()].find((member) => member.role === "owner")?.login;
+		this.ctx.storage.transactionSync(() => {
+			for (const login of logins.valid) {
+				if (login === ownerLogin) continue;
+				if (members.has(login)) {
+					this.sql.exec(
+						"UPDATE members SET role = ? WHERE board_id = ? AND login = ?",
+						request.role,
+						id,
+						login,
+					);
+				} else {
+					this.addMember(
+						id,
+						login,
+						this.knownUserId(login),
+						request.role,
+						visitor.user?.id ?? null,
+					);
+				}
+			}
+			this.sql.exec("UPDATE boards SET updated_at = ? WHERE id = ?", Date.now(), id);
+		});
+		log.info("board.member.invited", {
+			board: id,
+			by: visitor.user?.login,
+			logins: logins.valid,
+			role: request.role,
+		});
+		await this.notifyBoard(id);
+		return ok({ members: this.memberList(id) });
+	}
+
+	/** Change a member's role. Giving someone "owner" hands the board over; the old owner becomes an editor. */
+	async updateMember(
+		visitor: Visitor,
+		id: string,
+		login: string,
+		role: Role,
+	): Promise<BoardResult<BoardMembers>> {
+		const checked = this.managing(visitor, id);
+		if (!checked.ok) return checked;
+		const target = this.memberRows(id).find((member) => member.login === login.toLowerCase());
+		if (!target) return refuse("not_found");
+		if (target.role === "owner") return refuse("invalid");
+
+		if (role === "owner") {
+			// Only the owner can hand over, and only to someone who has signed in.
+			if (checked.value.ownerId !== visitor.user?.id || target.user_id === null) {
+				return refuse("owner_required");
+			}
+			this.ctx.storage.transactionSync(() => {
+				this.sql.exec(
+					"UPDATE members SET role = 'editor' WHERE board_id = ? AND role = 'owner'",
+					id,
+				);
+				this.sql.exec(
+					"UPDATE members SET role = 'owner' WHERE board_id = ? AND login = ?",
+					id,
+					target.login,
+				);
+				this.sql.exec(
+					"UPDATE boards SET owner_id = ?, updated_at = ? WHERE id = ?",
+					target.user_id,
+					Date.now(),
+					id,
+				);
+			});
+		} else {
+			this.sql.exec(
+				"UPDATE members SET role = ? WHERE board_id = ? AND login = ?",
+				role,
+				id,
+				target.login,
+			);
+		}
+		log.info("board.member.updated", { board: id, by: visitor.user?.login, login, role });
+		await this.notifyBoard(id);
+		return ok({ members: this.memberList(id) });
+	}
+
+	/** Remove a member. Anyone can leave a board they were invited to. */
+	async removeMember(
+		visitor: Visitor,
+		id: string,
+		login: string,
+	): Promise<BoardResult<BoardMembers>> {
+		this.touch(visitor);
+		login = login.toLowerCase();
+		const row = this.row(id);
+		if (!row) return refuse("not_found");
+		const target = this.memberRows(id).find((member) => member.login === login);
+		const leaving = target !== undefined && target.user_id === visitor.user?.id;
+		if (!leaving) {
+			const checked = this.managing(visitor, id);
+			if (!checked.ok) return checked;
+		}
+		if (!target) return refuse("not_found");
+		if (target.role === "owner") return refuse("invalid");
+		this.sql.exec("DELETE FROM members WHERE board_id = ? AND login = ?", id, login);
+		log.info("board.member.removed", { board: id, by: visitor.user?.login, login });
+		await this.notifyBoard(id);
+		return ok({ members: this.memberList(id) });
+	}
+
+	// ---------------------------------------------------------------------
+	// Internals
+
+	/** Whether someone may create boards: anyone allowed on the instance. */
+	private canCreate(visitor: Visitor): boolean {
+		return visitor.allowed;
+	}
+
+	private denied<T>(visitor: Visitor): BoardResult<T> {
+		return refuse(visitor.user ? "forbidden" : "sign_in_required");
+	}
+
+	private managing(visitor: Visitor, id: string): BoardResult<Policy> {
+		this.touch(visitor);
+		const row = this.row(id);
+		if (!row) return refuse("not_found");
+		const policy = this.policy(row);
+		const who = visitorKey(visitor);
+		if (!roleFor(policy, who)) return this.denied(visitor);
+		if (!canManage(policy, who)) return refuse("owner_required");
+		return ok(policy);
+	}
+
+	/**
+	 * Remember who someone is, for showing them to others, and turn invites
+	 * to their login into membership: invites resolve to a GitHub id the
+	 * first time the invitee signs in and shows up.
+	 */
+	private touch(visitor: Visitor): void {
+		const user = visitor.user;
+		if (!user) return;
+		const now = Date.now();
+		const known = this.sql
+			.exec<PersonRow & { seen_at: number }>("SELECT * FROM people WHERE id = ?", user.id)
+			.toArray()[0];
+		if (
+			!known ||
+			known.login !== user.login ||
+			known.name !== user.name ||
+			known.avatar_url !== user.avatarUrl ||
+			now - known.seen_at > PROFILE_TTL
+		) {
+			this.sql.exec(
+				"INSERT OR REPLACE INTO people (id, login, name, avatar_url, seen_at) VALUES (?, ?, ?, ?, ?)",
+				user.id,
+				user.login,
+				user.name,
+				user.avatarUrl,
+				now,
+			);
+		}
+
+		const login = user.login.toLowerCase();
+		const pending = this.sql
+			.exec<{ board_id: string; role: string }>(
+				"SELECT board_id, role FROM members WHERE login = ? AND user_id IS NULL",
+				login,
+			)
+			.toArray();
+		if (pending.length === 0) return;
+		const changed: string[] = [];
+		this.ctx.storage.transactionSync(() => {
+			for (const invite of pending) {
+				const existing = this.sql
+					.exec<{ login: string }>(
+						"SELECT login FROM members WHERE board_id = ? AND user_id = ?",
+						invite.board_id,
+						user.id,
+					)
+					.toArray()[0];
+				// Already a member under an older login: keep that membership.
+				if (existing) {
+					this.sql.exec(
+						"DELETE FROM members WHERE board_id = ? AND login = ?",
+						invite.board_id,
+						login,
+					);
+				} else {
+					this.sql.exec(
+						"UPDATE members SET user_id = ? WHERE board_id = ? AND login = ?",
+						user.id,
+						invite.board_id,
+						login,
+					);
+					changed.push(invite.board_id);
+				}
+			}
+		});
+		if (changed.length > 0)
+			log.info("board.member.resolved", { login, user: user.id, boards: changed });
+	}
+
+	private row(id: string): BoardRow | undefined {
+		return this.sql.exec<BoardRow>("SELECT * FROM boards WHERE id = ?", id).toArray()[0];
+	}
+
+	private memberRows(id: string): MemberRow[] {
+		return this.sql
+			.exec<MemberRow>(
+				`SELECT m.login, m.user_id, m.role, p.name, p.avatar_url, p.login AS current_login
+				FROM members m LEFT JOIN people p ON p.id = m.user_id
+				WHERE m.board_id = ?
+				ORDER BY m.role = 'owner' DESC, m.user_id IS NULL, m.created_at`,
+				id,
+			)
+			.toArray();
+	}
+
+	private memberList(id: string): BoardMember[] {
+		return this.memberRows(id).map((row) => ({
+			login: row.login,
+			person: memberPerson(row),
+			role: row.role as Role,
+		}));
+	}
+
+	private policy(row: BoardRow): Policy {
+		const members: Record<number, Role> = {};
+		for (const member of this.sql
+			.exec<{ user_id: number; role: string }>(
+				"SELECT user_id, role FROM members WHERE board_id = ? AND user_id IS NOT NULL",
+				row.id,
+			)
+			.toArray()) {
+			members[member.user_id] = member.role as Role;
+		}
+		return {
+			ownerId: row.owner_id,
+			visibility: row.visibility as Visibility,
+			instanceRole: row.instance_role as MemberRole,
+			archived: row.archived_at !== null,
+			members,
+		};
+	}
+
+	private info(row: BoardRow, visitor: Visitor): BoardInfo {
+		const policy = this.policy(row);
+		const who = visitorKey(visitor);
+		const members = this.memberRows(row.id);
+		const owner = members.find((member) => member.role === "owner");
+		const visit =
+			who.userId === null
+				? undefined
+				: this.sql
+						.exec<{ at: number }>(
+							"SELECT at FROM visits WHERE user_id = ? AND board_id = ?",
+							who.userId,
+							row.id,
+						)
+						.toArray()[0];
+		return {
+			id: row.id,
+			slug: row.slug,
+			title: row.title,
+			owner: owner ? memberPerson(owner) : null,
+			visibility: policy.visibility,
+			instanceRole: policy.instanceRole,
+			createdAt: row.created_at,
+			updatedAt: row.updated_at,
+			archivedAt: row.archived_at,
+			thumbnail: row.thumbnail ? (JSON.parse(row.thumbnail) as Thumbnail) : null,
+			members: members
+				.slice(0, MEMBER_PREVIEW)
+				.map(memberPerson)
+				.filter((person): person is Person => person !== null),
+			memberCount: members.length,
+			role: roleFor(policy, who),
+			canManage: baseRole(policy, who) !== null && canManage(policy, who),
+			visitedAt: visit?.at ?? null,
+		};
+	}
+
+	private addMember(
+		id: string,
+		login: string,
+		userId: number | null,
+		role: Role,
+		invitedBy: number | null,
+	): void {
+		this.sql.exec(
+			`INSERT OR REPLACE INTO members (board_id, login, user_id, role, invited_by, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)`,
+			id,
+			login.toLowerCase(),
+			userId,
+			role,
+			invitedBy,
+			Date.now(),
+		);
+	}
+
+	/** Someone we've seen with this login, so an invite resolves straight away. */
+	private knownUserId(login: string): number | null {
+		return (
+			this.sql
+				.exec<{ id: number }>(
+					"SELECT id FROM people WHERE lower(login) = ? ORDER BY seen_at DESC LIMIT 1",
+					login,
+				)
+				.toArray()[0]?.id ?? null
+		);
+	}
+
+	private newId(): string {
+		for (;;) {
+			const bytes = crypto.getRandomValues(new Uint8Array(ID_LENGTH));
+			const id = Array.from(bytes, (byte) => ID_ALPHABET[byte % ID_ALPHABET.length]).join("");
+			if (!this.row(id)) return id;
+		}
+	}
+
+	/** Tell the board's live connections about new access rules. */
+	private async notifyBoard(id: string): Promise<void> {
+		const row = this.row(id);
+		if (!row) return;
+		try {
+			await boards(this.env).getByName(id).accessChanged(this.policy(row));
+		} catch (error) {
+			log.error("board.access.failed", { board: id, error });
+		}
+	}
+}
+
+function refuse<T>(error: Exclude<BoardResult<T>, { ok: true }>["error"]): BoardResult<T> {
+	return { ok: false, error };
+}
+
+function memberPerson(row: MemberRow): Person | null {
+	if (row.user_id === null) return null;
+	const login = row.current_login ?? row.login;
+	return {
+		id: row.user_id,
+		login,
+		name: row.name ?? null,
+		avatarUrl: row.avatar_url ?? `https://github.com/${login}.png?size=96`,
+	};
+}

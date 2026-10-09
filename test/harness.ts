@@ -4,6 +4,7 @@
 import { Miniflare, type Request, type Response, convertV4MiniflareOptions } from "miniflare";
 import { compatibilityDate, compatibilityFlags } from "../compatibility.ts";
 import type { Board } from "../src/server/board.ts";
+import type { Directory } from "../src/server/directory.ts";
 import type { Instance } from "../src/server/instance.ts";
 import type { Repo } from "../src/server/repo.ts";
 
@@ -34,6 +35,7 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 				Board: { className: "Board", useSQLite: true },
 				Repo: { className: "Repo", useSQLite: true },
 				Instance: { className: "Instance", useSQLite: true },
+				Directory: { className: "Directory", useSQLite: true },
 			},
 			bindings: {
 				GITHUB_WEBHOOK_SECRET: "test-secret",
@@ -58,6 +60,14 @@ export async function repoStub(mf: Miniflare, name: string) {
 export async function instanceStub(mf: Miniflare) {
 	const namespace = await mf.getDurableObjectNamespace("Instance");
 	return namespace.get(namespace.idFromName("instance")) as unknown as DurableObjectStub<Instance>;
+}
+
+/** An RPC stub for the singleton `Directory` Durable Object (the board index). */
+export async function directoryStub(mf: Miniflare) {
+	const namespace = await mf.getDurableObjectNamespace("Directory");
+	return namespace.get(
+		namespace.idFromName("directory"),
+	) as unknown as DurableObjectStub<Directory>;
 }
 
 /**
