@@ -34,6 +34,29 @@ pnpm build    # production build
 pnpm run deploy   # build and deploy via cf (`pnpm deploy` is a different, built-in pnpm command)
 ```
 
+## Self-hosting
+
+Tack runs as one Worker on your Cloudflare account, with a GitHub App you own.
+
+1. **Deploy** the Worker: `pnpm deploy` (or connect the repo to Workers Builds).
+2. **Set `TACK_SECRET`**, a long random value (e.g. `openssl rand -base64 32`). It signs session cookies and encrypts the GitHub App's credentials, so keep it safe and don't change it. Set it with `cf workers secrets update TACK_SECRET`, or in the dashboard under Workers → tack → Settings → Variables and secrets.
+3. **Visit `/setup`** on your instance and click **Create GitHub App**. GitHub fills in the permissions, events, webhook and callback URLs from a manifest; you confirm, and you're sent back to sign in. Whoever completes setup becomes the instance's first admin.
+4. **Install the app** on the repositories you plan with (`/setup` links to it). Public repos work without it; installing makes cards live and private repos visible.
+5. **Decide who can use it**: on `/setup`, admins add other admins, allowed GitHub users and allowed organisations. Everyone else who signs in sees an "invite-only" page.
+
+Previews (and any instance without `TACK_SECRET`) have no sign-in: boards work anonymously.
+
+### Local development
+
+Create `.dev.vars` (gitignored) with:
+
+```sh
+TACK_SECRET=<any random string>
+TACK_DEV_AUTH=1   # fake sign-in at /auth/dev?login=octocat&admin=1, local only
+```
+
+A GitHub App made from `/setup` on localhost works for sign-in and installation tokens, but GitHub can't deliver webhooks to it; use `scripts/send-webhook.ts`.
+
 ## Configuration
 
 - [cloudflare.config.ts](cloudflare.config.ts) — the Worker itself: name, entrypoint, compatibility, bindings. `Env` types are inferred from the bindings you declare here and generated into `.cloudflare/types/` by `cf workers types` (run on install, or with `pnpm types`).
