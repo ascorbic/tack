@@ -175,9 +175,11 @@ export function deleteVote(doc: Y.Doc, id: string) {
 	dotVotesMap(doc).delete(id);
 }
 
-/** Shapes people vote on: anything but sections and connectors. */
+/** Shapes people vote on: anything but sections, connectors and widgets. */
 export function isVotable(shape: Pick<ShapeProps, "type"> | undefined): boolean {
-	return !!shape && shape.type !== "section" && shape.type !== "connector";
+	return (
+		!!shape && shape.type !== "section" && shape.type !== "connector" && shape.type !== "widget"
+	);
 }
 
 /** The sections around a shape, innermost first. */
