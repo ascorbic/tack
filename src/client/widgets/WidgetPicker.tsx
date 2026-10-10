@@ -1,6 +1,7 @@
 import type { DragEvent } from "react";
 import { LIST_PRESETS, WIDGETS } from "../../shared/widgetRegistry.ts";
 import { ListIcon, UnknownIcon } from "./icons.tsx";
+import { DependencyIcon, ReleaseIcon, TimelineIcon } from "./kindIcons.tsx";
 
 // The widget picker (#37): the widget tool's tray. Every kind in the
 // registry, and ready-made lists. Click one to add it in the middle of the
@@ -15,7 +16,12 @@ export type AddWidget = (
 /** The MIME type for dragging a widget off the picker onto the canvas. */
 export const WIDGET_DRAG_TYPE = "application/x-tack-widget";
 
-const ICONS: Record<string, () => React.ReactNode> = { list: () => <ListIcon size={18} /> };
+const ICONS: Record<string, () => React.ReactNode> = {
+	list: () => <ListIcon size={18} />,
+	timeline: () => <TimelineIcon size={18} />,
+	release: () => <ReleaseIcon size={18} />,
+	dependencies: () => <DependencyIcon size={18} />,
+};
 
 export function WidgetPicker({
 	suggestedRepo,

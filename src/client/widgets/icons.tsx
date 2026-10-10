@@ -1,7 +1,7 @@
 // Icons for widgets, drawn on a 16px grid with round strokes like the rest
 // of the board's icons. Colour comes from `currentColor`.
 
-function Icon({ size = 16, children }: { size?: number; children: React.ReactNode }) {
+export function Icon({ size = 16, children }: { size?: number; children: React.ReactNode }) {
 	return (
 		<svg
 			className="widget-icon"

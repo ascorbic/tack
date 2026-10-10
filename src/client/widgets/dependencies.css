@@ -1,0 +1,505 @@
+/* ---------------------------------------------------------------------------
+   The dependency map widget (#43)
+
+   Items as small tiles in layers, left to right, with curved arrows from
+   blockers to what they block. The critical path is accent, with a slow
+   flow along it; cycles are red and dashed. Pointing at an item dims
+   everything that isn't upstream or downstream of it.
+   ------------------------------------------------------------------------ */
+
+.depmap {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+}
+
+.depmap-source {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.depmap-flag {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: 3px;
+	padding: 0 7px;
+	border-radius: 999px;
+	font-size: 10.5px;
+	font-weight: 650;
+	line-height: 17px;
+}
+
+.depmap-flag[data-tone="cycle"] {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.depmap-flag[data-tone="critical"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.depmap-canvas {
+	position: relative;
+	flex: none;
+	margin: 4px auto 0;
+}
+
+.depmap-inner {
+	position: absolute;
+	top: 0;
+	left: 0;
+	transform-origin: 0 0;
+}
+
+.depmap-edges {
+	position: absolute;
+	inset: 0;
+	overflow: visible;
+	pointer-events: none;
+}
+
+/* Edges ----------------------------------------------------------------------- */
+
+.depmap-edge {
+	--edge: var(--line-strong);
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.depmap-edge path {
+	fill: none;
+	stroke: var(--edge);
+	stroke-width: 1.6;
+	stroke-linecap: round;
+}
+
+.depmap-edge > path:first-child {
+	stroke-dasharray: 1;
+	stroke-dashoffset: 1;
+	animation: depmap-draw var(--t-settle) var(--ease-out) forwards;
+	animation-delay: calc((180ms + var(--i, 0) * 45ms) * var(--motion));
+}
+
+@keyframes depmap-draw {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+.depmap-edge[data-tone="critical"] {
+	--edge: var(--accent);
+}
+
+.depmap-edge[data-tone="critical"] path {
+	stroke-width: 2.4;
+}
+
+.depmap-edge[data-tone="cycle"] {
+	--edge: var(--fail);
+}
+
+.depmap-edge[data-tone="cycle"] > path:first-child {
+	animation: none;
+	stroke-dasharray: 4 4;
+	stroke-dashoffset: 0;
+}
+
+/* A slow flow along the critical path: work moving through it. */
+.depmap-flow {
+	stroke: color-mix(in srgb, var(--surface) 70%, transparent) !important;
+	stroke-width: 1.2 !important;
+	stroke-dasharray: 3 11;
+	animation: depmap-flow calc(1400ms * var(--motion)) linear infinite;
+}
+
+@keyframes depmap-flow {
+	to {
+		stroke-dashoffset: -14;
+	}
+}
+
+.depmap-arrow path {
+	fill: var(--line-strong);
+}
+
+.depmap-arrow-critical path {
+	fill: var(--accent);
+}
+
+.depmap-arrow-cycle path {
+	fill: var(--fail);
+}
+
+.depmap-edge[data-dim] {
+	opacity: 0.18;
+}
+
+.depmap-edge[data-lit][data-tone="base"] {
+	--edge: var(--ink-soft);
+}
+
+/* Items ----------------------------------------------------------------------- */
+
+.depmap-node {
+	--state: var(--open);
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: grid;
+	align-content: center;
+	gap: 1px;
+	width: 160px;
+	height: 44px;
+	padding: 4px 9px 4px 11px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	box-shadow: var(--shadow-rest);
+	animation: depmap-node-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i, 0) * 40ms * var(--motion));
+	transition:
+		translate var(--t-settle) var(--ease-settle),
+		opacity var(--t-base) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out),
+		border-color var(--t-base) var(--ease-out),
+		scale var(--t-base) var(--ease-spring);
+}
+
+.depmap-node[data-draggable] {
+	cursor: grab;
+}
+
+@keyframes depmap-node-in {
+	from {
+		opacity: 0;
+		scale: 0.85;
+	}
+}
+
+/* A stripe of the item's state down its left edge. */
+.depmap-node::before {
+	content: "";
+	position: absolute;
+	top: 7px;
+	bottom: 7px;
+	left: 4px;
+	width: 3px;
+	border-radius: 2px;
+	background: var(--state);
+}
+
+.depmap-node[data-state="merged"],
+.depmap-node[data-state="closed"] {
+	--state: var(--merged);
+	background: var(--surface-muted);
+	color: var(--ink-soft);
+}
+
+.depmap-node[data-state="draft"] {
+	--state: var(--closed);
+}
+
+.depmap-node[data-state="unknown"] {
+	--state: var(--pending);
+	border-style: dashed;
+}
+
+.depmap-node:hover,
+.depmap-node:focus-visible {
+	z-index: 2;
+	outline: none;
+	scale: 1.03;
+	box-shadow: var(--shadow-hover);
+}
+
+.depmap-node-head {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	color: var(--muted);
+	font-size: 10.5px;
+	line-height: 15px;
+}
+
+.depmap-node .state-icon {
+	color: var(--state);
+}
+
+.depmap-node-title {
+	overflow: hidden;
+	font-size: 12px;
+	font-weight: 580;
+	line-height: 16px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.depmap-badge {
+	display: inline-flex;
+	align-items: center;
+	margin-left: auto;
+	padding: 0 5px;
+	border-radius: 999px;
+	font-size: 9.5px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	line-height: 14px;
+}
+
+.depmap-badge[data-tone="ready"] {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.depmap-badge[data-tone="cycle"] {
+	padding: 0 3px;
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.depmap-pin {
+	display: inline-flex;
+	color: var(--accent);
+}
+
+.depmap-badge + .depmap-pin {
+	margin-left: 2px;
+}
+
+.depmap-node-head > .depmap-pin:not(.depmap-badge + .depmap-pin) {
+	margin-left: auto;
+}
+
+.depmap-node[data-critical] {
+	border-color: var(--accent);
+	box-shadow:
+		0 0 0 3px var(--accent-soft),
+		var(--shadow-rest);
+}
+
+.depmap-node[data-critical] .depmap-node-title {
+	font-weight: 650;
+}
+
+.depmap-node[data-cycle] {
+	border: 1.5px dashed var(--fail);
+	background: color-mix(in srgb, var(--fail-bg) 55%, var(--surface));
+}
+
+.depmap-node[data-outside] {
+	border-style: dashed;
+	background: transparent;
+	box-shadow: none;
+}
+
+.depmap-node[data-outside] .depmap-node-title {
+	color: var(--ink-soft);
+}
+
+.depmap-node[data-dim] {
+	opacity: 0.32;
+}
+
+.depmap-node[data-picked],
+.depmap-node[data-linked] {
+	z-index: 2;
+	border-color: var(--accent);
+	box-shadow:
+		0 0 0 2px var(--accent),
+		0 0 0 6px var(--accent-soft),
+		var(--shadow-hover);
+}
+
+.depmap-node[data-lifted] {
+	opacity: 0.35;
+}
+
+/* The clicked item's popover ----------------------------------------------------------- */
+
+.depmap-pop {
+	position: absolute;
+	z-index: 5;
+	padding: 10px 12px 10px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+	box-shadow: var(--shadow-lifted);
+	cursor: default;
+	transform-origin: 20px 0;
+	animation: timeline-peek-in var(--t-base) var(--ease-spring);
+}
+
+.depmap-pop p {
+	margin: 0;
+}
+
+.depmap-pop-title {
+	font-size: 13px;
+	font-weight: 640;
+	line-height: 1.35;
+}
+
+.depmap-pop-status {
+	margin-top: 4px !important;
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.depmap-pop-status[data-tone="ready"] {
+	color: var(--open);
+	font-weight: 600;
+}
+
+.depmap-pop-status[data-tone="cycle"] {
+	color: var(--fail-ink);
+	font-weight: 600;
+}
+
+.depmap-pop-links {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 2px 8px;
+	margin: 8px 0 0;
+	font-size: 11.5px;
+}
+
+.depmap-pop-links dt {
+	color: var(--muted);
+}
+
+.depmap-pop-links dd {
+	margin: 0;
+	font-family: var(--font-mono);
+	font-size: 11px;
+}
+
+.depmap-pop-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 4px;
+}
+
+.depmap-pop-actions .widget-action {
+	gap: 5px;
+	margin-top: 6px;
+}
+
+.depmap-pop-open {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-top: 6px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 560;
+	text-decoration: none;
+}
+
+.depmap-pop-open:hover {
+	color: var(--accent);
+}
+
+/* Items with no dependencies ------------------------------------------------------------- */
+
+.depmap-loose {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	margin-top: auto;
+	padding: 8px 12px 10px;
+	border-top: 1px dashed var(--line);
+}
+
+.depmap-loose-label {
+	margin-right: 4px;
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.depmap-chip {
+	--state: var(--open);
+	padding: 1px 7px;
+	border-radius: 6px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	line-height: 18px;
+	box-shadow: inset 2px 0 0 var(--state);
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.depmap-chip[data-draggable] {
+	cursor: grab;
+}
+
+.depmap-chip:hover {
+	background: var(--hover);
+}
+
+.depmap-chip:is([data-state="merged"], [data-state="closed"]) {
+	--state: var(--merged);
+}
+
+.depmap-chip[data-linked] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+/* Loading ------------------------------------------------------------------------------- */
+
+.depmap-skeleton {
+	min-height: 210px;
+}
+
+.depmap-skeleton svg {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+.depmap-skeleton path {
+	fill: none;
+	stroke: var(--skeleton);
+	stroke-width: 2;
+}
+
+.depmap-node-skeleton {
+	gap: 6px;
+	border-color: var(--line);
+	box-shadow: none;
+	animation:
+		depmap-node-in var(--t-settle) var(--ease-spring) backwards,
+		skeleton-pulse calc(1400ms * var(--motion)) ease-in-out infinite alternate;
+	animation-delay: calc(var(--i, 0) * 60ms * var(--motion));
+}
+
+.depmap-node-skeleton::before {
+	background: var(--skeleton);
+}
+
+.depmap-node-skeleton .skeleton {
+	height: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.depmap-flow {
+		animation: none;
+		display: none;
+	}
+}
+
+:root[data-motion="reduced"] .depmap-flow {
+	animation: none;
+	display: none;
+}

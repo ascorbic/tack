@@ -223,7 +223,7 @@ export function ListConfigPanel({
 	);
 }
 
-function Segmented<T extends string | number>({
+export function Segmented<T extends string | number>({
 	label,
 	options,
 	value,

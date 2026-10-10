@@ -1,0 +1,161 @@
+/* ---------------------------------------------------------------------------
+   What the timeline, release draft and dependency map widgets (#43) share
+   beyond the list's frame: a subtitle line, and a summary that fades in as
+   the board zooms far out, growing against the zoom so it stays readable
+   when the rows underneath are specks.
+   ------------------------------------------------------------------------ */
+
+.widget-subtitle {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	margin: 3px 0 0;
+	overflow: hidden;
+	color: var(--muted);
+	font-size: 11.5px;
+	line-height: 18px;
+	white-space: nowrap;
+	mask-image: linear-gradient(to right, black calc(100% - 20px), transparent);
+}
+
+.widget-subtitle .mono {
+	font-size: 11px;
+}
+
+.widget-far {
+	--far: 0;
+	--far-scale: 1;
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	display: grid;
+	place-content: center;
+	justify-items: center;
+	gap: calc(2px * var(--far-scale));
+	padding: 16px;
+	border-radius: inherit;
+	background: color-mix(in srgb, var(--surface) 94%, transparent);
+	text-align: center;
+	opacity: var(--far);
+	pointer-events: none;
+}
+
+/* Only on the board, where --unzoom says how far out it is (and the gallery's zoomed-out samples). */
+.react-flow .widget-far,
+[data-far-zoom] .widget-far {
+	--far: clamp(0, calc((var(--unzoom, 1) - 2.1) * 2.2), 1);
+	--far-scale: min(var(--unzoom, 1), 4.5);
+}
+
+.widget-far-icon {
+	display: grid;
+	place-items: center;
+	width: calc(28px * var(--far-scale));
+	height: calc(28px * var(--far-scale));
+	margin-bottom: calc(4px * var(--far-scale));
+	border-radius: calc(9px * var(--far-scale));
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.widget-far-icon svg {
+	width: calc(16px * var(--far-scale));
+	height: calc(16px * var(--far-scale));
+}
+
+.widget-far-value {
+	font-family: var(--font-display);
+	font-size: min(calc(30px * var(--far-scale)), 22cqw);
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: -0.03em;
+	font-variant-numeric: tabular-nums;
+}
+
+.widget-far-label {
+	max-width: 100%;
+	overflow: hidden;
+	color: var(--muted);
+	font-size: min(calc(12px * var(--far-scale)), 7.5cqw);
+	font-weight: 560;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* A widget's own extra tools get the same tooltip as refresh. */
+.widget-tool[data-done] {
+	color: var(--pass);
+}
+
+.widget-empty[data-tone="good"] .widget-empty-icon {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+/* Placeholders breathing while they load. */
+@keyframes skeleton-pulse {
+	to {
+		opacity: 0.45;
+	}
+}
+
+/* Config panels ---------------------------------------------------------------- */
+
+.widget-field-hint {
+	margin: 2px 0 0;
+	color: var(--muted);
+	font-size: 11.5px;
+	line-height: 1.4;
+}
+
+.widget-config-query {
+	overflow-wrap: anywhere;
+	color: var(--ink-soft);
+	font-size: 11.5px;
+}
+
+.release-config-sections {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.release-config-sections li {
+	display: grid;
+	grid-template-columns: 9.5em minmax(0, 1fr) 28px;
+	align-items: center;
+	gap: 6px;
+	animation: row-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i, 0) * 20ms * var(--motion));
+}
+
+.release-config-sections input {
+	min-width: 0;
+}
+
+.release-config-more {
+	display: flex;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+/* The gallery (/play/widgets) ---------------------------------------------------- */
+
+.roadmap-samples {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 32px 24px;
+}
+
+.roadmap-samples > figure > .roadmap-sample {
+	max-width: 100%;
+}
+
+.roadmap-far {
+	padding: 0;
+	overflow: visible;
+}

@@ -35,6 +35,7 @@ import { WidgetContext } from "./context.ts";
 import { listTitle } from "./describe.ts";
 import { DropConfirm } from "./DropConfirm.tsx";
 import { UnknownIcon } from "./icons.tsx";
+import { DependencyWidget, type KindProps, ReleaseWidget, TimelineWidget } from "./kinds.tsx";
 import { type ListStatus, ListView } from "./ListView.tsx";
 import { planDrop, previewOf } from "./match.ts";
 import { useRowDrag } from "./RowDrag.tsx";
@@ -55,10 +56,19 @@ export const WidgetNode = memo(function WidgetNode({ id, data, selected }: NodeP
 	if (definition?.kind === listWidget.kind) {
 		return <ListWidget id={id} shape={shape} selected={!!selected} />;
 	}
+	const Kind = definition ? KINDS[definition.kind] : undefined;
+	if (Kind) return <Kind id={id} shape={shape} selected={!!selected} />;
 	return <OtherWidget id={id} shape={shape} selected={!!selected} known={definition !== null} />;
 });
 
-function useResizeGrips(id: string, shape: ShapeProps, selected: boolean) {
+/** Views for kinds with their own (#43). */
+const KINDS: Record<string, (props: KindProps) => React.ReactNode> = {
+	timeline: TimelineWidget,
+	release: ReleaseWidget,
+	dependencies: DependencyWidget,
+};
+
+export function useResizeGrips(id: string, shape: ShapeProps, selected: boolean) {
 	const doc = useContext(DocContext);
 	const readOnly = useContext(ReadOnlyContext);
 	const ui = useContext(SectionContext);
