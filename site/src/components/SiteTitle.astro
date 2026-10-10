@@ -1,0 +1,43 @@
+---
+// The header's title: the mark and wordmark as on the app's top bar, and
+// a quiet "docs" beside them.
+import BrandMark from "./BrandMark.astro";
+
+const { siteTitleHref } = Astro.locals.starlightRoute;
+---
+
+<a href={siteTitleHref} class="site-title tk-brand">
+	<BrandMark size={26} />
+	<span class="tk-wordmark" translate="no">tack</span>
+	<span class="tk-docs-tag">docs</span>
+</a>
+
+<style>
+	.site-title {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		text-decoration: none;
+		color: var(--sl-color-white);
+		min-width: 0;
+	}
+
+	.tk-wordmark {
+		font-family: var(--tk-font-display);
+		font-size: 1.4rem;
+		font-weight: 750;
+		letter-spacing: -0.03em;
+		line-height: 1;
+	}
+
+	.tk-docs-tag {
+		margin-inline-start: 0.1rem;
+		padding: 0.15rem 0.45rem;
+		border-radius: 999px;
+		background: var(--tk-chip);
+		color: var(--tk-muted);
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		line-height: 1.2;
+	}
+</style>

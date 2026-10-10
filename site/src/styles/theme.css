@@ -1,0 +1,364 @@
+/* ---------------------------------------------------------------------------
+   Tack's tokens (src/client/styles.css in the app), mapped onto Starlight's.
+   Starlight's dark theme is the default; light is [data-theme="light"].
+   ------------------------------------------------------------------------ */
+
+:root {
+	--tk-font-ui: "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+	--tk-font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
+	--tk-font-display: "Bricolage Grotesque Variable", var(--tk-font-ui);
+
+	--sl-font: var(--tk-font-ui);
+	--sl-font-mono: var(--tk-font-mono);
+
+	/* The app's motion: a lively spring for things that pop, a soft one for
+	   things that settle. Reduced motion turns every duration to nothing. */
+	--tk-motion: 1;
+	--tk-t-quick: calc(120ms * var(--tk-motion));
+	--tk-t-base: calc(220ms * var(--tk-motion));
+	--tk-t-settle: calc(560ms * var(--tk-motion));
+	--tk-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+	--tk-ease-spring: linear(
+		0,
+		0.009,
+		0.035 2.1%,
+		0.141,
+		0.281 6.7%,
+		0.723 12.9%,
+		0.938 16.7%,
+		1.017,
+		1.077,
+		1.121,
+		1.149 24.3%,
+		1.159,
+		1.163,
+		1.161,
+		1.154 29.9%,
+		1.129 32.8%,
+		1.051 39.6%,
+		1.017 43.1%,
+		0.991,
+		0.977 51%,
+		0.974 53.8%,
+		0.975 57.1%,
+		0.997 69.8%,
+		1.003 76.9%,
+		1.004 83.8%,
+		1
+	);
+
+	/* Dark, as on a board at night. */
+	--tk-ground: #141518;
+	--tk-ground-dots: #2c2e33;
+	--tk-surface: #1f2125;
+	--tk-surface-muted: #1a1c1f;
+	--tk-ink: #eceef1;
+	--tk-ink-soft: #c9cdd3;
+	--tk-muted: #a0a6ae;
+	--tk-line: rgb(255 255 255 / 8%);
+	--tk-line-strong: rgb(255 255 255 / 15%);
+	--tk-accent: #95a0ff;
+	--tk-accent-soft: rgb(149 160 255 / 18%);
+	--tk-on-accent: #10121a;
+	--tk-chip: #2b2e33;
+	--tk-sticky-yellow: #f2d77c;
+	--tk-sticky-pink: #f2b7ca;
+	--tk-sticky-blue: #b4cbf2;
+	--tk-sticky-green: #b6deba;
+	--tk-sticky-purple: #d0c1f3;
+	--tk-sticky-ink: rgb(23 25 28 / 90%);
+	--tk-sticky-shadow: 0 1px 1px rgb(0 0 0 / 30%), 0 12px 20px -10px rgb(0 0 0 / 60%);
+	--tk-shadow-rest: 0 1px 1px rgb(0 0 0 / 30%), 0 2px 6px rgb(0 0 0 / 22%);
+	--tk-shadow-lifted: 0 4px 10px rgb(0 0 0 / 30%), 0 22px 44px rgb(0 0 0 / 50%);
+	--tk-open: #6fd38a;
+	--tk-merged: #bfa2ff;
+	--tk-highlight: rgb(255 200 70 / 32%);
+
+	--sl-color-white: var(--tk-ink);
+	--sl-color-gray-1: #dfe2e6;
+	--sl-color-gray-2: var(--tk-ink-soft);
+	--sl-color-gray-3: var(--tk-muted);
+	--sl-color-gray-4: #6b7078;
+	--sl-color-gray-5: #34363c;
+	--sl-color-gray-6: var(--tk-surface);
+	--sl-color-black: var(--tk-ground);
+
+	--sl-color-accent-low: #262b52;
+	--sl-color-accent: var(--tk-accent);
+	--sl-color-accent-high: #c9cfff;
+
+	--sl-color-bg-nav: rgb(20 21 24 / 86%);
+	--sl-color-bg-sidebar: var(--tk-ground);
+	--sl-color-hairline: var(--tk-line);
+	--sl-color-hairline-light: var(--tk-line-strong);
+	--sl-color-bg-inline-code: var(--tk-chip);
+}
+
+:root[data-theme="light"] {
+	--tk-ground: #f4f3ef;
+	--tk-ground-dots: #d3cfc5;
+	--tk-surface: #ffffff;
+	--tk-surface-muted: #f7f6f2;
+	--tk-ink: #17191c;
+	--tk-ink-soft: #3f444b;
+	--tk-muted: #5a5f66;
+	--tk-line: rgb(23 25 28 / 9%);
+	--tk-line-strong: rgb(23 25 28 / 16%);
+	--tk-accent: #3b4cca;
+	--tk-accent-soft: rgb(59 76 202 / 14%);
+	--tk-on-accent: #ffffff;
+	--tk-chip: #f1efea;
+	--tk-sticky-yellow: #ffe58f;
+	--tk-sticky-pink: #ffc9da;
+	--tk-sticky-blue: #c7ddff;
+	--tk-sticky-green: #c9efcf;
+	--tk-sticky-purple: #e2d4ff;
+	--tk-sticky-shadow: 0 1px 1px rgb(0 0 0 / 6%), 0 12px 18px -10px rgb(0 0 0 / 25%);
+	--tk-shadow-rest: 0 1px 1px rgb(23 25 28 / 4%), 0 2px 6px rgb(23 25 28 / 5%);
+	--tk-shadow-lifted: 0 4px 10px rgb(23 25 28 / 8%), 0 22px 44px rgb(23 25 28 / 16%);
+	--tk-open: #1a6431;
+	--tk-merged: #6533b8;
+	--tk-highlight: rgb(255 210 92 / 75%);
+
+	--sl-color-white: var(--tk-ink);
+	--sl-color-gray-1: #25282c;
+	--sl-color-gray-2: var(--tk-ink-soft);
+	--sl-color-gray-3: var(--tk-muted);
+	--sl-color-gray-4: #8a8e94;
+	--sl-color-gray-5: #dcd9d1;
+	--sl-color-gray-6: #ecebe6;
+	--sl-color-gray-7: var(--tk-surface-muted);
+	--sl-color-black: #fbfaf7;
+
+	--sl-color-accent-low: #dfe3fb;
+	--sl-color-accent: var(--tk-accent);
+	--sl-color-accent-high: #2a379e;
+
+	--sl-color-bg-nav: rgb(251 250 247 / 86%);
+	--sl-color-bg-sidebar: #fbfaf7;
+	--sl-color-hairline: var(--tk-line);
+	--sl-color-hairline-light: var(--tk-line-strong);
+	--sl-color-bg-inline-code: var(--tk-chip);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--tk-motion: 0.001;
+	}
+}
+
+/* ---------------------------------------------------------------------------
+   Type
+   ------------------------------------------------------------------------ */
+
+body {
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+	font-feature-settings: "ss01" 0;
+}
+
+h1,
+h2,
+h3,
+.sl-markdown-content :is(h1, h2, h3),
+.card .title {
+	font-family: var(--tk-font-display);
+	letter-spacing: -0.02em;
+}
+
+h1,
+.sl-markdown-content h1 {
+	font-weight: 720;
+	letter-spacing: -0.03em;
+}
+
+.sl-markdown-content :is(h2, h3) {
+	font-weight: 650;
+}
+
+.sl-markdown-content :is(code, kbd) {
+	font-feature-settings: "zero" 0;
+}
+
+/* Keycaps, as on the app's shortcut sheet. */
+.sl-markdown-content kbd {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.55em;
+	padding: 0.15em 0.4em;
+	border-radius: 6px;
+	border: 1px solid var(--tk-line-strong);
+	border-bottom-width: 2px;
+	background: var(--tk-surface);
+	color: var(--tk-ink);
+	font-family: var(--tk-font-ui);
+	font-size: 0.8em;
+	font-weight: 550;
+	line-height: 1.1;
+	vertical-align: 0.08em;
+	white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   Chrome
+   ------------------------------------------------------------------------ */
+
+header.header {
+	backdrop-filter: blur(12px) saturate(1.4);
+	-webkit-backdrop-filter: blur(12px) saturate(1.4);
+}
+
+/* The sidebar's current page, as a soft accent chip. */
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover,
+.sidebar-content a[aria-current="page"]:focus {
+	background: var(--tk-accent-soft);
+	color: var(--sl-color-accent-high);
+	border-radius: 8px;
+	font-weight: 600;
+}
+
+.sidebar-content a {
+	border-radius: 8px;
+	transition: background-color var(--tk-t-quick) var(--tk-ease-out);
+}
+
+.sidebar-content a:hover {
+	background: var(--tk-line);
+}
+
+/* Starlight's buttons, in the app's shape. */
+.sl-link-button {
+	border-radius: 10px;
+	font-weight: 600;
+	transition:
+		transform var(--tk-t-base) var(--tk-ease-spring),
+		box-shadow var(--tk-t-base) var(--tk-ease-out),
+		background-color var(--tk-t-quick) var(--tk-ease-out);
+}
+
+.sl-link-button:hover {
+	transform: translateY(-1px);
+}
+
+.sl-link-button.primary {
+	background: var(--tk-accent);
+	border-color: var(--tk-accent);
+	color: var(--tk-on-accent);
+	box-shadow:
+		0 1px 1px rgb(0 0 0 / 10%),
+		0 6px 16px -6px var(--tk-accent);
+}
+
+/* Cards and link cards lift like cards on a board. */
+.card,
+.sl-link-card {
+	border-radius: 14px;
+	border-color: var(--tk-line-strong);
+	background: var(--tk-surface);
+	box-shadow: var(--tk-shadow-rest);
+}
+
+.sl-link-card {
+	transition:
+		transform var(--tk-t-base) var(--tk-ease-spring),
+		box-shadow var(--tk-t-base) var(--tk-ease-out);
+}
+
+.sl-link-card:hover {
+	transform: translateY(-2px) rotate(-0.3deg);
+	box-shadow: var(--tk-shadow-lifted);
+	background: var(--tk-surface);
+}
+
+/* Asides as stickies: paper in both themes, so the ink stays dark. */
+.starlight-aside {
+	border: 0;
+	border-radius: 4px 4px 4px 14px;
+	box-shadow: var(--tk-sticky-shadow);
+	color: var(--tk-sticky-ink);
+	padding: 1rem 1.15rem;
+}
+
+.starlight-aside :is(a, code, strong, .starlight-aside__title) {
+	color: var(--tk-sticky-ink);
+}
+
+.starlight-aside code {
+	background: rgb(23 25 28 / 8%);
+}
+
+.starlight-aside--note {
+	background: var(--tk-sticky-blue);
+}
+
+.starlight-aside--tip {
+	background: var(--tk-sticky-green);
+}
+
+.starlight-aside--caution {
+	background: var(--tk-sticky-yellow);
+}
+
+.starlight-aside--danger {
+	background: var(--tk-sticky-pink);
+}
+
+.starlight-aside__icon {
+	opacity: 0.75;
+}
+
+/* Tables: quiet rules and a muted head. */
+.sl-markdown-content table {
+	border-collapse: collapse;
+	font-size: var(--sl-text-sm);
+}
+
+.sl-markdown-content :is(th, td) {
+	border: 0;
+	border-bottom: 1px solid var(--tk-line-strong);
+	padding: 0.5rem 0.75rem;
+}
+
+.sl-markdown-content th {
+	color: var(--tk-muted);
+	font-weight: 600;
+	text-align: start;
+}
+
+.sl-markdown-content tr:nth-child(2n) {
+	background: transparent;
+}
+
+/* Screenshots: framed like a window onto a board. */
+.tk-shot {
+	display: block;
+	margin-block: 1.5rem;
+	border-radius: 12px;
+	overflow: hidden;
+	border: 1px solid var(--tk-line-strong);
+	box-shadow: var(--tk-shadow-lifted);
+	background: var(--tk-ground);
+}
+
+.tk-shot img {
+	/* No display here: Starlight's light:sl-hidden and dark:sl-hidden pick
+	   the theme's image, and an unlayered display would beat them. */
+	vertical-align: top;
+	width: 100%;
+	height: auto;
+	margin: 0;
+}
+
+.tk-shot + p.tk-caption,
+.tk-caption {
+	margin-top: -0.75rem;
+	color: var(--tk-muted);
+	font-size: var(--sl-text-sm);
+	text-align: center;
+}
+
+::selection {
+	background: var(--tk-accent-soft);
+}

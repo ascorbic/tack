@@ -1,0 +1,62 @@
+---
+// A screenshot of a /play scenario (scripts/screenshots.ts), in whichever
+// theme the reader has chosen.
+import { Image } from "astro:assets";
+
+interface Props {
+	/** The screenshot's name, e.g. "planning" for planning-light.webp and planning-dark.webp. */
+	name: string;
+	alt: string;
+	caption?: string;
+	/** Load it straight away: for the first screen of a page. */
+	eager?: boolean;
+	class?: string;
+}
+
+const shots = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*.webp", {
+	eager: true,
+});
+const { name, alt, caption, eager = false, class: className } = Astro.props;
+const light = shots[`../assets/screenshots/${name}-light.webp`]?.default;
+const dark = shots[`../assets/screenshots/${name}-dark.webp`]?.default;
+if (!light || !dark) {
+	throw new Error(`No screenshot called “${name}”: run \`pnpm --filter site screenshots\``);
+}
+const widths = [720, 1100, 1440, 2200];
+const sizes = "(min-width: 72rem) 45rem, 100vw";
+const loading = eager ? "eager" : "lazy";
+---
+
+<figure class:list={["tk-shot-figure", className]}>
+	<span class="tk-shot">
+		<Image
+			src={light}
+			{alt}
+			{widths}
+			{sizes}
+			{loading}
+			class="dark:sl-hidden"
+			format="webp"
+		/>
+		<Image
+			src={dark}
+			{alt}
+			{widths}
+			{sizes}
+			{loading}
+			class="light:sl-hidden"
+			format="webp"
+		/>
+	</span>
+	{caption && <figcaption class="tk-caption">{caption}</figcaption>}
+</figure>
+
+<style>
+	.tk-shot-figure {
+		margin: 1.75rem 0;
+	}
+
+	.tk-shot-figure figcaption {
+		margin-top: 0.6rem;
+	}
+</style>
