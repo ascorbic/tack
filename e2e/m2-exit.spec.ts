@@ -168,6 +168,13 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 	await page.keyboard.press("Alt+KeyI");
 	const issues = page.getByRole("dialog", { name: "Make issues from stickies" });
 	await expect(issues.getByRole("option", { selected: true })).toContainText("demo/app");
+	// Labelled as they're made, so they need no second push for it.
+	await issues
+		.getByRole("group", { name: "Start with" })
+		.getByRole("button", { name: "Labels" })
+		.click();
+	await page.keyboard.type("enhance");
+	await page.keyboard.press("Enter");
 	await issues.getByRole("button", { name: "Stage 2 issues" }).click();
 	await expect(issues).toHaveCount(0);
 
@@ -225,6 +232,13 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 		"item.milestone": 1,
 		"pr.create": 1,
 	});
+	const labelled = staged.filter((change) => (change.op.labels as string[] | undefined)?.length);
+	expect(Object.fromEntries(labelled.map((change) => [change.op.title, change.op.labels]))).toEqual(
+		{
+			"Cache the manifest": ["enhancement"],
+			"Faster cold starts": ["enhancement"],
+		},
+	);
 
 	// Push it all through the push sheet.
 	await pushAll(page, 11);

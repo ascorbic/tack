@@ -218,7 +218,8 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 	await client.roundTrip();
 	await eventually(async () => (await stub.liveCards()).some((card) => card.key === EXISTING));
 
-	// Loose stickies become issues; the section, a parent with the rest as sub-issues.
+	// Loose stickies become issues, labelled as they're made; the section, a
+	// parent with the rest as sub-issues.
 	const loose = stageStickyIssues(
 		doc,
 		[
@@ -227,8 +228,13 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 		],
 		REPO,
 		STAGER,
+		{ labels: ["performance"], milestone: "v1" },
 	);
 	expect(loose.staged).toHaveLength(2);
+	expect(listChanges(doc).find((c) => c.id === loose.staged[0])?.op).toMatchObject({
+		labels: ["performance"],
+		milestone: "v1",
+	});
 	const parent = stageParentIssue(
 		doc,
 		{ repo: REPO, title: sectionTitle(doc, "section"), shapes: ["section"], near: ["section"] },
@@ -347,6 +353,13 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 		new Set([id(wobble.number), id(snap.number)]),
 	);
 	expect(github.blockedBy.get(`${WIDGETS}#${manifest.number}`)).toEqual([id(cold.number)]);
+	// Labelled in one push: made with them.
+	for (const made of [cold, manifest]) {
+		expect(github.item(WIDGETS, made.number)).toMatchObject({
+			labels: [{ name: "performance", color: "fbca04" }],
+			milestone: "v1",
+		});
+	}
 	expect(github.item(WIDGETS, 12)).toMatchObject({
 		labels: [{ name: "bug", color: "d73a4a" }],
 		milestone: "v1",
@@ -418,19 +431,15 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 		url: `https://github.com/acme/widgets/pull/${pull.number}`,
 	});
 
-	// --- Labels on the new issues, and backlinks on every issue -------------------
+	// --- A label on a sub-issue, and backlinks on every issue ---------------------
 	const newIssues = [cold, manifest, wobble, snap];
 	const labels = stageSetEdits(
 		doc,
 		"item.labels",
-		[
-			{ key: keyOf(cold.number), add: ["performance"], remove: [], current: [] },
-			{ key: keyOf(manifest.number), add: ["performance"], remove: [], current: [] },
-			{ key: keyOf(wobble.number), add: ["bug"], remove: [], current: [] },
-		],
+		[{ key: keyOf(wobble.number), add: ["bug"], remove: [], current: [] }],
 		STAGER,
 	);
-	expect(labels).toHaveLength(3);
+	expect(labels).toHaveLength(1);
 
 	// One snapshot (every card's in the same public repository), uploaded as
 	// the backlink panel does, and served publicly for GitHub to show.
@@ -469,9 +478,7 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 	expect(again.status).toBe(202);
 	const secondPush = ((await again.json()) as Extract<PushResponse, { ok: true }>).pushId;
 	for (const change of labels) await waitFor(client, change, ["sent", "applied"]);
-	for (const issue of [cold, manifest, wobble]) {
-		await deliver(mf, github, "issues", github.event(WIDGETS, issue.number, "labeled"));
-	}
+	await deliver(mf, github, "issues", github.event(WIDGETS, wobble.number, "labeled"));
 	await allApplied(client, second);
 
 	expect(github.item(WIDGETS, cold.number)?.labels).toEqual([
@@ -518,7 +525,7 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 			"POST /repos/acme/widgets/git/commits",
 			"POST /repos/acme/widgets/git/refs",
 			"POST /repos/acme/widgets/pulls",
-			...[cold, manifest, wobble].map((i) => `POST ${issue(i.number)}/labels`),
+			`POST ${issue(wobble.number)}/labels`,
 			...linked.map((n) => `POST ${issue(n)}/comments`),
 		].sort(),
 	);

@@ -338,6 +338,24 @@ export default function ActionsGallery() {
 						<figure>
 							<Panel>
 								<MakeIssuesPanel
+									stickies={STICKIES.slice(0, 2)}
+									staged={new Set()}
+									repos={REPOS}
+									host="fake.tack"
+									initialRepo={REPO}
+									initialExtras={{
+										labels: ["docs", "enhancement", "performance"],
+										milestone: "5.0",
+									}}
+									initialExtra="labels"
+									onStage={() => {}}
+								/>
+							</Panel>
+							<figcaption>With labels and a milestone</figcaption>
+						</figure>
+						<figure>
+							<Panel>
+								<MakeIssuesPanel
 									stickies={STICKIES.slice(0, 1)}
 									staged={new Set()}
 									repos={REPOS}

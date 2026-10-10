@@ -124,6 +124,46 @@ describe("stickies to issues", () => {
 		expect(listChanges(doc)).toHaveLength(1);
 	});
 
+	it("starts them with labels, a milestone and assignees, in the create", () => {
+		const { doc } = board();
+		stageStickyIssues(
+			doc,
+			[
+				{ id: "s1", text: "One" },
+				{ id: "s2", text: "Two\nwith a body" },
+			],
+			REPO,
+			PRIYA,
+			{ labels: ["docs", "bug", "docs"], milestone: "5.0", assignees: ["priya"] },
+		);
+		expect(ops(doc)).toEqual([
+			{
+				kind: "issue.create",
+				repo: REPO,
+				title: "One",
+				labels: ["docs", "bug"],
+				milestone: "5.0",
+				assignees: ["priya"],
+			},
+			{
+				kind: "issue.create",
+				repo: REPO,
+				title: "Two",
+				body: "with a body",
+				labels: ["docs", "bug"],
+				milestone: "5.0",
+				assignees: ["priya"],
+			},
+		]);
+		// Nothing picked: nothing extra.
+		const { doc: plain } = board();
+		stageStickyIssues(plain, [{ id: "s1", text: "One" }], REPO, PRIYA, {
+			labels: [],
+			milestone: null,
+		});
+		expect(ops(plain)).toEqual([{ kind: "issue.create", repo: REPO, title: "One" }]);
+	});
+
 	it("is one undo step", () => {
 		const { doc } = board();
 		const history = new History(doc);

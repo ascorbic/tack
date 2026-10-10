@@ -1,9 +1,25 @@
 import { type ReactNode, useMemo, useState } from "react";
-import { type ChildInput, canWrite, issueFromText } from "../../shared/actions.ts";
+import {
+	type ChildInput,
+	type IssueExtras,
+	type Presence,
+	canWrite,
+	issueFromText,
+} from "../../shared/actions.ts";
 import type { OperationKind } from "../../shared/changes.ts";
+import type { RepoMeta } from "../../shared/push.ts";
 import { installUrl } from "../CardView.tsx";
-import { IssueIcon, PullIcon } from "./icons.tsx";
-import { type RepoOption, RepoName, RepoPicker } from "./pickers.tsx";
+import { IssueIcon, LabelIcon, MilestoneIcon, PersonIcon, PullIcon } from "./icons.tsx";
+import {
+	LabelOption,
+	MilestonePicker,
+	PersonOption,
+	type RepoOption,
+	RepoName,
+	RepoPicker,
+	SetList,
+	avatarFor,
+} from "./pickers.tsx";
 import { Notice, PopoverHead } from "./Popover.tsx";
 import { useRepoMeta } from "./services.ts";
 
@@ -57,13 +73,160 @@ export interface StickyPreview {
 	color?: string;
 }
 
-/** Stickies into issues: pick a repository, check the titles, stage. */
+type Extra = "labels" | "milestone" | "assignees";
+
+const ticked = (names: readonly string[]) =>
+	new Map(names.map((name): [string, Presence] => [name, "all"]));
+
+const toggled = (names: readonly string[], name: string) =>
+	names.includes(name) ? names.filter((n) => n !== name) : [...names, name];
+
+/**
+ * What new issues start with: labels, a milestone and assignees, written
+ * with the create itself. Each is a pill that opens its picker in place, and
+ * shows what's picked once it closes. Only what the repository has is offered.
+ */
+export function IssueExtrasPicker({
+	repo,
+	meta,
+	value,
+	onChange,
+	initialOpen = null,
+}: {
+	repo: string;
+	meta: RepoMeta;
+	value: IssueExtras;
+	onChange: (value: IssueExtras) => void;
+	initialOpen?: Extra | null;
+}) {
+	const [open, setOpen] = useState<Extra | null>(initialOpen);
+	const labels = value.labels ?? [];
+	const assignees = value.assignees ?? [];
+	// Where the forge can set them at all, and the repository has some.
+	const offered: Extra[] = [
+		...(meta.labels.length > 0 && canWrite(meta, "item.labels") ? ["labels" as const] : []),
+		...(meta.milestones.length > 0 && canWrite(meta, "item.milestone")
+			? ["milestone" as const]
+			: []),
+		...(meta.assignees.length > 0 && canWrite(meta, "item.assignees")
+			? ["assignees" as const]
+			: []),
+	];
+	if (offered.length === 0) return null;
+	const color = (name: string) => meta.labels.find((l) => l.name === name)?.color ?? "8a8f98";
+	const pill = (extra: Extra, icon: ReactNode, label: string, chosen: ReactNode) => (
+		<button
+			type="button"
+			className="issue-extra"
+			aria-expanded={open === extra}
+			aria-label={label}
+			data-chosen={chosen ? true : undefined}
+			onClick={() => setOpen((current) => (current === extra ? null : extra))}
+		>
+			{icon}
+			{chosen ? chosen : <span className="issue-extra-name">{label}</span>}
+			<span className="issue-extra-caret" aria-hidden="true" />
+		</button>
+	);
+	return (
+		<div className="issue-extras" role="group" aria-label="Start with">
+			<div className="issue-extras-row">
+				{offered.includes("labels") &&
+					pill(
+						"labels",
+						<LabelIcon />,
+						"Labels",
+						labels.length > 0 && (
+							<span className="issue-extra-chips">
+								{labels.slice(0, 2).map((name) => (
+									<span
+										key={name}
+										className="chip label"
+										style={{ "--label": `#${color(name)}` } as React.CSSProperties}
+									>
+										{name}
+									</span>
+								))}
+								{labels.length > 2 && (
+									<span className="issue-extra-more">+{labels.length - 2}</span>
+								)}
+							</span>
+						),
+					)}
+				{offered.includes("milestone") &&
+					pill(
+						"milestone",
+						<MilestoneIcon />,
+						"Milestone",
+						value.milestone && <span className="issue-extra-name">{value.milestone}</span>,
+					)}
+				{offered.includes("assignees") &&
+					pill(
+						"assignees",
+						<PersonIcon />,
+						"Assignees",
+						assignees.length > 0 && (
+							<span className="issue-extra-name">
+								{assignees.length === 1 ? `@${assignees[0]}` : `${assignees.length} people`}
+							</span>
+						),
+					)}
+			</div>
+			{open && (
+				<div className="issue-extra-picker" key={open}>
+					{open === "labels" && (
+						<SetList
+							noun="label"
+							options={meta.labels}
+							chosen={ticked(labels)}
+							onToggle={(name) => onChange({ ...value, labels: toggled(labels, name) })}
+							placeholder="Filter labels"
+							empty="This repository has no labels"
+							render={(option) => <LabelOption option={option} />}
+							autoFocus
+						/>
+					)}
+					{open === "milestone" && (
+						<MilestonePicker
+							milestones={meta.milestones}
+							chosen={value.milestone ?? null}
+							onPick={(milestone) => {
+								onChange({ ...value, milestone });
+								setOpen(null);
+							}}
+							autoFocus
+						/>
+					)}
+					{open === "assignees" && (
+						<SetList
+							noun="assignee"
+							options={meta.assignees.map((login) => ({
+								name: login,
+								avatar: avatarFor(repo, login),
+							}))}
+							chosen={ticked(assignees)}
+							onToggle={(name) => onChange({ ...value, assignees: toggled(assignees, name) })}
+							placeholder="Filter people"
+							empty="Nobody can be assigned here"
+							render={(option) => <PersonOption option={option} />}
+							autoFocus
+						/>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
+/** Stickies into issues: pick a repository, check the titles, maybe labels, stage. */
 export function MakeIssuesPanel({
 	stickies,
 	staged,
 	repos,
 	host,
 	initialRepo,
+	initialExtras = {},
+	initialExtra = null,
 	onStage,
 }: {
 	stickies: StickyPreview[];
@@ -72,10 +235,20 @@ export function MakeIssuesPanel({
 	repos: RepoOption[];
 	host: string;
 	initialRepo: string | null;
-	onStage: (repo: string) => void;
+	/** For the gallery: what's picked, and which picker is open. */
+	initialExtras?: IssueExtras;
+	initialExtra?: Extra | null;
+	onStage: (repo: string, extras: IssueExtras) => void;
 }) {
-	const [repo, setRepo] = useState(initialRepo);
+	const [repo, setRepoState] = useState(initialRepo);
+	const [extras, setExtras] = useState<IssueExtras>(initialExtras);
+	// Labels and people are the repository's own: a new one starts afresh.
+	const setRepo = (next: string) => {
+		if (next !== repo) setExtras({});
+		setRepoState(next);
+	};
 	const access = useRepoAccess(repo, "issue.create");
+	const meta = access.meta?.writable ? access.meta : null;
 	const issues = useMemo(
 		() =>
 			stickies.flatMap((sticky) => {
@@ -95,7 +268,7 @@ export function MakeIssuesPanel({
 			className="issue-panel"
 			onSubmit={(event) => {
 				event.preventDefault();
-				if (repo && n > 0 && !access.blocked) onStage(repo);
+				if (repo && n > 0 && !access.blocked) onStage(repo, extras);
 			}}
 		>
 			<PopoverHead
@@ -104,6 +277,16 @@ export function MakeIssuesPanel({
 			/>
 			<RepoPicker value={repo} onChange={setRepo} options={repos} host={host} />
 			{access.notice}
+			{repo && meta && !access.blocked && (
+				<IssueExtrasPicker
+					key={repo}
+					repo={repo}
+					meta={meta}
+					value={extras}
+					onChange={setExtras}
+					initialOpen={initialExtra}
+				/>
+			)}
 			{n > 0 && (
 				<ol className="issue-preview" aria-label="Issues to make">
 					{shown.map((issue) => (

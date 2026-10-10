@@ -96,17 +96,42 @@ export interface StageResult {
 	skipped: { shape: string; reason: SkipReason }[];
 }
 
+/** What new issues start with, besides their text: written as part of the create. */
+export interface IssueExtras {
+	labels?: readonly string[];
+	milestone?: string | null;
+	assignees?: readonly string[];
+}
+
+/** Extras as `issue.create` fields, leaving out anything empty. */
+export function extrasOf(extras: IssueExtras | undefined): {
+	labels?: string[];
+	milestone?: string;
+	assignees?: string[];
+} {
+	const labels = [...new Set(extras?.labels ?? [])];
+	const assignees = [...new Set(extras?.assignees ?? [])];
+	return {
+		...(labels.length ? { labels } : {}),
+		...(extras?.milestone ? { milestone: extras.milestone } : {}),
+		...(assignees.length ? { assignees } : {}),
+	};
+}
+
 /**
  * Stage an `issue.create` in `repo` for each sticky, which becomes the card
- * for its issue, in place, once it's made.
+ * for its issue, in place, once it's made. Each starts with `extras`
+ * (labels, a milestone, assignees), so they need no second push.
  */
 export function stageStickyIssues(
 	doc: Y.Doc,
 	stickies: StickyInput[],
 	repo: string,
 	stager: Stager,
+	extras?: IssueExtras,
 ): StageResult {
 	const result: StageResult = { staged: [], skipped: [] };
+	const fields = extrasOf(extras);
 	transactLocal(doc, () => {
 		for (const sticky of stickies) {
 			if (pendingIssueFor(doc, sticky.id)) {
@@ -118,7 +143,7 @@ export function stageStickyIssues(
 				result.skipped.push({ shape: sticky.id, reason: "empty" });
 				continue;
 			}
-			const id = stageChange(doc, { kind: "issue.create", repo, ...issue }, stager, {
+			const id = stageChange(doc, { kind: "issue.create", repo, ...issue, ...fields }, stager, {
 				shapes: [sticky.id],
 				effect: { kind: "replace", shapes: [sticky.id] },
 			});

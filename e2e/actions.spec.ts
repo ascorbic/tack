@@ -8,7 +8,7 @@ interface Change {
 	id: string;
 	status: string;
 	op: { kind: string; [key: string]: unknown };
-	effect?: { kind: string; shapes?: string[]; shape?: string };
+	effect?: { kind: string; shapes?: string[]; shape?: string; near?: string[] };
 	shapes?: string[];
 }
 
@@ -76,6 +76,54 @@ test("stickies become staged issues, one undo step", async ({ page }) => {
 	expect(await changes(page)).toEqual([]);
 });
 
+test("stickies become issues that start with labels, a milestone and an assignee", async ({
+	page,
+}) => {
+	await select(page, "Benchmarks in CI", "A provider playground");
+	await page.keyboard.press("Alt+KeyI");
+	const panel = page.getByRole("dialog", { name: "Make issues from stickies" });
+	const extras = panel.getByRole("group", { name: "Start with" });
+
+	// Labels: type to filter, ↵ ticks; the pill shows them once closed.
+	await extras.getByRole("button", { name: "Labels" }).click();
+	await expect(panel.getByRole("combobox", { name: "Filter labels" })).toBeFocused();
+	await page.keyboard.type("perf");
+	await page.keyboard.press("Enter");
+	await panel.getByRole("combobox", { name: "Filter labels" }).fill("");
+	await panel.getByRole("option", { name: /^docs/ }).click();
+	await extras.getByRole("button", { name: "Labels" }).click();
+	await expect(extras.getByRole("button", { name: "Labels" })).toContainText("performance");
+
+	// A milestone: picking one closes its list.
+	await extras.getByRole("button", { name: "Milestone" }).click();
+	await panel.getByRole("option", { name: /5\.0/ }).click();
+	await expect(panel.getByRole("listbox", { name: "Milestones" })).toHaveCount(0);
+	await expect(extras.getByRole("button", { name: "Milestone" })).toContainText("5.0");
+
+	await extras.getByRole("button", { name: "Assignees" }).click();
+	await panel.getByRole("option", { name: /kai/ }).click();
+	await panel.getByRole("button", { name: "Stage 2 issues" }).click();
+	await expect(panel).toHaveCount(0);
+	await expect(page.locator(".toast")).toContainText("with 2 labels");
+
+	const extra = { labels: ["performance", "docs"], milestone: "5.0", assignees: ["kai"] };
+	expect((await changes(page)).map((c) => c.op)).toEqual([
+		{
+			kind: "issue.create",
+			repo: "fake.tack/acme/imagekit",
+			title: "Benchmarks in CI",
+			body: "Run them on every PR and comment with the diff",
+			...extra,
+		},
+		{
+			kind: "issue.create",
+			repo: "fake.tack/acme/imagekit",
+			title: "A provider playground",
+			...extra,
+		},
+	]);
+});
+
 test("a typed repository, and one without the app", async ({ page }) => {
 	await select(page, "Codemods for 5.0");
 	await bar(page).getByRole("button", { name: "Make issues from stickies" }).click();
@@ -104,6 +152,9 @@ test("a section becomes a parent issue with sub-issues", async ({ page }) => {
 	const staged = await changes(page);
 	const parent = staged.find((c) => c.op.kind === "issue.create" && c.op.title === "Docs for 5.0");
 	expect(parent).toBeTruthy();
+	// Its card will land above the section, which shows where meanwhile.
+	expect(parent?.effect).toEqual({ kind: "place", near: parent?.shapes });
+	await expect(page.locator(".staged-parent")).toContainText("Docs for 5.0");
 	expect(staged.filter((c) => c.op.kind === "issue.create")).toHaveLength(3);
 	const links = staged.filter((c) => c.op.kind === "item.subIssue");
 	expect(links).toHaveLength(4);
@@ -225,8 +276,12 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
 	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
-	await expect(page.locator(".action-popover")).toHaveCount(21);
+	await expect(page.locator(".action-popover")).toHaveCount(22);
 	await expect(page.locator(".backlink-snapshot img")).toHaveCount(2);
+	// New issues that start with labels and a milestone, the labels' list open.
+	const extras = page.locator("figure", { hasText: "With labels and a milestone" });
+	await expect(extras.locator(".issue-extra[data-chosen]")).toHaveCount(2);
+	await expect(extras.getByRole("option", { selected: true })).toHaveCount(1 + 3);
 	await expect(page.getByText("Tack can’t write to")).toBeVisible();
 	await expect(page.getByText("Make “Benchmarks in CI” an issue first")).toBeVisible();
 	// Expand related: loading, ready, switched off, nothing, all here, and rate limited.

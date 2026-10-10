@@ -46,6 +46,7 @@ function SearchField({
 	activeId,
 	listId,
 	icon = <SearchIcon />,
+	autoFocus,
 }: {
 	value: string;
 	onChange: (value: string) => void;
@@ -55,12 +56,15 @@ function SearchField({
 	activeId?: string;
 	listId: string;
 	icon?: ReactNode;
+	autoFocus?: boolean;
 }) {
 	return (
 		<label className="action-search">
 			{icon}
 			<input
 				data-autofocus
+				// oxlint-disable-next-line jsx-a11y/no-autofocus -- opened on purpose, by a click or a key
+				autoFocus={autoFocus}
 				type="text"
 				role="combobox"
 				aria-label={label}
@@ -193,6 +197,13 @@ export function RepoPicker({
 
 // Labels and people -------------------------------------------------------------
 
+/** Someone's avatar, where the forge has them. */
+export function avatarFor(repo: string, login: string): string | undefined {
+	return parseRepoKey(repo)?.host === "github.com"
+		? `https://avatars.githubusercontent.com/${encodeURIComponent(login)}?s=40`
+		: undefined;
+}
+
 export interface SetOption {
 	name: string;
 	/** Labels: hex colour without the #. */
@@ -208,6 +219,110 @@ function TriBox({ presence }: { presence: Presence }) {
 			{presence === "all" && <CheckIcon />}
 			{presence === "some" && <span className="tribox-dash" />}
 		</span>
+	);
+}
+
+/**
+ * A filterable list of labels or people to tick: type to filter, arrows to
+ * move, ↵ to tick the highlighted one, ⌘↵ to submit the form it's in. Each
+ * shows whether every item has it, some do, or none.
+ */
+export function SetList({
+	noun,
+	options,
+	chosen,
+	initial,
+	onToggle,
+	placeholder,
+	empty,
+	render,
+	autoFocus,
+}: {
+	/** "label" or "assignee", for names. */
+	noun: string;
+	options: SetOption[];
+	chosen: ReadonlyMap<string, Presence>;
+	/** How things were before, to mark what's changed. */
+	initial?: ReadonlyMap<string, Presence>;
+	onToggle: (name: string) => void;
+	placeholder: string;
+	empty: string;
+	render: (option: SetOption) => ReactNode;
+	/** Focus the filter when it appears (it's opened after its popover). */
+	autoFocus?: boolean;
+}) {
+	const [query, setQuery] = useState("");
+	const listId = useId();
+	const words = query.trim().toLowerCase();
+	const shown = options.filter(
+		(o) =>
+			!words ||
+			o.name.toLowerCase().includes(words) ||
+			o.description?.toLowerCase().includes(words),
+	);
+	const { active, setActive, onKey } = useActive(shown.length);
+	return (
+		<>
+			<SearchField
+				label={`Filter ${noun}s`}
+				listId={listId}
+				value={query}
+				onChange={(next) => {
+					setQuery(next);
+					setActive(0);
+				}}
+				placeholder={placeholder}
+				activeId={active >= 0 ? `${listId}-${active}` : undefined}
+				autoFocus={autoFocus}
+				onKeyDown={(event) => {
+					if (onKey(event)) return;
+					if (event.key !== "Enter") return;
+					event.preventDefault();
+					// ⌘↵ stages; ↵ ticks the highlighted option.
+					if (event.metaKey || event.ctrlKey) {
+						event.currentTarget.form?.requestSubmit();
+						return;
+					}
+					const option = shown[active];
+					if (option) onToggle(option.name);
+				}}
+			/>
+			<div
+				className="action-list"
+				role="listbox"
+				aria-multiselectable="true"
+				id={listId}
+				aria-label={`${noun}s`}
+			>
+				{options.length === 0 && <p className="action-empty">{empty}</p>}
+				{options.length > 0 && shown.length === 0 && (
+					<p className="action-empty">Nothing matches “{query.trim()}”</p>
+				)}
+				{shown.map((option, i) => {
+					const presence = chosen.get(option.name) ?? "none";
+					return (
+						<button
+							key={option.name}
+							id={`${listId}-${i}`}
+							type="button"
+							role="option"
+							aria-selected={presence === "all"}
+							aria-checked={presence === "some" ? "mixed" : presence === "all"}
+							data-active={i === active}
+							data-changed={
+								(initial && (initial.get(option.name) ?? "none") !== presence) || undefined
+							}
+							className="action-option"
+							onPointerEnter={() => setActive(i)}
+							onClick={() => onToggle(option.name)}
+						>
+							<TriBox presence={presence} />
+							{render(option)}
+						</button>
+					);
+				})}
+			</div>
+		</>
 	);
 }
 
@@ -234,22 +349,12 @@ export function SetPicker({
 	empty: string;
 	render: (option: SetOption) => ReactNode;
 }) {
-	const [query, setQuery] = useState("");
-	const listId = useId();
 	const initial = useRef<Map<string, Presence> | null>(null);
 	if (!initial.current) {
 		const sets = items.map((item) => item.names);
 		initial.current = new Map(options.map((o) => [o.name, presenceOf(sets, o.name)]));
 	}
 	const [chosen, setChosen] = useState(initial.current);
-	const words = query.trim().toLowerCase();
-	const shown = options.filter(
-		(o) =>
-			!words ||
-			o.name.toLowerCase().includes(words) ||
-			o.description?.toLowerCase().includes(words),
-	);
-	const { active, setActive, onKey } = useActive(shown.length);
 	const edits = useMemo(() => {
 		// Only what you changed: untouched options keep each item as it is.
 		const changed = new Map(
@@ -275,62 +380,16 @@ export function SetPicker({
 				if (edits.length > 0) onStage(edits);
 			}}
 		>
-			<SearchField
-				label={`Filter ${noun}s`}
-				listId={listId}
-				value={query}
-				onChange={(next) => {
-					setQuery(next);
-					setActive(0);
-				}}
+			<SetList
+				noun={noun}
+				options={options}
+				chosen={chosen}
+				initial={initial.current}
+				onToggle={toggle}
 				placeholder={placeholder}
-				activeId={active >= 0 ? `${listId}-${active}` : undefined}
-				onKeyDown={(event) => {
-					if (onKey(event)) return;
-					if (event.key !== "Enter") return;
-					event.preventDefault();
-					// ⌘↵ stages; ↵ ticks the highlighted option.
-					if (event.metaKey || event.ctrlKey) {
-						event.currentTarget.form?.requestSubmit();
-						return;
-					}
-					const option = shown[active];
-					if (option) toggle(option.name);
-				}}
+				empty={empty}
+				render={render}
 			/>
-			<div
-				className="action-list"
-				role="listbox"
-				aria-multiselectable="true"
-				id={listId}
-				aria-label={`${noun}s`}
-			>
-				{options.length === 0 && <p className="action-empty">{empty}</p>}
-				{options.length > 0 && shown.length === 0 && (
-					<p className="action-empty">Nothing matches “{query.trim()}”</p>
-				)}
-				{shown.map((option, i) => {
-					const presence = chosen.get(option.name) ?? "none";
-					return (
-						<button
-							key={option.name}
-							id={`${listId}-${i}`}
-							type="button"
-							role="option"
-							aria-selected={presence === "all"}
-							aria-checked={presence === "some" ? "mixed" : presence === "all"}
-							data-active={i === active}
-							data-changed={initial.current?.get(option.name) !== presence || undefined}
-							className="action-option"
-							onPointerEnter={() => setActive(i)}
-							onClick={() => toggle(option.name)}
-						>
-							<TriBox presence={presence} />
-							{render(option)}
-						</button>
-					);
-				})}
-			</div>
 			<footer className="action-foot">
 				<span className="action-summary" aria-live="polite">
 					{edits.length === 0 ? (
@@ -404,9 +463,14 @@ function dueLabel(dueOn: string | null | undefined): string | null {
 export function MilestonePicker({
 	milestones,
 	onPick,
+	chosen,
+	autoFocus,
 }: {
 	milestones: Milestone[];
 	onPick: (milestone: string | null) => void;
+	/** The milestone already picked, ticked. */
+	chosen?: string | null;
+	autoFocus?: boolean;
 }) {
 	const [query, setQuery] = useState("");
 	const listId = useId();
@@ -428,6 +492,7 @@ export function MilestonePicker({
 				}}
 				placeholder="Filter milestones"
 				activeId={active >= 0 ? `${listId}-${active}` : undefined}
+				autoFocus={autoFocus}
 				onKeyDown={(event) => {
 					if (onKey(event)) return;
 					if (event.key === "Enter") {
@@ -445,7 +510,7 @@ export function MilestonePicker({
 						id={`${listId}-${i}`}
 						type="button"
 						role="option"
-						aria-selected={false}
+						aria-selected={chosen !== undefined && (milestone?.title ?? null) === chosen}
 						data-active={i === active}
 						className="action-option"
 						data-none={milestone === null || undefined}
@@ -457,6 +522,11 @@ export function MilestonePicker({
 							{milestone ? milestone.title : "No milestone"}
 						</span>
 						<span className="action-option-meta">{dueLabel(milestone?.dueOn)}</span>
+						{chosen !== undefined && (
+							<span className="action-check" aria-hidden="true">
+								{(milestone?.title ?? null) === chosen && <CheckIcon />}
+							</span>
+						)}
 					</button>
 				))}
 			</div>

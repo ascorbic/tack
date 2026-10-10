@@ -23,7 +23,7 @@ The M2 exit (#36) is one planning session that produces issues, labels, a merged
 
 Stage everything (nothing reaches GitHub yet):
 
-6. Select the two loose stickies, then **Make 2 issues** (⌥I). The test repository is chosen; **Stage 2 issues**.
+6. Select the two loose stickies, then **Make 2 issues** (⌥I). The test repository is chosen. Under it, **Labels**: tick `performance`; then **Stage 2 issues**. They're made with the label, so it takes no second push.
 7. Click the section's title, then **Parent issue** (⌥⇧I). The title is "Resizing"; **Stage with 2 sub-issues**. A dashed card hovers above the section, where the parent's card will land.
 8. Click the connector, then **Blocked by** (⌥B). It reads "Cache the manifest will be marked as blocked by Faster cold starts"; **Stage**.
 9. Select the seed card: **Labels** (⌥L), add `bug`, **Stage**; **Milestone** (⌥M), `v1`; **Assign** (⌥P), yourself.
@@ -32,9 +32,9 @@ Stage everything (nothing reaches GitHub yet):
 Push:
 
 11. **Changes** → **Review and push 12**. Check the previews (issue bodies, the ADR's file, and who'll be notified), keep **Push as: You**, and **Push 12 changes**. Wait for "All 12 changes are on GitHub". The four stickies become their issues' cards in place, "Resizing" gets a card of its own above its section, connected to it, the connector joins two of them, and the decision shows its pull request, "ADR 0002", as Open.
-12. Select the four new cards: **Labels**, add `performance`, **Stage**.
+12. Select the two sub-issues' cards ("Wobble on resize" and "Snap back after a drag"): **Labels**, add `performance`, **Stage**.
 13. Select all six cards (the seed, the parent and the four new ones), then **Comment with a link to this board** (⌥K). Wait for the snapshot preview, then **Stage 6 comments**.
-14. **Changes** → **Review and push 10** → **Push 10 changes**, and wait for them all to land.
+14. **Changes** → **Review and push 8** → **Push 8 changes**, and wait for them all to land.
 15. On GitHub, merge the ADR pull request. Within a few seconds the decision's record shows **Merged**, with no one touching the board.
 16. **Changes** → **History**: both pushes, by you, every change applied, each linking to what it wrote.
 

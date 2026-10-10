@@ -46,6 +46,7 @@ import { type ChildPreview, MakeIssuesPanel, ParentIssuePanel } from "./IssuePan
 import {
 	LabelOption,
 	MilestonePicker,
+	avatarFor,
 	PersonOption,
 	type RepoOption,
 	type SetOption,
@@ -129,12 +130,6 @@ function common<T>(lists: T[][], name: (item: T) => string): T[] {
 	if (!first) return [];
 	const sets = rest.map((list) => new Set(list.map(name)));
 	return first.filter((item) => sets.every((set) => set.has(name(item))));
-}
-
-function avatarFor(repo: string, login: string): string | undefined {
-	return parseRepoKey(repo)?.host === "github.com"
-		? `https://avatars.githubusercontent.com/${encodeURIComponent(login)}?s=40`
-		: undefined;
 }
 
 export function ActionBar(props: ActionBarProps) {
@@ -321,16 +316,20 @@ export function ActionBar(props: ActionBarProps) {
 						repos={options}
 						host={hostOf(options)}
 						initialRepo={recentRepos()[0] ?? options[0]?.repo ?? null}
-						onStage={(repo) => {
+						onStage={(repo, extras) => {
 							const result = stageStickyIssues(
 								doc,
 								stickies.map((s) => ({ id: s.id, text: s.data.shape.text ?? "" })),
 								repo,
 								stager,
+								extras,
 							);
 							rememberRepo(repo);
 							close();
-							toast(`Staged ${count(result.staged.length, "issue")} for ${repoName(repo)}`);
+							const labels = extras.labels?.length ?? 0;
+							toast(
+								`Staged ${count(result.staged.length, "issue")} for ${repoName(repo)}${labels ? `, with ${count(labels, "label")}` : ""}`,
+							);
 						}}
 					/>
 				);

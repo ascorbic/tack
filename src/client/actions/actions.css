@@ -421,6 +421,151 @@
 	margin-bottom: 4px;
 }
 
+/* What new issues start with: a row of pills, each opening its picker in
+   place below the row, and showing what's picked once closed. */
+.issue-extras {
+	margin-top: 10px;
+}
+
+.issue-extras-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.issue-extra {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	max-width: 100%;
+	height: 28px;
+	padding: 0 8px 0 9px;
+	border: 1px dashed var(--line-strong);
+	border-radius: 999px;
+	background: transparent;
+	color: var(--muted);
+	font-size: 12.5px;
+	font-weight: 580;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.issue-extra:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.issue-extra:active {
+	transform: scale(0.96);
+}
+
+.issue-extra:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 3px var(--accent-soft);
+	border-color: var(--accent);
+}
+
+.issue-extra .action-icon {
+	flex: none;
+	width: 14px;
+	height: 14px;
+}
+
+/* Something's picked: a solid pill, ink rather than a hint. */
+.issue-extra[data-chosen] {
+	border-style: solid;
+	border-color: var(--line);
+	background: var(--well);
+	color: var(--ink);
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.issue-extra[aria-expanded="true"] {
+	border-style: solid;
+	border-color: var(--accent);
+	background: var(--accent-soft);
+	color: var(--ink);
+}
+
+.issue-extra-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.issue-extra-chips {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.issue-extra-chips .chip.label {
+	max-width: 96px;
+	overflow: hidden;
+	font-size: 11px;
+	line-height: 18px;
+	text-overflow: ellipsis;
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.issue-extra-more {
+	color: var(--muted);
+	font-size: 11.5px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* A small chevron that turns when the picker opens. */
+.issue-extra-caret {
+	flex: none;
+	width: 5px;
+	height: 5px;
+	margin: -2px 1px 0 1px;
+	border-right: 1.5px solid currentColor;
+	border-bottom: 1.5px solid currentColor;
+	opacity: 0.6;
+	rotate: 45deg;
+	transition: rotate var(--t-base) var(--ease-spring);
+}
+
+.issue-extra[aria-expanded="true"] .issue-extra-caret {
+	margin-top: 2px;
+	rotate: 225deg;
+}
+
+.issue-extra-picker {
+	margin-top: 8px;
+	padding: 8px 8px 2px;
+	border-radius: 11px;
+	background: color-mix(in srgb, var(--well) 60%, transparent);
+	box-shadow: inset 0 0 0 1px var(--line);
+	transform-origin: 50% 0;
+	animation: extra-open var(--t-settle) var(--ease-spring);
+}
+
+.issue-extra-picker .action-search {
+	background: var(--surface);
+}
+
+.issue-extra-picker .action-list {
+	max-height: 168px;
+	margin: 6px -4px 0;
+}
+
+@keyframes extra-open {
+	from {
+		opacity: 0;
+		transform: translateY(-4px) scale(0.97);
+	}
+}
+
 /* A checkbox with a mixed state, for options some items have. */
 .tribox {
 	display: grid;
