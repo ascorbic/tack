@@ -17,7 +17,8 @@ import { cardStore } from "../cardStore.ts";
 import { type WidgetTransport, widgetStore } from "../widgets/store.ts";
 import { PEOPLE, makeChecks, pullDetails } from "./ci.ts";
 import { LABELS, fixture } from "./fixtures.ts";
-import { RELEASE_PULLS, matchDates, relatedOf, releaseOf, stampTimes } from "./roadmap.ts";
+import { MILESTONE, TEAM, VIEWER_REVIEWER, kindCards } from "./kindFixtures.ts";
+import { RELEASE_PULLS, relatedOf, releaseOf, stampTimes } from "./roadmap.ts";
 
 // Widgets in the playground (#37, #38, #39): a repository's worth of fake
 // issues and pull requests, searched in the browser with the same matcher
@@ -183,8 +184,15 @@ export function addWidgetCard(card: Card): void {
 	cardStore.set(card);
 }
 
-/** Milestones, which cards don't carry, by key. */
-const milestones = new Map<string, string | null>();
+/**
+ * Pull requests waiting for review, a milestone's issues and items gone
+ * quiet, for the review queue, milestone and stale finder (#43). None of
+ * them match the lists the "Widgets" board starts with.
+ */
+export const KIND_CARDS: Card[] = kindCards(Date.now());
+
+/** Everything the fake repository has to search. */
+const searchable = () => [...WIDGET_CARDS, ...RELEASE_PULLS, ...KIND_CARDS];
 
 export interface SimulatedWidgetOptions {
 	/** What `@me` means. Without one, searches about `@me` say to sign in. */
@@ -209,9 +217,7 @@ export class SimulatedWidgets implements WidgetTransport {
 		private doc: Y.Doc,
 		private options: SimulatedWidgetOptions = {},
 	) {
-		for (const card of [...WIDGET_CARDS, ...RELEASE_PULLS]) {
-			if (!cardStore.get(card.key)) cardStore.set(card);
-		}
+		for (const card of searchable()) if (!cardStore.get(card.key)) cardStore.set(card);
 		const shapes = shapesMap(doc);
 		// A widget's queries changed (its config, or the cards in a section it maps): run them again.
 		const observer = () => {
@@ -225,7 +231,7 @@ export class SimulatedWidgets implements WidgetTransport {
 		};
 		shapes.observeDeep(observer);
 		// An item changed (a forge event, a push): lists refresh, as a webhook would make them.
-		const keys = () => new Set(WIDGET_CARDS.map((card) => card.key));
+		const keys = () => new Set(searchable().map((card) => card.key));
 		const stop = cardStore.subscribeAll((key) => {
 			if (keys().has(key)) this.changed();
 		});
@@ -237,10 +243,24 @@ export class SimulatedWidgets implements WidgetTransport {
 
 	/** Every item there is: the fake repository's, and any other card the board has data for. */
 	private items(): Card[] {
-		return [...WIDGET_CARDS, ...RELEASE_PULLS].map((card) => {
+		const viewer = this.options.viewer;
+		return searchable().map((card) => {
 			const live = cardStore.get(card.key);
-			return live && !("missing" in live) ? live : card;
+			const item = live && !("missing" in live) ? live : card;
+			// Reviews asked of whoever's looking are asked of you.
+			if (!viewer || !item.pull?.reviewers.some((r) => r.login === VIEWER_REVIEWER)) return item;
+			const reviewers = item.pull.reviewers.map((r) =>
+				r.login === VIEWER_REVIEWER ? { ...r, login: viewer } : r,
+			);
+			return { ...item, pull: { ...item.pull, reviewers } };
 		});
+	}
+
+	/** Who `@me` is now: the playground's person, while they're signed in. */
+	setViewer(viewer: string | null): void {
+		if (this.options.viewer === viewer) return;
+		this.options = { ...this.options, viewer };
+		for (const id of this.watched) this.answer(id);
 	}
 
 	watch(ids: string[]): void {
@@ -345,8 +365,8 @@ export class SimulatedWidgets implements WidgetTransport {
 
 	private search(query: SearchQuery): SearchResult | QueryError {
 		const limit = query.limit ?? 50;
-		const dates = matchDates(query.q);
-		const q = dates.rest;
+		// The same matcher as the fake forges, dates and all.
+		const q = query.q;
 		const parsed = parseSearch(q);
 		const viewer = this.options.viewer ?? null;
 		if (/@me\b/i.test(q) && !viewer) {
@@ -356,18 +376,25 @@ export class SimulatedWidgets implements WidgetTransport {
 				message: "Sign in to see what “@me” means for you.",
 			};
 		}
-		const sortKey = (card: Card) =>
-			(query.sort === "created" ? card.createdAt : undefined) ?? card.updatedAt;
+		// Items without a milestone on their card have none.
+		const milestoneOf = (card: Card) =>
+			card.milestone === undefined ? null : (card.milestone?.title ?? null);
+		const sortKey = (card: Card): string | number =>
+			query.sort === "created"
+				? (card.createdAt ?? card.updatedAt)
+				: query.sort === "comments"
+					? card.comments
+					: query.sort === "reactions"
+						? card.reactions
+						: card.updatedAt;
+		const direction = query.order === "asc" ? 1 : -1;
 		const items = this.items()
-			.filter(
-				(card) =>
-					dates.test(card) &&
-					matchSearch(card, parsed, {
-						viewer,
-						milestoneOf: (c) => milestones.get(c.key) ?? null,
-					}) === "yes",
-			)
-			.sort((a, b) => (sortKey(a) < sortKey(b) ? 1 : -1));
+			.filter((card) => matchSearch(card, parsed, { viewer, milestoneOf }) === "yes")
+			.sort((a, b) => {
+				const x = sortKey(a);
+				const y = sortKey(b);
+				return x === y ? 0 : (x < y ? -1 : 1) * direction;
+			});
 		return { kind: "search", total: items.length, items: items.slice(0, limit) };
 	}
 }
@@ -407,6 +434,36 @@ export function seedWidgets(doc: Y.Doc): void {
 		ref: `fake.tack/${REPO}#431`,
 		x: 40,
 		y: 540,
+		z: nextZ(doc),
+		parent: null,
+	});
+}
+
+/** A review queue, a milestone and a stale finder over the fake repository (#43). */
+export function seedTracking(doc: Y.Doc): void {
+	for (const card of searchable()) cardStore.set(card);
+	const host = "fake.tack";
+	const widget = (
+		kind: string,
+		x: number,
+		y: number,
+		h: number,
+		config: Record<string, unknown>,
+	) => {
+		const id = addWidget(doc, kind, { x, y }, { host, ...config });
+		shapesMap(doc).get(id)?.set("h", h);
+		return id;
+	};
+	widget("review", 40, 40, 500, { scope: "me" });
+	widget("review", 40, 580, 380, { scope: "team", team: TEAM });
+	widget("milestone", 480, 40, 640, { repo: REPO, milestone: MILESTONE });
+	widget("stale", 940, 40, 600, { q: `repo:${REPO} is:open`, days: 30 });
+	// One that's on the board already, so its row shows the pin.
+	addShape(doc, crypto.randomUUID(), {
+		type: "card",
+		ref: `fake.tack/${REPO}#385`,
+		x: 500,
+		y: 720,
 		z: nextZ(doc),
 		parent: null,
 	});

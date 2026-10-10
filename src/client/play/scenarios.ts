@@ -23,7 +23,7 @@ import { seedRelated } from "./related.ts";
 import { seedWrites } from "./writes.ts";
 import { IMAGEKIT, PEOPLE, failChange, stageAs } from "./push.ts";
 import { seedRoadmap } from "./roadmap.ts";
-import { seedWidgets } from "./widgets.ts";
+import { seedTracking, seedWidgets } from "./widgets.ts";
 
 export interface Scenario {
 	name: string;
@@ -557,6 +557,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"A timeline of what's been opened, the next release's draft notes, and the 5.0 launch's dependency map: hover, drag items out as cards, click a cluster or an item, copy the notes.",
 		seed: seedRoadmap,
+	},
+	tracking: {
+		name: "Review queue, milestone, stale",
+		description:
+			"A review queue (yours, and a team's), a milestone's progress and risks, and a stale finder whose quick actions stage changes. Zoom out to read them from afar.",
+		seed: seedTracking,
 	},
 	empty: {
 		name: "Empty",

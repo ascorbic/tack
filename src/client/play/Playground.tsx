@@ -137,6 +137,8 @@ export default function Playground() {
 			signedIn ? { ...guest, login: guest.name.toLowerCase().replace(/[^a-z]+/g, "-") } : guest,
 		[guest, signedIn],
 	);
+	// Widgets' `@me` is you, while you're signed in.
+	useEffect(() => widgets.setViewer(user.login ?? null), [widgets, user.login]);
 	// Who's pushing is read when a push starts.
 	const pusher = useRef(user);
 	pusher.current = user;

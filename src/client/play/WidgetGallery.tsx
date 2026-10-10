@@ -11,6 +11,7 @@ import { ToastStore } from "../Toasts.tsx";
 import { ListConfigPanel, SchemaConfigPanel } from "../widgets/ConfigPanel.tsx";
 import { listTitle } from "../widgets/describe.ts";
 import { DropConfirm } from "../widgets/DropConfirm.tsx";
+import { KindGallery } from "./KindGallery.tsx";
 import { type DropPreview, type ListStatus, ListView } from "../widgets/ListView.tsx";
 import { planDrop } from "../widgets/match.ts";
 import { WidgetPicker } from "../widgets/WidgetPicker.tsx";
@@ -237,7 +238,8 @@ export default function WidgetGallery() {
 				<h1>Widgets</h1>
 				<p>
 					Live views of the forge on the board. Every list state, what dropping cards on a list
-					looks like, and the panels that set lists up and stage what makes cards match.
+					looks like, and the panels that set lists up and stage what makes cards match; the review
+					queue, milestone and stale finder in every state, zoomed out too.
 				</p>
 				<div className="gallery-actions">
 					<button type="button" className="primary" onClick={update}>
@@ -295,6 +297,8 @@ export default function WidgetGallery() {
 					})}
 				</div>
 			</section>
+
+			<KindGallery />
 
 			<section>
 				<h2>A card whose row is pointed at</h2>
