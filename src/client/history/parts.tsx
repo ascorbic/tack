@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Actor, StepMeta, SystemKind } from "../../shared/history.ts";
-import { describeChanges } from "../../shared/history.ts";
+
+export { whatHappened } from "../../shared/history.ts";
 import { initials } from "../People.tsx";
 import "./history.css";
 
@@ -57,23 +58,6 @@ export function actorNames(keys: readonly string[], actors: Record<string, Actor
 	if (names.length === 1) return names[0]!;
 	if (names.length === 2) return `${names[0]} and ${names[1]}`;
 	return `${names[0]}, ${names[1]} and ${names.length - 2} other${names.length === 3 ? "" : "s"}`;
-}
-
-/** What the server did on its own, in words that read well after its name. */
-const SYSTEM_VERBS: Partial<Record<SystemKind, string>> = {
-	reveal: "turned the stickies over",
-	timer: "updated the timer",
-	repair: "tidied up connectors",
-	push: "updated push statuses",
-};
-
-/** A step in a sentence, without the name: "added 3 stickies". */
-export function whatHappened(step: StepMeta, actors: Record<string, Actor>): string {
-	const system = step.actors.length === 1 ? actors[step.actors[0]!]?.system : undefined;
-	if (system === "reveal") return SYSTEM_VERBS.reveal!;
-	const words = describeChanges(step);
-	if (words === "made changes" && system && SYSTEM_VERBS[system]) return SYSTEM_VERBS[system]!;
-	return words;
 }
 
 /** A person's colour, or a quiet one for the server. */

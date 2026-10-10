@@ -4,7 +4,12 @@
 
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
-import { HistoryLog, MemoryHistoryStore } from "../src/shared/history.ts";
+import {
+	HistoryLog,
+	MemoryHistoryStore,
+	type StepMeta,
+	whatHappened,
+} from "../src/shared/history.ts";
 import { addShape, readShape, shapesMap, transactLocal } from "../src/shared/shapes.ts";
 import { mirrorDoc } from "../src/client/history/mirror.ts";
 import { indexOf } from "../src/client/history/position.ts";
@@ -203,5 +208,30 @@ describe("restoring", () => {
 		shapesMap(live).delete("s1");
 		const restored = restoreShapes(past, live, ["s1"])!;
 		expect(shapesMap(live).get(restored.ids[0]!)?.has("silent")).toBe(false);
+	});
+});
+
+describe("describing steps", () => {
+	const actors = {
+		"sys:reveal": { key: "sys:reveal", name: "Silent mode", color: "", system: "reveal" as const },
+	};
+	const step = (changes: StepMeta["changes"]): StepMeta => ({
+		id: 2,
+		at: 0,
+		until: 0,
+		actors: ["sys:reveal"],
+		changes,
+		span: 0,
+		bytes: 10,
+	});
+
+	it("tells silent mode starting from its reveal", () => {
+		const start = step([{ id: "s", op: "edit", type: "section", keys: ["silent"] }]);
+		expect(whatHappened(start, actors)).toBe("changed a section");
+		const reveal = step([
+			{ id: "s", op: "edit", type: "section", keys: ["silent"] },
+			{ id: "a", op: "edit", type: "sticky", keys: ["text", "silent"] },
+		]);
+		expect(whatHappened(reveal, actors)).toBe("turned the stickies over");
 	});
 });

@@ -1051,6 +1051,27 @@ function list(parts: readonly string[]): string {
 	return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
 }
 
+/** What the server did on its own, in words that read well after its name. */
+const SYSTEM_VERBS: Partial<Record<SystemKind, string>> = {
+	reveal: "turned the stickies over",
+	timer: "updated the timer",
+	repair: "tidied up connectors",
+	push: "updated push statuses",
+};
+
+/** A step in a sentence, without the name: "added 3 stickies". */
+export function whatHappened(step: StepMeta, actors: Record<string, Actor>): string {
+	const system = step.actors.length === 1 ? actors[step.actors[0]!]?.system : undefined;
+	// Silent mode's own writes are its start (a section's mark) as well as
+	// the reveal: only a step that turned stickies over is the reveal.
+	if (system === "reveal" && step.changes.some((change) => change.type === "sticky")) {
+		return SYSTEM_VERBS.reveal!;
+	}
+	const words = describeChanges(step);
+	if (words === "made changes" && system && SYSTEM_VERBS[system]) return SYSTEM_VERBS[system]!;
+	return words;
+}
+
 /** The shapes a step removed, for "Bring back". */
 export function removedBy(step: Pick<StepMeta, "changes">): string[] {
 	return step.changes.filter((change) => change.op === "remove").map((change) => change.id);
