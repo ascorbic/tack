@@ -384,6 +384,14 @@ function describePlain(shape: ShapeProps): { glyph: string; title: string; note?
 			note: DECISION_STATUS[shape.status ?? "proposed"],
 		};
 	}
+	if (shape.type === "action") {
+		// An action item: its tick (on the board; a linked one's issue decides), and who.
+		return {
+			glyph: shape.done ? "☑" : "☐",
+			title: shape.text?.split("\n")[0] || "Action item",
+			note: shape.owner ? `@${shape.owner.login}` : shape.due,
+		};
+	}
 	if (shape.type === "widget") {
 		const definition = widgetDefinition(shape.widget ?? "");
 		const configured = (shape.config as { title?: unknown } | undefined)?.title;

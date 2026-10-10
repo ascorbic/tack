@@ -186,7 +186,9 @@ const STATE_RANK: Record<CardState, number> = { open: 0, draft: 1, merged: 2, cl
 /** What a shape is called, for sorting by title. */
 export function titleOf(shape: ShapeProps, card?: SortableCard): string {
 	if (shape.type === "card") return card?.title ?? "";
-	if (shape.type === "sticky" || shape.type === "text") return shape.text ?? "";
+	if (shape.type === "sticky" || shape.type === "text" || shape.type === "action") {
+		return shape.text ?? "";
+	}
 	return shape.title ?? "";
 }
 
