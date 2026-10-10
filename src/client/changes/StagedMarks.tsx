@@ -7,6 +7,7 @@ import { labelColor, useRepoMeta } from "./api.ts";
 import { useChangesUI } from "./context.ts";
 import {
 	type ChangeIndex,
+	changeForge,
 	changeRepo,
 	friendlyError,
 	indexChanges,
@@ -23,7 +24,7 @@ import { useHighlighted, useShapeChanges } from "./store.ts";
 // hanging under a card, a "Will close" flag. They follow the shape as it
 // moves, because they're drawn inside its node.
 
-/** How long a change that just landed keeps its "On GitHub" flag. */
+/** How long a change that just landed keeps its landed look. */
 const LANDED_MS = 2600;
 
 export interface MarksProps {
@@ -241,10 +242,11 @@ export function StagedMarksView({
 
 	const tip = (change: PendingChange) => {
 		const what = summarize(change.op, index);
-		if (change.status === "failed") return `${what}\nFailed: ${friendlyError(change.error)}`;
-		if (change.status === "sending") return `${what}\nSending to GitHub…`;
-		if (change.status === "sent") return `${what}\nSent, waiting for GitHub to confirm`;
-		if (change.status === "applied") return `${what}\nOn GitHub`;
+		const forge = changeForge(change, index);
+		if (change.status === "failed") return `${what}\nFailed: ${friendlyError(change.error, forge)}`;
+		if (change.status === "sending") return `${what}\nSending to ${forge}…`;
+		if (change.status === "sent") return `${what}\nSent, waiting for ${forge} to confirm`;
+		if (change.status === "applied") return `${what}\nOn ${forge}`;
 		const left = change.included === false ? " · left out of the next push" : "";
 		return `${what}\nStaged by ${stagerName(change.stagedBy, you)}${left}`;
 	};

@@ -8,7 +8,7 @@ import {
 	pendingDependencies,
 } from "../../shared/changes.ts";
 import type { PushResponse, RepoMeta } from "../../shared/push.ts";
-import { itemOf, parseRepoKey } from "../../shared/refs.ts";
+import { forgeNameOf, itemOf, parseRepoKey, sentenceCase } from "../../shared/refs.ts";
 
 // How pending changes read to people: what each one does, which repository
 // it writes to, how they group, which depend on which, who gets notified,
@@ -68,7 +68,7 @@ export const STATUS_LABEL: Record<ChangeStatus, string> = {
 	staged: "Staged",
 	sending: "Sending",
 	sent: "Sent",
-	applied: "On GitHub",
+	applied: "Applied",
 	failed: "Failed",
 };
 
@@ -79,6 +79,22 @@ export function repoName(repo: string): string {
 	return parsed.host === "github.com" || parsed.host === "fake.tack"
 		? parsed.repo
 		: `${parsed.host}/${parsed.repo}`;
+}
+
+/** What to call the forge a change goes to: `GitHub`, `the test forge`. */
+export function changeForge(change: PendingChange, index: ChangeIndex): string {
+	const repo = changeRepo(change, index);
+	return forgeNameOf(repo ? [repo] : []);
+}
+
+/** What to call the forge (or forges) these changes go to. */
+export function changesForge(changes: readonly PendingChange[], index: ChangeIndex): string {
+	return forgeNameOf(
+		changes.flatMap((change) => {
+			const repo = changeRepo(change, index);
+			return repo ? [repo] : [];
+		}),
+	);
 }
 
 /** Just the repository's own name: `acme/app` → `app`. */
@@ -360,7 +376,7 @@ export function failureCopy(refusal: Refusal): FailureCopy {
 		case "no_write_access":
 			return {
 				title: "You can stage but not push here",
-				body: `GitHub says you can’t write to ${repoList(repos)}. Someone with write access can push these, or leave them out and push the rest.`,
+				body: `${sentenceCase(forgeNameOf(repos ?? []))} says you can’t write to ${repoList(repos)}. Someone with write access can push these, or leave them out and push the rest.`,
 				actions: [{ kind: "leave_out", repos: repos ?? [] }],
 			};
 		case "not_installed":
@@ -398,8 +414,8 @@ export function failureCopy(refusal: Refusal): FailureCopy {
 }
 
 /** Make an error message from the forge readable: a full stop, no shouting. */
-export function friendlyError(error: string | undefined): string {
+export function friendlyError(error: string | undefined, forge = "GitHub"): string {
 	const text = (error ?? "").trim();
-	if (!text) return "GitHub didn’t say why.";
+	if (!text) return `${sentenceCase(forge)} didn’t say why.`;
 	return /[.!?]$/.test(text) ? text : `${text}.`;
 }

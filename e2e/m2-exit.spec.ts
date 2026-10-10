@@ -122,10 +122,10 @@ async function pushAll(page: Page, count: number) {
 	const panel = page.getByRole("complementary", { name: "Pending changes" });
 	await panel.getByRole("button", { name: `Review and push ${count}` }).click();
 	const sheet = page.locator(".push-dialog");
-	await expect(sheet.getByRole("heading", { name: "Push to GitHub" })).toBeVisible();
+	await expect(sheet.getByRole("heading", { name: "Push to the test forge" })).toBeVisible();
 	await sheet.getByRole("button", { name: `Push ${count} changes` }).click();
 	await expect(sheet.locator(".push-meter-title")).toHaveText(
-		`All ${count} changes are on GitHub`,
+		`All ${count} changes are on the test forge`,
 		{
 			timeout: 30_000,
 		},

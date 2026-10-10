@@ -33,6 +33,42 @@ export function forgeForHost(host: string): ForgeId | null {
 	return HOSTS[host.toLowerCase()] ?? null;
 }
 
+/** What copy calls each forge's hosts. Others go by their host. */
+const FORGE_NAMES: Record<string, string> = {
+	"github.com": "GitHub",
+	"fake.tack": "the test forge",
+};
+
+/**
+ * What to call a forge in copy, by its host: `GitHub`, `the test forge`,
+ * or a self-hosted instance's host. Mid-sentence; see `sentenceCase`.
+ */
+export function forgeName(host: string): string {
+	return FORGE_NAMES[host.toLowerCase()] ?? host.toLowerCase();
+}
+
+/**
+ * What to call the forge these repositories or items are on (keys of
+ * either): its name if they share one, both names for two, "their forges"
+ * for more. With none known, the default forge.
+ */
+export function forgeNameOf(keys: Iterable<string>): string {
+	const hosts = new Set<string>();
+	for (const key of keys) {
+		const host = key.slice(0, key.indexOf("/")).toLowerCase();
+		if (host) hosts.add(host);
+	}
+	const names = [...hosts].map(forgeName).sort();
+	if (names.length === 0) return forgeName(DEFAULT_HOST);
+	if (names.length <= 2) return names.join(" and ");
+	return "their forges";
+}
+
+/** Copy that starts with a forge's name: `The test forge says…`. */
+export function sentenceCase(text: string): string {
+	return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export function itemKey(ref: Pick<ItemRef, "host" | "repo" | "item">): string {
 	return `${ref.host}/${ref.repo}${ref.item}`.toLowerCase();
 }

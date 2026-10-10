@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import type { PendingChange, PushAs } from "../../shared/changes.ts";
 import type { AuditEntry, RepoMeta } from "../../shared/push.ts";
+import { forgeName, forgeNameOf, sentenceCase } from "../../shared/refs.ts";
 import { relativeTime } from "../boards/api.ts";
 import { scaledDuration } from "../motion.ts";
 import type { User } from "../presence.ts";
@@ -10,6 +11,8 @@ import { type ChangesUI, type SheetMode, signedIn, stagerFor, useChangesUI } fro
 import {
 	type FailureAction,
 	KINDS,
+	changeForge,
+	changesForge,
 	estimateWatchers,
 	failureCopy,
 	friendlyError,
@@ -268,15 +271,22 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 }
 
 export function PushSheetView(props: PushSheetViewProps) {
-	const { mode, onMode, state, onClose, headingId } = props;
+	const { mode, onMode, state, onClose, headingId, changes } = props;
 	const progress = mode === "review" && state.phase === "pushing";
+	// Named for where these changes go: what's to push, or what's being pushed.
+	const forge = useMemo(() => {
+		const index = indexChanges(changes);
+		const ids = state.phase === "pushing" ? new Set(state.ids) : null;
+		const shown = changes.filter((change) => (ids ? ids.has(change.id) : isPending(change)));
+		return changesForge(shown.length > 0 ? shown : changes, index);
+	}, [changes, state]);
 	return (
 		<div className="push-sheet changes-ui" data-mode={progress ? "progress" : mode}>
 			<header className="push-head">
 				<span className="push-head-icon" aria-hidden="true">
 					{mode === "history" ? <HistoryIcon size={18} /> : <OutboxIcon size={18} />}
 				</span>
-				<h2 id={headingId}>{mode === "history" ? "Push history" : "Push to GitHub"}</h2>
+				<h2 id={headingId}>{mode === "history" ? "Push history" : `Push to ${forge}`}</h2>
 				<div className="push-tabs" role="tablist" aria-label="Push sheet">
 					<button
 						type="button"
@@ -302,9 +312,9 @@ export function PushSheetView(props: PushSheetViewProps) {
 			{mode === "history" ? (
 				<HistoryView {...props} />
 			) : progress ? (
-				<ProgressView {...props} />
+				<ProgressView {...props} forge={forge} />
 			) : (
-				<ReviewView {...props} />
+				<ReviewView {...props} forge={forge} />
 			)}
 		</div>
 	);
@@ -325,7 +335,8 @@ function ReviewView({
 	onPush,
 	onResolve,
 	onClose,
-}: PushSheetViewProps) {
+	forge,
+}: PushSheetViewProps & { forge: string }) {
 	const index = useMemo(() => indexChanges(changes), [changes]);
 	const pending = changes.filter(isPending);
 	const included = pending.filter((change) => change.included !== false);
@@ -462,7 +473,8 @@ function ReviewView({
 															)}
 															{change.status === "failed" && (
 																<span className="push-change-failed">
-																	Failed last time: {friendlyError(change.error)}
+																	Failed last time:{" "}
+																	{friendlyError(change.error, changeForge(change, index))}
 																</span>
 															)}
 															{info?.writes && !info.writes.includes(change.op.kind) && (
@@ -496,7 +508,7 @@ function ReviewView({
 						<StagerAvatar stager={stagerFor(user)} avatarUrl={user.avatarUrl} size={26} />
 						<span>
 							<strong>{you ? `You, @${user.login}` : "You"}</strong>
-							<small>GitHub shows it’s you, “via Tack”</small>
+							<small>{sentenceCase(forge)} shows it’s you, “via Tack”</small>
 						</span>
 					</label>
 					<label data-checked={as === "app"}>
@@ -673,7 +685,8 @@ function ProgressView({
 	onResolve,
 	signInHref,
 	installHref,
-}: PushSheetViewProps) {
+	forge,
+}: PushSheetViewProps & { forge: string }) {
 	const ids = state.phase === "pushing" ? state.ids : [];
 	const pushed = usePushedChanges(ids, changes);
 	const index = useMemo(() => indexChanges(changes), [changes]);
@@ -690,13 +703,13 @@ function ProgressView({
 
 	const title = allLanded
 		? total === 1
-			? "It’s on GitHub"
-			: `All ${total} changes are on GitHub`
+			? `It’s on ${forge}`
+			: `All ${total} changes are on ${forge}`
 		: settled
 			? `${applied} landed, ${failed.length} didn’t`
 			: working > 0
 				? `Pushing ${total === 1 ? "1 change" : `${total} changes`}…`
-				: "Sent. Waiting for GitHub to confirm…";
+				: `Sent. Waiting for ${forge} to confirm…`;
 
 	return (
 		<>
@@ -708,6 +721,7 @@ function ProgressView({
 						sent={sent}
 						failed={failed.length}
 						done={allLanded}
+						forge={forge}
 					/>
 					<div>
 						<p className="push-meter-title" key={title}>
@@ -752,7 +766,7 @@ function ProgressView({
 									{change.status === "applied" ? (
 										change.result?.url ? (
 											<a href={change.result.url} target="_blank" rel="noreferrer">
-												On GitHub
+												On {changeForge(change, index)}
 												{change.result.key && (
 													<span className="mono">
 														{" "}
@@ -762,14 +776,16 @@ function ProgressView({
 												<ExternalIcon />
 											</a>
 										) : (
-											"On GitHub"
+											`On ${changeForge(change, index)}`
 										)
 									) : change.status === "sent" ? (
-										"Sent, waiting for GitHub to confirm"
+										`Sent, waiting for ${changeForge(change, index)} to confirm`
 									) : change.status === "sending" ? (
 										"Sending…"
 									) : change.status === "failed" ? (
-										<span className="push-step-error">{friendlyError(change.error)}</span>
+										<span className="push-step-error">
+											{friendlyError(change.error, changeForge(change, index))}
+										</span>
 									) : (
 										"Waiting its turn"
 									)}
@@ -817,12 +833,15 @@ export function ProgressRing({
 	sent,
 	failed,
 	done,
+	forge = "GitHub",
 }: {
 	total: number;
 	applied: number;
 	sent: number;
 	failed: number;
 	done: boolean;
+	/** Where they land, for the label. */
+	forge?: string;
 }) {
 	const share = (n: number) => (total === 0 ? 0 : (n / total) * 100);
 	return (
@@ -830,7 +849,7 @@ export function ProgressRing({
 			className="push-ring"
 			data-done={done || undefined}
 			role="img"
-			aria-label={`${applied} of ${total} on GitHub`}
+			aria-label={`${applied} of ${total} on ${forge}`}
 		>
 			<svg viewBox="0 0 48 48" aria-hidden="true">
 				<circle className="push-ring-track" cx="24" cy="24" r="20" />
@@ -912,6 +931,15 @@ const BURST = Array.from({ length: 14 }, (_, i) => ({
 	color: BURST_COLORS[i % BURST_COLORS.length],
 }));
 
+/** What to call the forge a link goes to, by its host. */
+function forgeOfUrl(url: string): string {
+	try {
+		return forgeName(new URL(url).host);
+	} catch {
+		return forgeNameOf([]);
+	}
+}
+
 function HistoryView({ history, onReloadHistory, user }: PushSheetViewProps) {
 	return (
 		<div className="push-body push-history">
@@ -982,13 +1010,18 @@ function HistoryView({ history, onReloadHistory, user }: PushSheetViewProps) {
 													href={change.url}
 													target="_blank"
 													rel="noreferrer"
-													aria-label={`Open on GitHub: ${change.summary}`}
+													aria-label={`Open on ${forgeOfUrl(change.url)}: ${change.summary}`}
 												>
 													<ExternalIcon />
 												</a>
 											)}
 											{change.error && (
-												<span className="push-step-error">{friendlyError(change.error)}</span>
+												<span className="push-step-error">
+													{friendlyError(
+														change.error,
+														change.url ? forgeOfUrl(change.url) : undefined,
+													)}
+												</span>
 											)}
 										</li>
 									))}

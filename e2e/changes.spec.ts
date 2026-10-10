@@ -106,7 +106,9 @@ test.describe("push sheet", () => {
 
 	test("reviews, pushes and lands every change", async ({ page }) => {
 		await panel(page).getByRole("button", { name: "Review and push 10" }).click();
-		await expect(sheet(page).getByRole("heading", { name: "Push to GitHub" })).toBeVisible();
+		await expect(
+			sheet(page).getByRole("heading", { name: "Push to the test forge" }),
+		).toBeVisible();
 
 		// Previews of what will be written, and who'll hear about it.
 		await expect(sheet(page).locator(".push-change")).toHaveCount(11);
@@ -128,7 +130,7 @@ test.describe("push sheet", () => {
 
 		await sheet(page).getByRole("button", { name: "Push 10 changes" }).click();
 		await expect(sheet(page).locator(".push-meter-title")).toHaveText(
-			"All 10 changes are on GitHub",
+			"All 10 changes are on the test forge",
 		);
 		await expect(sheet(page).locator(".push-step[data-status=applied]")).toHaveCount(10);
 		await expect(sheet(page).locator(".push-ring[data-done]")).toBeVisible();
@@ -164,7 +166,7 @@ test.describe("push sheet", () => {
 		await expect(sheet(page).getByRole("alert")).toHaveCount(0);
 		await sheet(page).getByRole("button", { name: "Push 10 changes" }).click();
 		await expect(sheet(page).locator(".push-meter-title")).toHaveText(
-			"All 10 changes are on GitHub",
+			"All 10 changes are on the test forge",
 		);
 	});
 
@@ -182,7 +184,7 @@ test.describe("push sheet", () => {
 		});
 		await sheet(page).getByRole("button", { name: "Retry all 2" }).click();
 		await expect(sheet(page).locator(".push-meter-title")).toHaveText(
-			"All 10 changes are on GitHub",
+			"All 10 changes are on the test forge",
 		);
 	});
 
@@ -352,7 +354,9 @@ test("changes staged by the selection actions show on shapes and push", async ({
 	await openPanel(page);
 	await panel(page).getByRole("button", { name: "Review and push 3" }).click();
 	await sheet(page).getByRole("button", { name: "Push 3 changes" }).click();
-	await expect(sheet(page).locator(".push-meter-title")).toHaveText("All 3 changes are on GitHub");
+	await expect(sheet(page).locator(".push-meter-title")).toHaveText(
+		"All 3 changes are on the test forge",
+	);
 	await sheet(page).getByRole("button", { name: "Done" }).click();
 
 	// The sticky is its issue's card now, and the labels landed.

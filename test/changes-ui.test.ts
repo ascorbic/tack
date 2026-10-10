@@ -8,8 +8,11 @@ import {
 	stageChange,
 } from "../src/shared/changes.ts";
 import type { RepoMeta } from "../src/shared/push.ts";
+import { forgeName, forgeNameOf, sentenceCase } from "../src/shared/refs.ts";
 import {
+	changeForge,
 	changeRepo,
+	changesForge,
 	estimateWatchers,
 	failureCopy,
 	friendlyError,
@@ -138,6 +141,38 @@ describe("describing changes", () => {
 		expect(friendlyError("Validation Failed")).toBe("Validation Failed.");
 		expect(friendlyError("Already closed.")).toBe("Already closed.");
 		expect(friendlyError(undefined)).toBe("GitHub didn’t say why.");
+		expect(friendlyError("", "the test forge")).toBe("The test forge didn’t say why.");
+	});
+
+	it("names the forge changes go to, from their repositories", () => {
+		expect(forgeName("github.com")).toBe("GitHub");
+		expect(forgeName("fake.tack")).toBe("the test forge");
+		expect(forgeName("Git.Example.org")).toBe("git.example.org");
+		expect(forgeNameOf([`${REPO}#1`, OTHER])).toBe("GitHub");
+		expect(forgeNameOf(["fake.tack/demo/app"])).toBe("the test forge");
+		expect(forgeNameOf([REPO, "fake.tack/demo/app"])).toBe("GitHub and the test forge");
+		expect(forgeNameOf([REPO, "fake.tack/a/b", "git.example.org/c/d"])).toBe("their forges");
+		expect(forgeNameOf([])).toBe("GitHub");
+		expect(sentenceCase(forgeName("fake.tack"))).toBe("The test forge");
+
+		const { doc, create } = board();
+		const fake = stageChange(
+			doc,
+			{ kind: "issue.create", repo: "fake.tack/demo/app", title: "Elsewhere" },
+			by,
+		);
+		const index = indexChanges(listChanges(doc));
+		expect(changeForge(index.get(create)!, index)).toBe("GitHub");
+		expect(changeForge(index.get(fake)!, index)).toBe("the test forge");
+		expect(changesForge([...index.values()], index)).toBe("GitHub and the test forge");
+		expect(
+			failureCopy({
+				ok: false,
+				reason: "no_write_access",
+				repos: ["fake.tack/demo/app"],
+				message: "",
+			}).body,
+		).toMatch(/^The test forge says you can’t write to demo\/app\./);
 	});
 });
 

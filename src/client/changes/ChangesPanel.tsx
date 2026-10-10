@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { boardRepos } from "../../shared/actions.ts";
 import type { PendingChange } from "../../shared/changes.ts";
+import { forgeNameOf } from "../../shared/refs.ts";
 import { useLinger } from "../useLinger.ts";
 import "./changes.css";
 import { type ChangesUI, signedIn, useChangesUI } from "./context.ts";
 import {
 	type ChangeIndex,
+	changeForge,
+	changeRepo,
 	friendlyError,
 	groupByRepo,
 	indexChanges,
@@ -72,6 +76,16 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 
 	const empty = changes.length === 0;
 	const failed = pending.filter((change) => change.status === "failed");
+	// Named for where the changes go; with none yet, where the board's cards are from.
+	const repoOf = (change: PendingChange) => {
+		const repo = changeRepo(change, index);
+		return repo ? [repo] : [];
+	};
+	const towards = (pending.length > 0 ? pending : changes).flatMap(repoOf);
+	const forge = forgeNameOf(
+		towards.length > 0 ? towards : boardRepos(ui.doc).map(({ repo }) => repo),
+	);
+	const landedForge = forgeNameOf(landed.flatMap(repoOf));
 
 	return (
 		<aside
@@ -95,7 +109,7 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 					<p>
 						{ui.readOnly
 							? "What’s staged on this board. You can look, but not change it."
-							: "Staged here, waiting to go to GitHub. Everyone on the board sees this list."}
+							: `Staged here, waiting to go to ${forge}. Everyone on the board sees this list.`}
 					</p>
 				</div>
 				<button
@@ -109,7 +123,7 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 			</header>
 
 			<div className="changes-panel-body">
-				{empty && <PanelEmpty readOnly={ui.readOnly} />}
+				{empty && <PanelEmpty readOnly={ui.readOnly} forge={forge} />}
 
 				{failed.length > 0 && (
 					<p className="changes-attention" role="status">
@@ -149,9 +163,9 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 				)}
 
 				{landed.length > 0 && (
-					<section className="changes-group changes-landed" aria-label="On GitHub">
+					<section className="changes-group changes-landed" aria-label={`On ${landedForge}`}>
 						<h3 className="changes-repo">
-							<span>On GitHub</span>
+							<span>On {landedForge}</span>
 							<span className="changes-repo-count">{landed.length}</span>
 						</h3>
 						<ul>
@@ -202,7 +216,7 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 	);
 }
 
-function PanelEmpty({ readOnly }: { readOnly: boolean }) {
+function PanelEmpty({ readOnly, forge }: { readOnly: boolean; forge: string }) {
 	return (
 		<div className="changes-empty">
 			<div className="changes-empty-art" aria-hidden="true">
@@ -212,8 +226,8 @@ function PanelEmpty({ readOnly }: { readOnly: boolean }) {
 			<h3>Nothing staged</h3>
 			<p>
 				{readOnly
-					? "When people turn stickies into issues, add labels or link cards, the changes wait here before they go to GitHub."
-					: "Turn a sticky into an issue, add labels or link cards: the changes wait here until you push them, so nothing reaches GitHub by accident."}
+					? `When people turn stickies into issues, add labels or link cards, the changes wait here before they go to ${forge}.`
+					: `Turn a sticky into an issue, add labels or link cards: the changes wait here until you push them, so nothing reaches ${forge} by accident.`}
 			</p>
 		</div>
 	);
@@ -231,6 +245,7 @@ function PanelRow({
 	const pending = isPending(change);
 	const included = change.included !== false;
 	const editable = pending && !ui.readOnly;
+	const forge = changeForge(change, index);
 	const row = useRef<HTMLLIElement>(null);
 	const [flash, setFlash] = useState(0);
 
@@ -291,20 +306,20 @@ function PanelRow({
 				<div className="change-meta">
 					{change.status === "applied" && change.result?.url ? (
 						<a className="change-link" href={change.result.url} target="_blank" rel="noreferrer">
-							View on GitHub
+							View on {forge}
 							<ExternalIcon />
 						</a>
 					) : change.status === "sending" ? (
 						<span className="change-progress">Sending…</span>
 					) : change.status === "sent" ? (
-						<span className="change-progress">Sent, waiting for GitHub to confirm</span>
+						<span className="change-progress">Sent, waiting for {forge} to confirm</span>
 					) : (
 						<StagedBy change={change} you={ui.user.login} />
 					)}
 				</div>
 				{change.status === "failed" && (
 					<p className="change-error">
-						{friendlyError(change.error)}
+						{friendlyError(change.error, forge)}
 						{!ui.readOnly && ui.client && signedIn(ui.user) && (
 							<button type="button" className="change-retry" onClick={retry}>
 								<RetryIcon size={12} />
