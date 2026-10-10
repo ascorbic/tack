@@ -142,6 +142,9 @@ test("on a real board: records who did what, and brings back a deleted sticky", 
 	const login = `e2e-history-${Date.now().toString(36)}`;
 	await page.goto(`/auth/dev?login=${login}&name=History%20Tester&return_to=/`);
 	await page.getByRole("button", { name: "Create your first board" }).click();
+	// It opens the template picker: start blank.
+	await page.getByRole("option", { name: /^Blank board/ }).click();
+	await page.getByRole("button", { name: "Create board" }).click();
 	await expect(page.getByRole("textbox", { name: "Board title" })).toBeFocused();
 	await page.keyboard.type("History");
 	await page.keyboard.press("Enter");
