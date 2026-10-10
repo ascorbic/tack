@@ -4,6 +4,7 @@ import {
 	RULE_ORIGIN,
 	type RuleMemory,
 	listRules,
+	refreshMatches,
 	runRules,
 } from "../shared/rules.ts";
 import { log } from "./log.ts";
@@ -52,11 +53,17 @@ export class RulesEngine {
 		};
 	}
 
-	/** Run the board's rules on a delivery. Returns how many cards they placed. */
+	/**
+	 * Run the board's rules on a delivery, and mark (or unmark) the cards an
+	 * inbox or rule brought that it shows no longer match. Returns how many
+	 * cards the rules placed.
+	 */
 	run(activity: RepoActivity): number {
+		const logger = log.with({ board: this.host.board, delivery: activity.delivery });
+		const marks = refreshMatches(this.host.doc, activity, RULE_ORIGIN);
+		if (marks > 0) logger.info("board.matches", { changed: marks });
 		if (!listRules(this.host.doc).some((rule) => rule.enabled)) return 0;
 		const entries = runRules(this.host.doc, activity, this.memory, { origin: RULE_ORIGIN });
-		const logger = log.with({ board: this.host.board, delivery: activity.delivery });
 		for (const entry of entries) {
 			(entry.outcome === "placed" ? logger.info : logger.warn)(`rule.${entry.outcome}`, {
 				rule: entry.rule,
@@ -67,7 +74,7 @@ export class RulesEngine {
 			});
 		}
 		const placed = entries.filter((entry) => entry.outcome === "placed").length;
-		if (placed > 0) this.host.persist();
+		if (placed > 0 || marks > 0) this.host.persist();
 		return placed;
 	}
 }

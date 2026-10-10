@@ -1,8 +1,8 @@
 import * as Y from "yjs";
 import type { Card } from "./cards.ts";
 import type { Point } from "./geometry.ts";
-import { matchesQuery } from "./query.ts";
-import { type ShapeProps, LOCAL_ORIGIN, addShape, nextZ, shapesMap } from "./shapes.ts";
+import { addCardShape, updateMatches } from "./provenance.ts";
+import { type ShapeProps, LOCAL_ORIGIN, shapesMap } from "./shapes.ts";
 import { placeInSections } from "./structure.ts";
 import type { SearchQuery, SearchResult, WidgetMessage } from "./widgets.ts";
 
@@ -14,10 +14,18 @@ import type { SearchQuery, SearchResult, WidgetMessage } from "./widgets.ts";
 // them onto the board, where they're ordinary cards with provenance
 // `{ via: "inbox", source: sectionId }`, or dismiss them. Automation never
 // moves what people placed: a card that stops matching is marked as no
-// longer matching, never moved or removed.
+// longer matching (`unmatched`, see provenance.ts), never moved or removed.
+// Whether a card still matches is decided from what everyone can agree on:
+// webhook data, checked against the query locally (`refreshMatches` in
+// rules.ts), and any viewer's results that include it (`confirmMatches`).
+// One viewer's results leaving a card out prove nothing: they may not be
+// able to read it.
 //
 // Dismissals live on the section as a nested Y.Map (`dismissed`, item key →
 // `Dismissal`), so two people dismissing at once both stick.
+
+/** The origin of the server's writes for inboxes (match marks): never undoable. */
+export const INBOX_ORIGIN = "inbox";
 
 /** The query name an inbox's results arrive under in `widget-data`. */
 export const INBOX_QUERY = "inbox";
@@ -131,27 +139,20 @@ export function inboxTray(
 	return result.items.filter((card) => !onBoard.has(card.key) && !dismissed.has(card.key));
 }
 
-/** Whether a search's items are every match (so an absent item doesn't match). */
-export function isComplete(result: Pick<SearchResult, "items" | "total" | "incomplete">): boolean {
-	return !result.incomplete && result.items.length >= result.total;
-}
-
 /**
- * Whether a card an inbox brought still matches its query: true, false, or
- * null if that can't be told (the search was cut short and the card can't
- * answer the query itself).
+ * Cards an inbox brought that appear in a search's results do match: clear
+ * any "no longer matches" mark on them. Results never mark a card (see
+ * above). Returns the shapes unmarked.
  */
-export function stillMatches(
-	key: string,
-	card: Card | undefined,
-	query: SearchQuery,
-	result: Pick<SearchResult, "items" | "total" | "incomplete"> | undefined,
-): boolean | null {
-	if (result?.items.some((item) => item.key === key)) return true;
-	const local = card ? matchesQuery(card, query) : null;
-	if (local !== null) return local;
-	if (result && isComplete(result)) return false;
-	return null;
+export function confirmMatches(
+	doc: Y.Doc,
+	sectionId: string,
+	result: Pick<SearchResult, "items">,
+	origin: unknown = INBOX_ORIGIN,
+): string[] {
+	const keys = new Set(result.items.map((card) => card.key));
+	return updateMatches(doc, sectionId, (key) => (keys.has(key) ? true : undefined), { origin })
+		.cleared;
 }
 
 /**
@@ -167,14 +168,7 @@ export function sortFromInbox(
 ): string {
 	const id = crypto.randomUUID();
 	doc.transact(() => {
-		addShape(doc, id, {
-			type: "card",
-			ref: key,
-			x: Math.round(at.x),
-			y: Math.round(at.y),
-			z: nextZ(doc),
-			provenance: { via: "inbox", source: sectionId },
-		});
+		addCardShape(doc, id, { ref: key, x: at.x, y: at.y }, { via: "inbox", source: sectionId });
 		placeInSections(doc, [id]);
 	}, origin);
 	return id;

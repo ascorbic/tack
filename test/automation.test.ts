@@ -185,6 +185,16 @@ describe("rules", () => {
 			parent: section,
 			provenance: { via: "rule", source: rule },
 		});
+
+		// Unlabelled again: it's marked as no longer matching, and stays put.
+		const placed = ruleCards(client)[0]!;
+		await deliver(mf, "issues", {
+			action: "unlabeled",
+			repository: WIDGETS,
+			issue: { ...issuePayload(50), updated_at: "2026-10-05T00:00:00Z" },
+		});
+		await eventually(() => typeof ruleCards(client)[0]?.unmatched === "string", 8000);
+		expect(ruleCards(client)[0]).toMatchObject({ x: placed.x, y: placed.y, parent: section });
 	});
 
 	it("never places items from repositories that aren't on the board", async () => {

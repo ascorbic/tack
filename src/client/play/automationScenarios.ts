@@ -57,6 +57,8 @@ export function seedInbox(doc: Y.Doc): void {
 			z: nextZ(doc),
 			parent: inbox,
 			provenance: { via: "inbox", source: inbox },
+			// Someone labelled it since: the server marked it.
+			unmatched: new Date(Date.now() - 3 * 3600_000).toISOString(),
 		});
 		addShape(doc, crypto.randomUUID(), {
 			type: "card",

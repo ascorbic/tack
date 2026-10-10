@@ -9,8 +9,9 @@ import {
 	restoreToInbox,
 	setInbox,
 	sortFromInbox,
-	stillMatches,
+	confirmMatches,
 } from "../src/shared/inbox.ts";
+import { refreshMatches } from "../src/shared/rules.ts";
 import { readShape, shapesMap } from "../src/shared/shapes.ts";
 import { addSection } from "../src/shared/structure.ts";
 import { card } from "./card-fixture.ts";
@@ -67,17 +68,24 @@ describe("inbox frames", () => {
 		});
 	});
 
-	it("tells when a card stops matching, and when it can't tell", () => {
-		const key = "github.com/acme/widgets#12";
+	it("marks a card that stops matching from webhook data, and never moves it", () => {
+		const { doc, id } = inbox();
+		const query12 = { ...query, host: "github.com" };
+		setInbox(doc, id, query12);
+		const shape = sortFromInbox(doc, id, card().key, { x: 40, y: 40 });
+		const before = readShape(shapesMap(doc).get(shape)!);
+		// Someone labels it: it no longer matches "no:label".
 		const labelled = card({ labels: [{ name: "bug", color: "f00" }] });
-		// In the results: matches.
-		expect(stillMatches(key, card(), query, { items: [card()], total: 1 })).toBe(true);
-		// The card itself says it doesn't any more.
-		expect(stillMatches(key, labelled, query, undefined)).toBe(false);
-		// Not in a complete result.
-		const loose = inboxQuery("repo:acme/widgets milestone:v1");
-		expect(stillMatches(key, card(), loose, { items: [], total: 0 })).toBe(false);
-		// Not in a result that was cut short, and the card can't answer: unknown.
-		expect(stillMatches(key, card(), loose, { items: [], total: 80 })).toBeNull();
+		expect(refreshMatches(doc, { cards: [labelled] })).toBe(1);
+		const after = readShape(shapesMap(doc).get(shape)!);
+		expect(after.unmatched).toEqual(expect.any(String));
+		expect({ ...after, unmatched: undefined }).toEqual({ ...before, unmatched: undefined });
+		// A card that can't answer the query is left alone.
+		setInbox(doc, id, inboxQuery("repo:acme/widgets milestone:v1", "github.com"));
+		expect(refreshMatches(doc, { cards: [card()] })).toBe(0);
+		// Showing up in anyone's results clears the mark; leaving them out says nothing.
+		expect(confirmMatches(doc, id, { items: [] })).toEqual([]);
+		expect(confirmMatches(doc, id, { items: [card()] })).toEqual([shape]);
+		expect(readShape(shapesMap(doc).get(shape)!).unmatched).toBeUndefined();
 	});
 });

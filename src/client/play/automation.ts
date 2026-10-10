@@ -1,10 +1,16 @@
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
-import { INBOX_QUERY, inboxSections, previewId } from "../../shared/inbox.ts";
+import {
+	INBOX_ORIGIN,
+	INBOX_QUERY,
+	confirmMatches,
+	inboxSections,
+	previewId,
+} from "../../shared/inbox.ts";
 import type { ItemMention } from "../../shared/mentions.ts";
 import { matchesQuery, queryRepos } from "../../shared/query.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
-import { RULE_ORIGIN, memoryOfRules, runRules } from "../../shared/rules.ts";
+import { RULE_ORIGIN, memoryOfRules, refreshMatches, runRules } from "../../shared/rules.ts";
 import { cardRefs, shapesMap } from "../../shared/shapes.ts";
 import type {
 	SearchQuery,
@@ -162,19 +168,19 @@ export class SimulatedAutomation {
 		if (!this.watched.has(id) || this.held.has(id)) return;
 		const query = inboxSections(this.doc).get(id);
 		if (!query) return;
+		const result =
+			queryRepos(query).length > 0
+				? this.search(query)
+				: ({
+						kind: "error",
+						reason: "invalid",
+						message: "Add repo:owner/name to search, so Tack knows where to look.",
+					} as const);
+		if (result.kind === "search") confirmMatches(this.doc, id, result, INBOX_ORIGIN);
 		this.send({
 			type: "widget-data",
 			id,
-			results: {
-				[INBOX_QUERY]:
-					queryRepos(query).length > 0
-						? this.search(query)
-						: {
-								kind: "error",
-								reason: "invalid",
-								message: "Add repo:owner/name to search, so Tack knows where to look.",
-							},
-			},
+			results: { [INBOX_QUERY]: result },
 			at: new Date().toISOString(),
 		});
 	}
@@ -207,6 +213,8 @@ export class SimulatedAutomation {
 		if (at >= 0) forgeItems[at] = card;
 		else forgeItems.push(card);
 		cardStore.set(card);
+		// As the server does: marks for cards that stop (or start) matching first.
+		refreshMatches(this.doc, { cards: [card] }, RULE_ORIGIN);
 		const entries = runRules(
 			this.doc,
 			{

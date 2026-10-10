@@ -11,6 +11,7 @@ interface Shape {
 	ref?: string;
 	parent?: string | null;
 	provenance?: { via: string; source: string };
+	unmatched?: string;
 	dismissed?: Record<string, unknown>;
 	inbox?: { query: { q: string } };
 }
@@ -102,14 +103,20 @@ test.describe("inbox frames", () => {
 
 	test("a card that stops matching is marked, never moved", async ({ page }) => {
 		// Already on the board: one sorted card was relabelled since.
-		await expect(page.locator(".card-provenance[data-stale='true']")).toHaveCount(1);
+		await expect(page.locator(".card-unmatched")).toHaveCount(1);
 		const before = await shapes(page);
 		await play(page, "Label an issue").click();
-		await expect(page.locator(".card-provenance[data-stale='true']")).toHaveCount(2);
-		await expect(page.locator(".card-provenance[data-stale='true']").first()).toContainText(
-			"No longer matches",
-		);
-		expect(await shapes(page)).toEqual(before);
+		await expect(page.locator(".card-unmatched")).toHaveCount(2);
+		await expect(page.locator(".card-unmatched").first()).toContainText("No longer matches");
+		// Marked in the document, and nothing else changed: nothing moved or went.
+		const after = await shapes(page);
+		const strip = (list: Shape[]) => list.map((shape) => ({ ...shape, unmatched: undefined }));
+		expect(strip(after)).toEqual(strip(before));
+		expect(after.filter((shape) => shape.unmatched)).toHaveLength(2);
+
+		// Keep it: it's yours now, and no longer marked.
+		await page.locator(".card-unmatched").first().getByRole("button", { name: "Keep" }).click();
+		await expect(page.locator(".card-unmatched")).toHaveCount(1);
 	});
 
 	test("a section becomes an inbox, with a live count as you write", async ({ page }) => {
@@ -135,7 +142,7 @@ test.describe("rules", () => {
 		page,
 	}) => {
 		await play(page, "PR fixes a card").click();
-		await expect(page.locator(".card-provenance[data-via='rule']")).toHaveCount(1);
+		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(1);
 		await expect(page.locator(".toast")).toContainText(/Placed #\d+ beside #\d+/);
 
 		await page.getByRole("button", { name: /^Rules/ }).click();
@@ -148,7 +155,7 @@ test.describe("rules", () => {
 
 	test("new bugs go into their section; paused rules do nothing", async ({ page }) => {
 		await play(page, "New bug").click();
-		await expect(page.locator(".card-provenance[data-via='rule']")).toHaveCount(1);
+		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(1);
 		const all = await shapes(page);
 		const section = all.find((shape) => shape.type === "section")!;
 		expect(all.find((shape) => shape.provenance?.via === "rule")?.parent).toBe(section.id);
@@ -158,7 +165,7 @@ test.describe("rules", () => {
 		await panel.getByRole("switch").nth(1).uncheck();
 		await expect(panel).toContainText("Paused");
 		await play(page, "New bug").click();
-		await expect(page.locator(".card-provenance[data-via='rule']")).toHaveCount(1);
+		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(1);
 	});
 
 	test("rules are added and deleted from the panel", async ({ page }) => {
@@ -203,5 +210,5 @@ test("the inbox and rules gallery shows every state", async ({ page }) => {
 	await expect(page.locator('figure[data-state="items"] .inbox-item')).toHaveCount(4);
 	await expect(page.locator('figure[data-state="error"]')).toContainText("repo:owner/name");
 	await expect(page.locator('figure[data-state="empty"]')).toContainText("All sorted");
-	await expect(page.locator(".card-provenance[data-stale='true']")).toHaveCount(2);
+	await expect(page.locator(".card-unmatched")).toHaveCount(2);
 });

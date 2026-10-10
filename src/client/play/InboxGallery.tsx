@@ -6,6 +6,7 @@ import { dismissFromInbox, inboxQuery, setInbox } from "../../shared/inbox.ts";
 import {
 	type RuleLogEntry,
 	addRule,
+	refreshMatches,
 	ruleLog,
 	rulesMap,
 	setRuleEnabled,
@@ -18,7 +19,7 @@ import { cardStore } from "../cardStore.ts";
 import { DocContext } from "../DocContext.ts";
 import { InboxTray } from "../inbox/InboxTray.tsx";
 import { inboxStore } from "../inbox/store.ts";
-import { ProvenanceMark } from "../inbox/ProvenanceMark.tsx";
+import { useCardProvenance } from "../Provenance.tsx";
 import { RulesPanel } from "../rules/RulesPanel.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
 import { ToastStore } from "../Toasts.tsx";
@@ -173,31 +174,39 @@ function useMarksDoc() {
 		const pull = PLANNING_CARDS.find((card) => card.kind === "pull") ?? NEW[0]!;
 		const noLongerBug = fixture({ item: "#620", title: "Flicker on resize", labels: [] });
 		for (const card of [SORTED, RELABELLED, pull, noLongerBug]) cardStore.set(card);
+		const ids = {
+			sorted: add(SORTED, { via: "inbox", source: inbox }),
+			relabelled: add(RELABELLED, { via: "inbox", source: inbox }),
+			pull: add(pull, { via: "rule", source: beside }),
+			noLongerBug: add(noLongerBug, { via: "rule", source: rule }),
+		};
+		// Webhooks say two of them no longer match, as the server would hear.
+		refreshMatches(doc, { cards: [RELABELLED, noLongerBug] });
 		return {
 			doc,
 			marks: [
 				{
 					label: "Sorted from an inbox",
 					card: SORTED,
-					id: add(SORTED, { via: "inbox", source: inbox }),
+					id: ids.sorted,
 					fresh: false,
 				},
 				{
 					label: "From an inbox, no longer matching",
 					card: RELABELLED,
-					id: add(RELABELLED, { via: "inbox", source: inbox }),
+					id: ids.relabelled,
 					fresh: false,
 				},
 				{
 					label: "Just placed by a rule",
 					card: pull,
-					id: add(pull, { via: "rule", source: beside }),
+					id: ids.pull,
 					fresh: true,
 				},
 				{
 					label: "Placed by a rule, no longer matching",
 					card: noLongerBug,
-					id: add(noLongerBug, { via: "rule", source: rule }),
+					id: ids.noLongerBug,
 					fresh: false,
 				},
 			],
@@ -219,10 +228,16 @@ function MarkFigure({
 	round: number;
 }) {
 	const shape = readShape(shapesMap(doc).get(id)!);
+	const { origin, unmatched } = useCardProvenance(doc, id, shape, false);
 	return (
 		<div className="inbox-gallery-card" key={round}>
-			<CardView card={card} cardKey={card.key} enter={fresh} />
-			<ProvenanceMark shape={shape} fresh={fresh} />
+			<CardView
+				card={card}
+				cardKey={card.key}
+				enter={fresh}
+				origin={origin}
+				unmatched={unmatched}
+			/>
 		</div>
 	);
 }

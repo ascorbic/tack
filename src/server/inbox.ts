@@ -1,5 +1,12 @@
 import type * as Y from "yjs";
-import { INBOX_LIMIT, INBOX_QUERY, inboxSections, previewId } from "../shared/inbox.ts";
+import {
+	INBOX_LIMIT,
+	INBOX_ORIGIN,
+	INBOX_QUERY,
+	confirmMatches,
+	inboxSections,
+	previewId,
+} from "../shared/inbox.ts";
 import { queryRepos } from "../shared/query.ts";
 import { forgeForHost } from "../shared/refs.ts";
 import { shapesMap } from "../shared/shapes.ts";
@@ -225,6 +232,9 @@ export class InboxRunner {
 		if (!this.watching.get(connection)?.ids.has(id)) return;
 		const current = inboxSections(this.host.doc).get(id);
 		if (current && query && JSON.stringify(current) !== JSON.stringify(query)) return;
+		// Anything in anyone's results matches. (Being left out of one person's
+		// results says nothing: they may not be able to read it.)
+		if (result.kind === "search") confirmMatches(this.host.doc, id, result, INBOX_ORIGIN);
 		this.host.send(connection, message(id, result));
 	}
 

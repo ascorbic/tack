@@ -854,93 +854,6 @@
 	border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-/* Cards: how they arrived, and when they stop matching ------------------- */
-
-.card-provenance {
-	position: absolute;
-	top: -9px;
-	right: 10px;
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	height: 18px;
-	padding: 0 6px;
-	border-radius: 9px;
-	background: var(--surface);
-	border: 1px solid var(--line-strong);
-	box-shadow: var(--shadow-rest);
-	color: var(--muted);
-	font-size: 10.5px;
-	font-weight: 600;
-	white-space: nowrap;
-	pointer-events: auto;
-	z-index: 1;
-}
-
-.card-provenance .auto-icon {
-	width: 11px;
-	height: 11px;
-}
-
-.card-provenance[data-via="rule"] {
-	color: var(--accent);
-}
-
-/* A card a rule just placed: a short "placed by rule" that settles into the glyph. */
-.card-provenance[data-fresh="true"] {
-	animation: provenance-in var(--t-settle) var(--ease-spring) backwards;
-}
-
-.card-provenance-label {
-	max-width: 0;
-	overflow: hidden;
-	transition: max-width var(--t-settle) var(--ease-settle);
-}
-
-.card-provenance[data-fresh="true"] .card-provenance-label,
-.react-flow__node:hover .card-provenance-label {
-	max-width: 160px;
-}
-
-@keyframes provenance-in {
-	from {
-		opacity: 0;
-		scale: 0.6;
-	}
-}
-
-.card-provenance[data-stale="true"] {
-	color: var(--pending-ink);
-	background: var(--pending-bg);
-	border-color: color-mix(in srgb, var(--pending) 45%, transparent);
-}
-
-.card-provenance[data-stale="true"] .card-provenance-label {
-	max-width: 160px;
-}
-
-/* A rule's arrival: a ring that ripples out once. */
-.card-arrival {
-	position: absolute;
-	inset: 0;
-	border-radius: 12px;
-	pointer-events: none;
-	animation: card-arrival var(--t-flash) var(--ease-out) forwards;
-}
-
-@keyframes card-arrival {
-	from {
-		box-shadow:
-			0 0 0 2px var(--accent),
-			0 0 0 8px var(--accent-soft);
-	}
-	to {
-		box-shadow:
-			0 0 0 2px transparent,
-			0 0 0 22px transparent;
-	}
-}
-
 /* The gallery (/play/inbox) ---------------------------------------------- */
 
 .inbox-gallery .inbox-gallery-trays {
@@ -959,10 +872,6 @@
 	position: relative;
 	width: 252px;
 	margin-top: 12px;
-}
-
-.inbox-gallery-card:hover .card-provenance-label {
-	max-width: 160px;
 }
 
 .inbox-gallery .inbox-gallery-panels {

@@ -5,7 +5,9 @@ import { spotBelow, spotBeside, spotInSection } from "./placement.ts";
 import { matchesQuery, unsupportedForRules } from "./query.ts";
 import { repoKeyOf } from "./refs.ts";
 import type { SizeOf } from "./sections.ts";
-import { LOCAL_ORIGIN, type ShapeProps, addShape, cardRefs, nextZ, shapesMap } from "./shapes.ts";
+import { inboxSections } from "./inbox.ts";
+import { addCardShape, updateMatches } from "./provenance.ts";
+import { LOCAL_ORIGIN, type ShapeProps, cardRefs, shapesMap } from "./shapes.ts";
 import { placeInSections, readShapes } from "./structure.ts";
 import type { SearchQuery } from "./widgets.ts";
 
@@ -60,6 +62,8 @@ export interface Rule {
 	createdBy: RuleAuthor;
 	/** ISO 8601. */
 	createdAt: string;
+	/** A short name (`ruleName`), which the cards it places show. */
+	name?: string;
 	/** Set by the server: how many cards it has placed, and when it last did. */
 	fired?: number;
 	lastAt?: string;
@@ -132,6 +136,7 @@ export function readRule(map: Y.Map<unknown>): Rule | null {
 		enabled: rule.enabled !== false,
 		createdBy: rule.createdBy ?? { name: "Someone" },
 		createdAt: rule.createdAt ?? new Date(0).toISOString(),
+		...(typeof rule.name === "string" ? { name: rule.name } : {}),
 		...(typeof rule.fired === "number" ? { fired: rule.fired } : {}),
 		...(typeof rule.lastAt === "string" ? { lastAt: rule.lastAt } : {}),
 	};
@@ -184,6 +189,11 @@ export function addRule(
 		rule.set("enabled", options.enabled ?? true);
 		rule.set("createdBy", createdBy);
 		rule.set("createdAt", new Date().toISOString());
+		// What the cards it places say brought them (see provenance.ts).
+		rule.set(
+			"name",
+			ruleName({ trigger, action }, (section) => sectionTitleIn(doc, section)),
+		);
 		rulesMap(doc).set(id, rule);
 	}, options.origin ?? LOCAL_ORIGIN);
 	return id;
@@ -319,16 +329,59 @@ function applyRule(
 
 function place(doc: Y.Doc, key: string, at: { x: number; y: number }, rule: string): string {
 	const id = crypto.randomUUID();
-	addShape(doc, id, {
-		type: "card",
-		ref: key,
-		x: at.x,
-		y: at.y,
-		z: nextZ(doc),
-		provenance: { via: "rule", source: rule },
-	});
+	addCardShape(doc, id, { ref: key, x: at.x, y: at.y }, { via: "rule", source: rule });
 	placeInSections(doc, [id]);
 	return id;
+}
+
+/**
+ * Bring "no longer matches" marks up to date (see provenance.ts) for the
+ * cards a delivery changed: each card an inbox or a matching rule brought is
+ * checked against that inbox's or rule's query, with the delivery's data
+ * (the app's view, the same for everyone). A card that can't answer the
+ * query (`milestone:`, say) is left as it is. Never moves or removes a card.
+ * Returns how many cards were marked or unmarked.
+ */
+export function refreshMatches(
+	doc: Y.Doc,
+	activity: Pick<RepoActivity, "cards">,
+	origin: unknown = RULE_ORIGIN,
+): number {
+	if (activity.cards.length === 0) return 0;
+	const sources = new Map<string, SearchQuery>(inboxSections(doc));
+	for (const rule of listRules(doc)) {
+		if (rule.trigger.kind === "matches") sources.set(rule.id, rule.trigger.query);
+	}
+	let changed = 0;
+	doc.transact(() => {
+		for (const [source, query] of sources) {
+			const answers = new Map(
+				activity.cards.map((card) => [card.key, matchesQuery(card, query) ?? undefined]),
+			);
+			const update = updateMatches(doc, source, (key) => answers.get(key), { origin });
+			changed += update.marked.length + update.cleared.length;
+		}
+	}, origin);
+	return changed;
+}
+
+/** A rule's short name, for the cards it places: "Pull requests beside their issues". */
+export function ruleName(
+	rule: Pick<Rule, "trigger" | "action">,
+	sectionTitle?: (id: string) => string | null,
+): string {
+	if (rule.trigger.kind === "pull-links") {
+		return rule.trigger.closesOnly
+			? "Closing pull requests beside their issues"
+			: "Pull requests beside their issues";
+	}
+	const title = rule.action.kind === "section" ? sectionTitle?.(rule.action.section) : null;
+	return title ? `New matches into “${title}”` : "New matches into a section";
+}
+
+function sectionTitleIn(doc: Y.Doc, id: string): string | null {
+	const title = shapesMap(doc).get(id)?.get("title");
+	return typeof title === "string" && title.trim() ? title.trim() : null;
 }
 
 /** The short form of an item's key, as people write it: `#12`, or `owner/repo#12` from elsewhere. */
