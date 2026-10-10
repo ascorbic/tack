@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import type { Card } from "./cards.ts";
+import { keepInSection } from "./display.ts";
 import type { ItemMention } from "./mentions.ts";
 import { spotBelow, spotBeside, spotInSection } from "./placement.ts";
 import { matchesQuery, unsupportedForRules } from "./search.ts";
@@ -326,6 +327,8 @@ function applyRule(
 	const spot = inside ?? spotBelow(shapes, section, undefined, sizeOf);
 	if (!spot) return { ...base, outcome: "skipped", section, reason: "no_room" };
 	const shape = place(doc, card.key, spot, rule.id);
+	// A section showing a list takes it, wherever the spot was (display.ts).
+	if (inside) keepInSection(doc, shape, section, sizeOf);
 	return { ...base, outcome: "placed", section, shape, ...(inside ? {} : { reason: "full" }) };
 }
 

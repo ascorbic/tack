@@ -1,5 +1,6 @@
 import { generateKeyBetween } from "fractional-indexing";
 import * as Y from "yjs";
+import type { ListSort, SectionDisplay } from "./display.ts";
 import type { Anchor } from "./geometry.ts";
 import type { Dismissal } from "./inbox.ts";
 import type { SilentSession } from "./silent.ts";
@@ -60,6 +61,15 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | silent       | sticky             | the silent session it was made in: it's face  |
 // |              |                    | down, and has no `text` in the document until |
 // |              |                    | the reveal                                    |
+// | display      | section            | how its contents show: `list` (compact rows), |
+// |              |                    | `mini` (a grid of mini cards), or absent for  |
+// |              |                    | cards, as placed (display.ts)                 |
+// | sort         | section            | a list's sort (`ListSort`: `by` state, number |
+// |              |                    | or title, and `desc`); absent means by hand   |
+// | order        | all but connectors | its place in its section's manual order, a    |
+// |              |                    | fractional index; absent sorts after those    |
+// |              |                    | with one, in reading order. x and y stay the  |
+// |              |                    | free-form position while a list shows it      |
 //
 // Beside `shapes`, the document has these root maps:
 //
@@ -188,6 +198,12 @@ export interface ShapeProps {
 	 * id of the session it was made in, while it's face down.
 	 */
 	silent?: string | SilentSession;
+	/** Sections: how their contents show (display.ts). Absent means cards. */
+	display?: SectionDisplay;
+	/** Sections: how a list or grid is sorted. Absent means by hand. */
+	sort?: ListSort;
+	/** Its place in its section's manual order (a fractional index). */
+	order?: string;
 }
 
 /**

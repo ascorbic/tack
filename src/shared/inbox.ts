@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import type { Card } from "./cards.ts";
+import { keepInSection } from "./display.ts";
 import type { Point } from "./geometry.ts";
 import { addCardShape, updateMatches } from "./provenance.ts";
 import { type ShapeProps, LOCAL_ORIGIN, shapesMap } from "./shapes.ts";
@@ -165,11 +166,14 @@ export function sortFromInbox(
 	key: string,
 	at: Point,
 	origin: unknown = LOCAL_ORIGIN,
+	/** Put it in the inbox's section whatever its box covers (a spot found inside it). */
+	into = false,
 ): string {
 	const id = crypto.randomUUID();
 	doc.transact(() => {
 		addCardShape(doc, id, { ref: key, x: at.x, y: at.y }, { via: "inbox", source: sectionId });
 		placeInSections(doc, [id]);
+		if (into) keepInSection(doc, id, sectionId);
 	}, origin);
 	return id;
 }

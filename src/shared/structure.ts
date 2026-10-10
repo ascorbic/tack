@@ -1,7 +1,8 @@
 import { generateNKeysBetween } from "fractional-indexing";
 import type * as Y from "yjs";
 import { isEnd, looseEnd, resolveEnds } from "./connectors.ts";
-import { type Point, type Rect, contains, intersects } from "./geometry.ts";
+import { type DisplayLayout, displaySections, joinDisplay, layoutDisplays } from "./display.ts";
+import { type Point, type Rect, area, contains, intersects } from "./geometry.ts";
 import {
 	SECTION_DEFAULT,
 	SECTION_MIN,
@@ -38,11 +39,28 @@ export function readShapes(doc: Y.Doc): Shapes {
 	return out;
 }
 
-function sectionGeometries(shapes: Shapes, structure: Structure): SectionGeometry[] {
+/**
+ * Every section's geometry for containment. A section showing a list or grid
+ * (display.ts) takes what lands on the list it draws, wherever its free-form
+ * box is, and counts as at least as big as that box.
+ */
+export function sectionGeometries(
+	shapes: ReadonlyMap<string, ShapeProps>,
+	structure: Structure,
+	layout: DisplayLayout = layoutDisplays(shapes, structure),
+): SectionGeometry[] {
 	const out: SectionGeometry[] = [];
 	for (const [id, shape] of shapes) {
 		if (shape.type !== "section") continue;
-		out.push({ id, box: boxOf(id, shape), depth: structure.depth.get(id) ?? 0, z: shape.z });
+		const own = boxOf(id, shape);
+		const drawn = layout.sections.get(id)?.box;
+		out.push({
+			id,
+			box: drawn ?? own,
+			depth: structure.depth.get(id) ?? 0,
+			z: shape.z,
+			...(drawn && { area: Math.max(area(own), area(drawn)) }),
+		});
 	}
 	return out;
 }
@@ -61,6 +79,7 @@ function reparent(doc: Y.Doc, ids: Iterable<string>, always: boolean, sizeOf?: S
 	let shapes = readShapes(doc);
 	let structure = readStructure(shapes);
 	let sections = sectionGeometries(shapes, structure);
+	let lists = displaySections(shapes, structure);
 	const map = shapesMap(doc);
 	const size = (id: string) => {
 		const shape = shapes.get(id);
@@ -72,15 +91,23 @@ function reparent(doc: Y.Doc, ids: Iterable<string>, always: boolean, sizeOf?: S
 	for (const id of ordered) {
 		const shape = shapes.get(id);
 		if (!shape || shape.type === "connector") continue;
+		const current = structure.parentOf.get(id) ?? null;
+		// A list's rows stay in it until they're dropped somewhere else: their
+		// free-form positions are hidden, so they say nothing about where they are.
+		if (!always && current !== null && lists.has(current) && !structure.broken.has(id)) continue;
 		const exclude = new Set([id, ...descendantsOf(structure, id)]);
 		const container = containerFor(boxOf(id, shape, sizeOf), sections, exclude);
-		const current = structure.parentOf.get(id) ?? null;
 		const changed = container !== current || structure.broken.has(id);
-		if (always || changed) map.get(id)?.set("parent", container);
+		const target = map.get(id);
+		if (always || changed) target?.set("parent", container);
 		if (changed) {
+			// Its place in the old section's order means nothing in the new one.
+			if (target?.has("order")) target.delete("order");
+			if (container !== null && lists.has(container)) joinDisplay(doc, id, container, sizeOf);
 			shapes = readShapes(doc);
 			structure = readStructure(shapes);
 			sections = sectionGeometries(shapes, structure);
+			lists = displaySections(shapes, structure);
 		}
 	}
 }

@@ -144,6 +144,11 @@ export interface SectionGeometry {
 	box: Rect;
 	depth: number;
 	z: string;
+	/**
+	 * How big it counts as, if not its box's area: a list (display.ts) is as
+	 * big as its section, however few rows it draws, so cards still fit in it.
+	 */
+	area?: number;
 }
 
 /**
@@ -161,7 +166,7 @@ export function containerFor(
 	let best: SectionGeometry | null = null;
 	for (const section of sections) {
 		if (exclude?.has(section.id)) continue;
-		if (!contains(section.box, point) || area(section.box) <= size) continue;
+		if (!contains(section.box, point) || (section.area ?? area(section.box)) <= size) continue;
 		if (
 			!best ||
 			section.depth > best.depth ||

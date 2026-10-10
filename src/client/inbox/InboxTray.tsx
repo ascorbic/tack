@@ -130,7 +130,8 @@ export const InboxTray = memo(function InboxTray({
 			spot = spotInSection(shapes, id, PLACED_CARD, sizeOf) ??
 				spotBelow(shapes, id, PLACED_CARD, sizeOf) ?? { x: (x ?? 0) + GAP, y: y ?? 0 };
 		}
-		const shapeId = sortFromInbox(doc, id, card.key, spot, LOCAL_ORIGIN);
+		// Clicked in (rather than dropped): into the section, even one showing a list.
+		const shapeId = sortFromInbox(doc, id, card.key, spot, LOCAL_ORIGIN, !at);
 		focusWhenMounted(shapeId);
 		onPlaced?.(shapeId);
 	};
