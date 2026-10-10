@@ -63,6 +63,8 @@ interface ToolbarProps {
 	onAddWidget?: AddWidget;
 	/** The board's busiest repository, for ready-made lists: `owner/name`. */
 	suggestedRepo?: string | null;
+	/** Who's here, signed in: `@me` in ready-made lists. */
+	login?: string | null;
 	stamp: StampEmoji;
 	onStamp: (stamp: StampEmoji) => void;
 	/** View only: just selecting, the hand, and comments. */
@@ -89,6 +91,7 @@ export function Toolbar({
 	onBoard,
 	onAddWidget,
 	suggestedRepo = null,
+	login = null,
 	stamp,
 	onStamp,
 	viewOnly = false,
@@ -159,6 +162,7 @@ export function Toolbar({
 			{tool === "widget" && onAddWidget && (
 				<WidgetPicker
 					suggestedRepo={suggestedRepo}
+					login={login}
 					onAdd={(kind, config) => {
 						onAddWidget(kind, config);
 						onTool("select");

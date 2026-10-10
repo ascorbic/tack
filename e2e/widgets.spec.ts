@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { expect, openScenario, test } from "./fixtures.ts";
+import { expect, openScenario, settleCanvas, test } from "./fixtures.ts";
 
 // Widgets (#37, #38, #39) on the playground's "Widgets" board, whose lists
 // search a fake repository in the browser: rows are pulled out as cards,
@@ -71,7 +71,8 @@ test("lists show their search's matches, with a marker for what's on the board",
 	// #431 is on the board already.
 	await expect(row(bugs, "Cloudinary URLs").locator(".widget-row-marker")).toBeVisible();
 	await expect(row(bugs, "Netlify provider").locator(".widget-row-marker")).toHaveCount(0);
-	await expect(list(page, "Mentions flaky").getByText("Nothing matches, yet")).toBeVisible();
+	// A search for words that finds nothing says to check it, not to wait.
+	await expect(list(page, "Mentions flaky").getByText("Nothing matches this search")).toBeVisible();
 });
 
 test("a list's settings open wholly on screen, beside it, even on the right-hand edge", async ({
@@ -95,10 +96,14 @@ test("a list's settings open wholly on screen, beside it, even on the right-hand
 	await expect(panel.getByRole("button", { name: "Done" })).toBeInViewport();
 
 	// It follows the list as the board pans.
-	const before = box.x;
-	await page.mouse.move(640, 760);
-	await page.mouse.wheel(-120, 0);
-	await expect.poll(async () => (await panel.boundingBox())?.x !== before).toBe(true);
+	const before = (await triage.boundingBox())!;
+	await page.mouse.move(20, 300);
+	await page.mouse.wheel(0, 120);
+	await expect.poll(async () => (await triage.boundingBox())?.y !== before.y).toBe(true);
+	const moved = (await panel.boundingBox())!;
+	const after = (await triage.boundingBox())!;
+	expect(moved.x + moved.width).toBeLessThanOrEqual(after.x);
+	expect(moved.y).toBeGreaterThanOrEqual(canvas.y);
 });
 
 test("pointing at a row lights its card, and the other way round", async ({ page }) => {
@@ -210,6 +215,21 @@ test("the widget tool adds lists, ready-made or to set up", async ({ page }) => 
 	await picker.getByRole("button", { name: "Open pull requests" }).click();
 	await expect(list(page, "Open pull requests")).toBeVisible();
 	await expect(row(list(page, "Open pull requests"), "Cache provider detection")).toBeVisible();
+	// In free space, not on top of the lists already in the middle of the view.
+	await settleCanvas(page);
+	const added = (await list(page, "Open pull requests").boundingBox())!;
+	for (const other of await page
+		.locator(".react-flow__node-widget, .react-flow__node-section")
+		.filter({ hasNot: page.getByRole("heading", { name: "Open pull requests" }) })
+		.all()) {
+		const box = (await other.boundingBox())!;
+		const overlaps =
+			added.x < box.x + box.width &&
+			box.x < added.x + added.width &&
+			added.y < box.y + box.height &&
+			box.y < added.y + added.height;
+		expect(overlaps, "the new list covers another shape").toBe(false);
+	}
 
 	// A blank one opens its panel to be set up.
 	await page.keyboard.press("w");
@@ -222,13 +242,34 @@ test("the widget tool adds lists, ready-made or to set up", async ({ page }) => 
 	expect((await shapes(page)).filter((s) => s.type === "widget").length).toBe(before + 2);
 });
 
+test("a search in plain words gets a suggestion of what it meant", async ({ page }) => {
+	await page.keyboard.press("w");
+	await page.getByRole("group", { name: "Widgets" }).getByRole("button", { name: /^List/ }).click();
+	const panel = page.getByRole("dialog", { name: "Edit list" });
+	await panel.getByLabel("Search").fill("bugs in imagekit");
+	await panel.getByLabel("Search").press("Enter");
+	// Read as GitHub reads it, it's three words, everywhere: nothing, ever.
+	await expect(panel.locator(".query-hint")).toContainText("Did you mean");
+	await expect(panel.getByLabel("Suggestion")).toContainText("repo:acme/imagekitlabel:bug");
+	await expect(panel.locator(".query-hint")).toContainText("“bugs” as the bug label");
+	const words = list(page, "Items mentioning “bugs in imagekit”");
+	await expect(words.getByText("Nothing matches this search")).toBeVisible();
+
+	await panel.getByRole("button", { name: "Use this" }).click();
+	await expect(panel.getByLabel("Search")).toHaveValue("repo:acme/imagekit label:bug");
+	await expect(panel.locator(".query-hint")).toHaveCount(0);
+	const bugs = list(page, "Items labelled bug in imagekit");
+	await expect(row(bugs, "Netlify provider")).toBeVisible();
+});
+
 test("the gallery shows every widget state", async ({ page }) => {
 	await page.goto("/play/widgets");
 	await expect(page.getByRole("heading", { name: "Widgets", exact: true })).toBeVisible();
-	await expect(page.locator(".widget-list")).toHaveCount(18);
+	await expect(page.locator(".widget-list")).toHaveCount(19);
 	for (const text of [
 		"What should this list show?",
 		"Nothing matches, yet",
+		"Nothing matches this search",
 		"Sign in to see this list",
 		"GitHub needs a breather",
 		"GitHub couldn't read this search",

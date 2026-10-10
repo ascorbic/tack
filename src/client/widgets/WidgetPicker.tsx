@@ -1,5 +1,5 @@
 import type { DragEvent } from "react";
-import { LIST_PRESETS, WIDGETS } from "../../shared/widgetRegistry.ts";
+import { WIDGETS, listPresets } from "../../shared/widgetRegistry.ts";
 import { ListIcon, MilestoneIcon, ReviewIcon, StaleIcon, UnknownIcon } from "./icons.tsx";
 import { DependencyIcon, ReleaseIcon, TimelineIcon } from "./kindIcons.tsx";
 
@@ -28,15 +28,16 @@ const ICONS: Record<string, () => React.ReactNode> = {
 
 export function WidgetPicker({
 	suggestedRepo,
+	login = null,
 	onAdd,
 }: {
 	/** The board's busiest repository (`owner/name`), for ready-made lists. */
 	suggestedRepo: string | null;
+	/** Who's adding it, signed in: `@me` in ready-made lists is them, the same for everyone. */
+	login?: string | null;
 	onAdd: (kind: string, config?: Record<string, unknown>) => void;
 }) {
-	const presets = LIST_PRESETS.filter(
-		(preset) => suggestedRepo || !preset.q("x/y").includes("x/y"),
-	);
+	const presets = listPresets(suggestedRepo, login);
 	const drag = (kind: string, config?: Record<string, unknown>) => (event: DragEvent) => {
 		event.dataTransfer.setData(WIDGET_DRAG_TYPE, JSON.stringify({ kind, config }));
 		event.dataTransfer.effectAllowed = "copy";
@@ -64,8 +65,17 @@ export function WidgetPicker({
 			))}
 			<span className="toolbar-divider" aria-hidden="true" />
 			<div className="widget-picker-presets" role="group" aria-label="Ready-made lists">
+				<span className="widget-picker-presets-label">
+					Quick lists
+					{suggestedRepo && (
+						<>
+							{" "}
+							for <span className="mono">{suggestedRepo}</span>
+						</>
+					)}
+				</span>
 				{presets.map((preset) => {
-					const config = { q: preset.q(suggestedRepo ?? ""), title: preset.title };
+					const config = { q: preset.q, title: preset.title };
 					return (
 						<button
 							key={preset.label}

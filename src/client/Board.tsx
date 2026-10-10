@@ -116,7 +116,8 @@ import { boardRepos } from "../shared/actions.ts";
 import { addShape, readShape, shapesMap, transactLocal } from "../shared/shapes.ts";
 import type * as Y from "yjs";
 import { isEditingShape } from "./useEditing.ts";
-import { addSection, placeInSections } from "../shared/structure.ts";
+import { spotNear } from "../shared/placement.ts";
+import { addSection, placeInSections, readShapes } from "../shared/structure.ts";
 import { addWidget, widgetDefinition } from "../shared/widgetRegistry.ts";
 import { cardStore } from "./cardStore.ts";
 import type { WidgetBoard } from "./widgets/context.ts";
@@ -678,7 +679,12 @@ export function Board({
 		// Read again whenever the tool changes: it's only needed when the picker opens.
 	}, [doc, tool]);
 
-	/** Add a widget centred on `at` (or the middle of the view), selected, with its panel open if it needs setting up. */
+	/**
+	 * Add a widget centred on `at` (where it was dropped or clicked), or in the
+	 * free space nearest the middle of the view (from the picker, so it never
+	 * lands on top of what's there), selected, with its panel open if it needs
+	 * setting up.
+	 */
 	const addWidgetAt = useCallback(
 		(kind: string, config?: Record<string, unknown>, at?: { x: number; y: number }) => {
 			const definition = widgetDefinition(kind);
@@ -686,24 +692,50 @@ export function Board({
 			const busiestHost = boardRepos(doc)[0]?.repo.split("/")[0];
 			const centreAt =
 				at ?? flow.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-			const id = transactLocal(doc, () => {
-				const id = addWidget(
-					doc,
-					kind,
-					{ x: centreAt.x - definition.size.w / 2, y: centreAt.y - definition.size.h / 2 },
-					{
+			const ideal = {
+				x: centreAt.x - definition.size.w / 2,
+				y: centreAt.y - definition.size.h / 2,
+			};
+			const spot = at
+				? ideal
+				: (spotNear(readShapes(doc), ideal, definition.size, boxSize) ?? ideal);
+			const create = () => {
+				const id = transactLocal(doc, () => {
+					const id = addWidget(doc, kind, spot, {
 						...(definition.defaults as object),
 						// Lists search the forge the board's cards are mostly on.
 						...(kind === "list" && busiestHost ? { host: busiestHost } : {}),
 						...config,
-					},
-				);
-				placeInSections(doc, [id], boxSize);
-				return id;
-			});
-			if (!config?.q) focusWhenMounted(id);
-			setSelected(new Set([id]));
+					});
+					placeInSections(doc, [id], boxSize);
+					return id;
+				});
+				if (!config?.q) focusWhenMounted(id);
+				setSelected(new Set([id]));
+			};
 			setTool("select");
+			// The nearest free space may be off screen on a full board: glide
+			// there, then add it, so it arrives where you can see it.
+			const corner = flow.flowToScreenPosition(spot);
+			const far = flow.flowToScreenPosition({
+				x: spot.x + definition.size.w,
+				y: spot.y + definition.size.h,
+			});
+			const canvas = document.querySelector(".react-flow")?.getBoundingClientRect();
+			const visible =
+				!canvas ||
+				(corner.x >= canvas.left &&
+					corner.y >= canvas.top &&
+					far.x <= canvas.right &&
+					far.y <= canvas.bottom);
+			if (visible) create();
+			else
+				void flow
+					.setCenter(spot.x + definition.size.w / 2, spot.y + definition.size.h / 2, {
+						zoom: flow.getZoom(),
+						duration: scaledDuration(420),
+					})
+					.then(create);
 		},
 		[doc, flow, readOnly, boxSize],
 	);
@@ -1542,6 +1574,7 @@ export function Board({
 									onBoard={onBoard}
 									onAddWidget={addWidgetAt}
 									suggestedRepo={suggestedRepo}
+									login={user.login ?? null}
 									stamp={stamp}
 									onStamp={setStamp}
 									viewOnly={readOnly}
