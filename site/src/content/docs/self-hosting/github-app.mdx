@@ -1,0 +1,66 @@
+---
+title: Set up the GitHub App
+description: Create the instance's GitHub App from /setup, what it asks for and why, and installing it.
+sidebar:
+  order: 2
+---
+
+import { Steps } from "@astrojs/starlight/components";
+
+Tack talks to GitHub through a GitHub App that you own. `/setup` creates it from a manifest: GitHub fills in the permissions, events and URLs, and you confirm.
+
+## Create the app
+
+<Steps>
+
+1. Visit `/setup` on your instance. If it says "Tack needs a secret first", set [`TACK_SECRET`](/self-hosting/deploy/#secrets) and come back.
+
+2. **Who owns the app?** Choose **My account**, or **An organisation** and type its login. Choose the account that owns the repositories you'll plan with: GitHub only lets a private app be installed on the account that owns it.
+
+3. **App name**: something like `Tack (tack.example.com)`. It has to be unique across GitHub, and is at most 34 characters.
+
+4. Choose **Create GitHub App**. GitHub shows the app it's about to create; confirm it there.
+
+5. GitHub sends you back, and Tack signs you in with the new app: "Your GitHub App is ready. You're this instance's admin."
+
+</Steps>
+
+The app is created **private**, with its webhook pointed at `https://your-instance/webhooks/github`, sign-in at `/auth/callback`, and installs returning to `/setup/installed`. Tack keeps its credentials (the app's private key, client secret and webhook secret) in the instance's storage, encrypted with `TACK_SECRET`.
+
+Whoever created the app becomes the first admin when they sign in, which happens straight away (the claim lasts 24 hours, in that browser). For an app owned by a personal account, that account's owner becomes admin on signing in, as long as there's no admin yet.
+
+## What it asks for, and why
+
+| Permission           | Access         | Why                                                                                                                            |
+| -------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Metadata             | Read           | Required by GitHub: repositories, their visibility, which are installed                                                        |
+| Issues               | Read and write | Issue cards; creating issues, labels, milestones, assignees, closing and reopening, sub-issues, blocked-by links, and comments |
+| Pull requests        | Read and write | Pull request cards, reviews and mergeability; opening ADR pull requests                                                        |
+| Contents             | Read and write | Numbering decision records from `docs/decisions/`, and committing a new record to its own branch                               |
+| Discussions          | Read and write | Writing a decision back as a Discussion post, and listing categories                                                           |
+| Checks               | Read           | CI on pull request cards                                                                                                       |
+| Commit statuses      | Read           | CI on pull request cards                                                                                                       |
+| Actions              | Read           | Workflow runs, for CI on pull request cards                                                                                    |
+| Organisation members | Read           | Checking membership of organisations on the instance's [access list](/self-hosting/access/), including private membership      |
+
+It asks for no permissions on people's own accounts. Signing in uses the app's own OAuth, with no extra scopes: people see what GitHub lets them see.
+
+The app subscribes to these webhook events: **issues**, **pull request**, **pull request review**, **check run**, **check suite**, **status**, **workflow run**, **discussion** and **repository** (for renames, transfers and visibility changes). GitHub always sends installation events too.
+
+Everything Tack writes is staged and pushed by a person, so the write permissions are only used when someone [pushes](/writing-back/pushing/), as themselves or as the app.
+
+## Install on repositories
+
+On `/setup`, choose **Install on repositories**, then pick the repositories on GitHub. Back on `/setup`: "Installed. Cards from those repositories now update live."
+
+You don't have to install it everywhere. **Public repositories work without it**, read-only and not live; installing it makes their cards live, lets Tack write to them, and makes private repositories visible to the people who can read them. See [Repositories, live and not](/self-hosting/repositories/).
+
+People can also install it from a board: a card that's **Not live** links to **Install the app for live updates**, and comes back to the board afterwards. If they're not an owner of the organisation, GitHub asks an owner to approve it: "Installation requested. An organisation owner needs to approve it on GitHub."
+
+To change which repositories the app is installed on later, open **App settings** from `/setup`, or the app's page under the account's Settings → Applications → Installed GitHub Apps → Configure.
+
+## After setup
+
+`/setup` stays as the instance's settings page, for admins: **Install on repositories**, **App settings** (the app on GitHub), and [who can use the instance](/self-hosting/access/). Admins also find it in the account menu, as **Instance settings**.
+
+There's one app per instance: setup can't be run again once it's done.
