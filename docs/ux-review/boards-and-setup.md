@@ -38,7 +38,7 @@ Inviting `alice, bob` added two rows reading "@alice · invited, hasn't signed i
 Fix: resolve logins against GitHub as they're typed (`GET /users/:login`, through the viewer's token), showing the avatar and name, with autocomplete from people already on the instance. Mark unknown logins red before submit. After inviting, show "They won't get an email. Copy the link and send it to them" next to Copy link. Optionally post an invite to the bell for people who already have accounts.
 
 **2.2 Major: the "Can edit" on the General access row reads as applying to "Anyone with the link".**
-With visibility set to public, the row reads "Anyone with the link ▾ … Can edit ▾" (`shots/boards-and-setup/12-share-public.png`). The right-hand control is the *instance* role, but it sits on the same line as the link setting, so an owner will read it as "anyone with the link can edit". A viewer sees the same row with a static "Can edit" (`shots/boards-and-setup/21-bob-share-panel.png`). The description line underneath ("Anyone with the link can view… People on this Tack can edit") contradicts the control beside it.
+With visibility set to public, the row reads "Anyone with the link ▾ … Can edit ▾" (`shots/boards-and-setup/12-share-public.png`). The right-hand control is the _instance_ role, but it sits on the same line as the link setting, so an owner will read it as "anyone with the link can edit". A viewer sees the same row with a static "Can edit" (`shots/boards-and-setup/21-bob-share-panel.png`). The description line underneath ("Anyone with the link can view… People on this Tack can edit") contradicts the control beside it.
 Fix: when visibility is public, split it into two rows: "Anyone with the link · Can view" (fixed), and "People on this Tack · Can edit ▾". Or rename the control "People on this Tack: Can edit".
 
 **2.3 Major: new boards are editable by everyone on the instance by default, and nothing says so at creation.**
@@ -125,6 +125,7 @@ The title is a plain button with `title="Rename"` (`shots/boards-and-setup/07-bo
 **5.1 Major: the bar has 10 controls and 2 indicators, and it wraps at 1024px and below.**
 Owner at 1440: brand · title · [presence and your account] · History · Rules · Facilitate · Comments · theme · "Synced" · Changes · Share · bell (`shots/boards-and-setup/08-topbar-owner-1440.png`). Viewers also get a "View only" badge (`shots/boards-and-setup/19-bob-viewer.png`). With 8 people the presence stack shows six avatars and "+2", and the bar is full (`shots/boards-and-setup/49-topbar-8people-1440.png`). Measured bar height: 55 px at 1440 and 1280, **97 px (two rows) at 1024 and 768** (`shots/boards-and-setup/48-board-8people-1024.png`, `48-board-8people-768.png`), and 179 px at 375 (`48-board-8people-375.png`). At 1024 the bottom toolbar also overlaps the minimap. A facilitator sharing a 1024×768 window, or anyone on a 13" laptop with a sidebar or an iPad, gets a two-row bar. FigJam keeps about five things up there: menu, title, avatars, Share and a present button.
 Fix (in order):
+
 1. Move the theme toggle into the account menu. It's a set-once preference and doesn't belong next to Share.
 2. Replace the "Synced" text with a dot by the title, and show words only when something is wrong ("Reconnecting…", "Offline, changes saved locally").
 3. Put History and Rules in a board menu, a "▾" after the title that also holds Rename, Duplicate, Archive and Copy link (FigJam's file menu).
@@ -205,6 +206,7 @@ Fix: for the EmDash session, phones only need to view and comment. Below 600 px,
 
 **8.2 Minor: axe found problems on the home page.**
 The board, Share dialog, sign-in, setup and error pages had **0 violations** in light and dark. The home page had 2 serious and 1 moderate:
+
 - `aria-prohibited-attr`: `span[aria-label="2 people"]` in the tile's avatar stack (`BoardTile.tsx`). Give it `role="img"`, or use visually hidden text.
 - `heading-order`: the page `h1` "Boards" goes straight to tile `h3`s. Use `h2`, or add a visually hidden `h2` for the grid.
 

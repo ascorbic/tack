@@ -375,7 +375,7 @@ test("every history state renders", async ({ page }) => {
 		0,
 	);
 	await expect(page.locator("figure[data-state=dock-now] .history-dock[data-live]")).toBeVisible();
-	await expect(page.locator("figure[data-state=dock-past]")).toContainText("2 days ago");
+	await expect(page.locator("figure[data-state=dock-past]")).toContainText(/2 days ago|yesterday/);
 	await expect(page.locator("figure[data-state=dock-playing]")).toContainText("4×");
 	await expect(
 		page.locator("figure[data-state=dock-loading] .history-track[data-loading]"),

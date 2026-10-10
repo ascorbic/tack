@@ -43,7 +43,8 @@ test("opens on the live board, and scrubs back through who changed what", async 
 	// Kai's sorting, two days ago: the flaky CI sticky is gone, ghosted where it was.
 	await panel.locator(".history-entry", { hasText: "removed a sticky" }).click();
 	await expect(page.locator(".canvas")).toHaveAttribute("data-history", "past");
-	await expect(dock).toContainText("2 days ago");
+	// The scenario is set at times of day, so near midnight this reads "yesterday".
+	await expect(dock).toContainText(/2 days ago|yesterday/);
 	await expect(page.locator(".replay-mark[data-op=remove]")).toHaveCount(1);
 	await expect(page.locator(".replay-mark-flag").first()).toContainText("Kai Andersen");
 

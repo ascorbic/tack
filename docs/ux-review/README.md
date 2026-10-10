@@ -2,13 +2,13 @@
 
 Five reviewers each took a critical look at one area of Tack, driving it like a person would (Playwright, light and dark, 1280 and 1440 wide, several people at once), against the bar of FigJam and an eight-person planning session with the EmDash team. Screenshots are kept locally in `shots/` (not committed: about 90 MB).
 
-| Area | Report |
-| --- | --- |
-| The canvas: tools, cards, stickies, sections, connectors, selection, zoom | [canvas.md](canvas.md) |
-| Writing back to GitHub: actions, staging, the push sheet, decisions | [writeback.md](writeback.md) |
-| Widgets, inbox frames, rules, provenance, expand related | [automation.md](automation.md) |
-| Collaboration and facilitation: presence, timer, silent mode, votes, comments, since, history | [collaboration.md](collaboration.md) |
-| Boards, sharing, the top bar, setup, sign-in, small screens, accessibility | [boards-and-setup.md](boards-and-setup.md) |
+| Area                                                                                          | Report                                     |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| The canvas: tools, cards, stickies, sections, connectors, selection, zoom                     | [canvas.md](canvas.md)                     |
+| Writing back to GitHub: actions, staging, the push sheet, decisions                           | [writeback.md](writeback.md)               |
+| Widgets, inbox frames, rules, provenance, expand related                                      | [automation.md](automation.md)             |
+| Collaboration and facilitation: presence, timer, silent mode, votes, comments, since, history | [collaboration.md](collaboration.md)       |
+| Boards, sharing, the top bar, setup, sign-in, small screens, accessibility                    | [boards-and-setup.md](boards-and-setup.md) |
 
 ## Blockers for the EmDash session
 

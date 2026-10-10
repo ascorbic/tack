@@ -53,6 +53,7 @@ Fix: add one row: "W: add a live list of issues".
 I typed "bugs in imagekit" into a new list. Tack correctly shows chips (bugs / in / imagekit) and warns that drop-to-match can't work. It then runs it as a full-text search "everywhere you can see". The widget says "Nothing matches, yet. New matches show up here as they happen." That is wrong: nothing will ever show up. On github.com it would instead return random results from all of public GitHub. The panel knows the board's busiest repository (`suggestedRepo`) and the repo's labels, but offers no correction.
 Evidence: `shots/automation/list-query-naive-typing.png`, `shots/automation/list-query-naive-result.png`
 Fix, in priority order:
+
 1. When a query has no `repo:`/`org:` scope, show an inline suggestion such as "Search only demo/app?", one click to prepend `repo:`.
 2. When bare words match a label name in that repo, offer "Did you mean `label:bug`?".
 3. Change the empty state for unscoped or word queries to "Nothing matches this search. Check the search" with Edit, not "yet".
@@ -64,6 +65,7 @@ Evidence: `shots/automation/list-query-or-labels.png`
 Fix: when the query contains `sort:`, reflect it in the control (or strip it into the control on commit).
 
 **Minor: Query entry is inconsistent across surfaces.**
+
 - The list panel shows "How Tack reads it" chips, refresh and drop notes. The inbox editor shows a live match count but no chips. The rule composer shows neither.
 - The host picker is inline in the inbox textarea, a separate "On" select in widget panels, and absent in the rule composer.
 - Preset names differ: "Needs triage" (list) vs "Untriaged issues" (inbox); "Open bugs" vs "New bugs".

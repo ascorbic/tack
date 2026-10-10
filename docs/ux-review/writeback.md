@@ -24,12 +24,12 @@ Screenshots are in `shots/writeback/`. File names start with `p-`/`q-`/`d-`/`b-`
 ### 1. Staged changes vs. later edits to the board
 
 **1.1 Editing a sticky after staging doesn't change the staged issue, and the edit is lost on push. Blocker.**
-What I did: selected "A provider playground", ⌥I, ↵ (staged). Then I double-clicked the sticky and changed it to "A provider playground with live preview". The sticky shows the new text and still carries its "New issue in imagekit" mark. The Changes panel still says *Create issue "A provider playground"*. On push, the issue is created with the old title and the sticky is *replaced* by that issue's card, so the edit disappears from the board as well. Nothing warns about any of this. In a live session, people fix typos and sharpen wording on stickies all the time, often just after the facilitator has staged them.
+What I did: selected "A provider playground", ⌥I, ↵ (staged). Then I double-clicked the sticky and changed it to "A provider playground with live preview". The sticky shows the new text and still carries its "New issue in imagekit" mark. The Changes panel still says _Create issue "A provider playground"_. On push, the issue is created with the old title and the sticky is _replaced_ by that issue's card, so the edit disappears from the board as well. Nothing warns about any of this. In a live session, people fix typos and sharpen wording on stickies all the time, often just after the facilitator has staged them.
 Evidence: `shots/writeback/e-01-edited-after-stage.png`, `shots/writeback/e-02-panel-after-edit.png`.
 Fix: for `issue.create` changes whose effect replaces a sticky, read the title and body from the sticky when the push is planned, not when the change is staged. Alternatively, rewrite the staged op on every text change in the same transaction. Either way, show the current text in the panel and sheet, and add a small "edited since staged" note on the row so the reviewer knows.
 
 **1.2 Deleting a staged sticky leaves its issue staged, and pushing creates it anyway. Blocker.**
-What I did: staged a sticky, then selected it and pressed Backspace. The toast said "Deleted a sticky · Undo". The Changes badge still showed 1, and the panel still listed *Create issue "A provider playground"*. "Show on the board" for that row has nothing to show. Pushing would publicly create (and notify watchers about) an issue the team deliberately threw away. The same probably applies to sub-issue links that hang off it.
+What I did: staged a sticky, then selected it and pressed Backspace. The toast said "Deleted a sticky · Undo". The Changes badge still showed 1, and the panel still listed _Create issue "A provider playground"_. "Show on the board" for that row has nothing to show. Pushing would publicly create (and notify watchers about) an issue the team deliberately threw away. The same probably applies to sub-issue links that hang off it.
 Evidence: `shots/writeback/e-03-deleted-staged-sticky.png`.
 Fix: when a shape a change depends on is deleted, unstage that change (and its dependants) in the same transaction, so a single Undo brings both back. Say so in the toast: "Deleted a sticky and unstaged its issue · Undo". If unstaging silently feels too aggressive, keep the row but mark it "Its sticky was deleted" and leave it out of the next push by default.
 
@@ -69,7 +69,7 @@ The preview lists titles, with "+ description" when there's a body, but nothing 
 Fix: make the preview rows editable inline (writing back to the sticky), and expand "+ description" on click.
 
 **3.4 The extras pickers (labels, milestone, assignees) are excellent. Keep.**
-The pills open their picker in place, keyboard filtering works ("enh" ↵ picked *enhancement*), and the chosen values replace the pill label (`p-04-labels-after-enter.png`, `p-05-milestone-pill.png`). The toast confirms "Staged 3 issues for acme/imagekit, with a label" with Undo. Fields the repository doesn't support are simply not offered (no Assignees on `demo/app`).
+The pills open their picker in place, keyboard filtering works ("enh" ↵ picked _enhancement_), and the chosen values replace the pill label (`p-04-labels-after-enter.png`, `p-05-milestone-pill.png`). The toast confirms "Staged 3 issues for acme/imagekit, with a label" with Undo. Fields the repository doesn't support are simply not offered (no Assignees on `demo/app`).
 
 **3.5 The popover background lets the canvas show through. Polish.**
 At 94% opacity with backdrop blur, sticky text behind the panel is faintly visible through form fields (`n-02-typed-owner-repo.png`: the sticky's letters show through under the repo field and preview).
@@ -89,7 +89,7 @@ Fix: show a "New" chip in its place (the sheet already uses NEW for unborn issue
 ### 5. Triage: labels, milestone, assign, close/reopen
 
 **5.1 The milestone picker highlights "No milestone" first. Minor.**
-⌥M then ↵ immediately stages *removing* the milestone (`p-15-milestone-panel.png`). There's also no marker for the card's current milestone.
+⌥M then ↵ immediately stages _removing_ the milestone (`p-15-milestone-panel.png`). There's also no marker for the card's current milestone.
 Fix: highlight the current milestone (or the first real one), tick the current one, and put "No milestone" at the bottom.
 
 **5.2 Enter and ⌘↵ are inconsistent. Minor.**
@@ -115,7 +115,7 @@ Fix: when two cards (or a card and a staged sticky) are selected and connected, 
 ### 7. Staged marks on shapes
 
 **7.1 Too many marks, and they collide. Major.**
-Each staged change adds its own pill above the shape ("New issue in imagekit", "Sub-issue of 'Docs for 5.0'", "Blocks #377"), a label pill below ("+ enhancement"), and a tilted ghost card behind stickies. Pills from neighbouring shapes overlap each other and the shapes above (`p-20-after-blocked.png`: the *Write the migration guide* sticky has two pills stacked on its top edge, and "+ enhancement" under *Benchmarks in CI* is hidden behind *Codemods for 5.0*). The ghost card reads as a rendering glitch rather than "this will become a card". With 40 staged stickies the board turns into a field of identical green pills (`m-03-40-staged-1280.png`).
+Each staged change adds its own pill above the shape ("New issue in imagekit", "Sub-issue of 'Docs for 5.0'", "Blocks #377"), a label pill below ("+ enhancement"), and a tilted ghost card behind stickies. Pills from neighbouring shapes overlap each other and the shapes above (`p-20-after-blocked.png`: the _Write the migration guide_ sticky has two pills stacked on its top edge, and "+ enhancement" under _Benchmarks in CI_ is hidden behind _Codemods for 5.0_). The ghost card reads as a rendering glitch rather than "this will become a card". With 40 staged stickies the board turns into a field of identical green pills (`m-03-40-staged-1280.png`).
 Fix: one combined mark per shape ("New issue · sub-issue of Docs · +enhancement"), truncated, with the details on hover. Collapse marks to a small coloured dot below about 60% zoom. Drop the ghost card, or animate it in only on hover.
 
 **7.2 Failure is clearly marked. Keep.**
@@ -124,11 +124,11 @@ A failed create turns its pill red ("New issue in app" in red, dashed red outlin
 ### 8. Changes panel
 
 **8.1 The order looks random, and nothing is grouped. Major (at scale).**
-With 40 stickies staged in one action, the panel lists *Idea 1, 2, 3, 5, 4, 6, 14, 7, 13, 15…* (`m-04-panel-40-1280.png`). The order is neither staging order nor board order, so a facilitator can't scan it against the board. Forty rows of "Create issue … · You · just now" is a lot of scrolling.
+With 40 stickies staged in one action, the panel lists _Idea 1, 2, 3, 5, 4, 6, 14, 7, 13, 15…_ (`m-04-panel-40-1280.png`). The order is neither staging order nor board order, so a facilitator can't scan it against the board. Forty rows of "Create issue … · You · just now" is a lot of scrolling.
 Fix: sort by staging time and then by board position (top-left to bottom-right). Collapse a batch staged by one action into one expandable row ("40 new issues from stickies").
 
 **8.2 The include toggles are shared, and nobody can see who unticked one. Major (for an 8-person session).**
-The checkbox on each row is board-wide state. If Bob unticks Alice's change "to look at it", Alice's next push silently leaves it out. Nothing on the row says who left it out or when. "Everyone on the board sees this list" doesn't tell you that everyone also *controls* it.
+The checkbox on each row is board-wide state. If Bob unticks Alice's change "to look at it", Alice's next push silently leaves it out. Nothing on the row says who left it out or when. "Everyone on the board sees this list" doesn't tell you that everyone also _controls_ it.
 Fix: show "Left out by Bob" on unticked rows (like "Staged by"). Better still, make inclusion a choice in the push sheet that applies to that push only, and keep the panel as a shared list without checkboxes.
 
 **8.3 The failure badge covers the count. Minor.**
@@ -179,7 +179,7 @@ It shows who pushed, as whom (bot icon for "as Tack's bot"), when, per-change li
 
 **10.6 Missing-dependency refusal is vague. Minor.**
 "A change needs an issue that isn't in this push. Include it" doesn't name the change or the issue (`g-refused-missing-dependency-top.png`).
-Fix: "'Make *Write the migration guide* a sub-issue of #412' needs *Write the migration guide* to be created first. Include it".
+Fix: "'Make _Write the migration guide_ a sub-issue of #412' needs _Write the migration guide_ to be created first. Include it".
 
 **10.7 Refusals are well written. Keep.**
 "You can stage but not push here … Leave its changes out" (no write access, `g-refused-no-write-access-top.png`), not installed, signed out ("Sign in to push"), someone else pushing, offline, and view only ("View only: you can't push from this board", `g-review-view-only-top.png`). Each has one clear way forward.
@@ -192,7 +192,7 @@ Fix: after a batch of replacements, run the same "nearest clear spot" nudge that
 
 **11.2 Created issues carry no provenance. Major.**
 Issues created from stickies contain only the sticky's text. There's no link to the board or section, and no credit to whoever wrote the sticky. Every issue is authored by the person who pushed. For an OSS project, "where did this come from and whose idea was it" matters, and the backlink feature already shows how it could work.
-Fix: an optional, on-by-default footer on created issues, for example "From *EmDash planning* › Plugin API, an idea by @priya", using the same body builder as backlinks. Add a switch for it in the push sheet.
+Fix: an optional, on-by-default footer on created issues, for example "From _EmDash planning_ › Plugin API, an idea by @priya", using the same body builder as backlinks. Add a switch for it in the push sheet.
 
 ### 12. Backlinks and the snapshot
 
