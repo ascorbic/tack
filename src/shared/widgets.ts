@@ -94,6 +94,24 @@ export type QueryError = {
 };
 
 /**
+ * What a definition may read besides its config when working out its
+ * queries: the time (for relative ranges, like a timeline's "last two
+ * weeks") and, for kinds that say `readsBoard`, the board itself.
+ */
+export interface QueryContext {
+	/** Now, ms since the epoch. */
+	now: number;
+	/** The items of the cards in a section (and sections inside it), in reading order. */
+	cardsIn(section: string): string[];
+}
+
+/** For contexts without a board: nothing is in any section. */
+export const NO_BOARD: QueryContext = { now: 0, cardsIn: () => [] };
+
+/** At most this many follow-up queries a widget may run, however many it asks for. */
+export const MAX_FOLLOW_UPS = 40;
+
+/**
  * A kind of widget. Definitions live in shared code so both the server (to
  * validate configs and work out queries) and the client (to render and
  * configure) use the same one.
@@ -107,8 +125,24 @@ export interface WidgetDefinition<Config = unknown> {
 	defaults: Config;
 	/** Initial size on the board. */
 	size: { w: number; h: number };
-	/** The queries to run for a config, by name. Run again whenever the config changes. */
-	queries(config: Config): Record<string, WidgetQuery>;
+	/**
+	 * The queries to run for a config, by name. Run again whenever the config
+	 * changes (or the time, or, with `readsBoard`, the board, changes what
+	 * they are).
+	 */
+	queries(config: Config, context: QueryContext): Record<string, WidgetQuery>;
+	/**
+	 * Queries that depend on the first ones' results, by name, such as
+	 * what's related to each item a search found. Run after them, at most
+	 * `MAX_FOLLOW_UPS`, and sent in the same message. Names mustn't clash
+	 * with the first queries'.
+	 */
+	followUps?(
+		config: Config,
+		results: Record<string, QueryResult | QueryError>,
+	): Record<string, WidgetQuery>;
+	/** Whether `queries` reads the board (`context.cardsIn`), so moving cards can change them. */
+	readsBoard?: boolean;
 	/** How often results go stale, in seconds, when no webhook says sooner. */
 	refresh?: number;
 }

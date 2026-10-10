@@ -11,8 +11,15 @@ import {
 import { forgeForHost, parseRepoKey } from "../../shared/refs.ts";
 import { mentionsMe } from "../../shared/search.ts";
 import { shapesMap } from "../../shared/shapes.ts";
-import { queryScope, widgetDefinition, widgetQueries } from "../../shared/widgetRegistry.ts";
+import { boardQueryContext } from "../../shared/widgetContext.ts";
+import {
+	queryScope,
+	widgetDefinition,
+	widgetFollowUps,
+	widgetQueries,
+} from "../../shared/widgetRegistry.ts";
 import type {
+	QueryContext,
 	QueryError,
 	QueryResult,
 	RelatedQuery,
@@ -86,10 +93,18 @@ interface Source {
 	/** How often its results go stale, in ms, when no webhook says sooner. */
 	refreshMs: number | null;
 	inbox: boolean;
+	/** Whether its queries depend on what's on the board (the cards in a section). */
+	readsBoard: boolean;
 }
 
-/** Queries per access level per minute, well inside the forge's search limits. */
-const RUNS_PER_MINUTE = 20;
+/**
+ * Queries per access level per minute, well inside the forge's limits:
+ * searches have a much smaller budget on GitHub than other reads (related
+ * items, releases), which dependency maps run one per item.
+ */
+const RUNS_PER_MINUTE = { search: 20, read: 60 };
+/** At most this many of one widget's follow-up queries run at once. */
+const FOLLOW_UP_CONCURRENCY = 6;
 /** Cached results nobody's watched for this long are dropped. */
 const EVICT_MS = 5 * 60_000;
 /** How often the runner checks what's due. */
@@ -150,6 +165,8 @@ export class WidgetRunner {
 	private entries = new Map<string, Entry>();
 	/** What each shape runs, as last read from the document. */
 	private sources = new Map<string, Source>();
+	/** What each widget runs after its first queries answer (see `followUps`), as last worked out. */
+	private followUps = new Map<string, Record<string, WidgetQuery>>();
 	/** Runs per access level in the current minute. */
 	private budget = new Map<string, { minute: number; runs: number }>();
 	private timer: ReturnType<typeof setTimeout> | undefined;
@@ -161,14 +178,21 @@ export class WidgetRunner {
 		const shapes = shapesMap(host.doc);
 		const observer = (events: Y.YEvent<Y.AbstractType<unknown>>[]) => {
 			const changed = new Set<string>();
+			// Shapes added or removed, or moved between sections: what's in a
+			// section may have changed (moving within one doesn't change that).
+			let structural = false;
 			for (const event of events) {
 				if (event.target === shapes) {
 					for (const key of event.keys.keys()) changed.add(key);
+					structural = true;
 				} else if (typeof event.path[0] === "string") {
 					changed.add(event.path[0]);
+					for (const key of event.keys.keys()) {
+						if (key === "parent" || key === "ref" || key === "type") structural = true;
+					}
 				}
 			}
-			this.widgetsChanged(changed);
+			this.widgetsChanged(changed, structural);
 		};
 		shapes.observeDeep(observer);
 		this.unobserve = () => shapes.unobserveDeep(observer);
@@ -324,6 +348,8 @@ export class WidgetRunner {
 
 	/** Run whatever is due: webhooks' refreshes, schedules, and the end of rate limits. */
 	async tick(): Promise<void> {
+		// Relative ranges ("the last two weeks") move on with the clock.
+		this.widgetsChanged(this.watchedIds(), false);
 		const now = this.now();
 		const running: Promise<void>[] = [];
 		for (const [key, entry] of this.entries) {
@@ -355,38 +381,61 @@ export class WidgetRunner {
 	// --- Internals --------------------------------------------------------------------
 
 	/** What a shape runs, read from the document: a widget's queries, or an inbox's. */
-	private readSource(id: string): Source | null {
+	private readSource(
+		id: string,
+		context: QueryContext = boardQueryContext(this.host.doc, this.now()),
+	): Source | null {
 		const shape = shapesMap(this.host.doc).get(id);
 		if (!shape) return null;
 		const type = shape.get("type");
 		if (type === "widget") {
 			const kind = shape.get("widget");
-			const refresh = widgetDefinition(kind)?.refresh;
+			const definition = widgetDefinition(kind);
+			const refresh = definition?.refresh;
 			return {
-				queries: widgetQueries({ widget: kind as string, config: shape.get("config") }),
+				queries: widgetQueries({ widget: kind as string, config: shape.get("config") }, context),
 				errors: {},
 				refreshMs: refresh ? refresh * 1000 : null,
 				inbox: false,
+				readsBoard: definition?.readsBoard === true,
 			};
 		}
 		if (type !== "section" || shape.get("inbox") === undefined) return null;
 		const query = inboxQueryOf(shape.get("inbox"));
 		return query.kind === "error"
-			? { queries: {}, errors: { [INBOX_QUERY]: query }, refreshMs: null, inbox: true }
+			? {
+					queries: {},
+					errors: { [INBOX_QUERY]: query },
+					refreshMs: null,
+					inbox: true,
+					readsBoard: false,
+				}
 			: {
 					queries: { [INBOX_QUERY]: query },
 					errors: {},
 					refreshMs: this.timing.inboxRefreshMs,
 					inbox: true,
+					readsBoard: false,
 				};
 	}
 
-	private widgetsChanged(ids: Set<string>): void {
+	private widgetsChanged(ids: Set<string>, structural = true): void {
+		// Widgets that read the board (a section's cards) may run something
+		// else when what's in sections changes.
+		if (structural) {
+			for (const id of this.watchedIds()) {
+				if (this.sources.get(id)?.readsBoard) ids.add(id);
+			}
+		}
+		const context = boardQueryContext(this.host.doc, this.now());
 		for (const id of ids) {
 			const before = this.sources.get(id);
-			const after = this.readSource(id);
+			const after = this.readSource(id, context);
 			if (after) this.sources.set(id, after);
-			else this.sources.delete(id);
+			else {
+				this.sources.delete(id);
+				this.followUps.delete(id);
+			}
 			if (JSON.stringify(before ?? null) === JSON.stringify(after)) continue;
 			if (!this.watched(id)) continue;
 			// Its config (or an inbox's query) changed: everyone watching gets new results.
@@ -397,6 +446,13 @@ export class WidgetRunner {
 			}
 			this.renewRepoWatches();
 		}
+	}
+
+	private watchedIds(): Set<string> {
+		const ids = new Set<string>();
+		for (const watching of this.connections.values())
+			for (const id of watching.widgets) ids.add(id);
+		return ids;
 	}
 
 	private watched(id: string): boolean {
@@ -412,11 +468,11 @@ export class WidgetRunner {
 		return source;
 	}
 
-	/** Whether any watched shape runs this query (as JSON). */
-	private uses(source: Source | undefined, query: string): boolean {
-		return Boolean(
-			source && Object.values(source.queries).some((q) => JSON.stringify(q) === query),
-		);
+	/** Whether a shape runs this query (as JSON), first or as a follow-up. */
+	private uses(id: string, query: string): boolean {
+		const runs = (queries: Record<string, WidgetQuery> | undefined) =>
+			Object.values(queries ?? {}).some((q) => JSON.stringify(q) === query);
+		return runs(this.sources.get(id)?.queries) || runs(this.followUps.get(id));
 	}
 
 	/** The refresh period for a cached query: the shortest of the watched shapes using it. */
@@ -424,7 +480,7 @@ export class WidgetRunner {
 		let period: number | null = null;
 		const query = JSON.stringify(entry.query);
 		for (const [id, source] of this.sources) {
-			if (!this.watched(id) || !this.uses(source, query)) continue;
+			if (!this.watched(id) || !this.uses(id, query)) continue;
 			if (source.refreshMs !== null && (period === null || source.refreshMs < period)) {
 				period = source.refreshMs;
 			}
@@ -438,7 +494,7 @@ export class WidgetRunner {
 		for (const watching of this.connections.values()) {
 			if (watching.level !== entry.access.key) continue;
 			for (const id of watching.widgets) {
-				if (this.uses(this.sources.get(id), query)) return true;
+				if (this.uses(id, query)) return true;
 			}
 			if (watching.previews.has(query)) return true;
 		}
@@ -472,6 +528,21 @@ export class WidgetRunner {
 					if (entry.at !== undefined && entry.at < oldest) oldest = entry.at;
 				}),
 			);
+			// Then what depends on those answers (a dependency map's items' relations).
+			if (source && !source.inbox && shape) {
+				const followUps = widgetFollowUps(
+					{ widget: shape.get("widget") as string, config: shape.get("config") },
+					results,
+				);
+				const before = JSON.stringify(this.followUps.get(id) ?? {});
+				this.followUps.set(id, followUps);
+				if (JSON.stringify(followUps) !== before) this.renewRepoWatches();
+				await pool(Object.entries(followUps), FOLLOW_UP_CONCURRENCY, async ([name, query]) => {
+					const entry = await this.resolve(query, access, maxAge);
+					results[name] = entry.result ?? unavailable();
+					if (entry.at !== undefined && entry.at < oldest) oldest = entry.at;
+				});
+			}
 			// It may have stopped watching while the queries ran.
 			if (!this.connections.get(connection)?.widgets.has(id)) return;
 			// Cards an inbox brought that are in anyone's results do match. (Being
@@ -521,7 +592,7 @@ export class WidgetRunner {
 		for (const [connection, watching] of this.connections) {
 			if (watching.level !== entry.access.key) continue;
 			for (const id of watching.widgets) {
-				if (this.uses(this.sources.get(id), query)) {
+				if (this.uses(id, query)) {
 					void this.deliver(connection, id, { maxAge: Number.POSITIVE_INFINITY });
 				}
 			}
@@ -539,9 +610,11 @@ export class WidgetRunner {
 		const now = this.now();
 		// Spend this access level's budget, or wait for the next minute.
 		const minute = Math.floor(now / 60_000);
-		const spent = this.budget.get(entry.access.key);
+		const kind = entry.query.kind === "search" ? "search" : "read";
+		const budgetKey = `${entry.access.key}\n${kind}`;
+		const spent = this.budget.get(budgetKey);
 		const runs = spent?.minute === minute ? spent.runs : 0;
-		if (runs >= RUNS_PER_MINUTE) {
+		if (runs >= RUNS_PER_MINUTE[kind]) {
 			this.schedule(entry, (minute + 1) * 60_000);
 			if (entry.result === undefined) {
 				entry.result = {
@@ -553,7 +626,7 @@ export class WidgetRunner {
 			}
 			return;
 		}
-		this.budget.set(entry.access.key, { minute, runs: runs + 1 });
+		this.budget.set(budgetKey, { minute, runs: runs + 1 });
 		entry.ranAt = now;
 		entry.dueAt = null;
 		const started = Date.now();
@@ -601,12 +674,17 @@ export class WidgetRunner {
 		const parsed = parseRepoKey(query.key.replace(/[#!]\d+$/, ""));
 		const adapter = parsed ? forge(parsed.forge) : null;
 		if (!adapter?.related) return unsupported("This forge can't say what's related.");
+		if (access.key === "public" && adapter.canRead) {
+			// The item's own repository must be public: its card isn't among the results.
+			const repo = await this.host.route(query.key.replace(/[#!]\d+$/, ""));
+			if (typeof repo === "string" || repo.private !== false) return noAccess();
+		}
 		const result = await adapter.related(query.key, this.host.env, { token: access.token });
 		if (result.kind === "error" || access.key !== "public") return result;
 		const cards = result.cards.filter(
-			(entry): entry is Card => !isMissing(entry) && entry.visibility === "public",
+			(entry): entry is Card =>
+				!isMissing(entry) && (entry.visibility === "public" || !adapter.canRead),
 		);
-		if (!cards.some((card) => card.key === result.key)) return noAccess();
 		const keep = new Set(cards.map((card) => card.key));
 		const only = (keys: string[]) => keys.filter((key) => keep.has(key));
 		return {
@@ -706,7 +784,11 @@ export class WidgetRunner {
 		const repos = new Set<string>();
 		for (const watching of this.connections.values()) {
 			for (const id of watching.widgets) {
-				for (const query of Object.values(this.sources.get(id)?.queries ?? {})) {
+				const queries = [
+					...Object.values(this.sources.get(id)?.queries ?? {}),
+					...Object.values(this.followUps.get(id) ?? {}),
+				];
+				for (const query of queries) {
 					for (const repo of queryScope(query).repos) repos.add(repo);
 				}
 			}
@@ -718,6 +800,15 @@ export class WidgetRunner {
 		}
 		if (repos.size > 0) this.host.watchRepos([...repos]);
 	}
+}
+
+/** Run `work` over `items`, at most `limit` at a time. */
+async function pool<T>(items: T[], limit: number, work: (item: T) => Promise<void>): Promise<void> {
+	let next = 0;
+	const worker = async () => {
+		while (next < items.length) await work(items[next++] as T);
+	};
+	await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
 function strings(value: unknown): string[] {

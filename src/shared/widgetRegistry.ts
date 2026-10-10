@@ -4,7 +4,16 @@ import type { Rect } from "./geometry.ts";
 import { DEFAULT_HOST } from "./refs.ts";
 import { parseSearch, searchScope } from "./search.ts";
 import { type ShapeProps, addShape, nextZ, shapesMap } from "./shapes.ts";
-import type { SearchQuery, WidgetDefinition, WidgetQuery } from "./widgets.ts";
+import {
+	MAX_FOLLOW_UPS,
+	NO_BOARD,
+	type QueryContext,
+	type QueryError,
+	type QueryResult,
+	type SearchQuery,
+	type WidgetDefinition,
+	type WidgetQuery,
+} from "./widgets.ts";
 
 // The widget registry (#37): every kind of widget, by its `widget` key. Both
 // the server (to work out which queries to run for a config) and the client
@@ -122,10 +131,29 @@ export function listConfig(shape: Pick<ShapeProps, "config">): ListConfig {
 /** The queries a widget shape runs, by name. None for unknown kinds. */
 export function widgetQueries(
 	shape: Pick<ShapeProps, "widget" | "config">,
+	context: QueryContext = NO_BOARD,
 ): Record<string, WidgetQuery> {
 	const definition = widgetDefinition(shape.widget);
 	if (!definition) return {};
-	return definition.queries(readConfig(definition, shape.config));
+	return definition.queries(readConfig(definition, shape.config), context);
+}
+
+/**
+ * The queries a widget runs once its first ones have answered, by name: at
+ * most `MAX_FOLLOW_UPS`, and never under a name its first queries use.
+ */
+export function widgetFollowUps(
+	shape: Pick<ShapeProps, "widget" | "config">,
+	results: Record<string, QueryResult | QueryError>,
+): Record<string, WidgetQuery> {
+	const definition = widgetDefinition(shape.widget);
+	if (!definition?.followUps) return {};
+	const entries = Object.entries(
+		definition.followUps(readConfig(definition, shape.config), results),
+	);
+	return Object.fromEntries(
+		entries.filter(([name]) => !Object.hasOwn(results, name)).slice(0, MAX_FOLLOW_UPS),
+	);
 }
 
 /**
