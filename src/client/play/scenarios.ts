@@ -15,6 +15,7 @@ import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { seedCommentsRetro } from "./asyncScenarios.ts";
 import { seedInbox, seedRules } from "./automationScenarios.ts";
+import { seedActionItems, seedTemplate } from "./actionItems.ts";
 import { seedDecisions } from "./decisions.ts";
 import { seedLists } from "./displayScenarios.ts";
 import type { SimulatedFacilitator } from "./facilitation.ts";
@@ -593,6 +594,44 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"You've been away three days: people added, moved and edited things, GitHub closed and merged cards, someone pushed and mentioned you. Highlights fade once you've looked.",
 		seed: seedCommentsRetro,
+	},
+	actions: {
+		name: "Action items",
+		description:
+			"Action items in every state: due later, soon, today and overdue, done, linked to an open and a closed issue, staged as a new issue, carried over. Tick them, pick owners and due dates (A for a new one).",
+		seed: seedActionItems,
+	},
+	"template-planning": {
+		name: "Template: Planning session",
+		description:
+			"A board made from the Planning session template. The Facilitate menu has each step ready to start.",
+		seed: seedTemplate("tack:planning"),
+	},
+	"template-retro": {
+		name: "Template: Retro",
+		description: "A board made from the Retro template, with silent writing and a dot vote ready.",
+		seed: seedTemplate("tack:retro"),
+	},
+	"template-triage": {
+		name: "Template: Triage",
+		description:
+			"A board made from the Triage template: an inbox of unlabelled issues, priorities and rules.",
+		seed: seedTemplate("tack:triage"),
+	},
+	"template-release": {
+		name: "Template: Release planning",
+		description: "A board made from the Release planning template, about the fake repository.",
+		seed: seedTemplate("tack:release"),
+	},
+	"template-roadmap": {
+		name: "Template: Roadmap",
+		description: "A board made from the Roadmap template: Now, Next, Later and what shipped.",
+		seed: seedTemplate("tack:roadmap"),
+	},
+	"template-incident": {
+		name: "Template: Incident review",
+		description: "A board made from the Incident review template.",
+		seed: seedTemplate("tack:incident"),
 	},
 	empty: {
 		name: "Empty",

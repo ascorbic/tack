@@ -1,6 +1,7 @@
 import type { Node, NodeChange } from "@xyflow/react";
 import { useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
+import { ACTION_SIZE, addActionItem } from "../shared/actionItems.ts";
 import { addDecision } from "../shared/decisions.ts";
 import { type Provenance, addCardShape } from "../shared/provenance.ts";
 import { NOMINAL_SIZE, type SizeOf, readStructure } from "../shared/sections.ts";
@@ -321,6 +322,16 @@ export function addDecisionAt(doc: Y.Doc, at: { x: number; y: number }, author?:
 	const width = NOMINAL_SIZE.decision?.w ?? 320;
 	transactLocal(doc, () => {
 		addDecision(doc, id, { x: at.x - width / 2, y: at.y - 40, author });
+		placeInSections(doc, [id]);
+	});
+	return id;
+}
+
+/** Add an action item with its checkbox near `at`, and return its id. */
+export function addActionItemAt(doc: Y.Doc, at: { x: number; y: number }, author?: Author): string {
+	const id = crypto.randomUUID();
+	transactLocal(doc, () => {
+		addActionItem(doc, id, { x: at.x - 24, y: at.y - ACTION_SIZE.h / 4, author });
 		placeInSections(doc, [id]);
 	});
 	return id;

@@ -473,6 +473,7 @@ const TOOL_LABELS: Record<string, string> = {
 	card: "Issue or pull request",
 	text: "Text",
 	decision: "Decision",
+	action: "Action item",
 	section: "Section",
 	connector: "Connector",
 	stamp: "Stamp",

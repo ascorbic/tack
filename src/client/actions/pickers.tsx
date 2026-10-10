@@ -21,7 +21,7 @@ import { repoName } from "./selection.ts";
 // Each is keyboard-first: type to filter, arrows to move, Enter to pick.
 
 /** Arrow keys move through a list of `length` items, wrapping around. */
-function useActive(length: number) {
+export function useActive(length: number) {
 	const [active, setActive] = useState(0);
 	const clamped = length === 0 ? -1 : Math.min(active, length - 1);
 	const onKey = (event: KeyboardEvent): boolean => {
@@ -37,7 +37,7 @@ function useActive(length: number) {
 	return { active: clamped, setActive, onKey };
 }
 
-function SearchField({
+export function SearchField({
 	value,
 	onChange,
 	placeholder,

@@ -28,6 +28,7 @@ import {
 	STICKY_SIZE,
 	type ShapeNode,
 	type StickyColor,
+	addActionItemAt,
 	addCard,
 	addDecisionAt,
 	addSticky,
@@ -795,6 +796,10 @@ export function Board({
 			const id = addDecisionAt(doc, at, { name: user.name, color: user.color });
 			focusWhenMounted(id);
 			setSelected(new Set([id]));
+		} else if (tool === "action") {
+			const id = addActionItemAt(doc, at, { name: user.name, color: user.color });
+			focusWhenMounted(id);
+			setSelected(new Set([id]));
 		} else if (tool === "widget") {
 			addWidgetAt("list", undefined, at);
 		} else {
@@ -1265,5 +1270,7 @@ function minimapClass(node: ShapeNode): string {
 	if (type === "decision")
 		return `minimap-decision minimap-decision-${node.data.shape.status ?? "proposed"}`;
 	if (type === "widget") return "minimap-widget";
+	if (type === "action")
+		return `minimap-action${node.data.shape.done ? " minimap-action-done" : ""}`;
 	return `minimap-${type}`;
 }

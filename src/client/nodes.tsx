@@ -8,6 +8,7 @@ import { entranceOf } from "./entering.ts";
 import { useCardProvenance } from "./Provenance.tsx";
 import { StickyNode } from "./StickyNode.tsx";
 import { TextNode } from "./TextNode.tsx";
+import { ActionItemNode } from "./actionItems/ActionItemNode.tsx";
 import { DecisionNode } from "./decisions/DecisionNode.tsx";
 import { useLinked } from "./widgets/store.ts";
 import { WidgetNode } from "./widgets/WidgetNode.tsx";
@@ -54,4 +55,5 @@ export const nodeTypes = {
 	text: TextNode,
 	decision: DecisionNode,
 	widget: WidgetNode,
+	action: ActionItemNode,
 };

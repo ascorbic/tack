@@ -14,6 +14,8 @@ export type Tool =
 	| "section"
 	| "connector"
 	| "decision"
+	/** Action items (#52). */
+	| "action"
 	| "widget"
 	/** Stamping shapes (#50). */
 	| "stamp"
@@ -30,6 +32,7 @@ export const TOOL_KEYS: Record<string, Tool> = {
 	f: "section",
 	x: "connector",
 	d: "decision",
+	a: "action",
 	w: "widget",
 	m: "stamp",
 	b: "comment",
@@ -120,6 +123,9 @@ export function Toolbar({
 			{tool === "decision" && (
 				<ToolHint>Click to propose a decision, then connect the issues it settles</ToolHint>
 			)}
+			{tool === "action" && (
+				<ToolHint>Click to add an action item, then give it an owner and a due date</ToolHint>
+			)}
 			{tool === "widget" && onAddWidget && (
 				<WidgetPicker
 					suggestedRepo={suggestedRepo}
@@ -160,6 +166,10 @@ export function Toolbar({
 				<span className="toolbar-divider" aria-hidden="true" />
 				<ToolButton tool="decision" active={tool} onTool={onTool} label="Decision" shortcut="D">
 					<GavelPaths />
+				</ToolButton>
+				<ToolButton tool="action" active={tool} onTool={onTool} label="Action item" shortcut="A">
+					<rect x="3" y="4.5" width="7" height="7" rx="2.2" />
+					<path d="m4.9 8.1 1.4 1.4 2.3-2.6M12.5 6.5h4.5M12.5 9.5h3M3 15h14" />
 				</ToolButton>
 				{onAddWidget && (
 					<ToolButton tool="widget" active={tool} onTool={onTool} label="Widget" shortcut="W">
