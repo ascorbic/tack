@@ -9,6 +9,7 @@ import {
 	describeChanges,
 	editKind,
 	encodeSegment,
+	groupSteps,
 	mergeMetas,
 	planMerges,
 	spanFor,
@@ -322,6 +323,31 @@ describe("thinning", () => {
 });
 
 describe("reading history", () => {
+	it("groups a person's steps into entries, keeping removals apart", () => {
+		const step = (id: number, at: number, extra: Partial<StepMeta> = {}): StepMeta => ({
+			id,
+			at,
+			until: at,
+			actors: ["u:1"],
+			changes: [{ id: `s${id}`, op: "add", type: "sticky" }],
+			span: 0,
+			bytes: 1,
+			...extra,
+		});
+		const groups = groupSteps([
+			step(1, START, { origin: true, actors: [], changes: [] }),
+			step(2, START + 1000),
+			step(3, START + 2000),
+			step(4, START + 3000, { changes: [{ id: "s3", op: "remove", type: "sticky" }] }),
+			step(5, START + 4000, { actors: ["u:2"] }),
+			step(6, START + 5000, { actors: ["u:2"] }),
+			step(7, START + HOUR, { actors: ["u:2"] }),
+		]);
+		expect(groups.map((g) => g.steps.map((s) => s.id))).toEqual([[1], [2, 3], [4], [5, 6], [7]]);
+		expect(describeChanges(groups[1]!.merged)).toBe("added 2 stickies");
+		expect(groups[1]!.merged.id).toBe(3);
+	});
+
 	it("describes steps in words", () => {
 		const step = {
 			changes: [

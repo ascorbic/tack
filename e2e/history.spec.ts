@@ -97,7 +97,7 @@ test("brings back what a step removed, as an edit you can undo", async ({ page }
 	expect(await live(page, "parking")).toBe(false);
 	// Yesterday Priya cleared the parking lot: a section and the two stickies in it.
 	await panel.getByRole("button", { name: "Bring back 3" }).click();
-	await expect(page.locator(".toast")).toContainText("Brought back");
+	await expect(page.locator(".toast[data-leaving=false]")).toContainText("Brought back");
 	await expect(page.getByRole("region", { name: "History scrubber" })).toHaveCount(0);
 	await expect.poll(() => stickyTexts(page).then((t) => t.join())).toContain("Monorepo?");
 	await expect(page.locator(".react-flow__node-section", { hasText: "Parking lot" })).toHaveCount(
@@ -119,7 +119,7 @@ test("restores a shape selected in the past", async ({ page }) => {
 		.getByRole("toolbar", { name: "Restore" })
 		.getByRole("button", { name: "Bring back" })
 		.click();
-	await expect(page.locator(".toast")).toContainText("Brought back a sticky");
+	await expect(page.locator(".toast[data-leaving=false]")).toContainText("Brought back a sticky");
 	await expect(
 		page.locator(".react-flow__node-sticky.selected", { hasText: "Flaky CI on Windows" }),
 	).toHaveCount(1);
@@ -132,6 +132,51 @@ test("shows history to viewers, without bringing anything back", async ({ page }
 	const panel = page.getByRole("complementary", { name: "History" });
 	await expect(panel.locator(".history-entry-row").first()).toBeVisible();
 	await expect(panel.getByRole("button", { name: /^Bring back/ })).toHaveCount(0);
+});
+
+test("on a real board: records who did what, and brings back a deleted sticky", async ({
+	page,
+}) => {
+	test.setTimeout(60_000);
+	await page.route("https://github.com/**", (route) => route.abort());
+	const login = `e2e-history-${Date.now().toString(36)}`;
+	await page.goto(`/auth/dev?login=${login}&name=History%20Tester&return_to=/`);
+	await page.getByRole("button", { name: "Create your first board" }).click();
+	await expect(page.getByRole("textbox", { name: "Board title" })).toBeFocused();
+	await page.keyboard.type("History");
+	await page.keyboard.press("Enter");
+	await expect(page).toHaveURL(/\/b\/[a-z0-9]{10}\/history$/);
+	await expect(page.locator(".react-flow__renderer")).toBeVisible();
+	await page.evaluate(() => {
+		const data = new DataTransfer();
+		const shapes = [
+			{ id: "a", props: { type: "sticky", x: 0, y: 0, text: "Keep me" } },
+			{ id: "b", props: { type: "sticky", x: 300, y: 0, text: "Delete me" } },
+		];
+		data.setData("application/x-tack+json", JSON.stringify({ tack: 1, shapes }));
+		window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data }));
+	});
+	await expect(page.locator(".react-flow__node-sticky")).toHaveCount(2);
+	await settleCanvas(page);
+	// Reading history writes what's waiting, so the paste is a step of its own.
+	const button = page.locator(".topbar .history-button");
+	await button.click();
+	const panel = page.getByRole("complementary", { name: "History" });
+	await expect(panel).toContainText("History Tester added 2 stickies");
+	await page.keyboard.press("Escape");
+	await expect(panel).toHaveCount(0);
+
+	await page.locator(".react-flow__node-sticky", { hasText: "Delete me" }).click({
+		position: { x: 20, y: 12 },
+	});
+	await page.keyboard.press("Backspace");
+	await expect(page.locator(".react-flow__node-sticky")).toHaveCount(1);
+	await button.click();
+	const removal = panel.locator(".history-entry-row", { hasText: "removed a sticky" });
+	await expect(removal).toBeVisible();
+	await removal.getByRole("button", { name: "Bring back" }).click();
+	await expect(page.locator(".toast[data-leaving=false]")).toContainText("Brought back a sticky");
+	await expect(page.locator(".react-flow__node-sticky", { hasText: "Delete me" })).toHaveCount(1);
 });
 
 test("says so when history can't be loaded", async ({ page }) => {

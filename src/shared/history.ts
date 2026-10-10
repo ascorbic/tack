@@ -1064,9 +1064,15 @@ export interface StepGroup {
 	merged: StepMeta;
 }
 
-/** Group neighbouring steps by the same people within `gap` of each other. The origin stands alone. */
+/**
+ * Group neighbouring steps by the same people within `gap` of each other.
+ * The origin stands alone, and so does every step that removed something:
+ * those are what people come looking for, to bring back, and in a group a
+ * shape made and removed again would cancel out.
+ */
 export function groupSteps(steps: readonly StepMeta[], gap = 10 * MINUTE): StepGroup[] {
 	const runs: StepMeta[][] = [];
+	const removes = (step: StepMeta) => step.changes.some((change) => change.op === "remove");
 	for (const step of steps) {
 		const run = runs.at(-1);
 		const last = run?.at(-1);
@@ -1075,6 +1081,8 @@ export function groupSteps(steps: readonly StepMeta[], gap = 10 * MINUTE): StepG
 			last &&
 			!last.origin &&
 			!step.origin &&
+			!removes(last) &&
+			!removes(step) &&
 			step.actors.join() === last.actors.join() &&
 			step.at - last.until <= gap
 		) {
