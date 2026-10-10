@@ -1,0 +1,56 @@
+---
+title: What Tack is
+description: A GitHub-native whiteboard for open source planning, and the rules it keeps.
+sidebar:
+  order: 1
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+Tack is a collaborative whiteboard for planning open source work. You put GitHub issues and pull requests on a freeform board as **live cards**, next to stickies, text, sections, connectors and decisions, and work through them with your team, live or over days.
+
+Arranging a board never touches GitHub. When the session has produced something worth keeping (new issues, labels, a milestone, links between issues, a decision record), you **stage** it, review it as one batch, and **push** it. Until then, nothing changes on GitHub.
+
+<Screenshot
+	name="planning"
+	eager
+	alt="A planning board: issue and pull request cards with labels, CI and review state, and four stickies from the session."
+	caption="A planning board: live cards from two repositories, and stickies from the session."
+/>
+
+Tack is open source (MIT) and self-hosted: each instance is one Cloudflare Worker and a GitHub App you own. There's no hosted service. See [Deploy Tack](/self-hosting/deploy/).
+
+:::caution[Early days]
+Tack is an early prototype. It's used for real planning, but expect rough edges and changes between versions.
+:::
+
+## The rules Tack keeps
+
+These decide how every feature behaves:
+
+1. **GitHub is the source of truth; the board is a lens.** Tack stores the layout, the stickies and the things GitHub has no home for (votes, decisions in progress, comments on the board). It never keeps its own copy of an issue's state: a card shows what GitHub says, and updates when GitHub changes.
+2. **Moving things never changes GitHub.** Only explicit actions do, and they're staged, previewed and pushed as a batch. See [Writing back to GitHub](/writing-back/overview/).
+3. **Automation adds, people arrange.** [Inboxes](/automation/inboxes/) and [rules](/automation/rules/) can put cards on a board, but never move or delete what someone placed.
+4. **Async first.** Everything that works in a live session also works across time zones over days: votes stay open, comments thread, and [since you were here](/facilitation/since-you-were-here/) shows what changed while you were away.
+5. **Boards aren't owned by a repository.** A board can hold items from any repository. Public repositories work with no setup; installing the GitHub App on a repository makes its cards live and lets Tack write to it.
+
+## Who sees what
+
+You sign in with GitHub, and **GitHub decides what you can see and do**:
+
+- Cards from a private repository only show their details to people who can read that repository on GitHub. Everyone else on the board sees a "Private" placeholder. Being on a board never grants access to a repository's data.
+- Pushing writes to GitHub with your own permissions: if you can't write to a repository, you can stage changes there but not push them.
+- Board roles (owner, editor, viewer) decide who can change the board itself. See [Boards and sharing](/boards/boards-and-sharing/).
+
+## What's on a board
+
+| Thing                                           | What it's for                                                                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| [Cards](/boards/cards/)                         | Live GitHub issues and pull requests: state, labels, assignees, CI and reviews                                                |
+| [Stickies and text](/boards/stickies-and-text/) | Ideas, notes and headings. Stickies can become issues                                                                         |
+| [Sections](/boards/sections/)                   | Frames that hold things. A section can become a parent issue, an inbox, a silent brainstorm or a vote                         |
+| [Connectors](/boards/connectors/)               | Arrows between things. A connector between two issues can become a blocked-by link                                            |
+| [Decisions](/boards/decisions/)                 | Proposals people vote on, decided, then written back as an ADR pull request or a Discussion                                   |
+| [Widgets](/widgets/overview/)                   | Live searches and views: lists, a timeline, a release draft, a dependency map, a review queue, a milestone and a stale finder |
+
+Next, take [the two-minute tour](/start/tour/).

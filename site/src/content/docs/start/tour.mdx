@@ -1,0 +1,69 @@
+---
+title: A two-minute tour
+description: Make a board, bring in issues, sketch, stage some changes and push them.
+sidebar:
+  order: 2
+---
+
+import { Steps } from "@astrojs/starlight/components";
+import Screenshot from "../../../components/Screenshot.astro";
+
+This tour assumes an instance is running and you can sign in to it. If you're setting one up, start with [Deploy Tack](/self-hosting/deploy/).
+
+## Make a board
+
+<Steps>
+
+1. Open your instance and choose **Continue with GitHub**. Tack uses your GitHub account: "You'll see what GitHub lets you see, and nothing changes on GitHub until you push it."
+
+2. On the home page, choose **New board** (or **Create your first board**). It's called "Untitled board", with the title selected, so just type a name and press <kbd>Enter</kbd>.
+
+3. Paste an issue or pull request link onto the board with <kbd>⌘</kbd> <kbd>V</kbd> (<kbd>Ctrl</kbd> <kbd>V</kbd> on Windows and Linux). It becomes a live card. You can paste up to 50 links at once, one per line, and they're laid out in a grid. Or press <kbd>C</kbd> and type `owner/repo#123`.
+
+</Steps>
+
+## Sketch
+
+<Steps>
+
+1. Press <kbd>S</kbd> and click to add a sticky, then type. Each sticky shows who wrote it. Press <kbd>T</kbd> for text, for headings and notes.
+
+2. Press <kbd>F</kbd> and drag out a **section** around some cards and stickies. Name it. Anything dropped inside moves with it.
+
+3. Press <kbd>X</kbd> and drag from one shape to another to connect them. Or hover a shape with the select tool and drag one of the dots beside it.
+
+4. Everyone else on the board sees all this live, with their cursors and names. Press <kbd>/</kbd> to chat beside your cursor, and click someone's avatar to follow their view.
+
+</Steps>
+
+## Stage and push
+
+<Steps>
+
+1. Select two stickies (drag a box around them, or <kbd>Shift</kbd>-click). A bar appears under the selection. Choose **Make 2 issues** (<kbd>⌥</kbd> <kbd>I</kbd>), pick the repository, and choose **Stage 2 issues**. A ghost card behind each sticky shows it's staged. Nothing has been written to GitHub.
+
+2. Select a card and press <kbd>⌥</kbd> <kbd>L</kbd> to stage a label. Staged changes show on the card, and in the **Changes** button in the top bar.
+
+3. Choose **Changes**, then **Review and push**. The push sheet shows every change with a preview: issue bodies, labels, and how many people will be notified.
+
+4. Keep **Push as: You** and choose **Push 3 changes**. Each change lands one at a time, and the sheet says "All 3 changes are on GitHub" when GitHub confirms them. The stickies turn into their new issues' cards, in place.
+
+</Steps>
+
+<Screenshot
+	name="push"
+	alt="The push sheet, listing two new issues with their bodies and labels, a pull request, and the choice between pushing as yourself or as Tack's bot."
+	caption="The push sheet: review everything, then push it as one batch."
+/>
+
+## Share it
+
+Choose **Share** in the top bar, and invite people by GitHub username, as **Can edit** or **Can view**. Or open the board to everyone on your instance, or to anyone with the link. See [Boards and sharing](/boards/boards-and-sharing/).
+
+## Where next
+
+- [Cards](/boards/cards/) and the rest of [Using boards](/boards/boards-and-sharing/)
+- [Writing back to GitHub](/writing-back/overview/): every built-in action
+- [Widgets](/widgets/overview/), [inboxes](/automation/inboxes/) and [rules](/automation/rules/), for boards that keep themselves current
+- [Facilitation](/facilitation/running-a-session/), for running a session
+- Press <kbd>?</kbd> on any board for the [keyboard shortcuts](/boards/shortcuts/)
