@@ -1,4 +1,3 @@
-import { NodeToolbar, Position } from "@xyflow/react";
 import { type ReactNode, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import type * as Y from "yjs";
 import { boardRepos } from "../../shared/actions.ts";
@@ -36,6 +35,7 @@ import { useRowDrag } from "./RowDrag.tsx";
 import { linkStore, useBoardCards, useRefreshing, useWidgetData, widgetStore } from "./store.ts";
 import { TimelineView } from "./TimelineView.tsx";
 import { useResizeGrips } from "./WidgetNode.tsx";
+import { WidgetPanel } from "./WidgetPanel.tsx";
 
 // The timeline, release draft and dependency map on the board (#43): each
 // kind's view, fed by the widget store, with its config panel beside it,
@@ -101,9 +101,9 @@ function useWidgetBoard(id: string) {
 /** The panel beside a widget. */
 function Panel({ id, open, children }: { id: string; open: boolean; children: ReactNode }) {
 	return (
-		<NodeToolbar nodeId={id} isVisible={open} position={Position.Right} align="center" offset={14}>
-			{open && children}
-		</NodeToolbar>
+		<WidgetPanel nodeId={id} open={open}>
+			{children}
+		</WidgetPanel>
 	);
 }
 

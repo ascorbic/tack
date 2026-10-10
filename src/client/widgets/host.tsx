@@ -1,4 +1,4 @@
-import { NodeToolbar, Position, useStore } from "@xyflow/react";
+import { useStore } from "@xyflow/react";
 import {
 	type PointerEvent as ReactPointerEvent,
 	type ReactNode,
@@ -25,6 +25,7 @@ import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { transactLocal } from "../undo.ts";
 import { WidgetContext } from "./context.ts";
 import { useRowDrag } from "./RowDrag.tsx";
+import { WidgetPanel } from "./WidgetPanel.tsx";
 import {
 	type WidgetData,
 	linkStore,
@@ -203,8 +204,8 @@ export function ConfigToolbar({
 	children: ReactNode;
 }) {
 	return (
-		<NodeToolbar nodeId={id} isVisible={open} position={Position.Right} align="center" offset={14}>
-			{open && children}
-		</NodeToolbar>
+		<WidgetPanel nodeId={id} open={open}>
+			{children}
+		</WidgetPanel>
 	);
 }

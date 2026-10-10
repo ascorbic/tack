@@ -1006,9 +1006,29 @@ body[data-row-drag] * {
 
 /* Config and drop-to-match panels ------------------------------------------------------- */
 
+/* Beside its widget, kept on the visible canvas (WidgetPanel.tsx). */
+.widget-panel {
+	position: absolute;
+	left: 0;
+	top: 0;
+	pointer-events: all;
+}
+
+.widget-panel[data-side="left"] > .widget-config {
+	transform-origin: 100% 50%;
+	animation-name: widget-panel-in-left;
+}
+
+@keyframes widget-panel-in-left {
+	from {
+		opacity: 0;
+		transform: translateX(6px) scale(0.96);
+	}
+}
+
 .widget-config {
 	width: 340px;
-	max-height: min(560px, calc(100vh - 140px));
+	max-height: var(--room, min(560px, calc(100vh - 140px)));
 	overflow: auto;
 	overscroll-behavior: contain;
 	padding: 14px;

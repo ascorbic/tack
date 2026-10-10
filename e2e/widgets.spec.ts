@@ -74,6 +74,33 @@ test("lists show their search's matches, with a marker for what's on the board",
 	await expect(list(page, "Mentions flaky").getByText("Nothing matches, yet")).toBeVisible();
 });
 
+test("a list's settings open wholly on screen, beside it, even on the right-hand edge", async ({
+	page,
+}) => {
+	// At 1280×800 the "Needs triage" list is in the right-hand column: its
+	// panel used to open as a sliver off the right edge, above the top bar.
+	const triage = list(page, "Needs triage");
+	await triage.getByRole("button", { name: "Edit list" }).click();
+	const panel = page.getByRole("dialog", { name: "Edit list" });
+	await expect(panel).toBeVisible();
+	const canvas = (await page.locator(".react-flow").boundingBox())!;
+	const box = (await panel.boundingBox())!;
+	const widget = (await triage.boundingBox())!;
+	expect(box.x).toBeGreaterThanOrEqual(canvas.x);
+	expect(box.y).toBeGreaterThanOrEqual(canvas.y);
+	expect(box.x + box.width).toBeLessThanOrEqual(canvas.x + canvas.width);
+	expect(box.y + box.height).toBeLessThanOrEqual(canvas.y + canvas.height);
+	// To its left, since there's no room on its right.
+	expect(box.x + box.width).toBeLessThanOrEqual(widget.x);
+	await expect(panel.getByRole("button", { name: "Done" })).toBeInViewport();
+
+	// It follows the list as the board pans.
+	const before = box.x;
+	await page.mouse.move(640, 760);
+	await page.mouse.wheel(-120, 0);
+	await expect.poll(async () => (await panel.boundingBox())?.x !== before).toBe(true);
+});
+
 test("pointing at a row lights its card, and the other way round", async ({ page }) => {
 	const bugs = list(page, "Open bugs");
 	await row(bugs, "Cloudinary URLs").hover();

@@ -38,8 +38,16 @@ function surroundings(el: HTMLElement, bar: HTMLElement): { bounds: Box; obstacl
 		right: Math.min(screen.right, canvas.right),
 		bottom: Math.min(screen.bottom, canvas.bottom),
 	};
-	const obstacles = [...document.querySelectorAll<HTMLElement>(CHROME)]
-		.filter((chrome) => !chrome.contains(bar) && !el.contains(chrome))
+	return { bounds, obstacles: chromeWithin(bounds, [el, bar]) };
+}
+
+/**
+ * The chrome fixed over a stretch of the screen, on screen, leaving out
+ * whatever holds or is held by `own` (the panel asking, and what it opens from).
+ */
+export function chromeWithin(bounds: Box, own: readonly HTMLElement[]): Box[] {
+	return [...document.querySelectorAll<HTMLElement>(CHROME)]
+		.filter((chrome) => own.every((el) => !chrome.contains(el) && !el.contains(chrome)))
 		.map((chrome) => boxOf(chrome.getBoundingClientRect()))
 		.filter(
 			(box) =>
@@ -50,7 +58,6 @@ function surroundings(el: HTMLElement, bar: HTMLElement): { bounds: Box; obstacl
 				box.top < bounds.bottom &&
 				box.bottom > bounds.top,
 		);
-	return { bounds, obstacles };
 }
 
 /** The keys that stage from a panel with a list or text in it. */

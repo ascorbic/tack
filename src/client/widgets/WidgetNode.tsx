@@ -1,4 +1,4 @@
-import { type NodeProps, NodeToolbar, Position } from "@xyflow/react";
+import type { NodeProps } from "@xyflow/react";
 import {
 	memo,
 	useContext,
@@ -41,6 +41,7 @@ import { type ListStatus, ListView } from "./ListView.tsx";
 import { planDrop, previewOf } from "./match.ts";
 import { useRowDrag } from "./RowDrag.tsx";
 import { linkStore, useBoardCards, useRefreshing, useWidgetData, widgetStore } from "./store.ts";
+import { WidgetPanel } from "./WidgetPanel.tsx";
 import "./widgets.css";
 
 /** Results older than this many refresh periods are stale: a refresh must have failed. */
@@ -178,24 +179,16 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 				onReveal={(key) => board.reveal(cards?.shapesFor(key) ?? [])}
 			/>
 			{useResizeGrips(id, shape, selected)}
-			<NodeToolbar
-				nodeId={id}
-				isVisible={configOpen && !readOnly}
-				position={Position.Right}
-				align="center"
-				offset={14}
-			>
-				{configOpen && (
-					<ListConfigPanel
-						config={config}
-						suggestedRepo={repo}
-						onChange={change}
-						onClose={() => setConfigOpen(false)}
-					/>
-				)}
-			</NodeToolbar>
+			<WidgetPanel nodeId={id} open={configOpen && !readOnly}>
+				<ListConfigPanel
+					config={config}
+					suggestedRepo={repo}
+					onChange={change}
+					onClose={() => setConfigOpen(false)}
+				/>
+			</WidgetPanel>
 			{board.dropped?.widget === id && doc && (
-				<NodeToolbar nodeId={id} isVisible position={Position.Right} align="center" offset={14}>
+				<WidgetPanel nodeId={id} open>
 					<DropConfirm
 						doc={doc}
 						title={title}
@@ -207,7 +200,7 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 						history={history}
 						onClose={board.closeDrop}
 					/>
-				</NodeToolbar>
+				</WidgetPanel>
 			)}
 		</div>
 	);
@@ -297,23 +290,15 @@ function OtherWidget({
 			</section>
 			{useResizeGrips(id, shape, selected)}
 			{definition && doc && (
-				<NodeToolbar
-					nodeId={id}
-					isVisible={configOpen}
-					position={Position.Right}
-					align="center"
-					offset={14}
-				>
-					{configOpen && (
-						<SchemaConfigPanel
-							title={definition.title}
-							schema={definition.schema}
-							config={config}
-							onChange={(changes) => transactLocal(doc, () => updateWidgetConfig(doc, id, changes))}
-							onClose={() => setConfigOpen(false)}
-						/>
-					)}
-				</NodeToolbar>
+				<WidgetPanel nodeId={id} open={configOpen}>
+					<SchemaConfigPanel
+						title={definition.title}
+						schema={definition.schema}
+						config={config}
+						onChange={(changes) => transactLocal(doc, () => updateWidgetConfig(doc, id, changes))}
+						onClose={() => setConfigOpen(false)}
+					/>
+				</WidgetPanel>
 			)}
 		</div>
 	);
