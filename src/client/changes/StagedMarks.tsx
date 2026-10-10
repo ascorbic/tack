@@ -41,6 +41,11 @@ export interface MarksProps {
 	labelColorOf?: (repo: string, name: string) => string;
 	onReveal?: (change: PendingChange) => void;
 	you?: string;
+	/**
+	 * Drawn as a row or mini card in a list (#72): just the outline, and the
+	 * flags and labels in one line beside a row, or counted on a mini card.
+	 */
+	compact?: "row" | "mini";
 }
 
 /** Wrap a node type so its staged changes show on it. */
@@ -53,6 +58,11 @@ export function withStagedMarks(Node: ComponentType<NodeProps<ShapeNode>>) {
 					shapeId={props.id}
 					cardKey={props.data.shape.ref}
 					shapeType={props.data.shape.type}
+					compact={
+						props.data.display === "row" || props.data.display === "mini"
+							? props.data.display
+							: undefined
+					}
 				/>
 			</>
 		);
@@ -63,10 +73,12 @@ function LiveMarks({
 	shapeId,
 	cardKey,
 	shapeType,
+	compact,
 }: {
 	shapeId: string;
 	cardKey?: string;
 	shapeType?: string;
+	compact?: "row" | "mini";
 }) {
 	const ui = useChangesUI();
 	const changes = useShapeChanges(ui?.store ?? null, shapeId);
@@ -99,6 +111,7 @@ function LiveMarks({
 			labelColorOf={(repo, name) => labelColor(meta(repo), name)}
 			onReveal={(change) => ui.reveal(change.id)}
 			you={ui.user.login}
+			compact={compact}
 		/>
 	);
 }
@@ -139,6 +152,7 @@ export function StagedMarksView({
 	labelColorOf = () => "#8b9098",
 	onReveal,
 	you,
+	compact,
 }: MarksProps) {
 	const landed = useLanded(changes);
 	const index = useMemo(() => all ?? indexChanges(changes), [all, changes]);
@@ -268,8 +282,24 @@ export function StagedMarksView({
 			data-highlighted={highlighted || undefined}
 			data-has-flags={flags.length > 0 || undefined}
 			data-shape={shapeType}
+			data-compact={compact}
 		>
-			{ghost && (
+			{compact === "mini" && visible.length > 0 && worst && (
+				<button
+					type="button"
+					className="staged-count nodrag"
+					title={visible.map(tip).join("\n\n")}
+					onClick={(event) => {
+						event.stopPropagation();
+						onReveal?.(worst);
+					}}
+					{...state(worst)}
+				>
+					<KindIcon op={worst.op} size={10} />
+					{visible.length}
+				</button>
+			)}
+			{ghost && !compact && (
 				<span className="staged-ghost" aria-hidden="true" {...state(ghost)}>
 					<span className="staged-ghost-head">
 						<KindIcon op={ghost.op} size={12} />
@@ -279,7 +309,7 @@ export function StagedMarksView({
 					<span className="staged-ghost-line short" />
 				</span>
 			)}
-			{parent?.op.kind === "issue.create" && (
+			{parent?.op.kind === "issue.create" && !compact && (
 				<span className="staged-parent" aria-hidden="true" {...state(parent)}>
 					<span className="staged-parent-card">
 						<span className="staged-ghost-head">
@@ -295,7 +325,7 @@ export function StagedMarksView({
 			{outline && (
 				<span className="staged-outline" aria-hidden="true" {...(worst ? state(worst) : {})} />
 			)}
-			{flags.length > 0 && (
+			{flags.length > 0 && compact !== "mini" && (
 				<span className="staged-flags">
 					{flags.map(({ change, text }, i) => (
 						<button
@@ -317,7 +347,7 @@ export function StagedMarksView({
 					))}
 				</span>
 			)}
-			{labels.length > 0 && (
+			{labels.length > 0 && compact !== "mini" && (
 				<span className="staged-labels">
 					{labels.map(({ change, name, mode, repo }, i) => (
 						<button

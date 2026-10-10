@@ -19,6 +19,8 @@ import {
 } from "../shared/sections.ts";
 import { transactLocal, updateShapes } from "../shared/shapes.ts";
 import { addSection, resizeSection } from "../shared/structure.ts";
+import { sortOf } from "../shared/display.ts";
+import { DisplaySwitch, sortLabel } from "./display/DisplaySwitch.tsx";
 import { type ShapeNode, focusWhenMounted, isFresh, takeFocus } from "./board.ts";
 import { DocContext, ReadOnlyContext, SectionContext, type SectionUI } from "./DocContext.ts";
 import { SilentBadge, SilentButton } from "./facilitation/Silent.tsx";
@@ -73,6 +75,25 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 	const color = (SECTION_COLORS as readonly string[]).includes(shape.color ?? "")
 		? shape.color
 		: "grey";
+	// Showing a list or mini cards (#72), or drawn as a group inside one.
+	const display = data.display;
+	const listed = display === "list" || display === "grid";
+	const sort = listed ? sortOf(shape) : null;
+
+	if (display === "group") {
+		return (
+			<SectionGroup
+				id={id}
+				title={title}
+				color={color ?? "grey"}
+				count={count}
+				selected={!!selected}
+				dropTarget={ui.dropTargets.has(id)}
+				editing={editing}
+				onEdit={setEditing}
+			/>
+		);
+	}
 
 	return (
 		<div
@@ -82,7 +103,13 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 			data-drop-target={ui.dropTargets.has(id)}
 			data-enter={enter}
 			data-silent={shape.silent ? true : undefined}
+			data-display={display}
 		>
+			{listed && count === 0 && (
+				<span className="section-list-empty" aria-hidden="true">
+					Drop cards or stickies here
+				</span>
+			)}
 			{received > 0 && <span key={received} className="section-received" aria-hidden="true" />}
 			<div className="section-header">
 				<div
@@ -111,6 +138,11 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 					>
 						{count}
 					</span>
+					{sort && (
+						<span className="section-sorted" title={`Sorted by ${sortLabel(sort)}`}>
+							{sortLabel(sort)}
+						</span>
+					)}
 					{shape.inbox && <InboxBadge id={id} shape={shape} />}
 					{shape.silent && <SilentBadge shape={shape} />}
 				</div>
@@ -136,10 +168,13 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 				)}
 				{alone && doc && !readOnly && !shape.silent && <SilentButton id={id} />}
 				{alone && doc && !readOnly && <VoteButton id={id} />}
+				{alone && doc && !readOnly && <DisplaySwitch id={id} shape={shape} />}
 			</div>
+			{/* A list or grid is as big as what's in it: switch back to cards to resize. */}
 			{selected &&
 				doc &&
 				!readOnly &&
+				!listed &&
 				HANDLES.map((handle) => (
 					<ResizeGrip
 						key={handle}
@@ -160,6 +195,70 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 });
 
 export const sectionNodeTypes = { section: SectionNode };
+
+/**
+ * A section inside a list or grid (#72): a group, with its title in a header
+ * row it's picked up by, and its own contents below.
+ */
+function SectionGroup({
+	id,
+	title,
+	color,
+	count,
+	selected,
+	dropTarget,
+	editing,
+	onEdit,
+}: {
+	id: string;
+	title: string;
+	color: string;
+	count: number;
+	selected: boolean;
+	dropTarget: boolean;
+	editing: boolean;
+	onEdit: (editing: boolean) => void;
+}) {
+	const doc = useContext(DocContext);
+	return (
+		<div
+			className="section section-group"
+			data-color={color}
+			data-selected={selected}
+			data-drop-target={dropTarget}
+		>
+			<div
+				className="section-group-head section-handle"
+				onDoubleClick={(event) => {
+					event.stopPropagation();
+					onEdit(true);
+				}}
+			>
+				<svg
+					width="12"
+					height="12"
+					viewBox="0 0 12 12"
+					aria-hidden="true"
+					className="section-group-glyph"
+				>
+					<rect x="1" y="2" width="10" height="8" rx="2" />
+				</svg>
+				{editing && doc ? (
+					<TitleInput
+						value={title}
+						onChange={(value) => updateShapes(doc, [id], { title: value })}
+						onDone={() => onEdit(false)}
+					/>
+				) : (
+					<span className="section-name" data-empty={title === ""}>
+						{title || "Untitled section"}
+					</span>
+				)}
+				<span className="section-count">{count}</span>
+			</div>
+		</div>
+	);
+}
 
 /** An inbox section's title says how many new matches wait in its tray. */
 function InboxBadge({ id, shape }: { id: string; shape: ShapeNode["data"]["shape"] }) {

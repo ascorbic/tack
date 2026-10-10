@@ -26,7 +26,15 @@ export type ShapeNode = Node<{
 	id: string;
 	/** Sections: how many shapes are directly inside. */
 	count?: number;
+	/**
+	 * How it's drawn in a section showing a list or mini cards (#72): a row,
+	 * a mini card, a group (a section inside one), or, on the section itself,
+	 * the list or grid it shows. Absent: drawn as itself, free-form.
+	 */
+	display?: DisplayKind;
 }>;
+
+export type DisplayKind = "row" | "mini" | "group" | "list" | "grid";
 
 /**
  * Sections sit beneath everything else, outer ones beneath inner ones. This

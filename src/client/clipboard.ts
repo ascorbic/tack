@@ -64,15 +64,35 @@ const PayloadSchema = v.object({
 export function copyShapes(
 	doc: Y.Doc,
 	ids: Iterable<string>,
-	{ board, sizes }: { board?: string; sizes?: (id: string) => Size | undefined } = {},
+	{
+		board,
+		sizes,
+		positions,
+	}: {
+		board?: string;
+		sizes?: (id: string) => Size | undefined;
+		/**
+		 * Where shapes are drawn, if not where the document says: a row in a
+		 * list (#72), copied without its section, is copied from where it shows.
+		 */
+		positions?: (id: string) => { x: number; y: number } | undefined;
+	} = {},
 ): ClipboardPayload {
 	const shapes = shapesMap(doc);
 	const copied: ClipboardShape[] = [];
-	for (const id of ids) {
+	const all = new Set(ids);
+	for (const id of all) {
 		const shape = shapes.get(id);
 		if (!shape) continue;
 		const size = sizes?.(id);
 		const props = Object.fromEntries([...shape.entries()].map(([k, v]) => [k, toPlain(v)]));
+		const parent = props.parent;
+		const drawn = typeof parent === "string" && all.has(parent) ? undefined : positions?.(id);
+		if (drawn) {
+			props.x = Math.round(drawn.x);
+			props.y = Math.round(drawn.y);
+			delete props.order;
+		}
 		copied.push({ id, props, ...size });
 	}
 	copied.sort((a, b) => compareZ(a.props.z, b.props.z));

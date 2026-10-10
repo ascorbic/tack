@@ -90,7 +90,12 @@ export function MarksLayer({
 					const counts = stamps.get(node.id);
 					const vote = open.length > 0 ? voteFor(open, shapes, node.id, now) : null;
 					if (!counts && !vote) return null;
-					const box = boxOf(node.id, { ...shape, x: node.position.x, y: node.position.y }, sizeOf);
+					// Rows and mini cards in a list count their own, inline (#72).
+					const inline = node.data.display === "row" || node.data.display === "mini";
+					const box =
+						inline && node.width && node.height
+							? { x: node.position.x, y: node.position.y, w: node.width, h: node.height }
+							: boxOf(node.id, { ...shape, x: node.position.x, y: node.position.y }, sizeOf);
 					return (
 						<ShapeMarks
 							key={node.id}
@@ -100,8 +105,8 @@ export function MarksLayer({
 							y={box.y}
 							w={box.w}
 							h={box.h}
-							counts={counts}
-							vote={vote}
+							counts={inline ? undefined : counts}
+							vote={inline ? null : vote}
 							me={me}
 							readOnly={readOnly}
 							voting={voting && vote !== null}

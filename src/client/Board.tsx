@@ -23,6 +23,7 @@ import { readVotes } from "../shared/dotvotes.ts";
 import type { StampEmoji } from "../shared/facilitation.ts";
 import { itemKey, parseRef } from "../shared/refs.ts";
 import {
+	type DisplayKind,
 	type Position,
 	STICKY_SIZE,
 	type ShapeNode,
@@ -32,6 +33,7 @@ import {
 	addSticky,
 	addText,
 	applyNodeChanges,
+	SECTION_Z,
 	focusWhenMounted,
 	useShapeNodes,
 } from "./board.ts";
@@ -49,6 +51,14 @@ import { PushSheet } from "./changes/PushSheet.tsx";
 import { withStagedMarks } from "./changes/StagedMarks.tsx";
 import { useChangesState } from "./changes/useChanges.ts";
 import { useCanvasStructure, useSizeOf } from "./canvasStructure.ts";
+import { DisplayMarksContext, withDisplay } from "./display/DisplayItem.tsx";
+import { planDisplayDrop } from "./display/drop.ts";
+import { listKey } from "./display/keys.ts";
+import { moveInList } from "../shared/display.ts";
+import { DisplayPreview, previewStore } from "./display/Preview.tsx";
+import { useDisplay } from "./display/useDisplay.ts";
+import { useServerNow, useStampCounts, useVotes } from "./facilitation/hooks.ts";
+import { isOpen } from "../shared/dotvotes.ts";
 import { useCanvasCommands } from "./commands.ts";
 import { ConnectorLayer } from "./connectors.tsx";
 import { CursorChat } from "./CursorChat.tsx";
@@ -105,13 +115,19 @@ import { CommentsButton, CommentsPanel } from "./comments/CommentsPanel.tsx";
 import { HighlightLayer } from "./since/Highlights.tsx";
 import { SinceButton, SincePanel } from "./since/SincePanel.tsx";
 
-// Every shape shows the changes staged about it.
-const NODE_TYPES = Object.fromEntries(
-	Object.entries({ ...nodeTypes, ...sectionNodeTypes }).map(([type, node]) => [
-		type,
-		withStagedMarks(node),
-	]),
-);
+// Every shape shows the changes staged about it, and shapes in a section
+// showing a list or mini cards draw as rows or mini cards (#72).
+const NODE_TYPES = Object.fromEntries([
+	...Object.entries(nodeTypes).map(([type, node]) => [type, withStagedMarks(withDisplay(node))]),
+	...Object.entries(sectionNodeTypes).map(([type, node]) => [type, withStagedMarks(node)]),
+]);
+
+/**
+ * Groups in a list sit above any section lifted by being selected (React
+ * Flow adds 1000), and rows above any group lifted the same way.
+ */
+const LIST_GROUP_Z = SECTION_Z + 1000;
+const LIST_ROW_Z = 50;
 
 interface BoardProps extends BoardSource {
 	name: string;
@@ -182,8 +198,8 @@ export function Board({
 	);
 	const measuredRef = useRef(measured);
 	measuredRef.current = measured;
-	const sizeOf = useCallback((id: string) => measuredRef.current.get(id), []);
-	// The same, as boxes for structural edits (see shared/structure.ts).
+	// Free-form sizes, as boxes for structural edits (see shared/structure.ts):
+	// never a row's, since a row's document position is where it'd be as a card.
 	const boxSize = useSizeOf(measured);
 	// Sections: contents following a dragged section, resizes in progress,
 	// and where a dragged shape would land.
@@ -193,6 +209,30 @@ export function Board({
 		measured,
 		awareness,
 	});
+	// Sections showing lists and mini cards: where their contents draw (#72).
+	const display = useDisplay({
+		shapeNodes,
+		drags: presence.overrides,
+		overrides: structure.overrides,
+		measured,
+	});
+	const displayRef = useRef(display);
+	displayRef.current = display;
+	// The size each shape is drawn at, rows and lists included, for the UI around them.
+	const sizeOf = useCallback((id: string) => {
+		const { slots, sections } = displayRef.current;
+		const rect = slots.get(id)?.rect ?? sections.get(id)?.box;
+		return rect ? { width: rect.w, height: rect.h } : measuredRef.current.get(id);
+	}, []);
+	/** The same, as boxes, for layers drawn over shapes where they show (comments, highlights). */
+	const drawnSize = useCallback(
+		(id: string) => {
+			const { slots, sections } = displayRef.current;
+			const rect = slots.get(id)?.rect ?? sections.get(id)?.box;
+			return rect ? { w: rect.w, h: rect.h } : boxSize(id);
+		},
+		[boxSize],
+	);
 
 	// Undo and redo this person's own changes, never anyone else's. Always on
 	// the live board, so what's restored from history can be undone.
@@ -237,47 +277,116 @@ export function Board({
 	// they live outside the document. Unchanged nodes keep their identity so
 	// React Flow's memoised nodes skip re-rendering.
 	const merged = useRef(new Map<string, { base: ShapeNode; out: ShapeNode }>());
+	const displayData = useRef(
+		new Map<string, { data: ShapeNode["data"]; kind: DisplayKind; out: ShapeNode["data"] }>(),
+	);
+	const styleKeys = useRef(new Map<string, string>()).current;
+	/** A node's data, saying how it's drawn: the same object until either changes. */
+	const displayDataFor = (data: ShapeNode["data"], kind: DisplayKind): ShapeNode["data"] => {
+		const cached = displayData.current.get(data.id);
+		if (cached && cached.data === data && cached.kind === kind) return cached.out;
+		const out = { ...data, display: kind };
+		displayData.current.set(data.id, { data, kind, out });
+		return out;
+	};
 	const nodes = useMemo(
 		() =>
 			shapeNodes.map((base) => {
 				const isSelected = selected.has(base.id);
-				const size = measured.get(base.id);
+				let size = measured.get(base.id);
 				const drag = structure.overrides.get(base.id);
 				const resize = structure.resizes.get(base.id);
-				const position = resize
+				let position = resize
 					? { x: resize.x, y: resize.y }
 					: drag
 						? { x: drag.x, y: drag.y }
 						: base.position;
-				const width = resize?.w ?? base.width;
-				const height = resize?.h ?? base.height;
+				let width = resize?.w ?? base.width;
+				let height = resize?.h ?? base.height;
 				// Shapes being dragged float above everything else.
-				const zIndex = structure.zIndexOf(base);
+				let zIndex = structure.zIndexOf(base);
 				const remoteColor = drag?.user?.color;
-				const className = remoteColor
+				let className = remoteColor
 					? "remote-drag"
 					: structure.followsRemote.has(base.id)
 						? "remote-follow"
 						: matching.returning.has(base.id)
 							? "snap-back"
 							: undefined;
+
+				// In a list or grid: drawn in its slot, at its slot's size (#72).
+				let kind: DisplayKind | undefined;
+				let index: number | undefined;
+				const slot = display.slots.get(base.id);
+				const list = display.sections.get(base.id);
+				if (slot) {
+					kind = slot.kind;
+					index = slot.index;
+					position = { x: slot.rect.x, y: slot.rect.y };
+					width = slot.rect.w;
+					height = slot.rect.h;
+					size = { width, height };
+					// Stacked so a selected list (lifted by React Flow) stays beneath
+					// its groups, and a selected group beneath its rows.
+					if (zIndex === base.zIndex) {
+						zIndex =
+							slot.kind === "group"
+								? LIST_GROUP_Z + ((base.zIndex ?? SECTION_Z) - SECTION_Z)
+								: LIST_ROW_Z;
+					}
+					if (!slot.dragging) {
+						const root = display.rootOf(base.id);
+						const rootDrag = root ? presence.overrides.get(root) : undefined;
+						const carried =
+							root !== null && (rootDrag !== undefined || structure.overrides.has(root));
+						// Rows glide to new places, except while their list is carried along.
+						className = carried
+							? rootDrag?.user || structure.followsRemote.has(root)
+								? "remote-follow display-node"
+								: "display-node display-still"
+							: `${className ?? ""} display-node`.trim();
+					}
+				} else if (list) {
+					kind = list.mode === "mini" ? "grid" : "list";
+					width = list.box.w;
+					height = list.box.h;
+					className = `${className ?? ""} display-section`.trim();
+				}
+				if (list && slot) kind = "group";
+				const morph = display.morphing.get(base.id);
+				if (morph !== undefined) className = `${className ?? ""} display-morph`.trim();
+				const data = kind ? displayDataFor(base.data, kind) : base.data;
+				const style =
+					remoteColor || morph !== undefined || index !== undefined
+						? ({
+								...(remoteColor && { "--drag-color": remoteColor }),
+								...(morph !== undefined && { "--morph-i": Math.min(morph, 16) }),
+								...(index !== undefined && { "--display-i": Math.min(index, 24) }),
+							} as React.CSSProperties)
+						: undefined;
+				const styleKey = `${remoteColor ?? ""}|${morph ?? ""}|${index ?? ""}`;
+
 				const cached = merged.current.get(base.id)?.out;
 				if (
 					cached &&
 					merged.current.get(base.id)?.base === base &&
+					cached.data === data &&
 					cached.selected === isSelected &&
-					cached.measured === size &&
+					cached.measured?.width === size?.width &&
+					cached.measured?.height === size?.height &&
 					cached.position.x === position.x &&
 					cached.position.y === position.y &&
 					cached.width === width &&
 					cached.height === height &&
 					cached.zIndex === zIndex &&
-					cached.className === className
+					cached.className === className &&
+					styleKeys.get(base.id) === styleKey
 				) {
 					return cached;
 				}
 				const out: ShapeNode = {
 					...base,
+					data,
 					selected: isSelected,
 					measured: size,
 					position,
@@ -285,16 +394,19 @@ export function Board({
 					height,
 					className,
 					zIndex,
-					style: remoteColor ? ({ "--drag-color": remoteColor } as React.CSSProperties) : undefined,
+					style,
 				};
 				merged.current.set(base.id, { base, out });
+				styleKeys.set(base.id, styleKey);
 				return out;
 			}),
-		[shapeNodes, selected, measured, structure, matching.returning],
+		[shapeNodes, selected, measured, structure, matching.returning, display, presence.overrides],
 	);
 
 	// A dragged section's contents move with it, so they're never snapped to.
-	const snapping = useSnapping(nodes, sizeOf, structure.contentsOf);
+	const snapping = useSnapping(nodes, sizeOf, structure.contentsOf, (id) =>
+		displayRef.current.slots.has(id),
+	);
 
 	// Who's voting on decisions, and the board a written-back record links to.
 	const decisionBoard = useMemo(
@@ -306,6 +418,21 @@ export function Board({
 	const [stickyColor, setStickyColor] = useState<StickyColor>("yellow");
 	const [stamp, setStamp] = useState<StampEmoji>("👍");
 	const voteState = useVoteUI();
+	// Stamps and dots, counted inline on rows and mini cards (#72).
+	const stampCounts = useStampCounts(doc, user);
+	const allVotes = useVotes(doc);
+	const voteNow = useServerNow(30_000, allVotes.length > 0);
+	const displayMarks = useMemo(
+		() => ({
+			doc,
+			me: user,
+			stamps: stampCounts,
+			votes: allVotes.filter((vote) => isOpen(vote, voteNow)),
+			shapes: display.shapes,
+			now: voteNow,
+		}),
+		[doc, user, stampCounts, allVotes, voteNow, display.shapes],
+	);
 	const setVoting = useCallback(
 		(on: boolean) => setTool((current) => (on ? "vote" : current === "vote" ? "select" : current)),
 		[],
@@ -478,6 +605,20 @@ export function Board({
 		onNavigate: follow.stop,
 		readOnly,
 		onAction: (id) => actionRequests.request(id),
+		onListKey: (id) => {
+			const key = listKey(displayRef.current, selected, id);
+			if (!key) return false;
+			if (key.kind === "select") {
+				setSelected(new Set([key.id]));
+			} else if (key.kind === "move" && !readOnly) {
+				transactLocal(doc, () =>
+					moveInList(doc, key.section, key.ids, key.index, displayRef.current.cardOf),
+				);
+			}
+			return true;
+		},
+		inList: (id) => displayRef.current.slots.has(id),
+		drawnAt: (id) => displayRef.current.slots.get(id)?.rect,
 	});
 
 	const onNodesChange: OnNodesChange<ShapeNode> = useCallback(
@@ -506,7 +647,16 @@ export function Board({
 					return next;
 				});
 			}
-			const sizes = changes.filter((change) => change.type === "dimensions" && change.dimensions);
+			// Rows and lists are drawn at their slot's size: what's measured is
+			// each shape's free-form size, for when it's a card again.
+			const { slots, sections } = displayRef.current;
+			const sizes = changes.filter(
+				(change) =>
+					change.type === "dimensions" &&
+					change.dimensions &&
+					!slots.has(change.id) &&
+					!sections.has(change.id),
+			);
 			if (sizes.length > 0) {
 				setMeasured((current) => {
 					const next = new Map(current);
@@ -523,27 +673,56 @@ export function Board({
 			commands.onRemove(changes.flatMap((change) => (change.type === "remove" ? [change.id] : [])));
 			// Cards dropped on a list don't move: they ask to match it (#39).
 			const dropped = matching.track(changes);
-			applyNodeChanges(
+			const kept = dropped
+				? changes.filter((change) => change.type !== "position" || !dropped.has(change.id))
+				: changes;
+			// Rows dropped in their list reorder it, and anything dropped on a
+			// list joins it where the gap was (#72): one undo step with the move.
+			const drop = planDisplayDrop(
 				doc,
-				dropped
-					? changes.filter((change) => change.type !== "position" || !dropped.has(change.id))
-					: changes,
+				displayRef.current,
+				kept,
 				presence.lastDragPosition,
 				boxSize,
 			);
+			const after = drop.after;
+			if (after) {
+				transactLocal(doc, () => {
+					applyNodeChanges(doc, drop.changes, presence.lastDragPosition, boxSize);
+					after();
+				});
+			} else {
+				applyNodeChanges(doc, drop.changes, presence.lastDragPosition, boxSize);
+			}
 		},
 		[doc, presence, snapping, commands, boxSize, readOnly, matching],
 	);
 
+	// Where a dragged shape would land: a list by what it draws, not its
+	// free-form box (#72), and not the list a row's only moving within.
+	const dropKey = useMemo(() => {
+		if (!display.active) return null;
+		const out = new Set([...structure.dropTargets].filter((id) => !display.sections.has(id)));
+		const hover = display.hover;
+		if (hover && hover.ids.some((id) => display.structure.parentOf.get(id) !== hover.section)) {
+			out.add(hover.section);
+		}
+		return [...out].sort().join(" ");
+	}, [structure.dropTargets, display]);
+	const dropTargets = useMemo(
+		() => (dropKey === null ? structure.dropTargets : new Set(dropKey ? dropKey.split(" ") : [])),
+		[dropKey, structure.dropTargets],
+	);
+
 	const sectionUI = useMemo(
 		() => ({
-			dropTargets: structure.dropTargets,
+			dropTargets,
 			selectionSize: selected.size,
 			setResize: structure.setResize,
 			snapResize: snapping.snapResize,
 			sizeOf: boxSize,
 		}),
-		[structure.dropTargets, selected.size, structure.setResize, snapping.snapResize, boxSize],
+		[dropTargets, selected.size, structure.setResize, snapping.snapResize, boxSize],
 	);
 
 	const centre = useCallback(
@@ -559,7 +738,7 @@ export function Board({
 	const comments = useCommentsOnBoard({
 		user,
 		nodes,
-		sizeOf: boxSize,
+		sizeOf: drawnSize,
 		toasts,
 		onPanel: () => setRulesOpen(false),
 		board: name,
@@ -747,212 +926,226 @@ export function Board({
 							onDragOver={onDragOver}
 							onDrop={onDrop}
 						>
-							<ReactFlow
-								nodes={nodes}
-								nodeTypes={NODE_TYPES}
-								onNodesChange={onNodesChange}
-								onPaneClick={onPaneClick}
-								onMoveStart={follow.onMoveStart}
-								proOptions={{ hideAttribution: true }}
-								onlyRenderVisibleElements
-								selectionOnDrag={tool === "select"}
-								panOnDrag={tool === "hand" ? true : [1, 2]}
-								panOnScroll
-								nodesDraggable={!readOnly && shapesInteractive}
-								elementsSelectable={shapesInteractive}
-								minZoom={0.1}
-								// Deleting is a board command (see commands.ts), so that shapes
-								// and connectors go together, as one undo step.
-								deleteKeyCode={null}
-								selectionMode={SelectionMode.Partial}
-								selectionKeyCode={null}
-								multiSelectionKeyCode={["Shift", "Meta", "Control"]}
-								onSelectionStart={(event) => {
-									// React Flow has just deselected every shape, before calling
-									// this. A plain marquee replaces the whole selection,
-									// connectors too; with Shift, it adds to what was selected.
-									const base = event.shiftKey ? new Set(selected) : null;
-									marqueeBase.current = base;
-									setSelected(new Set(base));
-								}}
-								onSelectionEnd={() => {
-									marqueeBase.current = null;
-								}}
-								onNodeMouseEnter={(_event, node) => {
-									// Light up this item's rows in any list (#38).
-									if (node.type === "card" && node.data.shape.ref) {
-										linkStore.set(node.data.shape.ref, "card");
-									}
-								}}
-								onNodeMouseLeave={(_event, node) => {
-									if (node.type === "card") linkStore.set(null, "card");
-								}}
-								onNodeClick={(event, node) => {
-									// Stamping and dot voting: a click puts yours on the shape.
-									if (!readOnly && tool === "stamp" && node.type !== "connector") {
-										stampShape(doc, node.id, stamp, user);
-										return;
-									}
-									if (!readOnly && tool === "vote") {
-										const shapes = new Map(nodes.map((n) => [n.id, n.data.shape] as const));
-										const result = dotShape(
-											doc,
-											readVotes(doc),
-											shapes,
-											node.id,
-											user,
-											event.altKey,
-										);
-										if (result === "none_left") {
-											toasts.show({ message: "No dots left: click one of yours to move it" });
-										} else if (result === "no_vote") {
-											toasts.show({ message: "That’s not part of a vote" });
+							<DisplayMarksContext value={displayMarks}>
+								<ReactFlow
+									nodes={nodes}
+									nodeTypes={NODE_TYPES}
+									onNodesChange={onNodesChange}
+									onPaneClick={onPaneClick}
+									onMoveStart={follow.onMoveStart}
+									proOptions={{ hideAttribution: true }}
+									onlyRenderVisibleElements
+									selectionOnDrag={tool === "select"}
+									panOnDrag={tool === "hand" ? true : [1, 2]}
+									panOnScroll
+									nodesDraggable={!readOnly && shapesInteractive}
+									elementsSelectable={shapesInteractive}
+									minZoom={0.1}
+									// Deleting is a board command (see commands.ts), so that shapes
+									// and connectors go together, as one undo step.
+									deleteKeyCode={null}
+									selectionMode={SelectionMode.Partial}
+									selectionKeyCode={null}
+									multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+									onSelectionStart={(event) => {
+										// React Flow has just deselected every shape, before calling
+										// this. A plain marquee replaces the whole selection,
+										// connectors too; with Shift, it adds to what was selected.
+										const base = event.shiftKey ? new Set(selected) : null;
+										marqueeBase.current = base;
+										setSelected(new Set(base));
+									}}
+									onSelectionEnd={() => {
+										marqueeBase.current = null;
+									}}
+									onNodeMouseEnter={(_event, node) => {
+										// Light up this item's rows in any list (#38).
+										if (node.type === "card" && node.data.shape.ref) {
+											linkStore.set(node.data.shape.ref, "card");
 										}
-										return;
-									}
-									// Clicking one shape in a multi-selection selects just that one.
-									if (event.shiftKey || event.metaKey || event.ctrlKey) return;
-									if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
-								}}
-							>
-								<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-								<Controls
-									showInteractive={false}
-									onZoomIn={follow.stop}
-									onZoomOut={follow.stop}
-									onFitView={follow.stop}
+										// A row or mini card pops its full card out (#72).
+										if (node.data.display === "row" || node.data.display === "mini") {
+											previewStore.enter(node.id);
+										}
+									}}
+									onNodeMouseLeave={(_event, node) => {
+										if (node.type === "card") linkStore.set(null, "card");
+										previewStore.leave(node.id);
+									}}
+									onNodeClick={(event, node) => {
+										// Stamping and dot voting: a click puts yours on the shape.
+										if (!readOnly && tool === "stamp" && node.type !== "connector") {
+											stampShape(doc, node.id, stamp, user);
+											return;
+										}
+										if (!readOnly && tool === "vote") {
+											const shapes = new Map(nodes.map((n) => [n.id, n.data.shape] as const));
+											const result = dotShape(
+												doc,
+												readVotes(doc),
+												shapes,
+												node.id,
+												user,
+												event.altKey,
+											);
+											if (result === "none_left") {
+												toasts.show({ message: "No dots left: click one of yours to move it" });
+											} else if (result === "no_vote") {
+												toasts.show({ message: "That’s not part of a vote" });
+											}
+											return;
+										}
+										// Clicking one shape in a multi-selection selects just that one.
+										if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+										if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
+									}}
 								>
-									<ControlButton
-										onClick={() => setSheetOpen(true)}
-										title="Keyboard shortcuts (?)"
-										aria-label="Keyboard shortcuts"
-										className="shortcuts-button"
+									<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
+									<Controls
+										showInteractive={false}
+										onZoomIn={follow.stop}
+										onZoomOut={follow.stop}
+										onFitView={follow.stop}
 									>
-										?
-									</ControlButton>
-								</Controls>
-								<BoardMinimap pannable zoomable nodeClassName={minimapClass} />
-								<ZoomVariable />
-								<ConnectorLayer
-									doc={doc}
-									awareness={awareness}
-									nodes={nodes}
-									sectionDrags={structure.sectionDrags}
-									drawing={!readOnly && tool === "connector"}
-									interactive={!readOnly && tool !== "hand"}
-									onDrawn={() => setTool("select")}
-									selected={selected}
-									setSelected={setSelected}
-									sizeOf={boxSize}
-									connectorActions={
-										readOnly
-											? undefined
-											: (id) => (
-													<BlockedByAction
-														key={id}
-														doc={doc}
-														connector={id}
-														user={user}
-														toasts={toasts}
-														history={history}
-														requests={actionRequests}
-													/>
-												)
-									}
-								/>
-								{!readOnly && tool === "section" && (
-									<SectionTool
+										<ControlButton
+											onClick={() => setSheetOpen(true)}
+											title="Keyboard shortcuts (?)"
+											aria-label="Keyboard shortcuts"
+											className="shortcuts-button"
+										>
+											?
+										</ControlButton>
+									</Controls>
+									<BoardMinimap pannable zoomable nodeClassName={minimapClass} />
+									<ZoomVariable />
+									<ConnectorLayer
 										doc={doc}
-										sizeOf={boxSize}
-										onCreate={(id) => {
-											setSelected(new Set([id]));
-											setTool("select");
-										}}
-									/>
-								)}
-								<InboxLayer
-									doc={doc}
-									nodes={nodes}
-									readOnly={readOnly}
-									user={user}
-									toasts={toasts}
-									sizeOf={boxSize}
-									onPlaced={(id) => setSelected(new Set([id]))}
-								/>
-								{!replay.state.open && <HighlightLayer doc={doc} nodes={nodes} sizeOf={boxSize} />}
-								<CommentLayer
-									nodes={nodes}
-									sizeOf={boxSize}
-									placing={tool === "comment"}
-									user={user}
-									toasts={toasts}
-								/>
-								<Guides store={snapping.guides} />
-								{!readOnly && (
-									<SelectionTools
+										awareness={awareness}
 										nodes={nodes}
+										sectionDrags={structure.sectionDrags}
+										drawing={!readOnly && tool === "connector"}
+										interactive={!readOnly && tool !== "hand"}
+										onDrawn={() => setTool("select")}
 										selected={selected}
-										sizeOf={sizeOf}
-										dragging={snapping.dragging}
-										stacked={styledShapes(selectedNodes).length > 0}
-										onCommand={commands.run}
-									/>
-								)}
-								<MarksLayer
-									doc={doc}
-									nodes={nodes}
-									sizeOf={boxSize}
-									me={user}
-									readOnly={readOnly}
-									voting={!readOnly && tool === "vote"}
-								/>
-								{replay.controller && replay.state.open && (
-									<HistoryCanvas
-										controller={replay.controller}
-										state={replay.state}
-										live={liveDoc}
-										selected={[...selected]}
-										readOnly={viewOnly}
+										setSelected={setSelected}
 										sizeOf={boxSize}
+										connectorActions={
+											readOnly
+												? undefined
+												: (id) => (
+														<BlockedByAction
+															key={id}
+															doc={doc}
+															connector={id}
+															user={user}
+															toasts={toasts}
+															history={history}
+															requests={actionRequests}
+														/>
+													)
+										}
 									/>
-								)}
-								<Cursors people={presence.people} />
-								<Emotes awareness={awareness} user={user} people={presence.people} />
-								<ViewPublisher awareness={awareness} />
-								{!readOnly && (
-									<ShapeToolbar
-										doc={doc}
-										selected={selectedNodes}
-										dragging={snapping.dragging}
-										onStickyColor={setStickyColor}
-									/>
-								)}
-								{!readOnly && (
-									<ActionBar
-										doc={doc}
-										selected={selectedNodes}
-										nodes={nodes}
-										dragging={snapping.dragging}
-										user={user}
-										toasts={toasts}
-										history={history}
-										requests={actionRequests}
-										sizeOf={sizeOf}
-									/>
-								)}
-								{ghost && (
-									<ViewportPortal>
-										<div
-											className="sticky sticky-ghost"
-											data-color={stickyColor}
-											aria-hidden="true"
-											style={{
-												transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+									{!readOnly && tool === "section" && (
+										<SectionTool
+											doc={doc}
+											sizeOf={boxSize}
+											onCreate={(id) => {
+												setSelected(new Set([id]));
+												setTool("select");
 											}}
 										/>
-									</ViewportPortal>
-								)}
-							</ReactFlow>
+									)}
+									<InboxLayer
+										doc={doc}
+										nodes={nodes}
+										readOnly={readOnly}
+										user={user}
+										toasts={toasts}
+										sizeOf={boxSize}
+										onPlaced={(id) => setSelected(new Set([id]))}
+									/>
+									{!replay.state.open && (
+										<HighlightLayer doc={doc} nodes={nodes} sizeOf={drawnSize} />
+									)}
+									<CommentLayer
+										nodes={nodes}
+										sizeOf={drawnSize}
+										placing={tool === "comment"}
+										user={user}
+										toasts={toasts}
+									/>
+									<Guides store={snapping.guides} />
+									{!readOnly && (
+										<SelectionTools
+											nodes={nodes}
+											selected={selected}
+											sizeOf={sizeOf}
+											dragging={snapping.dragging}
+											stacked={styledShapes(selectedNodes).length > 0}
+											onCommand={commands.run}
+										/>
+									)}
+									<MarksLayer
+										doc={doc}
+										nodes={nodes}
+										sizeOf={boxSize}
+										me={user}
+										readOnly={readOnly}
+										voting={!readOnly && tool === "vote"}
+									/>
+									{replay.controller && replay.state.open && (
+										<HistoryCanvas
+											controller={replay.controller}
+											state={replay.state}
+											live={liveDoc}
+											selected={[...selected]}
+											readOnly={viewOnly}
+											sizeOf={boxSize}
+										/>
+									)}
+									<Cursors people={presence.people} />
+									<Emotes awareness={awareness} user={user} people={presence.people} />
+									<ViewPublisher awareness={awareness} />
+									{!readOnly && (
+										<ShapeToolbar
+											doc={doc}
+											selected={selectedNodes}
+											dragging={snapping.dragging}
+											onStickyColor={setStickyColor}
+										/>
+									)}
+									{!readOnly && (
+										<ActionBar
+											doc={doc}
+											selected={selectedNodes}
+											nodes={nodes}
+											dragging={snapping.dragging}
+											user={user}
+											toasts={toasts}
+											history={history}
+											requests={actionRequests}
+											sizeOf={sizeOf}
+										/>
+									)}
+									{ghost && (
+										<ViewportPortal>
+											<div
+												className="sticky sticky-ghost"
+												data-color={stickyColor}
+												aria-hidden="true"
+												style={{
+													transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+												}}
+											/>
+										</ViewportPortal>
+									)}
+									<DisplayPreview
+										display={display}
+										selected={selected}
+										suppressed={snapping.dragging || tool !== "select"}
+									/>
+								</ReactFlow>
+							</DisplayMarksContext>
 							<EmptyBoard
 								empty={
 									!readOnly &&

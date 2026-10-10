@@ -1,0 +1,1076 @@
+/* ---------------------------------------------------------------------------
+   Section display options (#72): lists of rows, grids of mini cards, the
+   switch between them, and the full card popping out of a row.
+   ------------------------------------------------------------------------ */
+
+/* Moving -------------------------------------------------------------------- */
+
+/* Rows glide to their new places: opening a gap for a drag, closing it,
+   re-sorting. Not while being dragged, or carried along with their list. */
+.react-flow__node.display-node {
+	transition: transform var(--t-settle) var(--ease-settle);
+}
+
+.react-flow__node.display-node.dragging,
+.react-flow__node.display-node.display-still {
+	transition: none;
+}
+
+.react-flow__node.display-node.remote-follow {
+	transition: transform calc(90ms * var(--motion)) linear;
+}
+
+/* Switching how a section shows: every shape travels to its new place, a
+   beat after the one before, and unfolds into its new form on the way. */
+.react-flow__node.display-morph {
+	--morph-delay: calc(var(--morph-i, 0) * 16ms * var(--motion));
+	transition:
+		transform calc(640ms * var(--motion)) var(--ease-settle) var(--morph-delay),
+		width calc(480ms * var(--motion)) var(--ease-settle) var(--morph-delay),
+		height calc(480ms * var(--motion)) var(--ease-settle) var(--morph-delay);
+}
+
+.react-flow__node.display-morph > :first-child {
+	animation: display-unfold calc(520ms * var(--motion)) var(--ease-spring) backwards;
+	animation-delay: var(--morph-delay);
+}
+
+@keyframes display-unfold {
+	from {
+		opacity: 0;
+		scale: 0.9;
+		filter: blur(1.5px);
+	}
+	40% {
+		filter: blur(0);
+	}
+}
+
+/* A list grows and shrinks with what's in it, and with a gap held open. */
+.react-flow__node.display-section {
+	transition:
+		height var(--t-settle) var(--ease-settle),
+		width var(--t-settle) var(--ease-settle);
+}
+
+.react-flow__node.display-section.dragging {
+	transition: none;
+}
+
+/* Rows ----------------------------------------------------------------------- */
+
+.display-item {
+	--state: var(--muted);
+	--state-bg: var(--chip);
+	position: relative;
+	width: 100%;
+	height: 100%;
+	color: var(--ink);
+	background: var(--surface);
+	box-shadow:
+		0 0 0 1px var(--line),
+		0 1px 1.5px rgb(23 25 28 / 4%);
+	transition:
+		box-shadow var(--t-base) var(--ease-out),
+		background var(--t-base) var(--ease-out),
+		scale var(--t-quick) var(--ease-out),
+		rotate var(--t-quick) var(--ease-out);
+}
+
+.display-item[data-state="open"] {
+	--state: var(--open);
+	--state-bg: var(--open-bg);
+}
+
+.display-item[data-state="merged"],
+.display-item[data-state="closed"] {
+	--state: var(--merged);
+	--state-bg: var(--merged-bg);
+}
+
+.display-item[data-state="draft"] {
+	--state: var(--closed);
+	--state-bg: var(--closed-bg);
+}
+
+.display-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 10px 0 10px;
+	border-radius: 9px;
+	font-size: 13px;
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.react-flow__node:hover .display-item {
+	box-shadow:
+		0 0 0 1px var(--line-strong),
+		var(--shadow-hover);
+}
+
+.display-item[data-selected="true"],
+.react-flow__node:hover .display-item[data-selected="true"] {
+	box-shadow:
+		0 0 0 2px var(--accent),
+		0 0 0 5px var(--accent-soft),
+		var(--shadow-hover);
+}
+
+/* Lifted out of its list: it rises and tips, like a card picked up. */
+.react-flow__node.dragging .display-item,
+.react-flow__node.remote-drag .display-item {
+	scale: 1.025;
+	rotate: -0.7deg;
+	box-shadow:
+		0 0 0 1px var(--line-strong),
+		var(--shadow-lifted);
+}
+
+.react-flow__node.remote-drag .display-item {
+	outline: 2px solid var(--drag-color);
+	outline-offset: 2px;
+}
+
+/* Just added, by anyone: it drops into its row. */
+.display-item[data-enter] {
+	animation: display-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes display-in {
+	from {
+		opacity: 0;
+		translate: 0 -6px;
+		scale: 0.96;
+	}
+}
+
+/* Someone's pointing at this item in a list widget (#38). */
+.display-item[data-linked] {
+	background: color-mix(in srgb, var(--highlight) 45%, var(--surface));
+}
+
+/* It no longer matches the inbox or rule that brought it. */
+.display-item[data-unmatched] {
+	box-shadow:
+		0 0 0 1px var(--line),
+		inset 0 0 0 1px var(--surface);
+	outline: 1.5px dashed var(--line-strong);
+	outline-offset: -1.5px;
+}
+
+.display-state {
+	flex: none;
+	display: inline-flex;
+	color: var(--state);
+}
+
+.display-state-blank {
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	border: 1.5px dashed var(--line-strong);
+}
+
+.display-number {
+	flex: none;
+	min-width: 30px;
+	color: var(--muted);
+	font-size: 11.5px;
+	letter-spacing: -0.01em;
+	font-variant-numeric: tabular-nums;
+}
+
+.display-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-weight: 560;
+	letter-spacing: -0.003em;
+}
+
+.display-item[data-state="closed"] .display-title,
+.display-item[data-state="merged"] .display-title {
+	color: var(--ink-soft);
+}
+
+.display-item[data-unavailable] .display-title {
+	color: var(--muted);
+	font-weight: 450;
+}
+
+.display-skeleton {
+	display: inline-block;
+	width: 70%;
+	height: 9px;
+	vertical-align: middle;
+	border-radius: 5px;
+	background: linear-gradient(
+		90deg,
+		var(--skeleton) 25%,
+		var(--skeleton-shine) 50%,
+		var(--skeleton) 75%
+	);
+	background-size: 200% 100%;
+	animation: shimmer calc(1400ms * var(--motion)) linear infinite;
+}
+
+.display-label-dots {
+	flex: none;
+	display: inline-flex;
+	gap: 3px;
+}
+
+.display-label-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--label);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label) 60%, black 20%);
+}
+
+[data-theme="dark"] .display-label-dot {
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label) 70%, white 10%);
+}
+
+.display-ci-dot {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--muted);
+}
+
+.display-ci-dot[data-ci="passing"] {
+	background: var(--pass);
+}
+
+.display-ci-dot[data-ci="failing"] {
+	background: var(--fail);
+}
+
+.display-ci-dot[data-ci="pending"] {
+	background: var(--pending);
+	animation: display-pending calc(1400ms * var(--motion)) ease-in-out infinite;
+}
+
+@keyframes display-pending {
+	50% {
+		opacity: 0.35;
+	}
+}
+
+.display-chip {
+	flex: none;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--state-bg);
+	color: var(--state);
+	font-size: 10.5px;
+	font-weight: 600;
+	line-height: 17px;
+}
+
+.display-plain .display-chip {
+	background: var(--chip);
+	color: var(--ink-soft);
+}
+
+.display-avatars {
+	flex: none;
+	display: inline-flex;
+}
+
+.display-avatars img {
+	width: 18px;
+	height: 18px;
+	margin-left: -5px;
+	border-radius: 50%;
+	border: 1.5px solid var(--surface);
+}
+
+.display-avatars img:first-child {
+	margin-left: 0;
+}
+
+/* CI along a mini card's bottom edge. Rows have their dot instead. */
+.display-ci {
+	position: absolute;
+	left: 10px;
+	right: 10px;
+	bottom: 0;
+	height: 2px;
+	border-radius: 2px 2px 0 0;
+	background: var(--muted);
+}
+
+.display-row .display-ci {
+	display: none;
+}
+
+.display-ci[data-ci="passing"] {
+	background: var(--pass);
+}
+
+.display-ci[data-ci="failing"] {
+	background: var(--fail);
+}
+
+.display-ci[data-ci="pending"] {
+	background: linear-gradient(90deg, var(--pending) 40%, transparent 50%, var(--pending) 60%);
+	background-size: 200% 100%;
+	animation: shimmer calc(1600ms * var(--motion)) linear infinite;
+}
+
+/* Stickies: their paper, a little square of it, and their author. */
+.display-sticky {
+	background: color-mix(in srgb, var(--paper) 30%, var(--surface));
+}
+
+.display-paper {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	background: var(--paper);
+	box-shadow:
+		0 0 0 1px rgb(0 0 0 / 6%),
+		0 1px 2px rgb(0 0 0 / 12%);
+	rotate: -4deg;
+}
+
+.display-sticky[data-font="hand"] .display-title,
+.display-sticky[data-font="hand"] .display-mini-title,
+.display-sticky[data-font="hand"] .display-edit {
+	font-family: var(--font-hand);
+	font-weight: 500;
+}
+
+.display-title[data-empty],
+.display-mini-title[data-empty] {
+	color: var(--muted);
+	font-weight: 450;
+	font-style: italic;
+}
+
+.display-author {
+	flex: none;
+	max-width: 110px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.display-author::before {
+	content: "";
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	margin-right: 5px;
+	border-radius: 50%;
+	background: var(--author);
+	vertical-align: 1px;
+}
+
+.display-edit {
+	flex: 1;
+	min-width: 0;
+	height: 22px;
+	padding: 1px 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 560;
+	resize: none;
+	outline: none;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.display-mini .display-edit {
+	height: auto;
+	flex: 1;
+	white-space: pre-wrap;
+	font-size: 12px;
+	line-height: 1.3;
+}
+
+.display-sticky[data-editing] {
+	box-shadow:
+		0 0 0 2px var(--accent),
+		0 0 0 5px var(--accent-soft);
+}
+
+/* Silent mode: someone else's sticky, face down, its back hatched. */
+.display-sticky[data-face-down] {
+	background: color-mix(in srgb, var(--paper) 18%, var(--surface-muted));
+}
+
+.display-sticky[data-face-down] .display-paper {
+	width: 18px;
+	height: 18px;
+	background:
+		repeating-linear-gradient(135deg, rgb(0 0 0 / 9%) 0 2px, transparent 2px 5px), var(--paper);
+	rotate: 0deg;
+}
+
+.display-paper-mark {
+	color: var(--sticky-ink-soft);
+	font-size: 7.5px;
+	font-weight: 750;
+	letter-spacing: -0.02em;
+}
+
+.display-face-down {
+	color: var(--muted);
+	font-weight: 500;
+	font-style: italic;
+}
+
+.display-hidden {
+	flex: none;
+	display: inline-flex;
+	color: var(--muted);
+}
+
+.display-hidden svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.3;
+	stroke-linecap: round;
+}
+
+/* The reveal: each turns over in its turn, down the list. */
+.display-item[data-flip] {
+	animation: display-flip calc(620ms * var(--motion)) var(--ease-settle) backwards;
+	animation-delay: calc(var(--display-i, 0) * 45ms * var(--motion));
+}
+
+@keyframes display-flip {
+	from {
+		transform: perspective(400px) rotateX(-92deg);
+		background: var(--surface-muted);
+	}
+	50% {
+		transform: perspective(400px) rotateX(12deg);
+	}
+}
+
+.display-glyph {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 16px;
+	height: 16px;
+	border-radius: 4px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 10px;
+	font-weight: 700;
+}
+
+.display-plain[data-type="decision"] .display-glyph {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+/* Stamps and dots, inline at the end of a row rather than hanging off it. */
+.display-marks {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin-left: 2px;
+}
+
+.display-marks .stamps {
+	flex-wrap: nowrap;
+	gap: 3px;
+	max-width: none;
+	padding: 0;
+	translate: none;
+	scale: 1;
+}
+
+.display-marks .stamp {
+	height: 20px;
+	padding: 0 5px 0 4px;
+	font-size: 11.5px;
+	box-shadow: none;
+}
+
+.display-marks .stamp-count {
+	font-size: 10.5px;
+}
+
+.display-marks .vote-dots {
+	flex-wrap: nowrap;
+	width: auto;
+	gap: 2px;
+	padding: 0;
+	translate: none;
+	scale: 1;
+}
+
+.display-marks .vote-dot {
+	width: 9px;
+	height: 9px;
+	border-width: 1.5px;
+}
+
+.display-marks[data-compact] .stamp {
+	height: 18px;
+	padding: 0 4px;
+	font-size: 10.5px;
+}
+
+/* Mini cards ------------------------------------------------------------------ */
+
+.display-mini {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 8px 10px 9px;
+	overflow: hidden;
+	border-radius: 10px;
+}
+
+.display-mini-head {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-height: 16px;
+}
+
+.display-mini-head .display-number {
+	min-width: 0;
+	font-size: 10.5px;
+}
+
+.display-mini-head .display-marks {
+	margin-left: auto;
+}
+
+.display-mini-title {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.3;
+	letter-spacing: -0.005em;
+	text-wrap: pretty;
+	white-space: normal;
+}
+
+.display-mini .display-label-dots {
+	margin-top: auto;
+	gap: 3px;
+}
+
+.display-mini .display-label-dot {
+	width: 7px;
+	height: 7px;
+}
+
+.display-mini.display-sticky {
+	background: var(--paper);
+	color: var(--sticky-ink);
+	box-shadow:
+		0 0 0 1px rgb(0 0 0 / 5%),
+		var(--sticky-shadow);
+	border-radius: 4px;
+}
+
+.display-mini.display-sticky .display-paper {
+	display: none;
+}
+
+.display-mini.display-sticky .display-mini-title {
+	-webkit-line-clamp: 4;
+	font-weight: 520;
+}
+
+.display-mini.display-sticky[data-face-down] {
+	background:
+		repeating-linear-gradient(135deg, rgb(0 0 0 / 7%) 0 3px, transparent 3px 8px), var(--paper);
+}
+
+.display-mini.display-sticky[data-face-down] .display-paper {
+	display: grid;
+	margin: auto;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--paper) 60%, white);
+}
+
+.display-mini.display-sticky[data-face-down] .display-paper-mark {
+	font-size: 11px;
+}
+
+.display-mini.display-sticky[data-face-down] .display-face-down {
+	display: none;
+}
+
+.display-mini.display-plain .display-glyph {
+	position: absolute;
+	right: 8px;
+	top: 8px;
+}
+
+.display-mini.display-plain .display-chip {
+	align-self: flex-start;
+	margin-top: auto;
+}
+
+/* Zoomed out ---------------------------------------------------------------- */
+
+/* Just the state and the title, big. */
+.display-row[data-tier="compact"] {
+	gap: 10px;
+	padding: 0 12px;
+}
+
+.display-item[data-tier="compact"] .display-number,
+.display-row[data-tier="compact"] .display-author {
+	display: none;
+}
+
+.display-row[data-tier="compact"] .display-title {
+	font-size: 19px;
+	font-weight: 700;
+	letter-spacing: -0.015em;
+}
+
+.display-mini[data-tier="compact"] .display-mini-title {
+	font-size: 17px;
+	font-weight: 700;
+	line-height: 1.15;
+	letter-spacing: -0.015em;
+}
+
+.display-item[data-tier="compact"] .display-marks .vote-dots {
+	display: none;
+}
+
+/* Further out still: bars of colour, by state (or paper). */
+.display-item[data-tier="far"] {
+	background: color-mix(in srgb, var(--state) 38%, var(--surface));
+	box-shadow: none;
+}
+
+.display-sticky[data-tier="far"] {
+	background: var(--paper);
+}
+
+.display-item[data-tier="far"] > * {
+	visibility: hidden;
+}
+
+/* Sections showing a list or grid --------------------------------------------- */
+
+.section[data-display="list"],
+.section[data-display="grid"] {
+	border-radius: 13px;
+}
+
+.section-list-empty {
+	position: absolute;
+	inset: 8px;
+	display: grid;
+	place-items: center;
+	border: calc(1.5 * var(--px, 1px)) dashed color-mix(in srgb, var(--section-ink) 30%, transparent);
+	border-radius: 9px;
+	color: var(--section-ink);
+	font-size: 12.5px;
+	font-weight: 550;
+	opacity: 0.65;
+	pointer-events: none;
+}
+
+.section[data-drop-target="true"] .section-list-empty {
+	opacity: 1;
+	border-style: solid;
+}
+
+.section-sorted {
+	padding: 0 6px;
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--surface) 62%, transparent);
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 18px;
+}
+
+/* A section in a list: a group, titled in its own header row. */
+.section.section-group {
+	border-radius: 10px;
+	border-width: 1px;
+	background: color-mix(in srgb, var(--section-title) 32%, transparent);
+	border-color: color-mix(in srgb, var(--section-edge) 80%, transparent);
+}
+
+.section-group-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 30px;
+	padding: 0 10px;
+	color: var(--section-ink);
+	font-size: 12px;
+	font-weight: 650;
+	letter-spacing: -0.003em;
+	white-space: nowrap;
+	pointer-events: auto;
+	cursor: grab;
+}
+
+.section-group-head .section-name {
+	min-width: 0;
+}
+
+.section-group-head .section-count {
+	height: 16px;
+	min-width: 18px;
+	font-size: 10px;
+}
+
+.section-group-glyph {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	opacity: 0.7;
+}
+
+/* The switch ------------------------------------------------------------------ */
+
+.display-switch {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 4px;
+	pointer-events: auto;
+	animation: section-tray-in var(--t-settle) var(--ease-spring);
+}
+
+.display-modes {
+	position: relative;
+	display: inline-flex;
+	padding: 3px;
+	border-radius: 11px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-hover);
+}
+
+.display-mode {
+	position: relative;
+	z-index: 1;
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 24px;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	transition:
+		color var(--t-base) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.display-mode:hover {
+	color: var(--ink);
+}
+
+.display-mode:active {
+	transform: scale(0.9);
+}
+
+.display-mode[aria-checked="true"] {
+	color: var(--accent);
+}
+
+.display-mode:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.mode-icon {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.mode-icon .fill {
+	fill: currentColor;
+	stroke: none;
+}
+
+/* The thumb slides under whichever mode is on. */
+.display-mode-thumb {
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 28px;
+	height: 24px;
+	border-radius: 8px;
+	background: var(--accent-soft);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+	transition: translate var(--t-settle) var(--ease-spring);
+}
+
+.display-mode-thumb[data-mode="list"] {
+	translate: 28px 0;
+}
+
+.display-mode-thumb[data-mode="mini"] {
+	translate: 56px 0;
+}
+
+.display-mode::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	bottom: calc(100% + 10px);
+	left: 50%;
+	padding: 4px 8px;
+	border-radius: 7px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 11.5px;
+	font-weight: 550;
+	white-space: nowrap;
+	opacity: 0;
+	transform: translate(-50%, 4px);
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.display-mode:hover::after {
+	opacity: 1;
+	transform: translate(-50%, 0);
+	transition-delay: calc(400ms * var(--motion));
+}
+
+.display-sort {
+	position: relative;
+}
+
+.display-sort-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 32px;
+	padding: 0 10px 0 9px;
+	border-radius: 11px;
+	border: 1px solid var(--line);
+	background: var(--chrome-strong);
+	box-shadow: var(--shadow-hover);
+	color: var(--ink-soft);
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: transform var(--t-quick) var(--ease-out);
+}
+
+.display-sort-button:active {
+	transform: scale(0.96);
+}
+
+.display-sort-button svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.3;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.display-sort-menu {
+	position: absolute;
+	top: calc(100% + 6px);
+	left: 0;
+	z-index: 10;
+	display: grid;
+	min-width: 230px;
+	padding: 5px;
+	border-radius: 13px;
+	border: 1px solid var(--line);
+	background: var(--chrome-strong);
+	backdrop-filter: blur(12px);
+	box-shadow: var(--shadow-lifted);
+	transform-origin: 16px 0;
+	animation: display-menu-in var(--t-base) var(--ease-spring);
+}
+
+@keyframes display-menu-in {
+	from {
+		opacity: 0;
+		scale: 0.94;
+		translate: 0 -4px;
+	}
+}
+
+.display-sort-option {
+	display: grid;
+	grid-template-columns: 16px 1fr;
+	grid-template-rows: auto auto;
+	column-gap: 6px;
+	padding: 6px 10px 7px 6px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	text-align: left;
+	cursor: pointer;
+}
+
+.display-sort-option:hover,
+.display-sort-option:focus-visible {
+	background: var(--hover);
+	outline: none;
+}
+
+.display-sort-check {
+	grid-row: span 2;
+	color: var(--accent);
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 18px;
+}
+
+.display-sort-name {
+	font-size: 12.5px;
+	font-weight: 600;
+	line-height: 18px;
+}
+
+.display-sort-hint {
+	color: var(--muted);
+	font-size: 11px;
+	line-height: 15px;
+}
+
+/* The card popped out of a row ------------------------------------------------- */
+
+.display-preview {
+	pointer-events: none;
+	transform-origin: 0 18px;
+	animation: display-pop var(--t-base) var(--ease-spring);
+}
+
+.display-preview[data-pinned] {
+	pointer-events: auto;
+}
+
+.display-preview .card {
+	box-shadow:
+		0 0 0 1px var(--line),
+		var(--shadow-lifted);
+}
+
+.display-preview .sticky {
+	box-shadow: var(--sticky-shadow-lifted);
+}
+
+@keyframes display-pop {
+	from {
+		opacity: 0;
+		scale: 0.92;
+		translate: -8px 0;
+	}
+}
+
+/* A mini card grows into its card, centred where it is. */
+.display-preview[data-grow] {
+	transform-origin: 50% 50%;
+	translate: 0 calc(50% + 41px * var(--zoom, 1));
+	animation-name: display-grow;
+}
+
+@keyframes display-grow {
+	from {
+		opacity: 0;
+		scale: 0.55;
+	}
+}
+
+/* Gallery ---------------------------------------------------------------------- */
+
+.display-gallery-row {
+	position: relative;
+	width: 420px;
+	height: 36px;
+}
+
+.display-gallery-mini {
+	position: relative;
+	width: 140px;
+	height: 82px;
+}
+
+/* Staged changes on rows and mini cards ------------------------------------------ */
+
+.staged-marks[data-compact] .staged-outline {
+	inset: -4px;
+	border-radius: 12px;
+}
+
+/* Beside a row: its flags and labels in one line, out past the list's edge. */
+.staged-marks[data-compact="row"] {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.staged-marks[data-compact="row"] .staged-flags,
+.staged-marks[data-compact="row"] .staged-labels {
+	position: relative;
+	top: auto;
+	bottom: auto;
+	left: calc(100% + 18px);
+	flex-wrap: nowrap;
+	max-width: none;
+	scale: 1;
+}
+
+/* On a mini card: how many, in its corner. */
+.staged-count {
+	position: absolute;
+	top: -7px;
+	right: -7px;
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	height: 18px;
+	padding: 0 6px 0 5px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--accent);
+	color: var(--on-accent);
+	font-size: 10.5px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--accent) 60%, transparent);
+	pointer-events: auto;
+	cursor: pointer;
+	animation: flag-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.staged-count[data-status="failed"] {
+	background: var(--fail);
+}

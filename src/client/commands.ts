@@ -79,6 +79,15 @@ interface CommandsOptions {
 	readOnly?: boolean;
 	/** Open a selection action (src/client/actions/); false if none applies. */
 	onAction?: (id: ActionCommand) => boolean;
+	/**
+	 * Arrow keys on rows in a list move through it, and Shift-arrows move
+	 * them up and down it (#72): true if that's what happened.
+	 */
+	onListKey?: (id: CommandId) => boolean;
+	/** Shapes drawn in a list, whose free-form positions arranging leaves alone. */
+	inList?: (id: string) => boolean;
+	/** Where a shape is drawn, if not at its document position (a row in a list). */
+	drawnAt?: (id: string) => { x: number; y: number } | undefined;
 }
 
 /** Commands that change the document, which view-only boards ignore. */
@@ -215,7 +224,11 @@ export function useCanvasCommands(options: CommandsOptions) {
 		if (selected.size === 0) return null;
 		// Sections come with what's in them, and connectors between copied
 		// shapes come too.
-		const payload = copyShapes(doc, copyClosure(doc, selected), { board, sizes: sizeOf });
+		const payload = copyShapes(doc, copyClosure(doc, selected), {
+			board,
+			sizes: sizeOf,
+			positions: latest.current.drawnAt,
+		});
 		lastPaste.current = null;
 		return payload.shapes.length > 0 ? payload : null;
 	}, [doc]);
@@ -371,9 +384,10 @@ export function useCanvasCommands(options: CommandsOptions) {
 
 	const arrange = useCallback(
 		(layout: (items: Item[]) => Map<string, Position>) => {
-			const { selected } = latest.current;
+			const { selected, inList } = latest.current;
 			const items: Item[] = [];
 			for (const id of selected) {
+				if (inList?.(id)) continue;
 				const rect = rectOf(id);
 				if (rect) items.push({ id, ...rect });
 			}
@@ -391,6 +405,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 
 	const run = useCallback(
 		(id: CommandId): boolean => {
+			if (id.startsWith("nudge") && latest.current.onListKey?.(id)) return true;
 			if (latest.current.readOnly && WRITES.test(id)) return false;
 			if (!id.startsWith("nudge")) flushNudge();
 			const { selected, setSelected, nodes, toggleShortcuts } = latest.current;

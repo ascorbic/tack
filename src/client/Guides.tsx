@@ -63,14 +63,16 @@ export function useSnapping(
 	nodes: ShapeNode[],
 	sizeOf: (id: string) => Size | undefined,
 	carried: (moving: ReadonlySet<string>) => Iterable<string> = () => [],
+	/** Shapes that never snap when dragged: rows in a list, which find their own place. */
+	unsnapped: (id: string) => boolean = () => false,
 ) {
 	const store = useStoreApi();
 	const [guides] = useState(() => new GuideStore());
 	const [dragging, setDragging] = useState(false);
 	const session = useRef<{ dx: number; dy: number } | null>(null);
 	const free = useRef(false);
-	const latest = useRef({ nodes, sizeOf, carried });
-	latest.current = { nodes, sizeOf, carried };
+	const latest = useRef({ nodes, sizeOf, carried, unsnapped });
+	latest.current = { nodes, sizeOf, carried, unsnapped };
 
 	/** Other shapes' boxes in view, to snap to. */
 	const targetsExcept = useCallback(
@@ -182,7 +184,7 @@ export function useSnapping(
 			for (const id of carried(moving)) moving.add(id);
 			const targets = targetsExcept(moving);
 			const snap =
-				free.current || !box
+				free.current || !box || moves.some((change) => latest.current.unsnapped(change.id))
 					? { dx: 0, dy: 0, guides: [] }
 					: snapRect(box, targets, SNAP_PX / zoom);
 			session.current = { dx: snap.dx, dy: snap.dy };

@@ -16,6 +16,7 @@ import { cardStore } from "../cardStore.ts";
 import { seedCommentsRetro } from "./asyncScenarios.ts";
 import { seedInbox, seedRules } from "./automationScenarios.ts";
 import { seedDecisions } from "./decisions.ts";
+import { seedLists } from "./displayScenarios.ts";
 import type { SimulatedFacilitator } from "./facilitation.ts";
 import { type SimulatedHistory, retroHistory } from "./history.ts";
 import { facilitateSilent, seedRetro, seedSilent, seedVote } from "./facilitationScenarios.ts";
@@ -492,6 +493,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 				sticky(doc, "Ask about a 5.1 freeze", "green", 1320, 120);
 			});
 		},
+	},
+	lists: {
+		name: "Lists and mini cards",
+		description:
+			"“Now” is a list and the backlog mini cards: hover a row for its card, drag to reorder or out onto the board, and switch modes from a selected section’s header.",
+		seed: seedLists,
 	},
 	connectors: {
 		name: "Connectors",
