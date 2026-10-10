@@ -14,6 +14,7 @@ import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "./boards/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
 import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
+import { Facilitation } from "./facilitation.ts";
 import { userToken } from "./identity.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
@@ -124,6 +125,8 @@ export class Board extends YServer<Env> {
 	private widgets: WidgetRunner | null = null;
 	/** When each repository was last asked to tell us about its webhooks, for widgets. */
 	private queryWatches = new Map<string, number>();
+	/** The timer, spotlight and silent mode (#50, #49). */
+	private facilitation: Facilitation | null = null;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -178,6 +181,21 @@ export class Board extends YServer<Env> {
 			board: this.name,
 			doc: this.document,
 			sql: this.ctx.storage.sql,
+			persist: () => {
+				try {
+					this.writeSnapshot();
+				} catch {
+					// Logged as board.save.failed; the debounced save tries again.
+				}
+			},
+		});
+		this.facilitation = new Facilitation({
+			board: this.name,
+			doc: this.document,
+			sql: this.ctx.storage.sql,
+			connections: () => this.getConnections<ConnectionAccess>(),
+			connection: (id) => this.getConnection<ConnectionAccess>(id),
+			send: (connection, message) => this.sendCustomMessage(connection, message),
 			persist: () => {
 				try {
 					this.writeSnapshot();
@@ -328,6 +346,7 @@ export class Board extends YServer<Env> {
 			recheckedAt: 0,
 		});
 		this.noteReader(access.userId);
+		this.facilitation?.connected(connection);
 		this.startHeartbeat();
 		// A reconnect re-checks access, unless it was checked moments ago.
 		if (this.cards.size > 0) {
@@ -384,6 +403,7 @@ export class Board extends YServer<Env> {
 	): void | Promise<void> {
 		this.viewing.delete(connection.id);
 		this.widgets?.disconnect(connection.id);
+		this.facilitation?.closed(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
 		return super.onClose(connection, code, reason, wasClean);
 	}
@@ -393,6 +413,10 @@ export class Board extends YServer<Env> {
 		try {
 			request = JSON.parse(message) as BoardRequest | WidgetRequest | InboxPreviewRequest;
 		} catch {
+			return;
+		}
+		if (this.facilitation?.handles(request?.type)) {
+			void this.facilitation.receive(connection as Connection<ConnectionAccess>, request as never);
 			return;
 		}
 		// Widgets and inbox frames: viewers can watch them too, as watching

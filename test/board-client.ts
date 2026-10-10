@@ -15,6 +15,8 @@ export interface BoardClient {
 	doc: Y.Doc;
 	/** Custom messages received (`__YPS:` prefix removed), parsed. */
 	messages: unknown[];
+	/** Everything received, as it arrived: sync and awareness messages too. */
+	raw: (string | Uint8Array)[];
 	/** Set once the server closes the connection. */
 	closed: { code: number; reason: string } | null;
 	/** Resolves once the server has answered our sync request: everything we sent before has been applied. */
@@ -45,10 +47,12 @@ export async function connectBoard(
 
 	const doc = new Y.Doc();
 	const messages: unknown[] = [];
+	const raw: (string | Uint8Array)[] = [];
 	let waiting: (() => void)[] = [];
 	const client: BoardClient = {
 		doc,
 		messages,
+		raw,
 		closed: null,
 		roundTrip: () =>
 			new Promise<void>((resolve) => {
@@ -67,6 +71,7 @@ export async function connectBoard(
 	ws.accept();
 	ws.addEventListener("message", (event) => {
 		const data = event.data;
+		raw.push(typeof data === "string" ? data : new Uint8Array(data as ArrayBuffer).slice());
 		if (typeof data === "string") {
 			if (data.startsWith("__YPS:")) messages.push(JSON.parse(data.slice(6)));
 			return;
