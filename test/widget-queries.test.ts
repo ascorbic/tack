@@ -491,3 +491,60 @@ describe("dependency maps on GitHub", () => {
 		expect(JSON.stringify(anonymous.messages)).not.toContain("acme/secret");
 	});
 });
+
+// The review queue, milestone and stale finder (#43) run like lists, with
+// the card fields they need: when items were opened and closed, their
+// milestone, and pull requests' size.
+describe("milestone and stale finder queries", () => {
+	it("bring their items with milestones and dates", async () => {
+		const { github, owner: client } = await setup();
+		github.setItem(WIDGETS, {
+			number: 3,
+			kind: "issue",
+			title: "Ship the beta",
+			updatedAt: "2026-01-05T00:00:00Z",
+			createdAt: "2025-12-01T00:00:00Z",
+			milestone: "v1",
+			labels: [BUG],
+		});
+		github.setItem(WIDGETS, {
+			number: 4,
+			kind: "pull",
+			title: "Beta flag",
+			state: "merged",
+			updatedAt: T1,
+			createdAt: T0,
+			mergedAt: T1,
+			milestone: "v1",
+			additions: 120,
+			deletions: 8,
+			changedFiles: 3,
+		});
+		const [milestone, stale] = transactLocal(client.doc, () => [
+			addWidget(client.doc, "milestone", { x: 0, y: 0 }, { repo: "acme/widgets", milestone: "v1" }),
+			addWidget(
+				client.doc,
+				"stale",
+				{ x: 500, y: 0 },
+				{ q: "repo:acme/widgets is:open", days: 30 },
+			),
+		]);
+		await client.roundTrip();
+		client.send({ type: "widget-watch", ids: [milestone, stale] as string[] });
+
+		const progress = await latest(client, milestone as string, (m) => Boolean(m.results.closed));
+		const opened = progress.results.open as SearchResult;
+		const closed = progress.results.closed as SearchResult;
+		expect(opened.items.map((card) => card.title)).toEqual(["Ship the beta"]);
+		expect(opened.items[0]).toMatchObject({
+			createdAt: "2025-12-01T00:00:00Z",
+			closedAt: null,
+			milestone: { title: "v1", dueOn: null },
+		});
+		expect(closed.items[0]).toMatchObject({ state: "merged", closedAt: T1 });
+		expect(closed.items[0]?.pull).toMatchObject({ additions: 120, deletions: 8, changedFiles: 3 });
+
+		// Only what's been quiet for a month: not the issues updated this October.
+		expect(titles(await latest(client, stale as string))).toEqual(["Ship the beta"]);
+	});
+});
