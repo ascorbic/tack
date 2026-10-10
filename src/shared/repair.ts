@@ -1,4 +1,5 @@
 import * as Y from "yjs";
+import { isDate, isOwner } from "./actionItems.ts";
 import { isAnchor, isEnd } from "./connectors.ts";
 import { readVotes } from "./decisions.ts";
 import { readStructure } from "./sections.ts";
@@ -31,15 +32,34 @@ export interface RepairResult {
 	 * default, or a config that isn't an object replaced with the defaults.
 	 */
 	widgets: number;
+	/**
+	 * Action items fixed up: an owner, due date, tick or link that isn't one
+	 * this code would have written, dropped.
+	 */
+	actions: number;
 }
 
 /** How many things a repair fixed, in total. */
 export function repairCount(result: RepairResult): number {
-	return result.parents + result.ends + result.removed + result.decisions + result.widgets;
+	return (
+		result.parents +
+		result.ends +
+		result.removed +
+		result.decisions +
+		result.widgets +
+		result.actions
+	);
 }
 
 export function repairBoard(doc: Y.Doc): RepairResult {
-	const result: RepairResult = { parents: 0, ends: 0, removed: 0, decisions: 0, widgets: 0 };
+	const result: RepairResult = {
+		parents: 0,
+		ends: 0,
+		removed: 0,
+		decisions: 0,
+		widgets: 0,
+		actions: 0,
+	};
 	doc.transact(() => {
 		const shapes = readShapes(doc);
 		const map = shapesMap(doc);
@@ -90,6 +110,21 @@ export function repairBoard(doc: Y.Doc): RepairResult {
 				fixed = true;
 			}
 			if (fixed) result.decisions++;
+		}
+
+		for (const [id, shape] of shapes) {
+			if (shape.type !== "action") continue;
+			const item = map.get(id);
+			if (!item) continue;
+			const bad = [
+				item.has("owner") && !isOwner(shape.owner) ? "owner" : null,
+				item.has("due") && !isDate(shape.due) ? "due" : null,
+				item.has("done") && typeof shape.done !== "string" ? "done" : null,
+				item.has("ref") && typeof shape.ref !== "string" ? "ref" : null,
+				item.has("issue") && typeof shape.issue !== "string" ? "issue" : null,
+			].filter((key) => key !== null);
+			for (const key of bad) item.delete(key);
+			if (bad.length > 0) result.actions++;
 		}
 
 		for (const [id, shape] of shapes) {

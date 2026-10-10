@@ -33,6 +33,7 @@ export const NOMINAL_SIZE: Partial<Record<ShapeProps["type"], Size>> = {
 	text: { w: 200, h: 40 },
 	decision: { w: 320, h: 230 },
 	widget: { w: 360, h: 440 },
+	action: { w: 296, h: 104 },
 };
 
 /** A shape's rendered size where known (e.g. measured by the client). */

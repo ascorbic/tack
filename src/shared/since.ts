@@ -281,6 +281,7 @@ const NOUNS: Record<string, [string, string]> = {
 	connector: ["connector", "connectors"],
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
+	action: ["action item", "action items"],
 };
 
 export function noun(type: string, count: number): string {

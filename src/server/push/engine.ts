@@ -40,6 +40,7 @@ import {
 import { confirmationKey, reflects } from "../../shared/confirm.ts";
 import type { AuditEntry, PushResponse } from "../../shared/push.ts";
 import { parseKey, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
+import { linkActionItems } from "../../shared/actionItems.ts";
 import { linkWrittenDecisions } from "../../shared/decisions.ts";
 import { placeCard } from "../../shared/place.ts";
 import { shapesMap } from "../../shared/shapes.ts";
@@ -806,7 +807,7 @@ export class PushEngine {
 	 * shapes it came from into a card for the item, in one transaction: at
 	 * the first shape's position, section and stacking order, with
 	 * connectors and other changes that pointed at the shapes now pointing
-	 * at the card.
+	 * at the card. `link` points action items at the item, so they follow it.
 	 */
 	private runEffect(pushId: string, changeId: string): void {
 		const row = this.row(pushId, changeId);
@@ -816,6 +817,11 @@ export class PushEngine {
 		const effect = row?.effect ? (JSON.parse(row.effect) as ChangeEffect) : null;
 		if (row && effect?.kind === "place" && row.result_key) {
 			this.place(pushId, row, effect.near, row.result_key);
+			return;
+		}
+		if (row && effect?.kind === "link" && row.result_key) {
+			const linked = linkActionItems(this.host.doc, effect.shapes, row.result_key, PUSH_ORIGIN);
+			this.logger(pushId).info("push.effect", { change: changeId, kind: "link", shapes: linked });
 			return;
 		}
 		if (!row || effect?.kind !== "replace" || !row.result_key) return;

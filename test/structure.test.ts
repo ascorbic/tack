@@ -216,13 +216,27 @@ describe("repair", () => {
 		});
 		addShape(doc, "broken", { type: "connector", x: 0, y: 0, z: nextZ(doc) });
 
-		expect(repairBoard(doc)).toEqual({ parents: 1, ends: 1, removed: 1, decisions: 0, widgets: 0 });
+		expect(repairBoard(doc)).toEqual({
+			parents: 1,
+			ends: 1,
+			removed: 1,
+			decisions: 0,
+			widgets: 0,
+			actions: 0,
+		});
 		expect(get("orphan")?.parent).toBeNull();
 		expect(get(line)?.from).toEqual({ x: 10, y: 20 });
 		expect(get(line)?.to).toEqual({ x: 30, y: 40, shape: "s" });
 		expect(get("broken")).toBeUndefined();
 		// Nothing left to fix.
-		expect(repairBoard(doc)).toEqual({ parents: 0, ends: 0, removed: 0, decisions: 0, widgets: 0 });
+		expect(repairBoard(doc)).toEqual({
+			parents: 0,
+			ends: 0,
+			removed: 0,
+			decisions: 0,
+			widgets: 0,
+			actions: 0,
+		});
 	});
 
 	it("converges when a shape is deleted while someone attaches to it", () => {
@@ -251,6 +265,7 @@ describe("repair", () => {
 			removed: 0,
 			decisions: 0,
 			widgets: 0,
+			actions: 0,
 		});
 		const line = readShape(shapesMap(server).get("line") as Y.Map<unknown>);
 		expect(line.to).toEqual({ x: 126, y: 62 });

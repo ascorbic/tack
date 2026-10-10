@@ -1,3 +1,4 @@
+import { linkActionItems } from "../../shared/actionItems.ts";
 import * as Y from "yjs";
 import {
 	type ChangeStatus,
@@ -335,6 +336,9 @@ export class SimulatedPush implements PushClient {
 				if (change.effect?.kind === "place") {
 					const { near } = change.effect;
 					this.doc.transact(() => placeCard(this.doc, key, near, { card }), SERVER_ORIGIN);
+				}
+				if (change.effect?.kind === "link") {
+					linkActionItems(this.doc, change.effect.shapes, key, SERVER_ORIGIN);
 				}
 				break;
 			}

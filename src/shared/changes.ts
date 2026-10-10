@@ -106,11 +106,14 @@ export interface Stager {
  * - `place`: add a card for the created item above these shapes (the
  *   section a parent issue was made from, or what became its sub-issues),
  *   connected to each of them, parent to child (`placeCard` in place.ts)
+ * - `link`: point these shapes (action items) at the created item, so their
+ *   status follows it from now on (`linkActionItems` in actionItems.ts)
  */
 export type ChangeEffect =
 	| { kind: "replace"; shapes: string[] }
 	| { kind: "connect"; shape: string }
-	| { kind: "place"; near: string[] };
+	| { kind: "place"; near: string[] }
+	| { kind: "link"; shapes: string[] };
 
 export interface PendingChange {
 	id: string;

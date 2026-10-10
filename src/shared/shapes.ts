@@ -18,19 +18,23 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | key          | shapes             | meaning                                       |
 // | ------------ | ------------------ | --------------------------------------------- |
 // | type         | all                | `card`, `sticky`, `text`, `section`,          |
-// |              |                    | `connector`, `decision` or `widget`           |
+// |              |                    | `connector`, `decision`, `widget` or `action` |
 // | x, y         | all but connectors | top-left corner, absolute; 0 on connectors    |
 // | z            | all                | fractional index for stacking order           |
 // | parent       | all but connectors | id of the containing section, or null         |
-// | ref          | card, decision     | the card key, `{host}/{repo}#{n}`; on a       |
-// |              |                    | decision, the PR its record was written to    |
+// | ref          | card, decision,    | the card key, `{host}/{repo}#{n}`; on a       |
+// |              | action             | decision, the PR its record was written to;   |
+// |              |                    | on an action item, the issue it's linked to,  |
+// |              |                    | whose state is its status                     |
 // | text         | sticky, text,      | plain text; on a decision, its body: the      |
-// |              | decision           | decision and its context                      |
+// |              | decision, action   | decision and its context; on an action item,  |
+// |              |                    | what's to be done                             |
 // | font         | sticky, text       | `sans` (default) or `hand`                    |
 // | size         | text               | `s`, `m` (default), `l` or `xl`               |
 // | color        | sticky, section,   | a palette name                                |
 // |              | connector          |                                               |
-// | author       | sticky, decision   | who made it (who proposed a decision)         |
+// | author       | sticky, decision,  | who made it (who proposed a decision)         |
+// |              | action             |                                               |
 // | w, h         | section, widget    | size (cards and stickies size to content)     |
 // | title        | section, decision  | the section's name; the decision's title      |
 // | from, to     | connector          | each end, see `ConnectorEnd`                  |
@@ -70,6 +74,15 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              |                    | fractional index; absent sorts after those    |
 // |              |                    | with one, in reading order. x and y stay the  |
 // |              |                    | free-form position while a list shows it      |
+// | owner        | action             | who'll do it (`ActionOwner`: a GitHub login,  |
+// |              |                    | with a name and avatar when known)            |
+// | due          | action             | when it's due, a calendar day `YYYY-MM-DD`    |
+// | done         | action             | when it was ticked done, ISO 8601; only for   |
+// |              |                    | items not linked to an issue (actionItems.ts) |
+// | issue        | action             | id of the `issue.create` staged for it in     |
+// |              |                    | `changes`, which links it once it's made      |
+// | carried      | action             | where it was carried over from                |
+// |              |                    | (`CarriedFrom`: board, title, shape, when)    |
 //
 // Beside `shapes`, the document has these root maps:
 //
@@ -83,6 +96,9 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              | never conflict (facilitation.ts)                             |
 // | dotVotes     | vote id → Y.Map of its settings and a nested `ballots` map   |
 // |              | of voter key → `Ballot` (dotvotes.ts)                         |
+// | prepared     | step id → `PreparedStep`: facilitation a template set up,    |
+// |              | ready to start: a timer, silent writing, a dot vote          |
+// |              | (prepared.ts)                                                |
 //
 // Decisions link to items with ordinary connectors: a connector between a
 // decision and a card links that card (see `linkedItems` in decisions.ts).
@@ -109,7 +125,8 @@ export type ShapeType =
 	| "section"
 	| "connector"
 	| "decision"
-	| "widget";
+	| "widget"
+	| "action";
 
 /** Where a decision stands. */
 export type DecisionStatus = "proposed" | "decided" | "superseded";
@@ -131,6 +148,24 @@ export type ShapeFont = "sans" | "hand";
 
 /** Text block sizes, small to extra large. */
 export type TextSize = "s" | "m" | "l" | "xl";
+
+/** Who an action item belongs to: one of the board's people, by GitHub login. */
+export interface ActionOwner {
+	login: string;
+	name?: string | null;
+	avatarUrl?: string;
+}
+
+/** Where an action item was carried over from (actionItems.ts). */
+export interface CarriedFrom {
+	/** The board's id, and its title then. */
+	board: string;
+	title: string;
+	/** The action item's id on that board. */
+	shape: string;
+	/** When it was carried over, ISO 8601. */
+	at: string;
+}
 
 export interface ShapeProps {
 	type: ShapeType;
@@ -204,6 +239,16 @@ export interface ShapeProps {
 	sort?: ListSort;
 	/** Its place in its section's manual order (a fractional index). */
 	order?: string;
+	/** Action items: who'll do it. */
+	owner?: ActionOwner;
+	/** Action items: when it's due, `YYYY-MM-DD`. */
+	due?: string;
+	/** Action items not linked to an issue: when they were ticked done, ISO 8601. */
+	done?: string;
+	/** Action items: the id of the issue staged for it, in `changes`. */
+	issue?: string;
+	/** Action items: where it was carried over from. */
+	carried?: CarriedFrom;
 }
 
 /**
@@ -266,15 +311,18 @@ export function addShape(doc: Y.Doc, id: string, props: ShapeProps): void {
 }
 
 /**
- * The set of card keys referenced anywhere on the board: every card, and
- * the pull request each written-back decision shows the live state of.
+ * The set of card keys referenced anywhere on the board: every card, the
+ * pull request each written-back decision shows the live state of, and the
+ * issue each linked action item takes its status from.
  */
 export function cardRefs(doc: Y.Doc): Set<string> {
 	const refs = new Set<string>();
 	for (const shape of shapesMap(doc).values()) {
 		const ref = shape.get("ref");
 		const type = shape.get("type");
-		if ((type === "card" || type === "decision") && typeof ref === "string") refs.add(ref);
+		if ((type === "card" || type === "decision" || type === "action") && typeof ref === "string") {
+			refs.add(ref);
+		}
 	}
 	return refs;
 }
