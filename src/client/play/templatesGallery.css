@@ -1,0 +1,55 @@
+/* The action items and templates gallery (/play/templates). */
+
+.templates-gallery-stage {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	min-height: 80px;
+}
+
+.templates-gallery-items {
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.templates-gallery-panels {
+	grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+}
+
+.templates-gallery-previews {
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.templates-gallery-previews .template-preview {
+	width: 100%;
+}
+
+/* Popovers and menus sit in their figure rather than over a board. */
+.templates-gallery-popover.action-popover {
+	position: static;
+	translate: none;
+	max-height: none;
+}
+
+.templates-gallery-menu.facilitate-menu {
+	position: static;
+	width: 340px;
+}
+
+.templates-gallery-dialog {
+	width: 100%;
+	height: 700px;
+	overflow: hidden;
+	border: 1px solid var(--line);
+	border-radius: 22px;
+	background: var(--surface);
+	box-shadow: var(--shadow-hover);
+}
+
+.templates-gallery figure[data-wide] {
+	margin: 0 0 28px;
+}
+
+.templates-gallery-save.save-template-dialog {
+	animation: none;
+}
