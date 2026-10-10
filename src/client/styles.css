@@ -3725,6 +3725,36 @@ a.card-title {
 	}
 }
 
+/* While a tool that places things is out, the guide lets clicks through to
+   the board beneath it: the middle of the screen is where people click. */
+.canvas:is(
+		[data-tool="sticky"],
+		[data-tool="text"],
+		[data-tool="section"],
+		[data-tool="decision"],
+		[data-tool="action"],
+		[data-tool="widget"],
+		[data-tool="connector"]
+	)
+	.empty-board
+	:is(.empty-board-art, .empty-board-hints) {
+	pointer-events: none;
+}
+
+.canvas:is(
+		[data-tool="sticky"],
+		[data-tool="text"],
+		[data-tool="section"],
+		[data-tool="decision"],
+		[data-tool="action"],
+		[data-tool="widget"],
+		[data-tool="connector"]
+	)
+	.empty-board {
+	opacity: 0.6;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
 .empty-board[data-leaving="true"] {
 	animation: empty-out calc(360ms * var(--motion)) var(--ease-out) forwards;
 }

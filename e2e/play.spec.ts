@@ -130,6 +130,23 @@ test("a person joins and their cursor appears", async ({ page }) => {
 	await expect(avatars).toHaveCount(1);
 });
 
+test("an empty board's guide lets a placing tool click through it", async ({ page }) => {
+	await openScenario(page, "empty");
+	const guide = page.locator(".empty-board");
+	await expect(guide).toBeVisible();
+	// It says how to find an issue, and that opens the card tool.
+	await guide.getByRole("button", { name: /Find an issue or PR/ }).click();
+	await expect(page.getByRole("combobox", { name: "Issue or pull request" })).toBeFocused();
+	await page.keyboard.press("Escape");
+
+	// The sticky tool, clicked right on the pinned notes in the middle.
+	await page.keyboard.press("s");
+	const art = await guide.locator(".empty-board-art").boundingBox();
+	if (!art) throw new Error("no art");
+	await page.mouse.click(art.x + art.width / 2, art.y + art.height / 2);
+	await expect(page.locator(".react-flow__node-sticky")).toHaveCount(1);
+});
+
 test("the sticky tool places a sticky to type into", async ({ page }) => {
 	await openScenario(page, "empty");
 	const stickies = page.locator(".react-flow__node-sticky");

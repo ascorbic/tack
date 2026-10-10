@@ -11,6 +11,7 @@ interface Hint {
 
 const HINTS: Hint[] = [
 	{ keys: [isMac ? "⌘" : "Ctrl", "V"], label: "Paste an issue or PR link" },
+	{ keys: ["C"], label: "Find an issue or PR", tool: "card" },
 	{ keys: ["S"], label: "Add a sticky", tool: "sticky" },
 	{ keys: ["T"], label: "Write some text", tool: "text" },
 	{ keys: ["/"], label: "Chat by your cursor" },
