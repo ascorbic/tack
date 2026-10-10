@@ -227,8 +227,15 @@ describe("the board index", () => {
 		expect((await api("/api/boards/..", olive)).status).toBe(404);
 	});
 
-	it("gives empty titles a default", async () => {
+	it("gives empty titles a default, numbered so fresh boards can be told apart", async () => {
 		expect((await create(olive, "   ")).title).toBe("Untitled board");
+		expect((await create(olive, "")).title).toBe("Untitled board 2");
+		const third = await create(olive, "");
+		expect(third).toMatchObject({ title: "Untitled board 3", slug: "untitled-board-3" });
+		// Only your own count.
+		expect((await create(eddie, "")).title).toBe("Untitled board");
+		// Naming one yourself is up to you.
+		expect((await create(olive, "Untitled board")).title).toBe("Untitled board");
 	});
 });
 

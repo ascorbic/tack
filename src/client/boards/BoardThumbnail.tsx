@@ -19,12 +19,15 @@ const CARD_STATE: Record<string, string> = {
 export const BoardThumbnail = memo(function BoardThumbnail({
 	thumbnail,
 	animate = false,
+	seed,
 }: {
 	thumbnail: Thumbnail | null;
 	/** Lay the sketch out shape by shape, frames first (template previews). */
 	animate?: boolean;
+	/** Vary an empty board's note by this (its id). */
+	seed?: string;
 }) {
-	if (!thumbnail || thumbnail.shapes.length === 0) return <EmptyThumbnail />;
+	if (!thumbnail || thumbnail.shapes.length === 0) return <EmptyThumbnail seed={seed} />;
 	const pad = Math.max(thumbnail.width, thumbnail.height) * PADDING;
 	return (
 		<svg
@@ -215,10 +218,34 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 }
 
 /** A board with nothing on it yet: just a tack, waiting. */
-function EmptyThumbnail() {
+const EMPTY_COLORS = ["yellow", "pink", "blue", "green", "purple"];
+
+/**
+ * A blank note pinned up, for a board with nothing on it yet. Given a
+ * seed (the board's id), each board's note has its own colour and tilt,
+ * so a row of fresh boards doesn't look like one board repeated.
+ */
+export function emptyNoteStyle(seed: string | undefined): { color: string; tilt: number } {
+	if (!seed) return { color: "", tilt: 0 };
+	let hash = 2166136261;
+	for (const char of seed) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+	const value = hash >>> 0;
+	return {
+		color: EMPTY_COLORS[value % EMPTY_COLORS.length] ?? "yellow",
+		tilt: ((value >>> 8) % 13) - 6,
+	};
+}
+
+function EmptyThumbnail({ seed }: { seed?: string }) {
+	const { color, tilt } = emptyNoteStyle(seed);
 	return (
-		<svg className="board-thumb-empty" viewBox="0 0 64 64" aria-hidden="true">
-			<g className="board-thumb-empty-note">
+		<svg
+			className="board-thumb-empty"
+			viewBox="0 0 64 64"
+			aria-hidden="true"
+			data-color={color || undefined}
+		>
+			<g className="board-thumb-empty-note" transform={tilt ? `rotate(${tilt} 32 19)` : undefined}>
 				<rect x="14" y="16" width="36" height="34" rx="2" />
 			</g>
 			<circle className="board-thumb-empty-pin" cx="32" cy="19" r="4.5" />

@@ -14,6 +14,7 @@ import {
 	type Thumbnail,
 	type UpdateBoardRequest,
 	type Visibility,
+	DEFAULT_TITLE,
 	cleanTitle,
 	slugify,
 } from "../shared/boards.ts";
@@ -528,8 +529,12 @@ export class Directory extends DurableObject<Env> {
 	create(visitor: Visitor, request: CreateBoardRequest): BoardResult<BoardInfo> {
 		this.touch(visitor);
 		if (!this.canCreate(visitor)) return this.denied(visitor);
-		const title = cleanTitle(request.title);
 		const owner = visitor.user;
+		// Unnamed boards are numbered, so a row of fresh ones can be told apart.
+		const title =
+			owner && !(request.title ?? "").trim()
+				? this.untitledTitle(owner.id)
+				: cleanTitle(request.title);
 		// Without sign-in (Previews), boards have no owner and stay open to everyone.
 		const visibility: Visibility = owner ? (request.visibility ?? "instance") : "instance";
 		const now = Date.now();
@@ -1105,6 +1110,26 @@ export class Directory extends DurableObject<Env> {
 			invitedBy,
 			Date.now(),
 		);
+	}
+
+	/** "Untitled board", or "Untitled board 3" if you have unnamed boards already. */
+	private untitledTitle(ownerId: number): string {
+		const taken = this.sql
+			.exec<{ title: string }>(
+				`SELECT title FROM boards WHERE owner_id = ? AND archived_at IS NULL
+				AND (title = ? OR substr(title, 1, ?) = ?)`,
+				ownerId,
+				DEFAULT_TITLE,
+				DEFAULT_TITLE.length + 1,
+				`${DEFAULT_TITLE} `,
+			)
+			.toArray()
+			.map(({ title }) =>
+				title === DEFAULT_TITLE ? 1 : Number(title.slice(DEFAULT_TITLE.length + 1)),
+			)
+			.filter((n) => Number.isInteger(n) && n > 0);
+		if (taken.length === 0) return DEFAULT_TITLE;
+		return `${DEFAULT_TITLE} ${Math.max(...taken) + 1}`;
 	}
 
 	/** Someone we've seen with this login, so an invite resolves straight away. */

@@ -27,6 +27,8 @@ export function BoardTile({
 	actions,
 	index = 0,
 	now,
+	unseen = false,
+	leaving = false,
 }: {
 	board: BoardInfo;
 	time?: TileTime;
@@ -35,18 +37,25 @@ export function BoardTile({
 	index?: number;
 	/** For stable relative times in the gallery. */
 	now?: number;
+	/** Shared with you, and you haven't opened it yet. */
+	unseen?: boolean;
+	/** Folding away: just archived (or restored). */
+	leaving?: boolean;
 }) {
 	const [renaming, setRenaming] = useState(false);
 	const [title, setTitle] = useState(board.title);
 	useEffect(() => setTitle(board.title), [board.title]);
 
+	// Never opened: say when it last changed instead.
+	const shownTime = time === "visited" && board.visitedAt === null ? "updated" : time;
 	const at =
-		time === "visited"
+		shownTime === "visited"
 			? (board.visitedAt ?? board.updatedAt)
-			: time === "archived"
+			: shownTime === "archived"
 				? (board.archivedAt ?? board.updatedAt)
 				: board.updatedAt;
-	const verb = time === "visited" ? "Opened" : time === "archived" ? "Archived" : "Edited";
+	const verb =
+		shownTime === "visited" ? "Opened" : shownTime === "archived" ? "Archived" : "Edited";
 	const shown = board.members.slice(0, AVATARS);
 	const more = board.memberCount - shown.length;
 
@@ -62,10 +71,17 @@ export function BoardTile({
 		<article
 			className="board-tile"
 			data-archived={board.archivedAt !== null || undefined}
+			data-unseen={unseen || undefined}
+			data-leaving={leaving || undefined}
 			style={{ "--i": Math.min(index, 12) } as CSSProperties}
 		>
 			<div className="board-thumb">
-				<BoardThumbnail thumbnail={board.thumbnail} />
+				<BoardThumbnail thumbnail={board.thumbnail} seed={board.id} />
+				{unseen && (
+					<span className="board-tile-new">
+						New<span className="visually-hidden">: shared with you, not opened yet</span>
+					</span>
+				)}
 			</div>
 			<div className="board-tile-body">
 				{renaming ? (
@@ -92,6 +108,7 @@ export function BoardTile({
 					{shown.length > 0 && (
 						<span
 							className="board-tile-people"
+							role="img"
 							aria-label={`${board.memberCount} ${board.memberCount === 1 ? "person" : "people"}`}
 						>
 							{shown.map((person) => (
