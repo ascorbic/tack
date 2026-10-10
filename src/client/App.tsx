@@ -12,6 +12,8 @@ import { stagerFor } from "./changes/context.ts";
 import { type BoardPageProps, BoardRoute, LegacyRedirect } from "./boards/BoardPage.tsx";
 import { HomeRoute } from "./boards/HomePage.tsx";
 import { NotificationsButton } from "./comments/Notifications.tsx";
+import { commentStore } from "./comments/store.ts";
+import { sinceStore } from "./since/store.ts";
 import { useLiveBoard } from "./connection.ts";
 import { Fps } from "./Fps.tsx";
 import { localUser } from "./presence.ts";
@@ -46,6 +48,8 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 		Object.assign(window, {
 			tackBoard: {
 				doc: source.doc,
+				comments: commentStore,
+				since: sinceStore,
 				stage: (op: Operation, options?: Parameters<typeof stageChange>[3]) =>
 					stageChange(source.doc, op, stagerFor(user), options),
 			},

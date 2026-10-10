@@ -37,7 +37,7 @@ export function useCommentsOnBoard({
 	board?: string;
 }) {
 	const flow = useReactFlow();
-	const { you } = useComments();
+	const { you, threads } = useComments();
 	const ui = useCommentUI();
 	const latest = useRef({ nodes, sizeOf, onPanel });
 	latest.current = { nodes, sizeOf, onPanel };
@@ -128,8 +128,8 @@ export function useCommentsOnBoard({
 			const thread = commentStore.get(decodeURIComponent(match[1]));
 			if (!thread) return;
 			history.replaceState(history.state, "", location.pathname + location.search);
-			// After the board has had a moment to lay out.
-			requestAnimationFrame(() => jumpToThread(thread));
+			// After the board has had a moment to lay out (a timer, not a frame: frames wait for a visible tab).
+			setTimeout(() => jumpToThread(thread), 0);
 		};
 		check();
 		window.addEventListener("hashchange", check);
@@ -144,6 +144,8 @@ export function useCommentsOnBoard({
 
 	return {
 		youId: you.id,
+		/** Whether the board has any comments (an empty board with comments isn't empty). */
+		hasThreads: threads.size > 0,
 		canComment: you.canComment,
 		closePanel,
 		jumpToThread,

@@ -857,7 +857,16 @@ export function Board({
 									</ViewportPortal>
 								)}
 							</ReactFlow>
-							<EmptyBoard empty={!readOnly && synced && shapeNodes.length === 0} onTool={setTool} />
+							<EmptyBoard
+								empty={
+									!readOnly &&
+									synced &&
+									shapeNodes.length === 0 &&
+									tool !== "comment" &&
+									!comments.hasThreads
+								}
+								onTool={setTool}
+							/>
 							{spotlight.along ? null : (
 								<FollowIndicator person={follow.target} onStop={follow.stop} />
 							)}

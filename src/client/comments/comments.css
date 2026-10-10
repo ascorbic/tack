@@ -3,6 +3,13 @@
    comments panel, and the notifications inbox in the top bar.
    ------------------------------------------------------------------------ */
 
+/* An open thread's pin doesn't preview over its own popover. */
+.comment-pin[data-open] .comment-pin-preview.comment-pin-preview {
+	max-width: 0;
+	max-height: 30px;
+	opacity: 0;
+}
+
 /* In the gallery: in the page, not on a board. */
 .comment-anchor[data-static] {
 	position: relative;

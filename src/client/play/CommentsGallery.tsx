@@ -47,6 +47,12 @@ const [PRIYA, KAI, TOM, JO] = PLAY_PEOPLE as [
 const ME: CommentAuthor = { id: 100, login: "you", name: "You", avatarUrl: "" };
 const noop = () => {};
 
+// The people to mention, before anything asks for them (this page only exists in development).
+peopleSource.reset(async () =>
+	[...PLAY_PEOPLE, ME].map((person) => ({ ...person, role: "editor" as const })),
+);
+peopleSource.self = ME.login;
+
 let seq = 0;
 function thread(
 	messages: [CommentAuthor, string, number, Partial<CommentThread["messages"][number]>?][],
@@ -394,13 +400,6 @@ function makeStores() {
 
 export default function CommentsGallery() {
 	const [round, setRound] = useState(0);
-	// The people to mention, before anything asks for them.
-	useState(() => {
-		peopleSource.reset(async () =>
-			[...PLAY_PEOPLE, ME].map((person) => ({ ...person, role: "editor" as const })),
-		);
-		peopleSource.self = ME.login;
-	});
 	// Everything starts again on Replay.
 	return <GalleryBody key={round} onReplay={() => setRound((r) => r + 1)} />;
 }
