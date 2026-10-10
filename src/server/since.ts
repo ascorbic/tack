@@ -271,6 +271,9 @@ export interface Visit {
 }
 
 export class Visits {
+	/** How long away starts a new visit (shortened by tests). */
+	gapMs = VISIT_GAP_MS;
+
 	constructor(private sql: SqlStorage) {
 		sql.exec(`
 			CREATE TABLE IF NOT EXISTS since_visits (
@@ -300,7 +303,7 @@ export class Visits {
 			: {
 					firstAt: known.firstAt,
 					seenAt: now,
-					baseline: now - known.seenAt > VISIT_GAP_MS ? known.seenAt : known.baseline,
+					baseline: now - known.seenAt > this.gapMs ? known.seenAt : known.baseline,
 				};
 		this.write(userId, visit);
 		return visit;

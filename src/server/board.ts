@@ -706,6 +706,11 @@ export class Board extends YServer<Env> {
 			log.info("widget.refresh", { board: this.name, repo: activity.repo, queries: due });
 	}
 
+	/** For tests: how long away starts a new visit, for "since you were here". */
+	async sinceTiming(timing: { gapMs: number }): Promise<void> {
+		if (this.visits) this.visits.gapMs = timing.gapMs;
+	}
+
 	/** For tests: shorten the inbox timings (inboxes run on the widget runner). */
 	async inboxTiming(timing: {
 		cacheMs?: number;

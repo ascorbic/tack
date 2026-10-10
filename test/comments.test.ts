@@ -414,6 +414,32 @@ describe("since you were here", () => {
 		});
 	});
 
+	it("starts a new visit after time away, and reloading doesn't lose the digest", async () => {
+		const info = await board("private", [["eddie", "editor"]]);
+		const stub = await boardStub(mf, info.id);
+		const first = await open(info.id, olive);
+		expect((await digest(first)).since).toBeNull();
+		first.close();
+
+		// Away (any time at all counts, for the test), while Eddie works.
+		await stub.sinceTiming({ gapMs: 0 });
+		const editor = await open(info.id, eddie);
+		addShape(editor.doc, "while-away", { type: "sticky", x: 0, y: 0, z: "a1", text: "hi" });
+		await editor.roundTrip();
+		const back = await open(info.id, olive);
+		const result = await digest(back);
+		expect(result.since).toBeTypeOf("number");
+		expect(result.edits.map((e) => e.shape)).toEqual(["while-away"]);
+
+		// A reload moments later is the same visit: the digest is still there.
+		await stub.sinceTiming({ gapMs: 60 * 60_000 });
+		back.close();
+		const reloaded = await open(info.id, olive);
+		const again = await digest(reloaded);
+		expect(again.since).toBe(result.since);
+		expect(again.edits.map((e) => e.shape)).toEqual(["while-away"]);
+	});
+
 	it("works from a time the browser remembers for signed-out visitors", async () => {
 		const info = await board("public");
 		const owner = await open(info.id, olive);

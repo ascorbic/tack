@@ -192,8 +192,8 @@ export function cardActivity(
 		out.push({
 			key,
 			kind: "comments",
-			at:
-				[...history].reverse().find((entry) => entry.snapshot.comments > before.comments)?.at ?? 0,
+			// When the latest of them arrived.
+			at: when((s) => s.comments === after.comments),
 			count: after.comments - before.comments,
 		});
 	}
