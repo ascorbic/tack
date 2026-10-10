@@ -45,6 +45,7 @@ export function WidgetPicker({
 					key={definition.kind}
 					type="button"
 					className="widget-picker-kind"
+					title={definition.description}
 					draggable
 					onDragStart={drag(definition.kind)}
 					onClick={() => onAdd(definition.kind)}
