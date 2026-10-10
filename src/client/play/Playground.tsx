@@ -23,6 +23,8 @@ import {
 	pushWriteBacks,
 } from "./decisions.ts";
 import { AutomationPlay } from "./AutomationPlay.tsx";
+import { SimulatedFacilitator } from "./facilitation.ts";
+import { FacilitationPlay } from "./FacilitationPlay.tsx";
 import { fixture, LABELS } from "./fixtures.ts";
 import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
@@ -94,6 +96,14 @@ export default function Playground() {
 		return board;
 	}, [scenario]);
 	useEffect(() => () => sim.destroy(), [sim]);
+	// The board's server, for the timer, spotlight and silent mode.
+	const facilitator = useMemo(() => new SimulatedFacilitator(sim), [sim]);
+	useEffect(() => {
+		const uninstall = facilitator.install();
+		(SCENARIOS[scenario] ?? SCENARIOS.planning)?.facilitate?.(facilitator);
+		Object.assign(window, { tackFacilitator: facilitator });
+		return uninstall;
+	}, [facilitator, scenario]);
 	// For poking at from the console, e.g. to measure things.
 	useEffect(() => {
 		Object.assign(window, { tackPlayground: sim, tackCards: cardStore });
@@ -121,6 +131,7 @@ export default function Playground() {
 	// Signed in by default, as a made-up GitHub login, so pushing works.
 	const [signedIn, setSignedIn] = useState(true);
 	const [viewOnly, setViewOnly] = useState(false);
+	sim.viewOnly = viewOnly;
 	const user = useMemo(
 		() =>
 			signedIn ? { ...guest, login: guest.name.toLowerCase().replace(/[^a-z]+/g, "-") } : guest,
@@ -204,6 +215,7 @@ export default function Playground() {
 		},
 		leave: () => {
 			const person = sim.people.at(-1);
+			if (person) facilitator.left(person);
 			if (person) sim.leave(person);
 			setPeople([...sim.people]);
 		},
@@ -685,6 +697,20 @@ export default function Playground() {
 							</button>
 						</div>
 					</div>
+
+					<FacilitationPlay
+						facilitator={facilitator}
+						someone={someone}
+						others={(n) => {
+							while (sim.people.length < n) sim.join();
+							setPeople([...sim.people]);
+							return sim.people.slice(0, n);
+						}}
+						pointer={() =>
+							(sim.awareness.getLocalState() as { cursor?: { x: number; y: number } } | null)
+								?.cursor ?? { x: 400, y: 300 }
+						}
+					/>
 
 					<AutomationPlay doc={sim.doc} />
 

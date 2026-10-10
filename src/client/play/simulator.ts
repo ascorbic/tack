@@ -55,6 +55,13 @@ export class SimulatedBoard {
 	people: RemotePerson[] = [];
 	/** Repairs made by the simulated server, for the playground to report. */
 	repairs = 0;
+	/**
+	 * Where a person's typing in a silent sticky goes: the pretend server
+	 * (play/facilitation.ts), never the document.
+	 */
+	silentText?: (person: RemotePerson, id: string, text: string) => void;
+	/** You're only looking (the playground's "view only"). */
+	viewOnly = false;
 	private repairTimer = 0;
 
 	constructor() {
@@ -322,12 +329,15 @@ export class RemotePerson {
 		if (position) await this.moveTo({ x: position.x + 30, y: position.y + 40 }, 500);
 		const shape = shapesMap(this.doc).get(id);
 		if (!shape) return;
+		// A silent sticky's text goes to the server, for them alone.
+		const silent = typeof shape.get("silent") === "string";
 		const existing = shape.get("text");
 		let current = typeof existing === "string" ? existing : "";
 		if (current) current += " ";
 		for (const char of text) {
 			current += char;
-			shape.set("text", current);
+			if (silent) this.board.silentText?.(this, id, current);
+			else shape.set("text", current);
 			await sleep(45 + Math.random() * 90);
 		}
 	}
@@ -360,7 +370,10 @@ export class RemotePerson {
 	async addSticky(at: Position, text: string, font?: ShapeFont): Promise<void> {
 		await this.moveTo(at, 600);
 		const color = STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)];
-		const id = addSticky(this.doc, at, { color, author: this.user, font });
+		const id = addSticky(this.doc, at, { color, author: this.user, font, mine: false });
+		if (typeof shapesMap(this.doc).get(id)?.get("silent") === "string") {
+			this.board.silentText?.(this, id, "");
+		}
 		await sleep(250);
 		await this.type(id, text);
 	}

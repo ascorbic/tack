@@ -15,6 +15,8 @@ import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { seedInbox, seedRules } from "./automationScenarios.ts";
 import { seedDecisions } from "./decisions.ts";
+import type { SimulatedFacilitator } from "./facilitation.ts";
+import { facilitateSilent, seedRetro, seedSilent, seedVote } from "./facilitationScenarios.ts";
 import type { Stager } from "../../shared/changes.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 import { seedRelated } from "./related.ts";
@@ -27,6 +29,8 @@ export interface Scenario {
 	name: string;
 	description: string;
 	seed(doc: Y.Doc): void;
+	/** After seeding, with the pretend facilitation server running (silent sessions, say). */
+	facilitate?(facilitator: SimulatedFacilitator): void;
 }
 
 // The people who wrote the seeded stickies.
@@ -297,6 +301,25 @@ function seedPush(doc: Y.Doc): void {
 }
 
 export const SCENARIOS: Record<string, Scenario> = {
+	retro: {
+		name: "Facilitation: a retro",
+		description:
+			"A retro to run: start a timer, spotlight, stamp (M) and emote (E), and have people join to high-five.",
+		seed: seedRetro,
+	},
+	silent: {
+		name: "Silent mode",
+		description:
+			"“What hurts” is in silent mode: others’ stickies lie face down, yours only you can read. Reveal it from the section’s header.",
+		seed: seedSilent,
+		facilitate: facilitateSilent,
+	},
+	vote: {
+		name: "Dot voting",
+		description:
+			"A vote on “Next quarter” closes in two days, with 👍 on GitHub counting; “Release name” voted already.",
+		seed: seedVote,
+	},
 	planning: {
 		name: "Planning",
 		description:
