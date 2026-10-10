@@ -29,6 +29,30 @@ A shape belongs to the deepest section that contains its centre and is bigger th
 - **Nesting**: sections can sit inside sections, as deep as you like.
 - **Deleting a section deletes everything in it**, with an undo toast.
 
+## Cards, a list or mini cards
+
+A section can show what's in it three ways. Select it on its own, and choose in its header (**Show contents as**):
+
+- **Cards**: everything where it was placed, as usual.
+- **List**: a compact row for each thing, in order. Sections inside show as groups, with a header row.
+- **Mini cards**: a grid of small cards, filling the section's width.
+
+<Screenshot
+	name="lists"
+	alt="Two sections: Now as a list of rows for issues, pull requests and stickies, with a group for a nested section; and Backlog as a grid of mini cards, sorted by state."
+/>
+
+Switching never moves anything: every card keeps its place, so switching back to **Cards** puts the board back exactly as it was. Each switch is one undo step.
+
+In a list or grid:
+
+- **Point at a row** for a moment to see its full card (or sticky) beside it; select a row on its own to keep it open, with the usual actions under it.
+- **Drag rows** to reorder them. Drag one out of the section and it becomes a card again where you let go. Drop a card onto a list and it joins it where you dropped it.
+- **Arrow keys** move the selection between rows; <kbd>Shift</kbd> with an arrow moves the selected rows up or down the list.
+- **Sort** a list **By hand** (drag to order), or by **State** (open, draft, merged, closed), **Number** (oldest first) or **Title** (A to Z). Choose the same sort again to reverse it. Reordering a sorted list by hand switches it back to ordering by hand.
+
+Stamps and dots show on rows, and stickies in [silent mode](/facilitation/silent-mode/) stay face down. Lists and grids can't be resized yet: switch to cards to resize the section.
+
 ## What a section can become
 
 Select a section on its own (as an editor) and the bar under it offers **Parent issue** (<kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd>): one new issue, with everything in the section as its sub-issues. See [Built-in actions](/writing-back/actions/#parent-issue).

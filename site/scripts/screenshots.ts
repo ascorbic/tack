@@ -92,6 +92,7 @@ const SHOTS: Shot[] = [
 	{ name: "writes", title: "Imagekit 5.0 planning", url: "/play?scenario=writes" },
 	{ name: "decisions", title: "Architecture decisions", url: "/play?scenario=decisions" },
 	{ name: "sections", title: "Roadmap", url: "/play?scenario=sections" },
+	{ name: "lists", title: "Roadmap", url: "/play?scenario=lists" },
 	{ name: "connectors", title: "Dependencies", url: "/play?scenario=connectors" },
 ];
 
