@@ -12,6 +12,7 @@ import {
 	type ReadAuth,
 	type RepoIdentity,
 } from "./forges/index.ts";
+import { CommentCommands } from "./commands.ts";
 import { userToken } from "./identity.ts";
 import { type Logger, log } from "./log.ts";
 import { boards } from "./namespaces.ts";
@@ -64,6 +65,8 @@ export type IngestResult =
 			boards: number;
 			/** Watched items queued for a debounced refetch. */
 			refetching: string[];
+			/** A comment command: queued to run, or one this comment already ran (#58). */
+			command?: "queued" | "duplicate";
 	  };
 
 type Entry = Card | MissingCard;
@@ -93,6 +96,8 @@ export class Repo extends DurableObject<Env> {
 	private readerToken: { id: number; token: string | null; until: number } | null = null;
 	/** Whether this instance has asked to hear about installation changes. */
 	private watchingInstall = false;
+	/** Commands left in comments on this repository's items (#58). */
+	private commands: CommentCommands;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -135,6 +140,12 @@ export class Repo extends DurableObject<Env> {
 				until INTEGER NOT NULL
 			);
 		`);
+		this.commands = new CommentCommands({
+			env,
+			sql: this.sql,
+			identity: () => this.identity(),
+			logger: () => this.logger(),
+		});
 	}
 
 	/** The repository this object holds, once it has been told. */
@@ -381,12 +392,17 @@ export class Repo extends DurableObject<Env> {
 		});
 		// Rules and inboxes hear about every item a delivery touched, on the board or not.
 		await this.fanOutActivity(delivery, fresh);
+		// Comment commands run from the alarm, once per comment, so the forge
+		// isn't kept waiting for an answer (#58).
+		const command = delivery.command ? this.commands.receive(delivery.command) : undefined;
+		if (command === "queued") await this.armAlarm();
 		return {
 			status: "processed",
 			updated: updated.map(keyOf),
 			stale,
 			boards: notified,
 			refetching,
+			...(command ? { command } : {}),
 		};
 	}
 
@@ -415,8 +431,21 @@ export class Repo extends DurableObject<Env> {
 		return { checked: cards.length, updated: changed.map(keyOf) };
 	}
 
-	/** Debounced refetches: CI and review changes, coalesced per item. */
+	/** Comment commands as stored, for tests and debugging (#58). */
+	commentCommands(): ReturnType<CommentCommands["list"]> {
+		return this.commands.list();
+	}
+
+	/** For tests: shorten the waits between a command's tries. */
+	async commandTiming(timing: { retryMs: number[] }): Promise<void> {
+		this.commands.retryMs = timing.retryMs;
+	}
+
+	/** Comment commands, debounced refetches (CI and review changes, coalesced per item) and polls. */
 	override async alarm(): Promise<void> {
+		await this.commands
+			.runDue()
+			.catch((error: unknown) => this.logger().error("command.failed", { error }));
 		const now = Date.now();
 		const due = this.sql
 			.exec<{ item: string; attempts: number }>(
@@ -848,8 +877,9 @@ export class Repo extends DurableObject<Env> {
 			.exec<{ due: number | null }>("SELECT MIN(due_at) AS due FROM refetch")
 			.toArray()[0]?.due;
 		const poll = this.nextPollAt();
-		const next = refetch == null ? poll : poll == null ? refetch : Math.min(refetch, poll);
-		if (next == null) return;
+		const due = [refetch, poll, this.commands.nextDue()].filter((at): at is number => at != null);
+		if (due.length === 0) return;
+		const next = Math.min(...due);
 		const current = await this.ctx.storage.getAlarm();
 		if (current === null || next < current) await this.ctx.storage.setAlarm(next);
 	}

@@ -689,6 +689,15 @@ export class Instance extends DurableObject<Env> {
 		return { ok: true, sessionId, expiresAt, session: this.sessionInfo(row) };
 	}
 
+	/**
+	 * Who a GitHub user is here, for comment commands (#58): null if they've
+	 * never signed in, else their login and whether they may use the instance.
+	 */
+	knownUser(userId: number): { login: string; allowed: boolean } | null {
+		const row = this.userRow(userId);
+		return row ? { login: row.login, allowed: this.sessionInfo(row).allowed } : null;
+	}
+
 	/** Whether a user may use the instance right now. */
 	canUse(userId: number): boolean {
 		const row = this.userRow(userId);

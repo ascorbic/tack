@@ -43,6 +43,21 @@ const MENTIONABLE_VISITORS = 50;
 const NOTIFICATIONS_KEPT = 200;
 const NOTIFICATIONS_SHOWN = 50;
 
+/** A board as comment commands see it (#58): see `Directory.commandBoards`. */
+export interface CommandBoard {
+	id: string;
+	slug: string;
+	title: string;
+	visibility: Visibility;
+	archived: boolean;
+	/** The person's role on it. Archived boards are at most "viewer". */
+	role: Role;
+	/** Members' GitHub user ids, the owner included. */
+	members: number[];
+	/** Invites that haven't resolved to anyone yet. */
+	pending: number;
+}
+
 /** A comment notification from a board's object. */
 export interface NoticeInput {
 	userId: number;
@@ -259,6 +274,46 @@ export class Directory extends DurableObject<Env> {
 			);
 		}
 		return ok({ role, archived: row.archived_at !== null });
+	}
+
+	/**
+	 * Every board someone can open, with their role and who else is on it,
+	 * for comment commands (#58): finding the board a comment names, and
+	 * checking that a private repository's item can go on it.
+	 */
+	commandBoards(userId: number, allowed: boolean): CommandBoard[] {
+		const who = { userId, allowed };
+		const rows = this.sql
+			.exec<BoardRow>(
+				`SELECT * FROM boards WHERE id IN (SELECT board_id FROM members WHERE user_id = ?)
+				OR visibility IN (${allowed ? "'instance', 'public'" : "'public'"})
+				ORDER BY updated_at DESC`,
+				userId,
+			)
+			.toArray();
+		return rows.flatMap((row) => {
+			const policy = this.policy(row);
+			const role = roleFor(policy, who);
+			if (!role) return [];
+			const pending = this.sql
+				.exec<{ n: number }>(
+					"SELECT COUNT(*) AS n FROM members WHERE board_id = ? AND user_id IS NULL",
+					row.id,
+				)
+				.toArray()[0]?.n;
+			return [
+				{
+					id: row.id,
+					slug: row.slug,
+					title: row.title,
+					visibility: policy.visibility,
+					archived: policy.archived,
+					role,
+					members: Object.keys(policy.members).map(Number),
+					pending: pending ?? 0,
+				},
+			];
+		});
 	}
 
 	/** The access policy for a board, for its Durable Object. */

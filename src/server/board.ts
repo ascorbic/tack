@@ -10,6 +10,13 @@ import {
 	type CommentThread,
 	isCommentRequest,
 } from "../shared/comments.ts";
+import {
+	type CommandOrigin,
+	type PlaceRequest,
+	type PlaceResult,
+	isCommandOrigin,
+	placeCommandCard,
+} from "../shared/commands.ts";
 import { INBOX_ORIGIN, type InboxPreviewRequest } from "../shared/inbox.ts";
 import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
 import { RULE_ORIGIN, type RepoActivity } from "../shared/rules.ts";
@@ -706,6 +713,44 @@ export class Board extends YServer<Env> {
 			log.info("widget.refresh", { board: this.name, repo: activity.repo, queries: due });
 	}
 
+	// --- Comment commands (#58) ------------------------------------------------------
+
+	/**
+	 * Called by a `Repo` for a comment command that has passed its checks
+	 * (src/server/commands.ts): put the item on this board, in free space,
+	 * credited to whoever asked. Never moves anything, and never adds an item
+	 * that's already here.
+	 */
+	async addFromCommand(
+		request: PlaceRequest & { by: { id: number; login: string } },
+	): Promise<PlaceResult> {
+		const origin: CommandOrigin = { kind: "command", by: request.by };
+		const result = placeCommandCard(
+			this.document,
+			{
+				key: request.key,
+				provenance: request.provenance,
+				...(request.section ? { section: request.section } : {}),
+			},
+			origin,
+		);
+		if (result.status === "added") {
+			try {
+				this.writeSnapshot();
+			} catch {
+				// Logged as board.save.failed; the debounced save tries again.
+			}
+			log.info("command.placed", {
+				board: this.name,
+				item: request.key,
+				by: request.by.login,
+				section: result.section?.id ?? null,
+				full: result.full,
+			});
+		}
+		return result;
+	}
+
 	/** For tests: how long away starts a new visit, for "since you were here". */
 	async sinceTiming(timing: { gapMs: number }): Promise<void> {
 		if (this.visits) this.visits.gapMs = timing.gapMs;
@@ -1217,6 +1262,8 @@ export class Board extends YServer<Env> {
 function actorOf(origin: unknown): Actor | null {
 	if (origin === RULE_ORIGIN || origin === INBOX_ORIGIN) return { kind: "rule" };
 	if (origin === PUSH_ORIGIN) return { kind: "push" };
+	// Someone asked for it in a comment on the forge (#58): it's their edit.
+	if (isCommandOrigin(origin)) return { kind: "person", id: origin.by.id, login: origin.by.login };
 	// A client's update: its origin is its connection.
 	if (origin && typeof origin === "object" && "state" in origin) {
 		let access: ConnectionAccess | null | undefined;
