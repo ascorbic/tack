@@ -17,6 +17,7 @@ import {
 	cleanTitle,
 	slugify,
 } from "../shared/boards.ts";
+import type { Mentionable, Notification, NotificationList } from "../shared/comments.ts";
 import { normaliseLogins } from "./auth/logins.ts";
 import {
 	type Policy,
@@ -37,6 +38,32 @@ const OPEN_LIMIT = 60;
 const PROFILE_TTL = 60 * 60_000;
 const ID_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
 const ID_LENGTH = 10;
+/** People who opened a board lately, besides its members, who can be mentioned on it. */
+const MENTIONABLE_VISITORS = 50;
+const NOTIFICATIONS_KEPT = 200;
+const NOTIFICATIONS_SHOWN = 50;
+
+/** A comment notification from a board's object. */
+export interface NoticeInput {
+	userId: number;
+	kind: "mention" | "reply";
+	thread: string;
+	message: string;
+	by: Notification["by"];
+	excerpt: string;
+	at: number;
+}
+
+interface NotificationRow extends Record<string, SqlStorageValue> {
+	id: string;
+	board_id: string;
+	thread: string;
+	kind: string;
+	by: string;
+	excerpt: string;
+	at: number;
+	read_at: number | null;
+}
 
 interface BoardRow extends Record<string, SqlStorageValue> {
 	id: string;
@@ -122,6 +149,19 @@ export class Directory extends DurableObject<Env> {
 				at INTEGER NOT NULL,
 				PRIMARY KEY (user_id, board_id)
 			);
+			CREATE INDEX IF NOT EXISTS visits_board ON visits (board_id, at);
+			CREATE TABLE IF NOT EXISTS notifications (
+				id TEXT PRIMARY KEY,
+				user_id INTEGER NOT NULL,
+				board_id TEXT NOT NULL,
+				thread TEXT NOT NULL,
+				kind TEXT NOT NULL,
+				by TEXT NOT NULL,
+				excerpt TEXT NOT NULL,
+				at INTEGER NOT NULL,
+				read_at INTEGER
+			);
+			CREATE INDEX IF NOT EXISTS notifications_user ON notifications (user_id, at);
 		`);
 	}
 
@@ -204,7 +244,7 @@ export class Directory extends DurableObject<Env> {
 	 * Someone is opening a live connection to a board: their role, which the
 	 * board's object enforces. Remembers the visit, for "Recent".
 	 */
-	join(visitor: Visitor, id: string): BoardResult<{ role: Role }> {
+	join(visitor: Visitor, id: string): BoardResult<{ role: Role; archived: boolean }> {
 		this.touch(visitor);
 		const row = this.row(id);
 		if (!row) return refuse("not_found");
@@ -218,13 +258,163 @@ export class Directory extends DurableObject<Env> {
 				Date.now(),
 			);
 		}
-		return ok({ role });
+		return ok({ role, archived: row.archived_at !== null });
 	}
 
 	/** The access policy for a board, for its Durable Object. */
 	accessPolicy(id: string): Policy | null {
 		const row = this.row(id);
 		return row ? this.policy(row) : null;
+	}
+
+	// ---------------------------------------------------------------------
+	// People to mention, and notifications (comments, #51)
+
+	/**
+	 * Who can be mentioned on a board, as whoever's asking may see it: its
+	 * members who've signed in, then the people who've opened it lately.
+	 */
+	people(visitor: Visitor, id: string): BoardResult<{ people: Mentionable[] }> {
+		this.touch(visitor);
+		const row = this.row(id);
+		if (!row) return refuse("not_found");
+		if (!roleFor(this.policy(row), visitorKey(visitor))) return this.denied(visitor);
+		return ok({ people: this.mentionableRows(id) });
+	}
+
+	/** For the board's object: mentionable logins (lowercase) and their ids. */
+	mentionable(id: string): Map<string, number> {
+		return new Map(
+			this.mentionableRows(id).map((person) => [person.login.toLowerCase(), person.id]),
+		);
+	}
+
+	private mentionableRows(id: string): Mentionable[] {
+		const out = new Map<number, Mentionable>();
+		for (const member of this.memberRows(id)) {
+			const person = memberPerson(member);
+			if (person) out.set(person.id, { ...person, role: member.role as Role });
+		}
+		for (const visit of this.sql
+			.exec<PersonRow>(
+				`SELECT p.id, p.login, p.name, p.avatar_url FROM visits v JOIN people p ON p.id = v.user_id
+				WHERE v.board_id = ? ORDER BY v.at DESC LIMIT ?`,
+				id,
+				MENTIONABLE_VISITORS,
+			)
+			.toArray()) {
+			if (out.has(visit.id)) continue;
+			out.set(visit.id, {
+				id: visit.id,
+				login: visit.login,
+				name: visit.name,
+				avatarUrl: visit.avatar_url,
+				role: null,
+			});
+		}
+		return [...out.values()];
+	}
+
+	/** Deliver comment notifications (from a board's object). */
+	notify(id: string, notices: NoticeInput[]): void {
+		if (!this.row(id) || notices.length === 0) return;
+		this.ctx.storage.transactionSync(() => {
+			for (const notice of notices) {
+				this.sql.exec(
+					`INSERT OR REPLACE INTO notifications (id, user_id, board_id, thread, kind, by, excerpt, at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+					`${notice.message}:${notice.userId}`,
+					notice.userId,
+					id,
+					notice.thread,
+					notice.kind,
+					JSON.stringify(notice.by),
+					notice.excerpt,
+					notice.at,
+				);
+				// Each person keeps only their latest notifications.
+				this.sql.exec(
+					`DELETE FROM notifications WHERE user_id = ? AND id NOT IN
+					(SELECT id FROM notifications WHERE user_id = ? ORDER BY at DESC LIMIT ?)`,
+					notice.userId,
+					notice.userId,
+					NOTIFICATIONS_KEPT,
+				);
+			}
+		});
+		log.info("comment.notified", { board: id, people: notices.length });
+	}
+
+	/** Someone's notifications, newest first: only from boards they can still open. */
+	notifications(visitor: Visitor): NotificationList {
+		this.touch(visitor);
+		const userId = visitor.user?.id;
+		if (userId === undefined) return { notifications: [], unread: 0 };
+		const who = visitorKey(visitor);
+		const boards = new Map<string, BoardRow | null>();
+		const list: Notification[] = [];
+		for (const row of this.sql
+			.exec<NotificationRow>(
+				"SELECT * FROM notifications WHERE user_id = ? ORDER BY at DESC LIMIT ?",
+				userId,
+				NOTIFICATIONS_SHOWN,
+			)
+			.toArray()) {
+			let board = boards.get(row.board_id);
+			if (board === undefined) {
+				const found = this.row(row.board_id);
+				board = found && roleFor(this.policy(found), who) ? found : null;
+				boards.set(row.board_id, board);
+			}
+			if (!board) continue;
+			list.push({
+				id: row.id,
+				kind: row.kind as Notification["kind"],
+				board: { id: board.id, slug: board.slug, title: board.title },
+				thread: row.thread,
+				by: JSON.parse(row.by) as Notification["by"],
+				excerpt: row.excerpt,
+				at: row.at,
+				read: row.read_at !== null,
+			});
+		}
+		return { notifications: list, unread: list.filter((n) => !n.read).length };
+	}
+
+	/** Mark notifications read: some by id, those about a board's thread, or all. */
+	readNotifications(
+		visitor: Visitor,
+		which: { ids?: string[]; board?: string; thread?: string; all?: boolean },
+	): NotificationList {
+		const userId = visitor.user?.id;
+		if (userId === undefined) return { notifications: [], unread: 0 };
+		const now = Date.now();
+		if (which.all) {
+			this.sql.exec(
+				"UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL",
+				now,
+				userId,
+			);
+		}
+		for (const id of which.ids ?? []) {
+			this.sql.exec(
+				"UPDATE notifications SET read_at = ? WHERE user_id = ? AND id = ? AND read_at IS NULL",
+				now,
+				userId,
+				id,
+			);
+		}
+		if (which.board && which.thread) {
+			this.sql.exec(
+				`UPDATE notifications SET read_at = ?
+				WHERE user_id = ? AND board_id = ? AND thread = ? AND read_at IS NULL`,
+				now,
+				userId,
+				which.board,
+				which.thread,
+			);
+		}
+		return this.notifications(visitor);
 	}
 
 	// ---------------------------------------------------------------------

@@ -4,6 +4,7 @@ import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.t
 import { handleClientError } from "./server/clientErrors.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
+import { handleNotifications } from "./server/notifications.ts";
 import { handlePush } from "./server/push/routes.ts";
 import { handleRelated } from "./server/related.ts";
 import { handleSnapshots } from "./server/snapshots.ts";
@@ -40,6 +41,10 @@ export default {
 		// Board snapshots for backlink comments: uploads, and the public images.
 		const snapshot = await handleSnapshots(request, env);
 		if (snapshot) return snapshot;
+
+		// Comment notifications: mentions and replies (the top bar's inbox).
+		const notifications = await handleNotifications(request, env);
+		if (notifications) return notifications;
 
 		// The board index, membership and visibility.
 		const boards = await handleBoards(request, env);

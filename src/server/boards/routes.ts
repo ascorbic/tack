@@ -9,6 +9,7 @@
 //   POST   /api/boards/:id/members             invite by GitHub login { logins, role }
 //   PATCH  /api/boards/:id/members/:login      change a role, or hand over ownership { role }
 //   DELETE /api/boards/:id/members/:login      remove someone, or leave
+//   GET    /api/boards/:id/people              who can be mentioned in comments
 
 import * as v from "valibot";
 import { BOARD_ID, type BoardError, type BoardResult, MAX_TITLE } from "../../shared/boards.ts";
@@ -77,6 +78,15 @@ export async function handleBoards(request: Request, env: Env): Promise<Response
 		return respond(await index.claimLegacy(visitor, body.name));
 	}
 
+	// Who can be mentioned in comments (#51).
+	const people = /^\/api\/boards\/([^/]+)\/people$/.exec(path);
+	if (people) {
+		const id = people[1] && safeDecode(people[1]);
+		if (!id || !BOARD_ID.test(id)) return json({ error: "not_found" }, { status: 404 });
+		if (method !== "GET") return notAllowed();
+		return respond(await index.people(visitor, id));
+	}
+
 	const match = /^\/api\/boards\/([^/]+)(\/members(?:\/([^/]+))?)?$/.exec(path);
 	const id = match?.[1] && safeDecode(match[1]);
 	if (!match || !id || !BOARD_ID.test(id)) return json({ error: "not_found" }, { status: 404 });
@@ -137,14 +147,19 @@ export async function authorizeBoardConnection(
 		});
 		return json({ error: result.error }, { status: STATUS[result.error] });
 	}
+	const user = visitor.user;
 	const access: ConnectionAccess = {
 		...visitorKey(visitor),
 		role: result.value.role,
+		archived: result.value.archived,
 		// What `@me` means in this person's widget searches.
-		...(visitor.user ? { login: visitor.user.login } : {}),
+		...(user ? { login: user.login } : {}),
+		// Who they are, for attributing comments and edits.
+		...(user ? { person: { login: user.login, name: user.name, avatarUrl: user.avatarUrl } } : {}),
 	};
 	const forwarded = new Request(request);
-	forwarded.headers.set(ACCESS_HEADER, JSON.stringify(access));
+	// Encoded, as names needn't be Latin-1 and header values must be.
+	forwarded.headers.set(ACCESS_HEADER, encodeURIComponent(JSON.stringify(access)));
 	return forwarded;
 }
 

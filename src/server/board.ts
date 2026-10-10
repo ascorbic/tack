@@ -4,9 +4,22 @@ import * as Y from "yjs";
 import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
 import type { BoardRequest, Card, CardMessage, MissingCard } from "../shared/cards.ts";
 import type { AuditEntry, PushResponse } from "../shared/push.ts";
-import type { InboxPreviewRequest } from "../shared/inbox.ts";
+import {
+	type CommentEvent,
+	type CommentRequest,
+	type CommentThread,
+	isCommentRequest,
+} from "../shared/comments.ts";
+import { INBOX_ORIGIN, type InboxPreviewRequest } from "../shared/inbox.ts";
 import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
-import type { RepoActivity } from "../shared/rules.ts";
+import { RULE_ORIGIN, type RepoActivity } from "../shared/rules.ts";
+import {
+	type Actor,
+	type Digest,
+	type SinceEvent,
+	type SinceRequest,
+	isSinceRequest,
+} from "../shared/since.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
 import type { WidgetRequest } from "../shared/widgets.ts";
@@ -15,12 +28,14 @@ import { boardThumbnail } from "./boards/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
 import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
 import { Facilitation } from "./facilitation.ts";
+import { type Commenter, CommentsService } from "./comments.ts";
 import { userToken } from "./identity.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
-import { PushEngine, type PushCommand, type PushTiming } from "./push/engine.ts";
+import { PUSH_ORIGIN, PushEngine, type PushCommand, type PushTiming } from "./push/engine.ts";
 import { repoObject, resolveRepo } from "./routing.ts";
 import { RulesEngine } from "./rules.ts";
+import { CardHistory, ChangeLog, Visits } from "./since.ts";
 import { loadSnapshot, storeSnapshot } from "./snapshots.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
 import { type RunnerTiming, WidgetRunner } from "./widgets/runner.ts";
@@ -37,6 +52,10 @@ export interface ConnectionAccess extends VisitorKey {
 	role: Role;
 	/** Their GitHub login, when signed in: what `@me` means in widget searches. */
 	login?: string;
+	/** Archived boards are read-only for everyone, comments included. */
+	archived?: boolean;
+	/** Signed-in people: who they are, for attributing comments and edits. */
+	person?: { login: string; name: string | null; avatarUrl: string };
 }
 
 /** WebSocket close code for a connection whose access was taken away. */
@@ -67,6 +86,13 @@ const HEARTBEAT_MS = 60_000;
 const WATCH_THROTTLE_MS = 20_000;
 /** How often a connection may ask for its access to be checked again. */
 const RECHECK_THROTTLE_MS = 5_000;
+/** Comment requests a connection may make per window. */
+const COMMENT_BUDGET = 60;
+const COMMENT_WINDOW_MS = 10_000;
+/** Threads go out in messages of about this size (WebSocket messages max out at 1 MiB). */
+const COMMENT_CHUNK_BYTES = 256 * 1024;
+/** A signed-out digest goes back at most this far. */
+const SINCE_MAX_AGE_MS = 180 * 24 * 60 * 60_000;
 
 type Entry = Card | MissingCard;
 
@@ -127,6 +153,14 @@ export class Board extends YServer<Env> {
 	private queryWatches = new Map<string, number>();
 	/** The timer, spotlight and silent mode (#50, #49). */
 	private facilitation: Facilitation | null = null;
+	/** Comment threads (#51). */
+	private comments: CommentsService | null = null;
+	/** Since you were here (#46): what changed, card history and visits. */
+	private changeLog: ChangeLog | null = null;
+	private cardHistory: CardHistory | null = null;
+	private visits: Visits | null = null;
+	/** Comment requests per connection in the current window, to stop floods. */
+	private commentBudget = new Map<string, { count: number; until: number }>();
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -204,6 +238,40 @@ export class Board extends YServer<Env> {
 				}
 			},
 		});
+		const sql = this.ctx.storage.sql;
+		this.comments = new CommentsService({
+			board: this.name,
+			sql,
+			transaction: (fn) => this.ctx.storage.transactionSync(fn),
+			mentionable: () => directory(this.env).mentionable(this.name),
+			notify: (notices) =>
+				this.ctx.waitUntil(
+					directory(this.env)
+						.notify(this.name, notices)
+						.catch((error: unknown) =>
+							log.warn("comment.notify.failed", { board: this.name, error }),
+						),
+				),
+			shapeAt: (id) => {
+				const shape = shapesMap(this.document).get(id);
+				const x = shape?.get("x");
+				const y = shape?.get("y");
+				return typeof x === "number" && typeof y === "number" ? { x, y } : null;
+			},
+		});
+		this.changeLog = new ChangeLog({
+			sql,
+			doc: this.document,
+			actorOf: (origin) => actorOf(origin),
+			onMoved: (id, at) => {
+				if (this.comments?.pinnedTo(id)) this.comments.shapeMoved(id, at);
+			},
+			onRemoved: (id) => {
+				for (const event of this.comments?.shapeRemoved(id) ?? []) this.broadcastJSON(event);
+			},
+		});
+		this.cardHistory = new CardHistory(sql);
+		this.visits = new Visits(sql);
 		watchCardRefs(this.document, () => void this.syncSubscriptions(), {
 			wait: SYNC_WAIT_MS,
 			maxWait: SYNC_MAX_WAIT_MS,
@@ -283,6 +351,7 @@ export class Board extends YServer<Env> {
 	}
 
 	override async onSave(): Promise<void> {
+		this.changeLog?.flush();
 		this.writeSnapshot();
 		await this.updateIndex();
 	}
@@ -347,6 +416,9 @@ export class Board extends YServer<Env> {
 		});
 		this.noteReader(access.userId);
 		this.facilitation?.connected(connection);
+		// Since you were here: a new visit, if they've been away a while.
+		const visit = access.userId !== null ? (this.visits?.arrive(access.userId) ?? null) : null;
+		this.sendComments(connection, visit?.firstAt ?? null);
 		this.startHeartbeat();
 		// A reconnect re-checks access, unless it was checked moments ago.
 		if (this.cards.size > 0) {
@@ -373,12 +445,25 @@ export class Board extends YServer<Env> {
 			const role = roleFor(policy, access);
 			if (!role) {
 				connection.close(ACCESS_REVOKED, "access_revoked");
-			} else if (role !== access.role) {
-				connection.setState({ ...access, role });
-				this.sendCustomMessage(
-					connection,
-					JSON.stringify({ type: "access", role } satisfies BoardMessage),
-				);
+			} else if (role !== access.role || policy.archived !== (access.archived ?? false)) {
+				const changedRole = role !== access.role;
+				const next = { ...access, role, archived: policy.archived };
+				connection.setState(next);
+				if (changedRole) {
+					this.sendCustomMessage(
+						connection,
+						JSON.stringify({ type: "access", role } satisfies BoardMessage),
+					);
+				}
+				// What they can do with comments may have changed too.
+				if (this.comments) {
+					const since =
+						next.userId !== null ? (this.visits?.get(next.userId)?.firstAt ?? null) : null;
+					this.sendJSON(connection, {
+						type: "comments-you",
+						you: this.comments.you(commenter(next), since),
+					});
+				}
 			}
 		}
 	}
@@ -401,7 +486,10 @@ export class Board extends YServer<Env> {
 		reason: string,
 		wasClean: boolean,
 	): void | Promise<void> {
+		const leaving = this.viewing.get(connection.id);
+		if (leaving?.userId != null) this.visits?.touch(leaving.userId);
 		this.viewing.delete(connection.id);
+		this.commentBudget.delete(connection.id);
 		this.widgets?.disconnect(connection.id);
 		this.facilitation?.closed(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
@@ -422,6 +510,15 @@ export class Board extends YServer<Env> {
 		// Widgets and inbox frames: viewers can watch them too, as watching
 		// never changes the document.
 		if (!this.viewing.has(connection.id)) return;
+		// Comments and "since you were here": viewers can comment (see comments.ts).
+		if (isCommentRequest(request)) {
+			this.onCommentRequest(connection as Connection<ConnectionAccess>, request);
+			return;
+		}
+		if (isSinceRequest(request)) {
+			void this.onSinceRequest(connection as Connection<ConnectionAccess>, request);
+			return;
+		}
 		if (this.widgets?.request(connection.id, request)) return;
 		if (request?.type !== "recheck") return;
 		const viewing = this.viewing.get(connection.id);
@@ -431,6 +528,164 @@ export class Board extends YServer<Env> {
 		// Check every private repository again now, and resend what changed.
 		const cards = [...this.cards.values()].filter((entry) => !isPublic(entry));
 		if (cards.length > 0) this.send(connection, cards, { maxAge: 0 });
+	}
+
+	// --- Comments (#51) -----------------------------------------------------------
+
+	/** Every thread, and what this connection can do, in chunks that fit a message. */
+	private sendComments(connection: Connection<ConnectionAccess>, since: number | null): void {
+		const comments = this.comments;
+		const access = connection.state;
+		if (!comments || !access) return;
+		const you = comments.you(commenter(access), since);
+		const threads = comments.all();
+		let chunk: CommentThread[] = [];
+		let bytes = 0;
+		let first = true;
+		const flush = () => {
+			this.sendJSON(connection, { type: "comments", threads: chunk, you, first });
+			first = false;
+			chunk = [];
+			bytes = 0;
+		};
+		for (const thread of threads) {
+			const size = JSON.stringify(thread).length;
+			if (chunk.length > 0 && bytes + size > COMMENT_CHUNK_BYTES) flush();
+			chunk.push(thread);
+			bytes += size;
+		}
+		if (chunk.length > 0 || first) flush();
+	}
+
+	private onCommentRequest(
+		connection: Connection<ConnectionAccess>,
+		request: CommentRequest,
+	): void {
+		const comments = this.comments;
+		const access = connection.state;
+		if (!comments || !access) return;
+		const now = Date.now();
+		const budget = this.commentBudget.get(connection.id);
+		if (!budget || budget.until <= now) {
+			this.commentBudget.set(connection.id, { count: 1, until: now + COMMENT_WINDOW_MS });
+		} else if (++budget.count > COMMENT_BUDGET) {
+			this.sendJSON(connection, {
+				type: "comment-refused",
+				request: request.type,
+				thread: typeof request.thread === "string" ? request.thread : "",
+				reason: "busy",
+			});
+			return;
+		}
+		void comments.handle(commenter(access), request).then((outcome) => {
+			if (outcome.reply) this.sendJSON(connection, outcome.reply);
+			if (outcome.broadcast) this.broadcastJSON(outcome.broadcast);
+			if (outcome.reads && access.userId !== null) {
+				// Read state is yours alone: only your own connections hear it.
+				for (const other of this.getConnections<ConnectionAccess>()) {
+					if (other.state?.userId === access.userId) {
+						this.sendJSON(other, { type: "comment-reads", reads: outcome.reads });
+					}
+				}
+			}
+		});
+	}
+
+	/** For tests: every thread, as clients see them. */
+	commentThreads(): CommentThread[] {
+		return this.comments?.all() ?? [];
+	}
+
+	// --- Since you were here (#46) ---------------------------------------------------
+
+	private async onSinceRequest(
+		connection: Connection<ConnectionAccess>,
+		request: SinceRequest,
+	): Promise<void> {
+		const access = connection.state;
+		if (!access) return;
+		const now = Date.now();
+		let since: number | null;
+		if (request.type === "since-seen") {
+			since =
+				access.userId !== null ? (this.visits?.seen(access.userId, now)?.baseline ?? now) : now;
+		} else if (access.userId !== null) {
+			since = this.visits?.get(access.userId)?.baseline ?? null;
+		} else {
+			// Signed out: the browser remembers the last visit.
+			const asked = typeof request.since === "number" ? request.since : null;
+			since = asked !== null && asked < now ? Math.max(asked, now - SINCE_MAX_AGE_MS) : null;
+		}
+		try {
+			const digest = await this.digest(access, since, now);
+			// Your other tabs start again from now too.
+			const targets =
+				request.type === "since-seen" && access.userId !== null
+					? [...this.getConnections<ConnectionAccess>()].filter(
+							(other) => other.state?.userId === access.userId,
+						)
+					: [connection];
+			for (const target of targets) this.sendJSON(target, { type: "since", digest });
+		} catch (error) {
+			log.error("since.failed", { board: this.name, error });
+		}
+	}
+
+	/** What changed since a time, as this viewer may see it. */
+	private async digest(
+		access: ConnectionAccess,
+		since: number | null,
+		now: number,
+	): Promise<Digest> {
+		const empty: Digest = { since, at: now, edits: [], more: 0, cards: [], pushes: [] };
+		if (since === null || !this.changeLog || !this.cardHistory) return empty;
+		// Cards fetched on waking (after a long sleep) belong in the digest: give them a moment.
+		if (this.syncing) {
+			await Promise.race([this.syncing, new Promise((resolve) => setTimeout(resolve, 1_500))]);
+		}
+		const { edits, more } = this.changeLog.since(since, access.userId);
+		const activity = this.cardHistory.since(since, cardRefs(this.document));
+		// Cards from private repositories only for people who can read them.
+		const readable = new Map<string, boolean>();
+		for (const repoKey of new Set(activity.map((entry) => repoKeyOf(entry.key)))) {
+			const sample = [...this.cards.values()].find((card) => repoKeyOf(card.key) === repoKey);
+			readable.set(
+				repoKey,
+				sample !== undefined && isPublic(sample)
+					? true
+					: await this.canRead(access.userId, repoKey),
+			);
+		}
+		const cards = activity.filter((entry) => readable.get(repoKeyOf(entry.key)));
+		const login = access.person?.login.toLowerCase();
+		const pushes = (this.pushes?.audit() ?? [])
+			.filter((entry) => Date.parse(entry.at) > since && entry.by.login.toLowerCase() !== login)
+			.slice(0, 20)
+			.map((entry) => ({
+				pushId: entry.pushId,
+				at: Date.parse(entry.at),
+				by: entry.by,
+				applied: entry.changes.filter((change) => change.status !== "failed").length,
+				failed: entry.changes.filter((change) => change.status === "failed").length,
+				summaries: entry.changes.slice(0, 3).map((change) => change.summary),
+			}));
+		log.info("since.digest", {
+			board: this.name,
+			user: access.userId,
+			away: now - since,
+			edits: edits.length + more,
+			cards: cards.length,
+			pushes: pushes.length,
+		});
+		return { since, at: now, edits, more, cards, pushes };
+	}
+
+	private sendJSON(connection: Connection, message: CommentEvent | SinceEvent): void {
+		this.sendCustomMessage(connection, JSON.stringify(message));
+	}
+
+	private broadcastJSON(message: CommentEvent): void {
+		this.broadcastCustomMessage(JSON.stringify(message));
 	}
 
 	// --- Rules and inboxes (M3) ----------------------------------------------------
@@ -759,6 +1014,12 @@ export class Board extends YServer<Env> {
 	private publish(cards: Entry[]): void {
 		if (cards.length === 0) return;
 		for (const card of cards) this.cards.set(card.key, card);
+		// Remember how cards changed, for "since you were here" (never sent as is).
+		try {
+			this.cardHistory?.record(cards.filter((card): card is Card => !("missing" in card)));
+		} catch (error) {
+			log.warn("since.history.failed", { board: this.name, error });
+		}
 		for (const connection of this.getConnections()) this.send(connection, cards);
 		this.pushes?.cardsArrived(cards);
 	}
@@ -929,6 +1190,11 @@ export class Board extends YServer<Env> {
 	private startHeartbeat(): void {
 		if (this.heartbeat) return;
 		this.heartbeat = setInterval(() => {
+			// Everyone signed in who's here has seen the board up to now.
+			const now = Date.now();
+			for (const viewing of new Set([...this.viewing.values()].map((v) => v.userId))) {
+				if (viewing !== null) this.visits?.touch(viewing, now);
+			}
 			this.watchRepos(true);
 			void this.recheckAccess().catch((error: unknown) =>
 				log.error("board.readable.failed", { board: this.name, error }),
@@ -942,11 +1208,48 @@ export class Board extends YServer<Env> {
 	}
 }
 
+/** Who made a document change, from its transaction's origin. */
+function actorOf(origin: unknown): Actor | null {
+	if (origin === RULE_ORIGIN || origin === INBOX_ORIGIN) return { kind: "rule" };
+	if (origin === PUSH_ORIGIN) return { kind: "push" };
+	// A client's update: its origin is its connection.
+	if (origin && typeof origin === "object" && "state" in origin) {
+		let access: ConnectionAccess | null | undefined;
+		try {
+			access = (origin as Connection<ConnectionAccess>).state;
+		} catch {
+			access = null;
+		}
+		if (access?.userId != null && access.person) {
+			return {
+				kind: "person",
+				id: access.userId,
+				login: access.person.login,
+				name: access.person.name,
+				avatarUrl: access.person.avatarUrl,
+			};
+		}
+		return { kind: "guest" };
+	}
+	// Repairs, write-back links and seeding aren't anyone's edits.
+	return null;
+}
+
+function commenter(access: ConnectionAccess): Commenter {
+	return {
+		userId: access.userId,
+		role: access.role,
+		archived: access.archived ?? false,
+		person:
+			access.userId !== null && access.person ? { id: access.userId, ...access.person } : null,
+	};
+}
+
 function readAccess(request: Request): ConnectionAccess | null {
 	const header = request.headers.get(ACCESS_HEADER);
 	if (!header) return null;
 	try {
-		return JSON.parse(header) as ConnectionAccess;
+		return JSON.parse(decodeURIComponent(header)) as ConnectionAccess;
 	} catch {
 		return null;
 	}
