@@ -14,6 +14,7 @@ import {
 } from "../src/client/clipboard.ts";
 import { addDecision, castVote } from "../src/shared/decisions.ts";
 import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
+import { addWidget } from "../src/shared/widgetRegistry.ts";
 
 function board() {
 	const doc = new Y.Doc();
@@ -242,5 +243,28 @@ describe("decisions", () => {
 				.get(id as string)
 				?.get("votes"),
 		).toBeInstanceOf(Y.Map);
+	});
+});
+
+describe("widgets", () => {
+	it("copy with their config and size, and cards from them keep where they came from", () => {
+		const doc = new Y.Doc();
+		const list = addWidget(doc, "list", { x: 0, y: 0 }, { title: "Bugs", q: "label:bug" });
+		addShape(doc, "c", {
+			type: "card",
+			ref: "github.com/acme/widgets#1",
+			x: 400,
+			y: 0,
+			z: "a9",
+			provenance: { via: "list", source: list },
+		});
+		const payload = roundTrip(copyShapes(doc, [list, "c"])) as ClipboardPayload;
+		expect(toPlainText(payload)).toContain("Bugs: label:bug");
+		const ids = pasteShapes(doc, payload, { x: 40, y: 40 });
+		const [copy, card] = ids.map((id) => readShape(shapesMap(doc).get(id) as Y.Map<unknown>));
+		expect(copy).toMatchObject({ type: "widget", widget: "list", w: 360, h: 440 });
+		expect(copy?.config).toMatchObject({ title: "Bugs", q: "label:bug" });
+		// The pasted card came from the pasted list.
+		expect(card?.provenance).toEqual({ via: "list", source: ids[0] });
 	});
 });
