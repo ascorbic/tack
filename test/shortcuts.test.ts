@@ -161,7 +161,14 @@ describe("the sheet", () => {
 			"Cursor chat",
 			"Follow someone",
 			"Stop following",
+			"Emotes and high-fives",
 		]);
+		expect(
+			matchShortcut(
+				{ key: "e", code: "KeyE", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false },
+				true,
+			),
+		).toBeUndefined();
 		expect(
 			matchShortcut(
 				{ key: "/", code: "Slash", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false },
