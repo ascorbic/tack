@@ -2074,6 +2074,74 @@
 	color: var(--accent);
 }
 
+/* Images, as GitHub shows them: as wide as the column at most. */
+.md-image {
+	display: inline-block;
+	max-width: 100%;
+	height: auto;
+	vertical-align: middle;
+	border-radius: 8px;
+	animation: md-image-in var(--t-settle) var(--ease-settle);
+}
+
+@keyframes md-image-in {
+	from {
+		opacity: 0;
+		filter: blur(4px);
+	}
+}
+
+/* A linked image (a backlink's snapshot): the image is the link. */
+.md a[data-image] {
+	display: inline-block;
+	max-width: 100%;
+	border-radius: 9px;
+	outline: 1px solid var(--line);
+	outline-offset: 0;
+	transition:
+		outline-color var(--t-quick) var(--ease-out),
+		translate var(--t-base) var(--ease-spring);
+}
+
+.md a[data-image] .md-image {
+	display: block;
+}
+
+.md a[data-image]:hover {
+	outline-color: var(--accent);
+	translate: 0 -1px;
+}
+
+.md a[data-image]:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+/* An image that can't be shown: its alt text, quietly framed. */
+.md-image-missing {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	padding: 3px 8px;
+	border: 1px dashed var(--line-strong);
+	border-radius: 7px;
+	color: var(--muted);
+	font-size: 0.92em;
+	vertical-align: middle;
+}
+
+.md-image-missing svg {
+	flex: none;
+	width: 14px;
+	height: 14px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
 .md-mention,
 .md-ref {
 	color: var(--accent);

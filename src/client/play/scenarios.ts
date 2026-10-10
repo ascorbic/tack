@@ -241,7 +241,12 @@ function seedPush(doc: Y.Doc): void {
 		{
 			kind: "item.comment",
 			target: { key: key("#418") },
-			body: "We agreed to land this for **5.0** once CI is green. @kai can you take the review?\n\nTracked on the planning board.",
+			// A backlink with a snapshot, as a linked image (the favicon stands in).
+			body: [
+				"We agreed to land this for **5.0** once CI is green. @kai can you take the review?",
+				`This is on [**Planning**](${location.origin}/play) in Tack.`,
+				`[![The board around this item](${location.origin}/favicon.svg)](${location.origin}/play)`,
+			].join("\n\n"),
 		},
 		priya,
 		{ shapes: [shape("#418")], minutesAgo: 7 },

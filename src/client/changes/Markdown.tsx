@@ -1,9 +1,11 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { type Inline, parseInline } from "./inline.ts";
 
 // Just enough GitHub-flavoured Markdown to preview what a push will write:
-// paragraphs, headings, lists and task lists, quotes, code, emphasis, links,
-// @mentions and #references. Builds React elements, never HTML strings, so
-// nothing in a body can inject markup.
+// paragraphs, headings, lists and task lists, quotes, code, and inline
+// Markdown (inline.ts: emphasis, links, images and linked images, @mentions
+// and #references). Builds React elements, never HTML strings, so nothing in
+// a body can inject markup.
 
 type Block =
 	| { type: "p"; text: string }
@@ -82,55 +84,83 @@ function parseBlocks(source: string): Block[] {
 	return blocks;
 }
 
-const INLINE =
-	/(`[^`]+`)|(\*\*[^*]+\*\*|__[^_]+__)|(\*[^*\s][^*]*\*|_[^_\s][^_]*_)|(\[[^\]]+\]\([^)\s]+\))|(https?:\/\/[^\s<)]+)|((?<![\w/])@[a-z\d](?:[a-z\d-]{0,38}))|((?<![\w/&])#\d+)/gi;
-
-function safeHref(href: string): string | undefined {
-	return /^https?:\/\//i.test(href) ? href : undefined;
+/**
+ * An image, loaded only from http(s), without telling its host where it was
+ * shown. One that can't be shown (an unsafe URL, or it fails to load) is its
+ * alt text in a quiet frame, rather than a broken-image icon.
+ */
+function MdImage({ src, alt, title }: { src?: string; alt: string; title?: string }) {
+	const [failed, setFailed] = useState(false);
+	if (!src || failed) {
+		return (
+			<span className="md-image-missing" title={title}>
+				<svg viewBox="0 0 16 16" aria-hidden="true">
+					<rect x="2" y="3" width="12" height="10" rx="2" />
+					<path d="m4.5 11 2.5-3 2 2.2 1.5-1.7 1.5 2.5" />
+				</svg>
+				{alt || "Image"}
+			</span>
+		);
+	}
+	return (
+		<img
+			className="md-image"
+			src={src}
+			alt={alt}
+			title={title}
+			loading="lazy"
+			decoding="async"
+			referrerPolicy="no-referrer"
+			onError={() => setFailed(true)}
+		/>
+	);
 }
 
-function inline(text: string, key = ""): ReactNode[] {
-	const out: ReactNode[] = [];
-	let last = 0;
-	let n = 0;
-	for (const match of text.matchAll(INLINE)) {
-		const at = match.index ?? 0;
-		if (at > last) out.push(text.slice(last, at));
-		const [whole, code, strong, em, link, url, mention, ref] = match;
-		const k = `${key}${n++}`;
-		if (code) out.push(<code key={k}>{code.slice(1, -1)}</code>);
-		else if (strong) out.push(<strong key={k}>{inline(strong.slice(2, -2), `${k}.`)}</strong>);
-		else if (em) out.push(<em key={k}>{inline(em.slice(1, -1), `${k}.`)}</em>);
-		else if (link) {
-			const [, label = "", href = ""] = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(link) ?? [];
-			out.push(
-				<a key={k} href={safeHref(href)} target="_blank" rel="noreferrer">
-					{inline(label, `${k}.`)}
-				</a>,
-			);
-		} else if (url) {
-			out.push(
-				<a key={k} href={safeHref(url)} target="_blank" rel="noreferrer">
-					{url}
-				</a>,
-			);
-		} else if (mention)
-			out.push(
-				<span key={k} className="md-mention">
-					{mention}
-				</span>,
-			);
-		else if (ref)
-			out.push(
-				<span key={k} className="md-ref">
-					{ref}
-				</span>,
-			);
-		else out.push(whole);
-		last = at + whole.length;
-	}
-	if (last < text.length) out.push(text.slice(last));
-	return out;
+function render(nodes: readonly Inline[], key = ""): ReactNode[] {
+	return nodes.map((node, i) => {
+		const k = `${key}${i}`;
+		switch (node.type) {
+			case "text":
+				return node.text;
+			case "code":
+				return <code key={k}>{node.text}</code>;
+			case "strong":
+				return <strong key={k}>{render(node.children, `${k}.`)}</strong>;
+			case "em":
+				return <em key={k}>{render(node.children, `${k}.`)}</em>;
+			case "link":
+				return (
+					<a
+						key={k}
+						href={node.href}
+						title={node.title}
+						target="_blank"
+						rel="noreferrer"
+						data-image={node.children.every((c) => c.type === "image") || undefined}
+					>
+						{render(node.children, `${k}.`)}
+					</a>
+				);
+			case "image":
+				return <MdImage key={k} src={node.src} alt={node.alt} title={node.title} />;
+			case "mention":
+				return (
+					<span key={k} className="md-mention">
+						{node.text}
+					</span>
+				);
+			case "ref":
+				return (
+					<span key={k} className="md-ref">
+						{node.text}
+					</span>
+				);
+		}
+	});
+}
+
+function inline(text: string): ReactNode[] {
+	return render(parseInline(text));
 }
 
 /** Render a Markdown body for preview. */
@@ -186,7 +216,7 @@ export function plainText(source: string, max = 120): string {
 	const text = source
 		.replace(/```[\s\S]*?```/g, " ")
 		.replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-		.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+		.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
 		.replace(/[`*_>#]+/g, "")
 		.replace(/^\s*[-+]\s+(\[[ xX]\]\s+)?/gm, "")
 		.replace(/\s+/g, " ")

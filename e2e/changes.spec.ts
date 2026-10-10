@@ -116,6 +116,19 @@ test.describe("push sheet", () => {
 			"Better errors when the CDN isn’t recognised",
 		);
 		await expect(sheet(page).locator(".preview-comment")).toContainText("via Tack");
+		// A backlink's linked snapshot is an image inside a link, not raw Markdown (#70).
+		const comment = sheet(page).locator(".preview-comment");
+		const snapshot = comment.getByRole("link").filter({
+			has: page.getByRole("img", { name: "The board around this item" }),
+		});
+		await expect(snapshot).toHaveAttribute("href", /\/play$/);
+		await expect(snapshot.getByRole("img")).toHaveAttribute("src", /\/favicon\.svg$/);
+		await expect(comment.getByRole("link", { name: "Planning" })).toBeVisible();
+		await expect(comment).not.toContainText("](");
+		await snapshot.scrollIntoViewIfNeeded();
+		await expect
+			.poll(() => snapshot.getByRole("img").evaluate((img: HTMLImageElement) => img.naturalWidth))
+			.toBeGreaterThan(0);
 		await expect(sheet(page).locator(".preview-files")).toContainText(
 			"docs/decisions/0007-drop-node-18.md",
 		);
