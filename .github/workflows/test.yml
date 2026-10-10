@@ -28,6 +28,9 @@ jobs:
         run: vp test
       - name: Build
         run: vp build
+      # The docs site; broken links between its pages fail the build.
+      - name: Build docs
+        run: pnpm --filter site build
   e2e:
     runs-on: ubuntu-latest
     steps:
