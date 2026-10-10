@@ -2573,6 +2573,74 @@ textarea.preview-edit-field {
 	opacity: 0.7;
 }
 
+.push-credit {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 13px;
+	line-height: 1.4;
+	cursor: pointer;
+}
+
+.push-credit input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.push-credit .include-toggle-box {
+	flex: none;
+	margin-top: 1px;
+}
+
+.push-credit:has(input:checked) .include-toggle-box {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: var(--on-accent, #fff);
+}
+
+.push-credit:has(input:checked) .include-toggle-box .icon {
+	opacity: 1;
+	transform: none;
+}
+
+.push-credit:has(input:focus-visible) .include-toggle-box {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.push-credit strong {
+	display: block;
+	color: var(--ink);
+	font-weight: 600;
+}
+
+.push-credit small {
+	display: block;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.preview-credit {
+	margin: 8px 0 0;
+	padding-top: 7px;
+	border-top: 1px dashed var(--line);
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.preview-credit a {
+	color: var(--accent);
+	text-decoration: none;
+}
+
+.preview-credit a:hover {
+	text-decoration: underline;
+}
+
 .push-estimate {
 	display: flex;
 	align-items: flex-start;

@@ -1,4 +1,5 @@
 import type { OperationKind, PushAs } from "./changes.ts";
+import type { CreditBoard } from "./credit.ts";
 
 // The push API: request and response shapes shared by the server's routes
 // and the client. Change statuses themselves travel in the board document
@@ -15,6 +16,11 @@ export interface PushRequest {
 	/** Staged change ids. Their pending dependencies must be included too. */
 	ids: string[];
 	as: PushAs;
+	/**
+	 * Link new issues made from the board back to it, crediting whoever
+	 * wrote their sticky (see credit.ts). Only this board's own link is kept.
+	 */
+	credit?: CreditBoard;
 }
 
 export type PushResponse =

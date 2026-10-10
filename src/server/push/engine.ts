@@ -45,6 +45,7 @@ import { linkWrittenDecisions } from "../../shared/decisions.ts";
 import { placeCard } from "../../shared/place.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import { makeRoomForCards } from "../../shared/swap.ts";
+import { type CreditBoard, creditLine, withCredit } from "../../shared/credit.ts";
 import {
 	type ApplyResult,
 	type ForgeAdapter,
@@ -71,6 +72,8 @@ export interface PushCommand {
 	ids: string[];
 	as: PushAs;
 	by: Pusher;
+	/** Add a credit line to new issues made from the board (see credit.ts). */
+	credit?: CreditBoard;
 }
 
 export interface PushTiming {
@@ -357,6 +360,13 @@ export class PushEngine {
 			command.by.name,
 			command.as,
 		);
+		// New issues made from the board say where they came from, as asked.
+		const credit = command.credit;
+		if (credit) {
+			for (const item of items) {
+				if (item.op) item.op = withCredit(item.op, creditLine(doc, item.change, credit));
+			}
+		}
 		items.forEach((item, seq) => {
 			sql.exec(
 				`INSERT INTO push_changes

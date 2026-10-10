@@ -90,7 +90,7 @@ import { nodeTypes } from "./nodes.tsx";
 import { ZoomControls } from "./ZoomControls.tsx";
 import { PanelBoundary, withBoundary } from "./ShapeBoundary.tsx";
 import { People } from "./People.tsx";
-import { type User, usePresence } from "./presence.ts";
+import { type User, authorFor, usePresence } from "./presence.ts";
 import { SectionTool, ZoomVariable, sectionNodeTypes } from "./sections.tsx";
 import { SelectionTools } from "./SelectionTools.tsx";
 import { ShapeToolbar, styledShapes } from "./ShapeToolbar.tsx";
@@ -902,7 +902,7 @@ export function Board({
 
 	const placeSticky = useCallback(
 		(at: { x: number; y: number }, color: StickyColor) => {
-			const id = addSticky(doc, at, { color, author: { name: user.name, color: user.color } });
+			const id = addSticky(doc, at, { color, author: authorFor(user) });
 			focusWhenMounted(id);
 			setSelected(new Set([id]));
 		},
@@ -919,11 +919,11 @@ export function Board({
 			focusWhenMounted(id);
 			setSelected(new Set([id]));
 		} else if (tool === "decision") {
-			const id = addDecisionAt(doc, at, { name: user.name, color: user.color });
+			const id = addDecisionAt(doc, at, authorFor(user));
 			focusWhenMounted(id);
 			setSelected(new Set([id]));
 		} else if (tool === "action") {
-			const id = addActionItemAt(doc, at, { name: user.name, color: user.color });
+			const id = addActionItemAt(doc, at, authorFor(user));
 			focusWhenMounted(id);
 			setSelected(new Set([id]));
 		} else if (tool === "widget") {

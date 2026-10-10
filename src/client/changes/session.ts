@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type * as Y from "yjs";
 import { type PushAs, unstageChanges } from "../../shared/changes.ts";
+import type { CreditBoard } from "../../shared/credit.ts";
 import type { PushClient, PushRefusal } from "./api.ts";
 import { type ChangeIndex, isPending, withDependencies, withDependents } from "./describe.ts";
 
@@ -95,7 +96,12 @@ export class PushSession {
 	 * retried) while another is under way joins it, so their progress shows
 	 * together.
 	 */
-	async push(ids: string[], as: PushAs, index: ChangeIndex): Promise<PushState> {
+	async push(
+		ids: string[],
+		as: PushAs,
+		index: ChangeIndex,
+		credit?: CreditBoard,
+	): Promise<PushState> {
 		if (!this.client) return this.state;
 		const all = [...withDependencies(ids, index)];
 		const previous = this.state;
@@ -109,7 +115,7 @@ export class PushSession {
 		} else {
 			this.set({ phase: "requesting", ids: all, as });
 		}
-		const result = await this.client.push({ ids: all, as });
+		const result = await this.client.push({ ids: all, as, ...(credit ? { credit } : {}) });
 		const now = this.state;
 		if (now.phase === "pushing") {
 			const before = previous.phase === "pushing" ? previous.ids : [];

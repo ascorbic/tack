@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type IssueEdit, editStagedIssue } from "../../shared/actions.ts";
+import { type Credit, type CreditBoard, creditFor } from "../../shared/credit.ts";
+import { ServicesContext } from "../actions/services.ts";
 import type { PendingChange, PushAs } from "../../shared/changes.ts";
 import type { AuditEntry, RepoMeta } from "../../shared/push.ts";
 import { forgeName, forgeNameOf, sentenceCase } from "../../shared/refs.ts";
@@ -33,6 +35,7 @@ import {
 import {
 	BellIcon,
 	BotIcon,
+	CheckIcon,
 	CloseIcon,
 	ExternalIcon,
 	HistoryIcon,
@@ -76,6 +79,11 @@ export interface PushSheetViewProps {
 	onToggle: (ids: string[], included: boolean) => void;
 	/** Correct a staged new issue in review (see `editStagedIssue`). */
 	onEdit?: (id: string, edit: IssueEdit) => boolean;
+	/**
+	 * Whether new issues made from the board link back to it and credit
+	 * whoever wrote their sticky, what that says for each, and the switch.
+	 */
+	credit?: CreditChoice;
 	onPush: () => void;
 	onRetry: (ids: string[]) => void;
 	onResolve: (action: FailureAction) => void;
@@ -84,6 +92,22 @@ export interface PushSheetViewProps {
 	history: HistoryState;
 	onReloadHistory: () => void;
 	headingId?: string;
+}
+
+export interface CreditChoice {
+	on: boolean;
+	onChange: (on: boolean) => void;
+	/** What the credit line says for a change, if it gets one. */
+	of: (change: PendingChange) => Credit | null;
+}
+
+/** Whether to credit the board on new issues: on unless this person turned it off here. */
+function rememberedCredit(board: string): boolean {
+	try {
+		return localStorage.getItem(`tack.credit.${board}`) !== "off";
+	} catch {
+		return true;
+	}
 }
 
 /** The push sheet on a live board, in a modal dialog. */
@@ -118,6 +142,27 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 	);
 	const meta = useRepoMeta(open ? ui.meta : null, repos);
 	const [history, setHistory] = useState<HistoryState>({ status: "loading" });
+	const services = useContext(ServicesContext);
+	const [credited, setCredited] = useState(() => rememberedCredit(services?.boardId ?? ""));
+	const board: CreditBoard | null = services
+		? { url: services.boardUrl(), title: services.boardTitle() ?? "" }
+		: null;
+	const credit: CreditChoice | undefined = board
+		? {
+				on: credited,
+				onChange: (on) => {
+					setCredited(on);
+					try {
+						localStorage.setItem(`tack.credit.${services?.boardId ?? ""}`, on ? "on" : "off");
+					} catch {
+						// Remembering is a nicety.
+					}
+				},
+				of: (change) => creditFor(ui.doc, change, board),
+			}
+		: undefined;
+	const pushWith = (ids: string[], pushAs: PushAs) =>
+		ui.session.push(ids, pushAs, index, credited && board ? board : undefined);
 
 	const setAs = (next: PushAs) => {
 		setAsState(next);
@@ -181,10 +226,9 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 
 	const push = () => {
 		if (included.length === 0 || ui.readOnly || !signedIn(ui.user)) return;
-		void ui.session.push(
+		void pushWith(
 			included.map((change) => change.id),
 			as,
-			index,
 		);
 	};
 
@@ -219,9 +263,9 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 				break;
 			}
 			case "retry":
-				if (state.phase === "refused") void ui.session.push(state.ids, state.as, index);
+				if (state.phase === "refused") void pushWith(state.ids, state.as);
 				else if (state.phase === "pushing" && state.refused) {
-					void ui.session.push(state.refused, state.as, index);
+					void pushWith(state.refused, state.as);
 				}
 				break;
 		}
@@ -264,8 +308,9 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 					leftOut={leftOut}
 					onToggle={(ids, on) => ui.session.setIncluded(ids, on, index)}
 					onEdit={(id, edit) => editStagedIssue(ui.doc, id, edit)}
+					credit={credit}
 					onPush={push}
-					onRetry={(ids) => void ui.session.push(ids, as, index)}
+					onRetry={(ids) => void pushWith(ids, as)}
 					onResolve={resolve}
 					onClose={close}
 					onDone={() => {
@@ -346,6 +391,7 @@ function ReviewView({
 	leftOut,
 	onToggle,
 	onEdit,
+	credit,
 	onPush,
 	onResolve,
 	onClose,
@@ -361,6 +407,7 @@ function ReviewView({
 	const refusal = state.phase === "refused" ? state.refusal : null;
 	const you = signedIn(user);
 	const repoCount = new Set(groupByRepo(included, index).map((group) => group.repo)).size;
+	const creditable = credit ? included.filter((change) => credit.of(change)) : [];
 
 	if (pending.length === 0) {
 		return (
@@ -478,6 +525,7 @@ function ReviewView({
 															onEdit={
 																onEdit && !readOnly ? (edit) => onEdit(change.id, edit) : undefined
 															}
+															credit={credit?.on ? credit.of(change) : null}
 														/>
 														<div className="push-change-foot">
 															<StagedBy change={change} you={user.login} />
@@ -556,6 +604,24 @@ function ReviewView({
 						</span>
 					</label>
 				</fieldset>
+
+				{credit && creditable.length > 0 && (
+					<label className="push-credit">
+						<input
+							type="checkbox"
+							checked={credit.on}
+							disabled={readOnly}
+							onChange={(event) => credit.onChange(event.target.checked)}
+						/>
+						<span className="include-toggle-box" aria-hidden="true">
+							<CheckIcon size={12} />
+						</span>
+						<span>
+							<strong>Say where {creditable.length === 1 ? "it" : "they"} came from</strong>
+							<small>A line linking back to this board, crediting whoever wrote each sticky</small>
+						</span>
+					</label>
+				)}
 
 				<p className="push-estimate" data-noisy={estimate.noisyRepos.length > 0 || undefined}>
 					{estimate.noisyRepos.length > 0 ? <BellIcon /> : <QuietIcon />}

@@ -271,6 +271,8 @@ export type ConnectorArrow = "end" | "both" | "none";
 export interface Author {
 	name: string;
 	color: string;
+	/** Their GitHub login, when they were signed in: an issue made from it credits them. */
+	login?: string;
 }
 
 /**

@@ -99,10 +99,11 @@ async function push(
 	cookie: string | null,
 	ids: string[],
 	as: "user" | "app" = "user",
+	credit?: { url: string; title: string },
 ) {
 	const response = await api(mf, `/api/boards/${board}/push`, cookie, {
 		method: "POST",
-		body: JSON.stringify({ ids, as }),
+		body: JSON.stringify({ ids, as, credit }),
 	});
 	return { status: response.status, body: (await response.json()) as PushResponse };
 }
@@ -337,6 +338,52 @@ describe("pushing", () => {
 			.map((shape) => shape.get("x"))
 			.sort((p, q) => Number(p) - Number(q));
 		expect(xs).toEqual([0, 276]);
+	});
+
+	it("says where a new issue came from when asked, linking only to this board", async () => {
+		const { github, mf, alice, board, client, stage } = await setup();
+		const doc = client.doc;
+		addShape(doc, "sec", {
+			type: "section",
+			title: "Plugin API",
+			x: 0,
+			y: 0,
+			w: 900,
+			h: 400,
+			z: "a0",
+		});
+		for (const [id, x] of [
+			["a", 20],
+			["b", 420],
+		] as const) {
+			addShape(doc, id, {
+				type: "sticky",
+				x,
+				y: 20,
+				z: "a1",
+				parent: "sec",
+				text: `Idea ${id}`,
+				author: { name: "Priya", color: "pink", login: "priya" },
+			});
+		}
+		await client.roundTrip();
+		for (const id of ["a", "b"]) {
+			await stage(
+				`new-${id}`,
+				{ kind: "issue.create", repo: REPO, title: `Idea ${id}` },
+				{ shapes: [id], effect: { kind: "replace", shapes: [id] } },
+			);
+		}
+		const url = `${ORIGIN}/b/${board}/planning`;
+		await push(mf, board, alice, ["new-a"], "user", { url, title: "Planning" });
+		await until(client, "new-a", "applied");
+		// Someone else's link is dropped, not written.
+		await push(mf, board, alice, ["new-b"], "user", { url: "https://evil.example/", title: "x" });
+		await until(client, "new-b", "applied");
+		expect(github.item(WIDGETS, 13)?.body).toBe(
+			`<sub>From [Planning](${url}) › Plugin API, an idea by @priya</sub>`,
+		);
+		expect(github.item(WIDGETS, 14)?.body ?? "").toBe("");
 	});
 
 	it("points a decision written back as a pull request at it, with no one's client involved", async () => {

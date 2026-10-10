@@ -37,7 +37,7 @@ import {
 	toHtml,
 	toPlainText,
 } from "./clipboard.ts";
-import type { User } from "./presence.ts";
+import { type User, authorFor } from "./presence.ts";
 import type { ActionCommand } from "./actions/selection.ts";
 import { type CommandId, isApplePlatform, matchShortcut, shortcutHint } from "./shortcuts.ts";
 import { type Rect, intersects, unionRect } from "./snapping.ts";
@@ -332,7 +332,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 			const id = transactLocal(doc, () => {
 				const id = addSticky(doc, at, {
 					color: stickyColor,
-					author: { name: user.name, color: user.color },
+					author: authorFor(user),
 				});
 				setStickyText(doc, id, paste.text);
 				return id;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { IssueEdit } from "../../shared/actions.ts";
+import type { Credit } from "../../shared/credit.ts";
 import type { PendingChange, PushAs, Target } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import { IssueExtrasPicker } from "../actions/IssuePanels.tsx";
@@ -27,26 +28,33 @@ export interface PreviewProps {
 	 * milestone and assignees. Absent where it can't be changed.
 	 */
 	onEdit?: (edit: IssueEdit) => boolean;
+	/** The line a new issue gets at its foot, saying where it came from. */
+	credit?: Credit | null;
 }
 
-export function ChangePreview({ change, index, meta, as, user, onEdit }: PreviewProps) {
+export function ChangePreview({ change, index, meta, as, user, onEdit, credit }: PreviewProps) {
 	const { op } = change;
 	const repo = changeRepo(change, index) ?? "";
 	const info = meta(repo);
 	const color = (name: string) => labelColor(info, name);
 	switch (op.kind) {
 		case "issue.create":
-			return onEdit && isPending(change) ? (
-				<EditableIssue change={change} repo={repo} meta={info} onEdit={onEdit} />
-			) : (
-				<div className="preview preview-thread" data-compact={!op.body || undefined}>
-					<div className="preview-thread-title">
-						<KindIcon op={op} size={15} />
-						<span>{op.title}</span>
-					</div>
-					{op.body && <Body source={op.body} />}
-					<IssueFacts change={change} color={color} />
-				</div>
+			return (
+				<>
+					{onEdit && isPending(change) ? (
+						<EditableIssue change={change} repo={repo} meta={info} onEdit={onEdit} />
+					) : (
+						<div className="preview preview-thread" data-compact={!op.body || undefined}>
+							<div className="preview-thread-title">
+								<KindIcon op={op} size={15} />
+								<span>{op.title}</span>
+							</div>
+							{op.body && <Body source={op.body} />}
+							<IssueFacts change={change} color={color} />
+						</div>
+					)}
+					{credit && <CreditPreview credit={credit} />}
+				</>
 			);
 		case "discussion.create":
 			return (
@@ -186,6 +194,20 @@ function IssueFacts({ change, color }: { change: PendingChange; color: (name: st
 			))}
 			{op.milestone && <Milestone title={op.milestone} />}
 		</div>
+	);
+}
+
+/** The credit line, as it'll read at the foot of the issue. */
+function CreditPreview({ credit }: { credit: Credit }) {
+	return (
+		<p className="preview-credit">
+			From{" "}
+			<a href={credit.board.url} target="_blank" rel="noreferrer">
+				{credit.board.title || "a Tack board"}
+			</a>
+			{credit.section && <> › {credit.section}</>}
+			{credit.by && <>, {credit.by}</>}
+		</p>
 	);
 }
 

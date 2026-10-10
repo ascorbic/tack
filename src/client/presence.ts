@@ -17,6 +17,11 @@ export interface User {
 	avatarUrl?: string;
 }
 
+/** Who's making a shape, as it records them: their login too, when they're signed in. */
+export function authorFor(user: User): { name: string; color: string; login?: string } {
+	return { name: user.name, color: user.color, ...(user.login ? { login: user.login } : {}) };
+}
+
 export interface PresenceState {
 	user?: User;
 	/** Pointer position in flow coordinates, or null when off the canvas. */

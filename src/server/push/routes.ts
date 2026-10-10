@@ -13,6 +13,7 @@
 import { getServerByName } from "partyserver";
 import * as v from "valibot";
 import { BOARD_ID, canEdit } from "../../shared/boards.ts";
+import { isBoardUrl } from "../../shared/credit.ts";
 import type { PushResponse } from "../../shared/push.ts";
 import { parseRepoKey } from "../../shared/refs.ts";
 import { requireInstanceAccess } from "../auth/access.ts";
@@ -33,6 +34,12 @@ const PushBody = v.object({
 		v.maxLength(200),
 	),
 	as: v.picklist(["user", "app"]),
+	credit: v.optional(
+		v.object({
+			url: v.pipe(v.string(), v.maxLength(2048)),
+			title: v.pipe(v.string(), v.maxLength(300)),
+		}),
+	),
 });
 
 const PUSH_STATUS: Record<Extract<PushResponse, { ok: false }>["reason"], number> = {
@@ -95,10 +102,13 @@ async function boardRoute(
 		};
 		return json(response, { status: PUSH_STATUS.signed_out });
 	}
+	// Credit lines link to this board, on this instance, and nowhere else.
+	const credit = body.output.credit;
 	const result = await stub.push({
 		ids: body.output.ids,
 		as: body.output.as,
 		by: { id: viewer.id, login: viewer.login, name: viewer.name },
+		...(credit && isBoardUrl(credit.url, new URL(request.url).origin, id) ? { credit } : {}),
 	});
 	return json(result, { status: result.ok ? 202 : PUSH_STATUS[result.reason] });
 }
