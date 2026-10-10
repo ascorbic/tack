@@ -17,6 +17,7 @@ import { seedCommentsRetro } from "./asyncScenarios.ts";
 import { seedInbox, seedRules } from "./automationScenarios.ts";
 import { seedDecisions } from "./decisions.ts";
 import type { SimulatedFacilitator } from "./facilitation.ts";
+import { type SimulatedHistory, retroHistory } from "./history.ts";
 import { facilitateSilent, seedRetro, seedSilent, seedVote } from "./facilitationScenarios.ts";
 import type { Stager } from "../../shared/changes.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
@@ -32,6 +33,8 @@ export interface Scenario {
 	seed(doc: Y.Doc): void;
 	/** After seeding, with the pretend facilitation server running (silent sessions, say). */
 	facilitate?(facilitator: SimulatedFacilitator): void;
+	/** After seeding, with the pretend history server recording: a past to look back on. */
+	history?(history: SimulatedHistory): void;
 }
 
 // The people who wrote the seeded stickies.
@@ -302,6 +305,13 @@ function seedPush(doc: Y.Doc): void {
 }
 
 export const SCENARIOS: Record<string, Scenario> = {
+	history: {
+		name: "History: a retro, three days on",
+		description:
+			"Three days of a retro behind it: open History (⌘⌥⇧H) to scrub and play it back, see who changed what, filter to a section, and bring back the sticky Kai deleted or the parking lot Priya cleared.",
+		seed() {},
+		history: (history) => history.past(retroHistory()),
+	},
 	retro: {
 		name: "Facilitation: a retro",
 		description:

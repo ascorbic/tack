@@ -24,6 +24,7 @@ import {
 } from "./decisions.ts";
 import { AutomationPlay } from "./AutomationPlay.tsx";
 import { SimulatedFacilitator } from "./facilitation.ts";
+import { type HistoryMode, SimulatedHistory } from "./history.ts";
 import { FacilitationPlay } from "./FacilitationPlay.tsx";
 import { AsyncPlay } from "./AsyncPlay.tsx";
 import { NotificationsButton } from "../comments/Notifications.tsx";
@@ -144,6 +145,20 @@ export default function Playground() {
 	// Who's pushing is read when a push starts.
 	const pusher = useRef(user);
 	pusher.current = user;
+	// The board's history (#47), recorded in the browser as the server would.
+	const boardHistory = useMemo(() => {
+		const recorder = new SimulatedHistory(sim, () => pusher.current);
+		(SCENARIOS[scenario] ?? SCENARIOS.planning)?.history?.(recorder);
+		return recorder;
+		// The scenario is read with the board it seeded.
+		// oxlint-disable-next-line react-hooks/exhaustive-deps
+	}, [sim]);
+	useEffect(() => () => boardHistory.destroy(), [boardHistory]);
+	const [historyMode, setHistoryMode] = useState<HistoryMode>("live");
+	useEffect(() => {
+		Object.assign(window, { tackHistory: boardHistory });
+		setHistoryMode("live");
+	}, [boardHistory]);
 	const push = useMemo(() => {
 		const client = new SimulatedPush(sim.doc, () => ({
 			login: pusher.current.login ?? "guest",
@@ -493,6 +508,7 @@ export default function Playground() {
 				services={services}
 				readOnly={viewOnly}
 				push={push}
+				historySource={boardHistory}
 			>
 				<PenProbe doc={sim.doc} mode={pen} onStats={setPenStats} />
 				<aside className="play-panel" aria-label="Playground controls" data-chrome>
@@ -580,6 +596,52 @@ export default function Playground() {
 						viewOnly={viewOnly}
 						onViewOnly={setViewOnly}
 					/>
+
+					<div className="play-section">
+						<h2 className="play-label">History</h2>
+						<div className="segmented" role="radiogroup" aria-label="History server">
+							{(
+								[
+									["live", "Live"],
+									["slow", "Slow"],
+									["failing", "Failing"],
+								] as const
+							).map(([mode, label]) => (
+								<label key={mode} data-checked={historyMode === mode}>
+									<input
+										type="radio"
+										name="history-mode"
+										checked={historyMode === mode}
+										onChange={() => {
+											boardHistory.mode = mode;
+											setHistoryMode(mode);
+										}}
+									/>
+									{label}
+								</label>
+							))}
+						</div>
+						<div className="play-buttons">
+							<button
+								type="button"
+								onClick={() => {
+									const id = pick(sim.shapeIds("sticky"));
+									if (id) void someone().remove(id);
+								}}
+							>
+								Someone deletes a sticky
+							</button>
+							<button
+								type="button"
+								onClick={() => boardHistory.log.compact(Date.now() + 2 * 3_600_000)}
+							>
+								Thin it out (2 h on)
+							</button>
+						</div>
+						<p className="play-hint">
+							⌘⌥⇧H opens History. Scrub, play, then select something from the past to bring it back.
+						</p>
+					</div>
 
 					<div className="play-section">
 						<h2 className="play-label">Sections and connectors</h2>
