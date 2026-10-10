@@ -58,7 +58,7 @@ export class SimulatedHistory implements HistorySource {
 	private timer = 0;
 
 	constructor(
-		private readonly sim: SimulatedBoard,
+		private readonly sim: Pick<SimulatedBoard, "doc" | "people">,
 		private readonly you: () => User,
 	) {
 		this.log = new HistoryLog({
@@ -137,7 +137,9 @@ export class SimulatedHistory implements HistorySource {
 	private async answer(): Promise<void> {
 		if (this.mode === "failing") {
 			await sleep(400);
-			throw new Error("The pretend history server is failing on purpose.");
+			throw new Error(
+				"Couldn’t load the board’s history: the pretend server is failing on purpose.",
+			);
 		}
 		await sleep(this.mode === "slow" ? 1600 : 120);
 	}

@@ -1,0 +1,64 @@
+/* The history gallery (/play/history). The panel and the scrubber float over
+   the canvas on a board; here each sits in its own figure. */
+
+.history-gallery-panels {
+	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+
+.history-gallery-docks {
+	grid-template-columns: repeat(auto-fill, minmax(620px, 1fr));
+}
+
+.history-gallery-panel {
+	position: relative;
+	height: 540px;
+}
+
+.history-gallery-panel .history-panel {
+	position: absolute;
+	inset: 0;
+	width: auto;
+	animation: none;
+}
+
+.history-gallery-dock {
+	position: relative;
+	min-height: 132px;
+	padding-top: 56px;
+}
+
+.history-gallery-dock .history-dock {
+	position: relative;
+	left: auto;
+	bottom: auto;
+	width: 100%;
+	translate: none;
+	animation: none;
+}
+
+.history-gallery-topbar {
+	position: static;
+	display: flex;
+	gap: 8px;
+	padding: 12px;
+	border-radius: 12px;
+	border: 1px solid var(--line);
+}
+
+.history-gallery-mark {
+	--zoom: 1;
+	position: relative;
+	width: 176px;
+	height: 176px;
+	margin: 40px auto 16px;
+}
+
+.history-gallery-mark .replay-mark {
+	z-index: 1;
+}
+
+.history-gallery-restore {
+	display: flex;
+	justify-content: center;
+	padding: 24px 0;
+}

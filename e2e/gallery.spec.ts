@@ -356,3 +356,34 @@ test("every facilitation, silent mode and dot voting state renders", async ({ pa
 		"👍",
 	);
 });
+
+test("every history state renders", async ({ page }) => {
+	await page.goto("/play/history");
+	await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+	await expect(page.locator("figure[data-state=button-open] [aria-pressed=true]")).toBeVisible();
+	await expect(page.locator("figure[data-state=panel-loading] .history-skeleton")).toBeVisible();
+	await expect(page.locator("figure[data-state=panel-error] [role=alert]")).toContainText(
+		"Couldn’t load",
+	);
+	await expect(page.locator("figure[data-state=panel-empty]")).toContainText("History starts here");
+	await expect(page.locator("figure[data-state=panel-ready]")).toContainText("Kai Andersen");
+	await expect(
+		page.locator("figure[data-state=panel-past] .history-entry[aria-current=step]"),
+	).toContainText("removed a sticky");
+	await expect(page.locator("figure[data-state=panel-section] select")).toHaveValue("hurts");
+	await expect(page.locator("figure[data-state=panel-read-only] .history-bring-back")).toHaveCount(
+		0,
+	);
+	await expect(page.locator("figure[data-state=dock-now] .history-dock[data-live]")).toBeVisible();
+	await expect(page.locator("figure[data-state=dock-past]")).toContainText("2 days ago");
+	await expect(page.locator("figure[data-state=dock-playing]")).toContainText("4×");
+	await expect(
+		page.locator("figure[data-state=dock-loading] .history-track[data-loading]"),
+	).toBeVisible();
+	await expect(page.locator(".replay-mark")).toHaveCount(3);
+	await expect(page.locator("figure[data-state=mark-remove] .replay-mark")).toHaveAttribute(
+		"data-op",
+		"remove",
+	);
+	await expect(page.locator("figure[data-state=restore-copy]")).toContainText("Restore a copy");
+});

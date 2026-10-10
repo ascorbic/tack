@@ -1,10 +1,10 @@
 import { NodeToolbar, Position, ViewportPortal } from "@xyflow/react";
-import type { Actor, StepMeta } from "../../shared/history.ts";
+import type * as Y from "yjs";
+import type { Actor, ShapeChange, StepMeta } from "../../shared/history.ts";
 import type { SizeOf } from "../../shared/sections.ts";
 import type { HistoryController, HistoryState } from "./controller.ts";
 import { ActorAvatar, RestoreIcon, actorColor } from "./parts.tsx";
 import { useShapeIds } from "./useHistory.ts";
-import type * as Y from "yjs";
 
 // What history draws on the canvas while it's open: who changed what at the
 // step shown (outlines in their colour, with their name, flashing as the
@@ -13,6 +13,8 @@ import type * as Y from "yjs";
 
 /** More marks than this and they'd only be noise. */
 const MAX_MARKS = 40;
+/** Above every shape, as the selection actions are. */
+const TOOLBAR_Z = 3000;
 
 export function HistoryCanvas({
 	controller,
@@ -69,39 +71,63 @@ function ReplayMarks({
 			<div className="replay-marks" aria-hidden="true">
 				{marks.map((change, i) => {
 					const key = change.by?.[0] ?? step.actors[0] ?? "";
-					const actor = actors[key];
-					const [x, y, w, h] = change.box!;
-					// Shapes on the board now have a measured size; removed ones keep their nominal one.
-					const size = change.op === "remove" ? undefined : sizeOf(change.id);
-					const showName = !named.has(key);
+					const first = !named.has(key);
 					named.add(key);
+					// Shapes on the board then have a measured size now; removed ones keep their nominal one.
+					const size = change.op === "remove" ? undefined : sizeOf(change.id);
 					return (
-						<div
+						<ReplayMark
 							key={`${change.id}-${i}`}
-							className="replay-mark"
-							data-op={change.op}
-							style={
-								{
-									transform: `translate(${x}px, ${y}px)`,
-									width: `${size?.w ?? w}px`,
-									height: `${size?.h ?? h}px`,
-									"--mark": actorColor(actor),
-									"--i": i,
-								} as React.CSSProperties
-							}
-						>
-							{showName && actor && (
-								<span className="replay-mark-flag">
-									<ActorAvatar actor={actor} size={14} />
-									{actor.name}
-									{change.op === "remove" && <span className="replay-mark-op">removed</span>}
-								</span>
-							)}
-						</div>
+							change={change}
+							actor={actors[key]}
+							named={first}
+							index={i}
+							size={size}
+						/>
 					);
 				})}
 			</div>
 		</ViewportPortal>
+	);
+}
+
+/** One shape's mark: an outline in its author's colour, with their name if it's their first. */
+export function ReplayMark({
+	change,
+	actor,
+	named,
+	index = 0,
+	size,
+}: {
+	change: ShapeChange;
+	actor: Actor | undefined;
+	named: boolean;
+	index?: number;
+	size?: { w: number; h: number };
+}) {
+	const [x, y, w, h] = change.box ?? [0, 0, 0, 0];
+	return (
+		<div
+			className="replay-mark"
+			data-op={change.op}
+			style={
+				{
+					transform: `translate(${x}px, ${y}px)`,
+					width: `${size?.w ?? w}px`,
+					height: `${size?.h ?? h}px`,
+					"--mark": actorColor(actor),
+					"--i": index,
+				} as React.CSSProperties
+			}
+		>
+			{named && actor && (
+				<span className="replay-mark-flag">
+					<ActorAvatar actor={actor} size={14} />
+					{actor.name}
+					{change.op === "remove" && <span className="replay-mark-op">removed</span>}
+				</span>
+			)}
+		</div>
 	);
 }
 
@@ -117,25 +143,49 @@ function RestoreBar({
 	sizeOf: SizeOf;
 }) {
 	const liveIds = useShapeIds(live);
-	const anyLive = selected.some((id) => liveIds.has(id));
-	const label = anyLive ? "Restore a copy" : "Bring back";
-	const hint = anyLive
-		? "As it was then, beside what’s there now"
-		: "Where it was, as your own edit";
 	return (
-		<NodeToolbar nodeId={[...selected]} isVisible position={Position.Top} offset={16}>
-			<div className="history-restore-bar nodrag nopan" role="toolbar" aria-label="Restore">
-				<button
-					type="button"
-					className="history-restore-button"
-					data-tooltip={`${hint} (⌘Z undoes it)`}
-					onClick={() => controller.restore(selected, sizeOf)}
-				>
-					<RestoreIcon />
-					{label}
-					{selected.length > 1 && <span className="history-restore-count">{selected.length}</span>}
-				</button>
-			</div>
+		<NodeToolbar
+			nodeId={[...selected]}
+			isVisible
+			position={Position.Top}
+			offset={16}
+			style={{ zIndex: TOOLBAR_Z }}
+		>
+			<RestoreButton
+				count={selected.length}
+				copy={selected.some((id) => liveIds.has(id))}
+				onRestore={() => controller.restore(selected, sizeOf)}
+			/>
 		</NodeToolbar>
+	);
+}
+
+/**
+ * Bring back what's selected: "Bring back" for shapes that are gone,
+ * "Restore a copy" when any of them is still on the board.
+ */
+export function RestoreButton({
+	count,
+	copy,
+	onRestore,
+}: {
+	count: number;
+	copy: boolean;
+	onRestore: () => void;
+}) {
+	const hint = copy ? "As it was then, beside what’s there now" : "Where it was, as your own edit";
+	return (
+		<div className="history-restore-bar nodrag nopan" role="toolbar" aria-label="Restore">
+			<button
+				type="button"
+				className="history-restore-button"
+				title={`${hint}. ⌘Z undoes it.`}
+				onClick={onRestore}
+			>
+				<RestoreIcon />
+				{copy ? "Restore a copy" : "Bring back"}
+				{count > 1 && <span className="history-restore-count">{count}</span>}
+			</button>
+		</div>
 	);
 }

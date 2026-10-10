@@ -24,7 +24,7 @@ import {
 /** Each column of ticks is this wide, so a long history still reads as a shape. */
 const COLUMN_PX = 4;
 /** Day labels closer than this to the one before are left out. */
-const LABEL_GAP_PX = 64;
+const LABEL_GAP_PX = 84;
 
 interface Column {
 	left: number;
