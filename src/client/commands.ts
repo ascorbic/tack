@@ -92,7 +92,7 @@ interface CommandsOptions {
 
 /** Commands that change the document, which view-only boards ignore. */
 const WRITES =
-	/^(undo|redo|duplicate|delete|nudge|align|distribute|tidy|makeIssues|parentIssue|labels|milestone|assign|closeReopen|backlink|blockedBy|expandRelated)/;
+	/^(undo|redo|duplicate|delete|nudge|align|distribute|tidy|makeIssues|parentIssue|labels|milestone|assign|closeReopen|backlink|blockedBy|expandRelated|toActions|carryOver)/;
 
 export function useCanvasCommands(options: CommandsOptions) {
 	const flow = useReactFlow<ShapeNode>();
@@ -506,6 +506,8 @@ export function useCanvasCommands(options: CommandsOptions) {
 				case "backlink":
 				case "blockedBy":
 				case "expandRelated":
+				case "toActions":
+				case "carryOver":
 					return latest.current.onAction?.(id) ?? false;
 				case "copy":
 				case "cut":

@@ -905,7 +905,14 @@ export function Board({
 								toasts={toasts}
 								onReveal={reveal}
 							/>
-							<FacilitateMenu doc={doc} awareness={awareness} user={user} readOnly={readOnly} />
+							<FacilitateMenu
+								doc={doc}
+								awareness={awareness}
+								user={user}
+								readOnly={readOnly}
+								toasts={toasts}
+								onReveal={reveal}
+							/>
 							<CommentsButton />
 							<ThemeToggle />
 							<span className="status" data-synced={synced}>

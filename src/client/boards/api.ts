@@ -3,7 +3,10 @@ import type {
 	BoardInfo,
 	BoardList,
 	BoardMembers,
+	CarryRequest,
+	CarryResponse,
 	CreateBoardRequest,
+	CreatedBoard,
 	InviteRequest,
 	Role,
 	UpdateBoardRequest,
@@ -51,7 +54,10 @@ const memberUrl = (id: string, login: string) =>
 export const boardsApi = {
 	list: () => call<BoardList>("/api/boards"),
 	create: (request: CreateBoardRequest = {}) =>
-		call<BoardInfo>("/api/boards", send("POST", request)),
+		call<CreatedBoard>("/api/boards", send("POST", request)),
+	/** Carry a board's open action items over to another (#52). */
+	carry: (id: string, request: CarryRequest) =>
+		call<CarryResponse>(`${boardUrl(id)}/carry`, send("POST", request)),
 	claimLegacy: (name: string) => call<BoardInfo>("/api/boards/legacy", send("POST", { name })),
 	get: (id: string) => call<BoardInfo>(boardUrl(id)),
 	update: (id: string, request: UpdateBoardRequest) =>

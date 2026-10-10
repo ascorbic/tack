@@ -19,6 +19,8 @@ export type ActionCommand = Extract<
 	| "backlink"
 	| "blockedBy"
 	| "expandRelated"
+	| "toActions"
+	| "carryOver"
 >;
 
 /**

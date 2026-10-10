@@ -1,3 +1,4 @@
+import { board } from "./boardFixtures.ts";
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { OPERATION_KINDS } from "../../shared/changes.ts";
@@ -75,6 +76,20 @@ export function playServices(): WriteServices {
 			return url;
 		},
 		related: playRelated,
+		// Carry over goes to pretend boards (#52).
+		async carryTargets() {
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			return [
+				board("Retro, November", { layout: "retro", ago: 20 * 60_000 }),
+				board("Sprint 43 planning", { layout: "planning", ago: 3 * 3_600_000 }),
+				board("Q4 roadmap", { layout: "sparse", ago: 2 * 86_400_000 }),
+			];
+		},
+		async carryOver(to, shapes) {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			const target = board(to === "fail" ? "Nope" : "Retro, November", { id: to });
+			return { carried: shapes?.length ?? 0, skipped: 0, board: target };
+		},
 	};
 }
 

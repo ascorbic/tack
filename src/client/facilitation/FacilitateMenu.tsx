@@ -3,6 +3,12 @@ import type { Awareness } from "y-protocols/awareness";
 import type * as Y from "yjs";
 import { TIMER_PRESETS_MS, formatClock, timeLeft, timerDone } from "../../shared/facilitation.ts";
 import type { Author } from "../../shared/shapes.ts";
+import { carriedToast } from "../actions/ActionBar.tsx";
+import { useServices } from "../actions/services.ts";
+import { CarryPanel, openActionItems } from "../actionItems/CarryPanel.tsx";
+import { CarryIcon } from "../actionItems/icons.tsx";
+import type { ToastStore } from "../Toasts.tsx";
+import { PreparedSteps, stepSection, usePrepared } from "./Prepared.tsx";
 import { chimeEnabled, setChimeEnabled } from "./chime.ts";
 import { useServerNow, useTimer } from "./hooks.ts";
 import { BatonIcon, DotsIcon, HushIcon, StampIcon, StopwatchIcon } from "./icons.tsx";
@@ -22,13 +28,23 @@ export function FacilitateMenu({
 	awareness,
 	user,
 	readOnly,
+	toasts,
+	onReveal,
 }: {
 	doc: Y.Doc;
 	awareness: Awareness;
 	user: Author;
 	readOnly: boolean;
+	toasts?: ToastStore;
+	/** Bring a section into view: the one a prepared step is about. */
+	onReveal?: (id: string) => void;
 }) {
 	const [open, setOpen] = useState(false);
+	const [carrying, setCarrying] = useState(false);
+	const services = useServices();
+	const steps = usePrepared(doc);
+	const ready = steps.some((step) => !step.startedAt);
+	const openItems = open && !readOnly ? openActionItems(doc) : [];
 	const id = useId();
 	const root = useRef<HTMLDivElement>(null);
 	const spotlight = useSpotlight();
@@ -40,7 +56,10 @@ export function FacilitateMenu({
 	useEffect(() => {
 		if (!open) return;
 		const onDown = (event: PointerEvent) => {
-			if (!root.current?.contains(event.target as Node)) setOpen(false);
+			if (!root.current?.contains(event.target as Node)) {
+				setOpen(false);
+				setCarrying(false);
+			}
 		};
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key === "Escape") setOpen(false);
@@ -61,13 +80,48 @@ export function FacilitateMenu({
 				aria-expanded={open}
 				aria-controls={id}
 				data-live={Boolean(running || spotlight) || undefined}
+				data-ready={(ready && !readOnly) || undefined}
 				onClick={() => setOpen((o) => !o)}
 			>
 				<BatonIcon />
 				Facilitate
+				{ready && !readOnly && (
+					<span className="facilitate-ready" aria-label="Steps ready to start" />
+				)}
 			</button>
-			{open && (
+			{open && carrying && services.carryTargets && (
+				<div
+					className="facilitate-menu facilitate-carry"
+					id={id}
+					role="dialog"
+					aria-label="Carry over"
+				>
+					<CarryPanel
+						items={openItems}
+						services={services}
+						onCarried={(result) => {
+							setCarrying(false);
+							setOpen(false);
+							if (toasts) carriedToast(toasts, result);
+						}}
+					/>
+				</div>
+			)}
+			{open && !carrying && (
 				<div className="facilitate-menu" id={id} role="dialog" aria-label="Facilitate">
+					{steps.length > 0 && (
+						<PreparedSteps
+							doc={doc}
+							steps={steps}
+							user={user}
+							readOnly={readOnly}
+							onStarted={(step) => {
+								setOpen(false);
+								const section = stepSection(step);
+								if (section) onReveal?.(section);
+							}}
+						/>
+					)}
 					<section className="facilitate-row">
 						<span className="facilitate-row-icon">
 							<StopwatchIcon />
@@ -153,6 +207,23 @@ export function FacilitateMenu({
 									Select a section and choose Silent mode: everyone writes on their own, then you
 									reveal them all at once
 								</p>
+							</div>
+						</section>
+					)}
+					{!readOnly && openItems.length > 0 && services.carryTargets && (
+						<section className="facilitate-row">
+							<span className="facilitate-row-icon">
+								<CarryIcon />
+							</span>
+							<div className="facilitate-row-body">
+								<h3>Action items</h3>
+								<p className="facilitate-note">
+									{openItems.length} still open: carry them over to the next session, with their
+									owners and due dates
+								</p>
+								<button type="button" onClick={() => setCarrying(true)}>
+									Carry over…
+								</button>
 							</div>
 						</section>
 					)}

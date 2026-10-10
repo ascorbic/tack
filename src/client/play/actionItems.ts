@@ -38,7 +38,9 @@ export const ACTION_CARDS = [
 ];
 
 export function seedActionItems(doc: Y.Doc): void {
-	for (const card of ACTION_CARDS) cardStore.set(card);
+	// Seeding runs while the playground renders: only add what isn't there, so
+	// nothing already showing a card is told about it mid-render.
+	for (const card of ACTION_CARDS) if (!cardStore.get(card.key)) cardStore.set(card);
 	const today = localDate(clock.now());
 	const at = (days: number) => addDays(today, days);
 

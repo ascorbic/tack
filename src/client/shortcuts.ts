@@ -101,6 +101,8 @@ export type CommandId =
 	| "backlink"
 	| "blockedBy"
 	| "expandRelated"
+	| "toActions"
+	| "carryOver"
 	| "shortcuts";
 
 const arrow = (key: string, shift: boolean): KeyCombo[] => [{ key, shift }];
@@ -362,6 +364,20 @@ export const SHORTCUTS: Shortcut[] = [
 		group: "Issues",
 		combos: [{ code: "KeyE", alt: true, shift: false }],
 		keywords: "related parent sub-issues blocked blocking linked pull requests expand layout",
+	},
+	{
+		id: "toActions",
+		label: "Make action items from stickies",
+		group: "Issues",
+		combos: [{ code: "KeyA", alt: true, shift: true }],
+		keywords: "action item todo task owner due sticky convert",
+	},
+	{
+		id: "carryOver",
+		label: "Carry action items over to another board",
+		group: "Issues",
+		combos: [{ code: "KeyO", alt: true, shift: false }],
+		keywords: "carry over action items next retro copy open",
 	},
 	{
 		id: "zoomIn",

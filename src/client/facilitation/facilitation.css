@@ -2004,3 +2004,165 @@ fieldset.vote-start-row {
 		display: none;
 	}
 }
+
+/* Prepared facilitation (#53): a template's run sheet -------------------- */
+
+.facilitate-button {
+	position: relative;
+}
+
+/* Steps are waiting: a small dot, breathing once in a while. */
+.facilitate-ready {
+	position: absolute;
+	top: 5px;
+	right: 6px;
+	width: 7px;
+	height: 7px;
+	border: 1.5px solid var(--surface);
+	border-radius: 50%;
+	background: var(--accent);
+	animation: ready-breathe calc(3.2s * var(--motion)) var(--ease-out) infinite;
+}
+
+@keyframes ready-breathe {
+	0%,
+	70%,
+	100% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+	}
+	85% {
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
+	}
+}
+
+.prepared {
+	padding: 10px 10px 6px;
+	border-bottom: 1px solid var(--line);
+}
+
+.prepared-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.prepared-head h3 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 14px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.prepared-progress {
+	color: var(--muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.prepared-steps {
+	display: grid;
+	gap: 2px;
+	margin: 0 -4px;
+	padding: 0;
+	list-style: none;
+	counter-reset: step;
+}
+
+.prepared-step {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 6px 4px 6px 6px;
+	border-radius: 10px;
+	animation: notice-in var(--t-base) var(--ease-out) backwards;
+	animation-delay: calc(var(--i, 0) * 35ms * var(--motion));
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.prepared-step[data-next] {
+	background: var(--accent-soft);
+}
+
+.prepared-step-icon {
+	display: grid;
+	flex: none;
+	width: 24px;
+	height: 24px;
+	place-items: center;
+	border-radius: 50%;
+	background: var(--well);
+	color: var(--ink-soft);
+}
+
+.prepared-step-icon svg {
+	width: 14px;
+	height: 14px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.prepared-step[data-next] .prepared-step-icon {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.prepared-step[data-started] .prepared-step-icon {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.prepared-step-body {
+	display: grid;
+	flex: 1;
+	min-width: 0;
+}
+
+.prepared-step-label {
+	overflow: hidden;
+	font-size: 13px;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.prepared-step[data-started] .prepared-step-label {
+	color: var(--muted);
+}
+
+.prepared-step-meta {
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.prepared-step > button {
+	flex: none;
+	height: 28px;
+	padding: 0 10px;
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	background: var(--surface);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.prepared-step > button:hover {
+	background: var(--hover);
+}
+
+.prepared-step > button:active {
+	transform: scale(0.95);
+}
+
+.facilitate-carry {
+	width: 380px;
+	padding: 14px;
+}

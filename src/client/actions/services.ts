@@ -1,7 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import type { BoardInfo, CarryResponse } from "../../shared/boards.ts";
 import type { Stager } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import type { QueryError, RelatedResult } from "../../shared/widgets.ts";
+import { canEdit } from "../../shared/boards.ts";
+import { boardsApi } from "../boards/api.ts";
 import { repoApi } from "../changes/api.ts";
 import type { User } from "../presence.ts";
 
@@ -22,6 +25,10 @@ export interface WriteServices {
 	uploadSnapshot(png: Blob): Promise<string>;
 	/** What's related to an item, as this viewer may see it (Expand related). Never throws. */
 	related(key: string): Promise<RelatedResult | QueryError>;
+	/** Boards action items can be carried over to: ones you can edit, most recent first (#52). */
+	carryTargets?(): Promise<BoardInfo[] | null>;
+	/** Carry this board's open action items (or just `shapes`) over to another. Never throws. */
+	carryOver?(to: string, shapes?: string[]): Promise<CarryResponse | { error: string }>;
 }
 
 const SNAPSHOT_ERRORS: Record<string, string> = {
@@ -56,6 +63,21 @@ export function liveServices(boardId: string): WriteServices {
 			} | null;
 			if (response.ok && body?.url) return body.url;
 			throw new Error(SNAPSHOT_ERRORS[body?.error ?? ""] ?? "The snapshot couldn’t be uploaded.");
+		},
+		async carryTargets() {
+			const result = await boardsApi.list();
+			if (!result.ok) return null;
+			const seen = new Set<string>([boardId]);
+			const { recent, mine, shared } = result.value;
+			return [...recent, ...mine, ...shared].filter((board) => {
+				if (seen.has(board.id) || board.archivedAt !== null || !canEdit(board.role)) return false;
+				seen.add(board.id);
+				return true;
+			});
+		},
+		async carryOver(to, shapes) {
+			const result = await boardsApi.carry(boardId, { to, ...(shapes ? { shapes } : {}) });
+			return result.ok ? result.value : { error: result.error };
 		},
 		async related(key) {
 			try {

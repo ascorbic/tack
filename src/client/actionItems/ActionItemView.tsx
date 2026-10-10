@@ -366,7 +366,7 @@ function LinkChip({
 /** Someone's face, or their initials while it loads (and if it doesn't). */
 export function OwnerAvatar({ owner, size = 18 }: { owner: ActionOwner; size?: number }) {
 	const src =
-		owner.avatarUrl ?? `https://github.com/${encodeURIComponent(owner.login)}.png?size=48`;
+		owner.avatarUrl || `https://github.com/${encodeURIComponent(owner.login)}.png?size=48`;
 	return (
 		<span
 			className="action-owner-avatar"

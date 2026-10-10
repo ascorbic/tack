@@ -15,6 +15,7 @@ import {
 	stageTriage,
 	withStaged,
 } from "../../shared/actions.ts";
+import { stickiesToActions } from "../../shared/actionItems.ts";
 import { backlinkBody } from "../../shared/backlinks.ts";
 import type { OperationKind } from "../../shared/changes.ts";
 import type { Rect } from "../snapping.ts";
@@ -30,6 +31,10 @@ import { isApplePlatform, shortcutHint } from "../shortcuts.ts";
 import { unionRect } from "../snapping.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import type { History } from "../undo.ts";
+import { CarryPanel, openActionItems } from "../actionItems/CarryPanel.tsx";
+import { ActionItemIcon, CarryIcon } from "../actionItems/icons.tsx";
+import { boardPath } from "../../shared/boards.ts";
+import { transactLocal } from "../undo.ts";
 import { type BoardCard, BacklinkPanel } from "./BacklinkPanel.tsx";
 import { ExpandRelated } from "./ExpandRelated.tsx";
 import {
@@ -188,6 +193,8 @@ export function ActionBar(props: ActionBarProps) {
 		const onlyCards = cardNodes.length > 0 && stickies.length + sections.length === 0;
 		const clustered =
 			sections.length === 0 && stickies.length + cardNodes.length >= 2 && !onlyCards;
+		const actionItems = others.filter((n) => n.data.shape.type === "action");
+		const onlyActions = actionItems.length >= 2 && actionItems.length === selected.length;
 
 		if (onlyStickies) {
 			const fresh = stickies.filter((s) => !pendingIssueFor(doc, s.id));
@@ -202,6 +209,26 @@ export function ActionBar(props: ActionBarProps) {
 							? "Make issue"
 							: `Make ${fresh.length} issues`,
 				unavailable: fresh.length === 0 ? "Already staged as issues" : undefined,
+			});
+		}
+		if (onlyStickies && stickies.every((s) => !s.data.shape.silent)) {
+			out.push({
+				id: "toActions",
+				label: stickies.length === 1 ? "Make an action item" : "Make action items",
+				icon: <ActionItemIcon />,
+			});
+		}
+		if (onlyActions) {
+			const open = openActionItems(
+				doc,
+				actionItems.map((n) => n.id),
+			);
+			out.push({
+				id: "carryOver",
+				label: "Carry the open ones over to another board",
+				icon: <CarryIcon />,
+				text: "Carry over",
+				unavailable: open.length === 0 ? "They’re all done" : undefined,
 			});
 		}
 		if (onlySection || clustered || (onlyStickies && stickies.length >= 2)) {
@@ -260,14 +287,43 @@ export function ActionBar(props: ActionBarProps) {
 			}
 		}
 		return out;
-	}, [doc, stickies, cards, cardNodes, sections, others, targets, closable, repos, metas]);
+	}, [
+		doc,
+		selected,
+		stickies,
+		cards,
+		cardNodes,
+		sections,
+		others,
+		targets,
+		closable,
+		repos,
+		metas,
+	]);
+
+	/** Stickies to action items, in place: no panel, one undo step. */
+	const makeActionItems = () => {
+		const made = transactLocal(doc, () =>
+			stickiesToActions(
+				doc,
+				stickies.map((s) => s.id),
+			),
+		);
+		if (made.length === 0) return;
+		store.getState().resetSelectedElements();
+		requestAnimationFrame(() => store.getState().addSelectedNodes(made));
+		toast(
+			`Made ${count(made.length, "action item")}: give ${made.length === 1 ? "it" : "them"} an owner and a due date`,
+		);
+	};
 
 	useEffect(
 		() =>
 			requests.register((id) => {
 				const action = actions.find((a) => a.id === id);
 				if (!action || action.unavailable) return false;
-				setOpen((current) => (current === id ? null : id));
+				if (id === "toActions") makeActionItems();
+				else setOpen((current) => (current === id ? null : id));
 				return true;
 			}),
 		[requests, actions],
@@ -445,6 +501,22 @@ export function ActionBar(props: ActionBarProps) {
 					/>
 				);
 			}
+			case "carryOver": {
+				const items = openActionItems(
+					doc,
+					others.map((n) => n.id),
+				);
+				return (
+					<CarryPanel
+						items={items}
+						services={services}
+						onCarried={(result) => {
+							close();
+							carriedToast(toasts, result);
+						}}
+					/>
+				);
+			}
 			case "expandRelated": {
 				const target = cards[0];
 				return target ? (
@@ -503,7 +575,11 @@ export function ActionBar(props: ActionBarProps) {
 						key={`${action.id}-${i}`}
 						action={action}
 						pressed={open === action.id}
-						onClick={() => setOpen((current) => (current === action.id ? null : action.id))}
+						onClick={() =>
+							action.id === "toActions"
+								? makeActionItems()
+								: setOpen((current) => (current === action.id ? null : action.id))
+						}
 					/>
 				))}
 				{allUnwritable && (
@@ -516,7 +592,12 @@ export function ActionBar(props: ActionBarProps) {
 						prefer={roomBelow ? "below" : "above"}
 						label={label}
 						onClose={close}
-						wide={open === "backlink" || open === "parentIssue" || open === "expandRelated"}
+						wide={
+							open === "backlink" ||
+							open === "parentIssue" ||
+							open === "expandRelated" ||
+							open === "carryOver"
+						}
 					>
 						{panel()}
 					</Popover>
@@ -845,4 +926,19 @@ function BacklinkFor({
 			}}
 		/>
 	);
+}
+
+/** What a carry over did, with a way to go and look. */
+export function carriedToast(
+	toasts: ToastStore,
+	result: { carried: number; skipped: number; board: { id: string; slug: string; title: string } },
+): void {
+	const { carried, skipped, board } = result;
+	toasts.show({
+		message:
+			carried === 0
+				? `They’re on “${board.title}” already`
+				: `Carried ${count(carried, "action item")} over to “${board.title}”${skipped ? ` (${skipped} already there)` : ""}`,
+		action: { label: "Open", run: () => location.assign(boardPath(board)) },
+	});
 }
