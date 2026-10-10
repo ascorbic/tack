@@ -124,14 +124,14 @@ export const DecisionNode = memo(function DecisionNode({ data, selected }: NodeP
 	const { editing, setEditing, field, handlers } = useEditing({
 		selected: !!selected,
 		startEditing,
-		onType: (char) => {
-			// Typing on a selected decision fills in its title first, then its body.
+		onType: (chars) => {
+			// What's typed before a new decision's title can take focus goes in it.
 			if (latest.current.title.trim() === "") {
 				setFocusField("title");
-				setTitle(latest.current.title + char);
+				setTitle(latest.current.title + chars);
 			} else {
 				setFocusField("body");
-				setText(latest.current.text + char);
+				setText(latest.current.text + chars);
 			}
 		},
 	});

@@ -1,20 +1,61 @@
 import { useStoreApi } from "@xyflow/react";
-import { type PointerEvent, type MouseEvent, useContext, useEffect, useRef, useState } from "react";
+import {
+	type PointerEvent,
+	type MouseEvent,
+	useContext,
+	useEffect,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { HistoryContext, ReadOnlyContext } from "./DocContext.ts";
 import { isOffBoardTarget } from "./keys.ts";
 
-/** Keys that start editing a selected shape and go into its text. */
-function isTypingKey(event: KeyboardEvent): boolean {
-	// "/" opens cursor chat instead (see CursorChat.tsx).
-	return (
-		event.key.length === 1 && event.key !== "/" && !event.metaKey && !event.ctrlKey && !event.altKey
+/** A key that would type a character, rather than a combination or a named key. */
+export function isCharacterKey(
+	event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey">,
+): boolean {
+	return event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
+}
+
+/** How long "↵ to edit" shows on a shape after a key that did nothing. */
+const HINT_MS = 1800;
+
+// Which shapes this client is typing into, so the UI around the selection
+// (the action bar) can step aside while you write.
+const editingShapes = new Set<symbol>();
+const editingListeners = new Set<() => void>();
+const subscribeEditing = (listener: () => void) => {
+	editingListeners.add(listener);
+	return () => {
+		editingListeners.delete(listener);
+	};
+};
+function setShapeEditing(token: symbol, on: boolean): void {
+	if (on === editingShapes.has(token)) return;
+	if (on) editingShapes.add(token);
+	else editingShapes.delete(token);
+	for (const listener of editingListeners) listener();
+}
+
+/** Whether a shape's text is being typed into here. */
+export function useTextEditing(): boolean {
+	return useSyncExternalStore(
+		subscribeEditing,
+		() => editingShapes.size > 0,
+		() => false,
 	);
 }
 
 /**
  * Text shapes (stickies and text blocks) edit like FigJam's: the whole shape
- * is a drag handle until it's selected. Then a click, a double-click, Enter,
- * or just typing starts editing. Escape or clicking away stops it.
+ * is a drag handle until it's selected. Then a click, a double-click or
+ * Enter starts editing, and Escape or clicking away stops it.
+ *
+ * Typing on a selected shape doesn't start editing. In a session people
+ * select each other's stickies all the time, and single keys are shortcuts
+ * (tools, Space to pan, Shift+1 to fit) that must never land in someone's
+ * note. A key that does nothing else shows "↵ to edit" on the shape instead.
  */
 export function useEditing({
 	selected,
@@ -24,8 +65,11 @@ export function useEditing({
 	selected: boolean;
 	/** Start in editing mode, for a shape this client just placed. */
 	startEditing: boolean;
-	/** A character typed while the shape was selected but not editing. */
-	onType: (char: string) => void;
+	/**
+	 * Characters typed before the text box could take focus (a shape just
+	 * placed takes a few frames to appear): they go at the end of its text.
+	 */
+	onType: (chars: string) => void;
 }) {
 	const readOnly = useContext(ReadOnlyContext);
 	const [editingState, setEditing] = useState(startEditing);
@@ -36,6 +80,13 @@ export function useEditing({
 	const history = useContext(HistoryContext);
 	const onTypeRef = useRef(onType);
 	onTypeRef.current = onType;
+	const [hint, setHint] = useState(false);
+	const [token] = useState(() => Symbol("editing"));
+
+	useEffect(() => {
+		setShapeEditing(token, editing);
+		return () => setShapeEditing(token, false);
+	}, [token, editing]);
 
 	// Distinguish "click a shape that was already selected" from "click to
 	// select it" and from the end of a drag.
@@ -59,44 +110,79 @@ export function useEditing({
 	}, [editing, history]);
 
 	// React Flow keeps a new node hidden until it has measured it, and hidden
-	// elements can't take focus, so keep trying for a few frames.
+	// elements can't take focus, so keep trying for a few frames. What's typed
+	// meanwhile is held for the text box rather than taken as shortcuts.
 	useEffect(() => {
 		if (!editing) return;
 		let frame = 0;
 		let tries = 0;
+		let typed = "";
+		const hold = (event: KeyboardEvent) => {
+			if (isOffBoardTarget(event.target)) return;
+			if (isCharacterKey(event)) typed += event.key;
+			else if (event.key === "Backspace") typed = typed.slice(0, -1);
+			else return;
+			event.preventDefault();
+			event.stopPropagation();
+		};
+		const release = () => window.removeEventListener("keydown", hold, true);
 		const focus = () => {
 			const el = field.current;
-			if (!el) return;
-			el.focus();
-			if (document.activeElement === el) {
+			el?.focus();
+			if (el && document.activeElement === el) {
+				release();
+				if (typed) onTypeRef.current(typed);
+				typed = "";
 				el.setSelectionRange(el.value.length, el.value.length);
 			} else if (tries++ < 20) {
 				frame = requestAnimationFrame(focus);
+			} else {
+				release();
 			}
 		};
+		window.addEventListener("keydown", hold, true);
 		focus();
-		return () => cancelAnimationFrame(frame);
+		return () => {
+			release();
+			cancelAnimationFrame(frame);
+		};
 	}, [editing]);
 
-	// Typing or Enter on a selected shape starts editing. This listens in the
-	// capture phase and stops the event, so the keystroke isn't also taken as
-	// a tool shortcut. With several shapes selected, keys are left alone.
+	// Enter on a selected shape starts editing. This listens in the capture
+	// phase and stops the event, so it isn't also taken as a shortcut. With
+	// several shapes selected, Enter is left alone.
 	useEffect(() => {
 		if (!selected || editing || readOnly) return;
-		const onKey = (event: KeyboardEvent) => {
-			if (isOffBoardTarget(event.target)) return;
-			if (event.key !== "Enter" && !isTypingKey(event)) return;
+		const alone = () => {
 			let count = 0;
 			for (const node of store.getState().nodes) if (node.selected) count++;
-			if (count !== 1) return;
-			event.preventDefault();
-			event.stopPropagation();
-			if (event.key !== "Enter") onTypeRef.current(event.key);
-			setEditing(true);
+			return count === 1;
+		};
+		const onKey = (event: KeyboardEvent) => {
+			if (isOffBoardTarget(event.target)) return;
+			if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+				if (!alone()) return;
+				event.preventDefault();
+				event.stopPropagation();
+				setHint(false);
+				setEditing(true);
+				return;
+			}
+			// A character no shortcut took: once that's clear, say how to edit.
+			if (!isCharacterKey(event) || event.key === " ") return;
+			setTimeout(() => {
+				if (!event.defaultPrevented && alone()) setHint(true);
+			});
 		};
 		window.addEventListener("keydown", onKey, true);
 		return () => window.removeEventListener("keydown", onKey, true);
 	}, [selected, editing, readOnly, store]);
+
+	useEffect(() => {
+		if (!hint) return;
+		const timer = setTimeout(() => setHint(false), HINT_MS);
+		return () => clearTimeout(timer);
+	}, [hint]);
 
 	const handlers = {
 		onPointerDown: (event: PointerEvent) => {
@@ -118,5 +204,5 @@ export function useEditing({
 		onDoubleClick: () => setEditing(true),
 	};
 
-	return { editing, setEditing, field, handlers };
+	return { editing, setEditing, field, handlers, hint: hint && selected && !editing };
 }

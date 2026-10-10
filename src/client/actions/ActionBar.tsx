@@ -31,6 +31,7 @@ import { isApplePlatform, shortcutHint } from "../shortcuts.ts";
 import { unionRect } from "../snapping.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import type { History } from "../undo.ts";
+import { useTextEditing } from "../useEditing.ts";
 import { CarryPanel, openActionItems } from "../actionItems/CarryPanel.tsx";
 import { ActionItemIcon, CarryIcon } from "../actionItems/icons.tsx";
 import { boardPath } from "../../shared/boards.ts";
@@ -143,6 +144,8 @@ export function ActionBar(props: ActionBarProps) {
 	const store = useStoreApi();
 	const bar = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState<ActionCommand | null>(null);
+	// Out of the way while a sticky's being written: it's for after.
+	const typing = useTextEditing();
 
 	const keys = useMemo(
 		() =>
@@ -556,7 +559,7 @@ export function ActionBar(props: ActionBarProps) {
 	return (
 		<NodeToolbar
 			nodeId={ids}
-			isVisible={!dragging}
+			isVisible={!dragging && !typing}
 			position={roomBelow ? Position.Bottom : Position.Top}
 			offset={roomBelow ? 14 : aboveOffset}
 			// Above every shape, including selected ones, even for sections,

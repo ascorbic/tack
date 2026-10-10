@@ -93,7 +93,7 @@ export const ActionItemNode = memo(function ActionItemNode({
 	const { editing, setEditing, field, handlers } = useEditing({
 		selected: !!selected,
 		startEditing,
-		onType: (char) => setText(latest.current + char),
+		onType: (chars) => setText(latest.current + chars),
 	});
 
 	const card = useCard(ref);

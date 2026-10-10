@@ -222,3 +222,62 @@ test("? opens a searchable shortcut sheet", async ({ page }) => {
 	await page.keyboard.press("Escape");
 	await expect(sheet).toHaveCount(0);
 });
+
+test("keys on a selected sticky are shortcuts, never its text: Enter edits it", async ({
+	page,
+}) => {
+	const node = sticky(page, "Docs before features");
+	const text = node.locator(".sticky-text");
+	const at = await centre(node);
+	await page.mouse.click(at.x, at.y);
+	await expect(node).toHaveClass(/selected/);
+
+	// Shift+1 fits the board rather than typing "!", and Space is left to pan.
+	const before = await viewportTransform(page);
+	await page.keyboard.press("Shift+Digit1");
+	await expect.poll(() => viewportTransform(page)).not.toBe(before);
+	await page.keyboard.press(" ");
+	await page.keyboard.press("-");
+	await expect(text).toHaveText("Docs before features");
+
+	// A key that isn't a shortcut says how to edit.
+	await page.keyboard.press("q");
+	await expect(node.locator(".edit-hint")).toBeVisible();
+	await expect(text).toHaveText("Docs before features");
+
+	const actions = page.getByRole("toolbar", { name: "Stage changes" });
+	await expect(actions).toBeVisible();
+	await page.keyboard.press("Enter");
+	const field = page.getByRole("textbox", { name: "Sticky note" });
+	await expect(field).toBeFocused();
+	// "Make issue" waits until you've finished writing.
+	await expect(actions).toHaveCount(0);
+	await page.keyboard.type(" first");
+	await page.keyboard.press("Escape");
+	await expect(text).toHaveText("Docs before features first");
+	await expect(actions).toBeVisible();
+
+	// Still selected after Escape: the next tool letter picks the tool.
+	await expect(node).toHaveClass(/selected/);
+	await page.keyboard.press("s");
+	await expect(page.getByRole("button", { name: "Sticky note" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(text).toHaveText("Docs before features first");
+});
+
+test("everything typed straight after placing a sticky lands in it", async ({ page }) => {
+	await page.keyboard.press("s");
+	const count = await page.locator(".react-flow__node-sticky").count();
+	// No waiting for the text box: the first keys arrive before it can take focus.
+	await page.mouse.click(860, 520);
+	await page.keyboard.type("Before 5.0", { delay: 0 });
+	await expect(page.locator(".react-flow__node-sticky")).toHaveCount(count + 1);
+	await expect(page.getByRole("textbox", { name: "Sticky note" })).toHaveValue("Before 5.0");
+	// None of it was taken as a tool shortcut (B is the comment tool).
+	await expect(page.getByRole("button", { name: "Comment", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"false",
+	);
+});

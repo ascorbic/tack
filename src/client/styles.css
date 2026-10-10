@@ -1786,6 +1786,46 @@ a.card-title:hover {
 	cursor: text;
 }
 
+/* "Press ↵ to edit": under a selected sticky or text block when a key that
+   isn't a shortcut is typed on it. Screen-sized at any zoom, like a tooltip. */
+.edit-hint {
+	position: absolute;
+	left: 50%;
+	top: 100%;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 9px;
+	border-radius: 8px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	box-shadow: var(--shadow-hover);
+	font: 560 12px/1 var(--font-ui);
+	white-space: nowrap;
+	pointer-events: none;
+	transform-origin: 50% 0;
+	transform: translate(-50%, calc(12px / var(--zoom, 1))) scale(calc(1 / var(--zoom, 1)));
+	animation: edit-hint-in var(--t-settle) var(--ease-spring) both;
+	z-index: 1;
+}
+
+.edit-hint kbd {
+	min-width: 18px;
+	height: 18px;
+	padding: 0 4px;
+	border-color: color-mix(in srgb, var(--on-tooltip) 35%, transparent);
+	background: transparent;
+	box-shadow: none;
+	color: inherit;
+}
+
+@keyframes edit-hint-in {
+	from {
+		opacity: 0;
+		translate: 0 -4px;
+	}
+}
+
 /* Who made it, like FigJam: small and quiet, but still readable. */
 .sticky-author {
 	display: flex;

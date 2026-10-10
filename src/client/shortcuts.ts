@@ -184,10 +184,10 @@ export const SHORTCUTS: Shortcut[] = [
 	},
 	{
 		id: "edit",
-		label: "Edit sticky",
+		label: "Edit sticky or text",
 		group: "Selection",
 		combos: [],
-		display: [["Enter"], ["Type"]],
+		display: [["Enter"], ["Double-click"]],
 		keywords: "text write",
 	},
 	{

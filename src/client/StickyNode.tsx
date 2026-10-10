@@ -18,6 +18,7 @@ import { facilitation, useSilentTexts } from "./facilitation/store.ts";
 import { scaledDuration } from "./motion.ts";
 import { initials } from "./People.tsx";
 import { STICKY_FONT_SIZES } from "./textFit.ts";
+import { EditHint } from "./EditHint.tsx";
 import { useEditing } from "./useEditing.ts";
 import { useFitText } from "./useFitText.ts";
 
@@ -178,33 +179,36 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 	const latest = useRef(value);
 	latest.current = value;
 	const flip = useRevealFlip(doc, session, data.shape);
-	const { editing, setEditing, field, handlers } = useEditing({
+	const { editing, setEditing, field, handlers, hint } = useEditing({
 		selected: !!selected && !faceDown,
 		startEditing: startEditing && !faceDown,
-		onType: (char) => doc && setStickyText(doc, data.id, latest.current + char),
+		onType: (chars) => doc && setStickyText(doc, data.id, latest.current + chars),
 	});
 
 	return (
-		<StickyView
-			faceDown={faceDown}
-			hidden={mine}
-			flip={flip}
-			text={faceDown ? "" : value}
-			color={data.shape.color ?? "yellow"}
-			font={data.shape.font}
-			author={data.shape.author}
-			tilt={tilt(data.id)}
-			selected={selected}
-			editing={editing}
-			enter={enter}
-			field={field}
-			onText={(text) => doc && setStickyText(doc, data.id, text)}
-			onStopEditing={() => {
-				if (mine) facilitation.flush(data.id);
-				setEditing(false);
-			}}
-			{...(faceDown ? {} : handlers)}
-		/>
+		<>
+			<StickyView
+				faceDown={faceDown}
+				hidden={mine}
+				flip={flip}
+				text={faceDown ? "" : value}
+				color={data.shape.color ?? "yellow"}
+				font={data.shape.font}
+				author={data.shape.author}
+				tilt={tilt(data.id)}
+				selected={selected}
+				editing={editing}
+				enter={enter}
+				field={field}
+				onText={(text) => doc && setStickyText(doc, data.id, text)}
+				onStopEditing={() => {
+					if (mine) facilitation.flush(data.id);
+					setEditing(false);
+				}}
+				{...(faceDown ? {} : handlers)}
+			/>
+			<EditHint show={hint} />
+		</>
 	);
 });
 

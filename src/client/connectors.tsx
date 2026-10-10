@@ -361,35 +361,22 @@ export function ConnectorLayer({
 		[doc, sizeOf, setSelected],
 	);
 
-	// Enter or typing labels a connector selected on its own. (Deleting and
-	// deselecting are board commands, in commands.ts.)
+	// Enter labels a connector selected on its own. Typing doesn't: single
+	// keys are shortcuts (tools, Space to pan, Shift+1 to fit) and must never
+	// land in a label. (Deleting and deselecting are board commands, in commands.ts.)
 	const alone = selected.size === 1 && selectedConnectors.length === 1;
 	useEffect(() => {
 		if (!alone || editing || readOnly) return;
 		const onKey = (event: KeyboardEvent) => {
 			if (isOffBoardTarget(event.target)) return;
-			{
-				const id = selectedConnectors[0] as string;
-				// Space is left alone: it pans the board.
-				const typing =
-					event.key.length === 1 &&
-					event.key !== " " &&
-					!event.metaKey &&
-					!event.ctrlKey &&
-					!event.altKey;
-				if (event.key !== "Enter" && !typing) return;
-				event.preventDefault();
-				event.stopPropagation();
-				if (typing) {
-					const label = entries.find((entry) => entry.id === id)?.connector.label ?? "";
-					updateShapes(doc, [id], { label: label + event.key });
-				}
-				setEditing(id);
-			}
+			if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.altKey) return;
+			event.preventDefault();
+			event.stopPropagation();
+			setEditing(selectedConnectors[0] as string);
 		};
 		window.addEventListener("keydown", onKey, true);
 		return () => window.removeEventListener("keydown", onKey, true);
-	}, [alone, selectedConnectors, editing, readOnly, doc, entries]);
+	}, [alone, selectedConnectors, editing, readOnly]);
 
 	// Ends being moved right now, by us or anyone else.
 	const moving = useMemo(() => {

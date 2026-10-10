@@ -12,6 +12,7 @@ import {
 import type { ShapeFont, TextSize } from "../shared/shapes.ts";
 import { deleteShapes, isFresh, type ShapeNode, setStickyText, takeFocus } from "./board.ts";
 import { DocContext } from "./DocContext.ts";
+import { EditHint } from "./EditHint.tsx";
 import { useEditing } from "./useEditing.ts";
 
 const PLACEHOLDER = "Type something";
@@ -93,10 +94,10 @@ export const TextNode = memo(function TextNode({ data, selected }: NodeProps<Sha
 	const value = data.shape.text ?? "";
 	const latest = useRef(value);
 	latest.current = value;
-	const { editing, setEditing, field, handlers } = useEditing({
+	const { editing, setEditing, field, handlers, hint } = useEditing({
 		selected: !!selected,
 		startEditing,
-		onType: (char) => doc && setStickyText(doc, data.id, latest.current + char),
+		onType: (chars) => doc && setStickyText(doc, data.id, latest.current + chars),
 	});
 
 	// Text left empty when editing ends is removed, as in FigJam: clicking
@@ -111,17 +112,20 @@ export const TextNode = memo(function TextNode({ data, selected }: NodeProps<Sha
 	}, [editing, doc, data.id]);
 
 	return (
-		<TextView
-			text={value}
-			size={data.shape.size}
-			font={data.shape.font}
-			selected={selected}
-			editing={editing}
-			enter={enter}
-			field={field}
-			onText={(text) => doc && setStickyText(doc, data.id, text)}
-			onStopEditing={() => setEditing(false)}
-			{...handlers}
-		/>
+		<>
+			<TextView
+				text={value}
+				size={data.shape.size}
+				font={data.shape.font}
+				selected={selected}
+				editing={editing}
+				enter={enter}
+				field={field}
+				onText={(text) => doc && setStickyText(doc, data.id, text)}
+				onStopEditing={() => setEditing(false)}
+				{...handlers}
+			/>
+			<EditHint show={hint} />
+		</>
 	);
 });
