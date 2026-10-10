@@ -1,0 +1,320 @@
+---
+// The landing page's first screen: what Tack is, two ways in, and a board.
+// Replaces Starlight's Hero, which is only used on the home page.
+import { LinkButton } from "@astrojs/starlight/components";
+import BrandMark from "./BrandMark.astro";
+import Screenshot from "./Screenshot.astro";
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { title = data.title, tagline, actions = [] } = data.hero ?? {};
+---
+
+<div class="tk-hero">
+	<div class="tk-hero-copy">
+		<p class="tk-kicker">
+			<span class="tk-kicker-dot" aria-hidden="true"></span>
+			Open source · Self-hosted on Cloudflare · MIT
+		</p>
+		<h1 id="_top" data-page-title set:html={title} />
+		{tagline && <p class="tk-tagline" set:html={tagline} />}
+		{
+			actions.length > 0 && (
+				<div class="tk-actions">
+					{actions.map(({ link, text, variant, icon }) => (
+						<LinkButton href={link} variant={variant} icon={icon?.name}>
+							{text}
+						</LinkButton>
+					))}
+				</div>
+			)
+		}
+	</div>
+
+	<div class="tk-hero-board">
+		<Screenshot
+			name="planning"
+			eager
+			alt="A Tack board: live issue and pull request cards with labels, CI and reviews, beside stickies from a planning session."
+			class="tk-hero-shot"
+		/>
+		<div class="tk-sticky tk-sticky-hero tk-brand" aria-hidden="true">
+			<span class="tk-sticky-pin"><BrandMark size={30} /></span>
+			Nothing changes on GitHub until you push.
+		</div>
+		<div class="tk-sticky tk-sticky-small tk-sticky-pink" aria-hidden="true">
+			Tack (Swedish): <em>thanks</em>
+		</div>
+	</div>
+</div>
+
+<style>
+	.tk-hero {
+		display: grid;
+		gap: clamp(2rem, 5vw, 3.5rem);
+		padding-block: clamp(1.5rem, 5vw, 4rem) 1rem;
+	}
+
+	.tk-hero-copy {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1.25rem;
+		text-align: center;
+	}
+
+	.tk-kicker {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0;
+		padding: 0.35rem 0.8rem;
+		border-radius: 999px;
+		border: 1px solid var(--tk-line-strong);
+		background: var(--tk-surface);
+		box-shadow: var(--tk-shadow-rest);
+		color: var(--tk-ink-soft);
+		font-size: var(--sl-text-xs);
+		font-weight: 550;
+	}
+
+	.tk-kicker-dot {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background: var(--tk-open);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--tk-open) 25%, transparent);
+		animation: tk-live 2.4s var(--tk-ease-out) infinite;
+	}
+
+	@keyframes tk-live {
+		0%,
+		60%,
+		100% {
+			box-shadow: 0 0 0 3px color-mix(in srgb, var(--tk-open) 25%, transparent);
+		}
+		30% {
+			box-shadow: 0 0 0 6px color-mix(in srgb, var(--tk-open) 0%, transparent);
+		}
+	}
+
+	h1 {
+		margin: 0;
+		max-width: 16ch;
+		font-family: var(--tk-font-display);
+		font-size: clamp(2.4rem, 1rem + 5.5vw, 4.6rem);
+		font-weight: 760;
+		line-height: 1.02;
+		letter-spacing: -0.045em;
+		color: var(--sl-color-white);
+		text-wrap: balance;
+	}
+
+	h1 :global(em) {
+		font-style: normal;
+		background: linear-gradient(
+			transparent 62%,
+			var(--tk-highlight) 62% 92%,
+			transparent 92%
+		);
+		padding-inline: 0.05em;
+	}
+
+	.tk-tagline {
+		margin: 0;
+		max-width: 38rem;
+		color: var(--tk-ink-soft);
+		font-size: clamp(1.05rem, 0.9rem + 0.6vw, 1.3rem);
+		line-height: 1.55;
+		text-wrap: pretty;
+	}
+
+	.tk-actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.75rem 1.25rem;
+		margin-top: 0.25rem;
+	}
+
+	/* The board, tilted a hair, with stickies pinned over its corners. */
+	.tk-hero-board {
+		position: relative;
+		margin-inline: auto;
+		width: 100%;
+		max-width: 64rem;
+	}
+
+	.tk-hero-board :global(.tk-hero-shot) {
+		margin: 0;
+	}
+
+	.tk-hero-board :global(.tk-shot) {
+		border-radius: 16px;
+		box-shadow:
+			var(--tk-shadow-lifted),
+			0 50px 90px -40px rgb(59 76 202 / 35%);
+		animation: tk-land var(--tk-t-settle) var(--tk-ease-spring) both;
+	}
+
+	@keyframes tk-land {
+		from {
+			transform: translateY(18px) scale(0.985);
+			opacity: 0;
+		}
+	}
+
+	.tk-sticky {
+		position: absolute;
+		padding: 1.1rem 1.1rem 1.2rem;
+		border-radius: 3px 3px 3px 14px;
+		background: var(--tk-sticky-yellow);
+		box-shadow: var(--tk-sticky-shadow);
+		color: var(--tk-sticky-ink);
+		font-family: var(--tk-font-display);
+		font-weight: 650;
+		line-height: 1.2;
+		letter-spacing: -0.01em;
+		transition: transform var(--tk-t-settle) var(--tk-ease-spring);
+	}
+
+	.tk-sticky-hero {
+		width: 12.5rem;
+		right: -1.5rem;
+		bottom: -2.25rem;
+		font-size: 1.15rem;
+		transform: rotate(3deg);
+		animation: tk-stick calc(var(--tk-t-settle) * 1.4) var(--tk-ease-spring) 0.25s backwards;
+	}
+
+	.tk-sticky-hero:hover {
+		transform: rotate(-1deg) translateY(-3px);
+	}
+
+	.tk-sticky-pin {
+		position: absolute;
+		top: -0.95rem;
+		left: 50%;
+		translate: -50% 0;
+	}
+
+	/* Only the pin of the mark: the sticky is the note. */
+	.tk-sticky-pin :global(.tk-mark-note) {
+		display: none;
+	}
+
+	.tk-sticky-small {
+		top: 5.5rem;
+		left: -1.75rem;
+		width: 8.5rem;
+		padding: 0.8rem 0.9rem;
+		font-family: var(--tk-font-ui);
+		font-size: 0.85rem;
+		font-weight: 550;
+		transform: rotate(-4deg);
+		animation: tk-stick-left calc(var(--tk-t-settle) * 1.4) var(--tk-ease-spring) 0.4s backwards;
+	}
+
+	.tk-sticky-pink {
+		background: var(--tk-sticky-pink);
+	}
+
+	@keyframes tk-stick {
+		from {
+			transform: rotate(10deg) translate(12px, -28px) scale(1.08);
+			opacity: 0;
+		}
+	}
+
+	@keyframes tk-stick-left {
+		from {
+			transform: rotate(-12deg) translate(-12px, -24px) scale(1.08);
+			opacity: 0;
+		}
+	}
+
+	/* Wide screens: the copy beside the board, which runs off the right
+	   edge of the page like a canvas that keeps going. */
+	@media (min-width: 64rem) {
+		:global(html[data-has-hero]),
+		:global(html[data-has-hero] body) {
+			overflow-x: clip;
+		}
+
+		.tk-hero {
+			grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
+			align-items: center;
+			gap: 3.5rem;
+			padding-block: clamp(2rem, 6vh, 4.5rem) clamp(2rem, 6vh, 4rem);
+		}
+
+		.tk-hero-copy {
+			align-items: flex-start;
+			text-align: start;
+		}
+
+		h1 {
+			font-size: clamp(2.9rem, 1rem + 2.6vw, 3.4rem);
+			max-width: none;
+		}
+
+		.tk-tagline {
+			font-size: 1.15rem;
+		}
+
+		.tk-actions {
+			justify-content: flex-start;
+		}
+
+		.tk-hero-board {
+			width: 138%;
+			max-width: none;
+			margin-inline: 0;
+		}
+
+		.tk-hero-board :global(.tk-shot) {
+			transform: perspective(2400px) rotateY(-4deg) rotateX(1.5deg);
+			transform-origin: left center;
+			animation-name: tk-land-wide;
+		}
+
+		.tk-sticky-hero {
+			right: auto;
+			left: -2.75rem;
+			bottom: -2rem;
+		}
+
+		.tk-sticky-small {
+			left: auto;
+			top: -1.4rem;
+			right: 30%;
+		}
+	}
+
+	@keyframes tk-land-wide {
+		from {
+			transform: perspective(2400px) rotateY(-10deg) rotateX(3deg) translateX(40px);
+			opacity: 0;
+		}
+	}
+
+	@media (max-width: 50rem) {
+		.tk-sticky-small {
+			display: none;
+		}
+
+		.tk-sticky-hero {
+			position: relative;
+			right: auto;
+			bottom: auto;
+			margin: 1.75rem auto 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tk-kicker-dot,
+		.tk-sticky,
+		.tk-hero-board :global(.tk-shot) {
+			animation: none;
+		}
+	}
+</style>

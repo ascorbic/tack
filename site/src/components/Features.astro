@@ -1,0 +1,147 @@
+---
+// The landing page's three reasons, each beside the board that shows it.
+import Screenshot from "./Screenshot.astro";
+
+const FEATURES = [
+	{
+		kicker: "Write back",
+		title: "Stage it, review it, push it",
+		body: "Turn stickies into issues, a section into a parent issue with sub-issues, a connector into blocked-by, a decision into an ADR pull request. Everything waits in one list until someone reviews it and pushes, as themselves or as the bot.",
+		link: { href: "/writing-back/overview/", text: "How writing back works" },
+		shot: "push",
+		alt: "The push sheet: new issues with their bodies and labels, a pull request, how many watchers will be notified, and a choice of pushing as yourself or as Tack's bot.",
+		sticky: "yellow",
+	},
+	{
+		kicker: "Widgets and automation",
+		title: "Boards that keep themselves current",
+		body: "Live lists, a timeline, a release draft, a dependency map with its critical path, a review queue, milestone progress and a stale finder. Inbox sections collect new matches for a search, and rules place pull requests beside the issues they fix.",
+		link: { href: "/widgets/overview/", text: "The widgets" },
+		shot: "roadmap",
+		alt: "A timeline of issues opened over a month, a release draft sorted into features, fixes and docs, and a dependency map flagging a cycle and the critical path.",
+		sticky: "blue",
+	},
+	{
+		kicker: "Facilitation",
+		title: "Live, or across time zones",
+		body: "A shared timer, spotlight, stamps, emotes and high-fives for a live session. Silent mode, dot votes that stay open for days, threaded comments and “since you were here” for everyone who wasn't.",
+		link: { href: "/facilitation/running-a-session/", text: "Running a session" },
+		shot: "retro",
+		alt: "A retro board with sections for what went well, what to improve and ideas, with stickies, stamps and cards.",
+		sticky: "green",
+	},
+];
+---
+
+<div class="tk-features">
+	{
+		FEATURES.map((feature, index) => (
+			<section class="tk-feature" data-flip={index % 2 === 1 ? "" : undefined}>
+				<div class="tk-feature-copy">
+					<p class="tk-feature-kicker" data-sticky={feature.sticky}>
+						{feature.kicker}
+					</p>
+					<h2>{feature.title}</h2>
+					<p>{feature.body}</p>
+					<a class="tk-feature-link" href={feature.link.href}>
+						{feature.link.text}
+						<span aria-hidden="true">→</span>
+					</a>
+				</div>
+				<Screenshot name={feature.shot} alt={feature.alt} class="tk-feature-shot" />
+			</section>
+		))
+	}
+</div>
+
+<style>
+	.tk-features {
+		display: grid;
+		gap: clamp(3rem, 8vw, 6rem);
+		margin-block: clamp(4rem, 10vw, 7rem) 2rem;
+	}
+
+	.tk-feature {
+		display: grid;
+		gap: 1.5rem;
+		align-items: center;
+	}
+
+	@media (min-width: 56rem) {
+		.tk-feature {
+			grid-template-columns: 5fr 7fr;
+			gap: 3.5rem;
+		}
+
+		.tk-feature[data-flip] {
+			grid-template-columns: 7fr 5fr;
+		}
+
+		.tk-feature[data-flip] .tk-feature-copy {
+			order: 2;
+		}
+	}
+
+	.tk-feature-copy {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.75rem;
+	}
+
+	.tk-feature-copy > * {
+		margin: 0;
+	}
+
+	.tk-feature-kicker {
+		padding: 0.25rem 0.6rem;
+		border-radius: 3px 3px 3px 9px;
+		background: var(--tk-sticky-yellow);
+		box-shadow: var(--tk-sticky-shadow);
+		color: var(--tk-sticky-ink);
+		font-size: var(--sl-text-xs);
+		font-weight: 650;
+		transform: rotate(-2deg);
+	}
+
+	.tk-feature-kicker[data-sticky="blue"] {
+		background: var(--tk-sticky-blue);
+		transform: rotate(1.5deg);
+	}
+
+	.tk-feature-kicker[data-sticky="green"] {
+		background: var(--tk-sticky-green);
+	}
+
+	.tk-feature h2 {
+		font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.3rem);
+		line-height: 1.1;
+		color: var(--sl-color-white);
+		text-wrap: balance;
+	}
+
+	.tk-feature-copy p:not(.tk-feature-kicker) {
+		color: var(--tk-ink-soft);
+		font-size: var(--sl-text-lg);
+		line-height: 1.6;
+	}
+
+	.tk-feature-link {
+		font-weight: 600;
+		text-decoration: none;
+		color: var(--sl-color-text-accent);
+	}
+
+	.tk-feature-link span {
+		display: inline-block;
+		transition: transform var(--tk-t-base) var(--tk-ease-spring);
+	}
+
+	.tk-feature-link:hover span {
+		transform: translateX(4px);
+	}
+
+	.tk-feature :global(.tk-feature-shot) {
+		margin: 0;
+	}
+</style>

@@ -1,0 +1,48 @@
+---
+title: Tack
+description: A self-hosted, GitHub-native whiteboard for open source planning. Cards are live issues and pull requests; nothing changes on GitHub until you push.
+template: splash
+editUrl: false
+lastUpdated: false
+hero:
+  title: Plan on a board.<br /> <em>Push</em> to GitHub.
+  tagline: Tack is a freeform whiteboard where the cards are live GitHub issues and pull requests. Sketch, sort and decide together, then push what you decided to GitHub as one reviewed batch.
+  actions:
+    - text: Take the tour
+      link: /start/tour/
+      icon: right-arrow
+      variant: primary
+    - text: Run your own
+      link: /self-hosting/deploy/
+      variant: minimal
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+import Features from "../../components/Features.astro";
+
+<Features />
+
+## Find your way around
+
+<CardGrid>
+	<LinkCard
+		title="What Tack is"
+		description="Boards, live cards, staged pushes, and the few rules Tack never breaks."
+		href="/start/introduction/"
+	/>
+	<LinkCard
+		title="Deploy it"
+		description="One Worker on your Cloudflare account and a GitHub App you own."
+		href="/self-hosting/deploy/"
+	/>
+	<LinkCard
+		title="Widgets reference"
+		description="Every widget, each setting, and whose permissions its searches use."
+		href="/widgets/overview/"
+	/>
+	<LinkCard
+		title="Keyboard shortcuts"
+		description="Every key, for macOS, Windows and Linux."
+		href="/boards/shortcuts/"
+	/>
+</CardGrid>
