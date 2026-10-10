@@ -1,0 +1,238 @@
+---
+// A widget kind's picker text, size, refresh schedule and every setting,
+// read from the app's widget registry (src/shared/widgetRegistry.ts) when the
+// site builds, so the reference can't drift from the schemas.
+//
+// The schemas don't carry the labels the config panels show, so pages pass
+// them in, one per field. A field the registry has and the page doesn't
+// label (or the other way round) fails the build.
+import { WIDGETS } from "../../../src/shared/widgetRegistry.ts";
+
+interface Props {
+	kind: string;
+	/** What the config panel calls each field, or null for fields without a control. */
+	labels: Record<string, string | null>;
+	/** Words for fields the schema alone can't describe well (unions, arrays). */
+	accepts?: Record<string, string>;
+}
+
+const { kind, labels, accepts = {} } = Astro.props;
+const definition = WIDGETS[kind];
+if (!definition) throw new Error(`There's no widget kind called “${kind}”`);
+
+interface Action {
+	type: string;
+	requirement?: unknown;
+}
+interface FieldSchema {
+	type: string;
+	options?: string[];
+	pipe?: Action[];
+}
+
+const entries = (definition.schema as unknown as { entries: Record<string, FieldSchema> }).entries;
+const defaults = definition.defaults as Record<string, unknown>;
+
+const missing = Object.keys(entries).filter((key) => !(key in labels));
+const extra = Object.keys(labels).filter((key) => !(key in entries));
+if (missing.length > 0 || extra.length > 0) {
+	throw new Error(
+		`The ${kind} widget's reference is out of date: ${[
+			missing.length > 0 && `undocumented ${missing.join(", ")}`,
+			extra.length > 0 && `no longer in the schema: ${extra.join(", ")}`,
+		]
+			.filter(Boolean)
+			.join("; ")}`,
+	);
+}
+
+function requirement(field: FieldSchema, type: string): number | undefined {
+	const action = field.pipe?.find((each) => each.type === type);
+	return typeof action?.requirement === "number" ? action.requirement : undefined;
+}
+
+function describe(key: string, field: FieldSchema): string {
+	if (accepts[key]) return accepts[key];
+	switch (field.type) {
+		case "picklist":
+			return `One of ${(field.options ?? []).map((option) => `\`${option}\``).join(", ")}`;
+		case "boolean":
+			return "On or off";
+		case "number": {
+			const min = requirement(field, "min_value");
+			const max = requirement(field, "max_value");
+			const whole = field.pipe?.some((each) => each.type === "integer");
+			return `${whole ? "A whole number" : "A number"}${
+				min !== undefined && max !== undefined ? ` from ${min} to ${max}` : ""
+			}`;
+		}
+		case "string": {
+			const max = requirement(field, "max_length");
+			const min = requirement(field, "min_length");
+			return `Text${min ? `, at least ${min} character${min === 1 ? "" : "s"}` : ""}${
+				max ? `${min ? " and" : ","} at most ${max}` : ""
+			}`;
+		}
+		default:
+			throw new Error(`Describe the ${kind} widget's ${key} field (a ${field.type}) in \`accepts\``);
+	}
+}
+
+function showDefault(value: unknown): string {
+	if (value === "") return "empty";
+	if (typeof value === "boolean") return value ? "on" : "off";
+	if (Array.isArray(value)) {
+		return value.every((each) => typeof each === "string")
+			? value.map((each) => `\`${each}\``).join(", ")
+			: `${value.length} items (below)`;
+	}
+	return `\`${String(value)}\``;
+}
+
+/** Inline code in backticks, as <code>, with everything else escaped. */
+function inline(text: string): string {
+	const escape = (part: string) =>
+		part.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+	return text
+		.split("`")
+		.map((part, index) => (index % 2 === 1 ? `<code>${escape(part)}</code>` : escape(part)))
+		.join("");
+}
+
+const rows = Object.entries(entries).map(([key, field]) => ({
+	key,
+	label: labels[key],
+	accepts: inline(describe(key, field)),
+	default: inline(showDefault(defaults[key])),
+}));
+
+function every(seconds: number): string {
+	if (seconds % 60 !== 0) return `${seconds} seconds`;
+	const minutes = seconds / 60;
+	return minutes === 1 ? "minute" : `${minutes} minutes`;
+}
+---
+
+<dl class="tk-widget-facts">
+	<div>
+		<dt>In the picker</dt>
+		<dd><strong>{definition.title}</strong>: {definition.description}</dd>
+	</div>
+	<div>
+		<dt>New size</dt>
+		<dd>{definition.size.w} × {definition.size.h}</dd>
+	</div>
+	{
+		definition.refresh && (
+			<div>
+				<dt>Refreshes</dt>
+				<dd>
+					At least every {every(definition.refresh)} while someone's looking
+					{definition.readsBoard ? ", and when cards move between sections" : ""}
+				</dd>
+			</div>
+		)
+	}
+</dl>
+
+<table class="tk-widget-config">
+	<thead>
+		<tr>
+			<th>Setting</th>
+			<th>Stored as</th>
+			<th>Accepts</th>
+			<th>Default</th>
+		</tr>
+	</thead>
+	<tbody>
+		{
+			rows.map((row) => (
+				<tr>
+					<td>{row.label ?? <em>No control: stays at its default</em>}</td>
+					<td data-label="Stored as">
+						<code>{row.key}</code>
+					</td>
+					<td data-label="Accepts" set:html={row.accepts} />
+					<td data-label="Default" set:html={row.default} />
+				</tr>
+			))
+		}
+	</tbody>
+</table>
+
+<style>
+	.tk-widget-facts {
+		display: grid;
+		gap: 0.35rem;
+		margin: 1rem 0 1.25rem;
+		padding: 0.9rem 1.1rem;
+		border-radius: 12px;
+		border: 1px solid var(--tk-line-strong);
+		background: var(--tk-surface);
+		font-size: var(--sl-text-sm);
+	}
+
+	.tk-widget-facts div {
+		display: grid;
+		grid-template-columns: 8rem 1fr;
+		gap: 1rem;
+	}
+
+	.tk-widget-facts dt {
+		color: var(--tk-muted);
+		font-weight: 600;
+	}
+
+	.tk-widget-facts dd {
+		margin: 0;
+	}
+
+	@media (max-width: 40rem) {
+		.tk-widget-facts div {
+			grid-template-columns: 1fr;
+			gap: 0;
+		}
+	}
+
+	.tk-widget-config {
+		display: table;
+		width: 100%;
+	}
+
+	.tk-widget-config th {
+		white-space: nowrap;
+	}
+
+	/* Narrow screens: each setting as a little card of its own. */
+	@media (max-width: 40rem) {
+		.tk-widget-config thead {
+			display: none;
+		}
+
+		.tk-widget-config tr {
+			display: grid;
+			gap: 0.2rem;
+			padding: 0.75rem 0;
+			border-bottom: 1px solid var(--tk-line-strong);
+		}
+
+		.tk-widget-config td {
+			border: 0;
+			padding: 0;
+		}
+
+		.tk-widget-config td[data-label]::before {
+			content: attr(data-label) ": ";
+			color: var(--tk-muted);
+		}
+	}
+
+	.tk-widget-config td:first-child {
+		font-weight: 550;
+	}
+
+	.tk-widget-config em {
+		color: var(--tk-muted);
+		font-weight: 400;
+	}
+</style>

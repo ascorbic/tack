@@ -1,0 +1,90 @@
+---
+// One group of keyboard shortcuts, from the same list the app's key handling
+// and its ? sheet use (src/client/shortcuts.ts), read when the site builds.
+// Tool keys come from TOOL_KEYS in the toolbar, read as text so the docs
+// don't need React to build.
+import {
+	GROUPS,
+	type Shortcut,
+	type ShortcutGroup,
+	SHORTCUTS,
+	sheetShortcuts,
+	shortcutKeys,
+	toolShortcuts,
+} from "../../../src/client/shortcuts.ts";
+import toolbar from "../../../src/client/Toolbar.tsx?raw";
+
+interface Props {
+	group: ShortcutGroup;
+}
+
+const { group } = Astro.props;
+if (!GROUPS.includes(group)) throw new Error(`There's no shortcut group called “${group}”`);
+
+const block = toolbar.match(/export const TOOL_KEYS[^{]*\{([^}]*)\}/)?.[1];
+if (!block) throw new Error("Couldn't find TOOL_KEYS in src/client/Toolbar.tsx");
+const toolKeys = Object.fromEntries(
+	[...block.matchAll(/(\w+):\s*"(\w+)"/g)].map(([, key, tool]) => [key, tool]),
+);
+if (Object.keys(toolKeys).length === 0) throw new Error("TOOL_KEYS looks empty");
+
+const all: Shortcut[] = [...toolShortcuts(toolKeys), ...SHORTCUTS];
+const shortcuts = sheetShortcuts(all, "", true).find((each) => each.group === group)?.shortcuts;
+if (!shortcuts) throw new Error(`The ${group} group has no shortcuts`);
+---
+
+<table class="tk-shortcuts">
+	<thead>
+		<tr>
+			<th>Action</th>
+			<th>macOS</th>
+			<th>Windows and Linux</th>
+		</tr>
+	</thead>
+	<tbody>
+		{
+			shortcuts.map((shortcut) => (
+				<tr>
+					<td>{shortcut.label}</td>
+					{[true, false].map((apple) => (
+						<td>
+							{shortcutKeys(shortcut, apple).map((keys, index) => (
+								<>
+									{index > 0 && <span class="tk-or">or</span>}
+									<span class="tk-combo">
+										{keys.map((key) => (
+											<kbd>{key}</kbd>
+										))}
+									</span>
+								</>
+							))}
+						</td>
+					))}
+				</tr>
+			))
+		}
+	</tbody>
+</table>
+
+<style>
+	.tk-shortcuts {
+		display: table;
+		width: 100%;
+	}
+
+	.tk-shortcuts td:first-child {
+		width: 44%;
+	}
+
+	.tk-combo {
+		display: inline-flex;
+		gap: 0.2rem;
+		white-space: nowrap;
+	}
+
+	.tk-or {
+		margin-inline: 0.4rem;
+		color: var(--tk-muted);
+		font-size: var(--sl-text-xs);
+	}
+</style>
