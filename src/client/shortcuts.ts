@@ -456,7 +456,7 @@ export const SHORTCUTS: Shortcut[] = [
 	{
 		id: "pickStamp",
 		label: "Pick a stamp",
-		group: "Tools",
+		group: "People",
 		combos: [],
 		display: [["M", "1–8"]],
 		keywords: "stamp emoji react",

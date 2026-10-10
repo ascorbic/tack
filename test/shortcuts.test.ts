@@ -161,6 +161,10 @@ describe("the sheet", () => {
 			"Cursor chat",
 			"Follow someone",
 			"Stop following",
+			"Pick a stamp",
+			"Facilitate menu: what's running, votes, silent mode",
+			"Timer",
+			"Spotlight me, or stop",
 			"Emotes and high-fives",
 		]);
 		expect(
