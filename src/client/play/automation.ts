@@ -10,7 +10,15 @@ import {
 import type { ItemMention } from "../../shared/mentions.ts";
 import { matchesQuery, queryRepos } from "../../shared/search.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
-import { RULE_ORIGIN, memoryOfRules, refreshMatches, runRules } from "../../shared/rules.ts";
+import {
+	type RepoActivity,
+	RULE_ORIGIN,
+	memoryOfRules,
+	readRulesPause,
+	refreshMatches,
+	rulesPauseMap,
+	runRules,
+} from "../../shared/rules.ts";
 import { cardRefs, shapesMap } from "../../shared/shapes.ts";
 import type {
 	SearchQuery,
@@ -57,6 +65,8 @@ export class SimulatedAutomation {
 	private memory = memoryOfRules();
 	private queries = new Map<string, string>();
 	private timers = new Set<ReturnType<typeof setTimeout>>();
+	/** Deliveries held while rules are paused, as the server holds them. */
+	private heldActivity: RepoActivity[] = [];
 	/** How long searches take, in ms, so loading states show. */
 	latency = 380;
 
@@ -93,8 +103,15 @@ export class SimulatedAutomation {
 			this.queries = next;
 		};
 		shapes.observeDeep(observer);
+		// Resumed: place what was held, as the server does.
+		const pause = rulesPauseMap(this.doc);
+		const onPause = () => {
+			if (!readRulesPause(this.doc)) this.release();
+		};
+		pause.observe(onPause);
 		return () => {
 			shapes.unobserveDeep(observer);
+			pause.unobserve(onPause);
 			for (const timer of this.timers) clearTimeout(timer);
 			this.timers.clear();
 		};
@@ -215,21 +232,39 @@ export class SimulatedAutomation {
 		cardStore.set(card);
 		// As the server does: marks for cards that stop (or start) matching first.
 		refreshMatches(this.doc, { cards: [card] }, RULE_ORIGIN);
-		const entries = runRules(
-			this.doc,
-			{
-				delivery: crypto.randomUUID(),
-				event,
-				action,
-				repo: repoKeyOf(card.key),
-				cards: [card],
-				mentions: mentions.length > 0 ? { [card.key]: mentions } : {},
-			},
-			this.memory,
-			{ origin: RULE_ORIGIN },
-		);
+		const activity: RepoActivity = {
+			delivery: crypto.randomUUID(),
+			event,
+			action,
+			repo: repoKeyOf(card.key),
+			cards: [card],
+			mentions: mentions.length > 0 ? { [card.key]: mentions } : {},
+		};
 		for (const id of this.watched) this.respondLater(id, this.latency * 1.4);
+		if (readRulesPause(this.doc)) {
+			this.heldActivity.push(activity);
+			this.doc.transact(
+				() => rulesPauseMap(this.doc).set("held", this.heldActivity.length),
+				RULE_ORIGIN,
+			);
+			return 0;
+		}
+		return this.run(activity);
+	}
+
+	private run(activity: RepoActivity): number {
+		const entries = runRules(this.doc, activity, this.memory, { origin: RULE_ORIGIN });
 		return entries.filter((entry) => entry.outcome === "placed").length;
+	}
+
+	private release(): void {
+		const held = this.heldActivity.splice(0);
+		if (held.length === 0) return;
+		// After the transaction that resumed them, as the server's microtask.
+		queueMicrotask(() => {
+			for (const activity of held) this.run(activity);
+			this.doc.transact(() => rulesPauseMap(this.doc).delete("held"), RULE_ORIGIN);
+		});
 	}
 
 	/** A new issue, unlabelled unless asked, in the forge's main repository. */

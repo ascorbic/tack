@@ -8,14 +8,19 @@ import {
 	type RuleAuthor,
 	type RuleLogEntry,
 	type RuleTrigger,
+	type RulesPause,
 	addRule,
 	deleteRule,
 	describeRule,
 	listRules,
+	pauseRules,
 	readRuleLog,
+	readRulesPause,
+	resumeRules,
 	ruleLog,
 	ruleProblem,
 	rulesMap,
+	rulesPauseMap,
 	setRuleEnabled,
 	shortRef,
 } from "../../shared/rules.ts";
@@ -26,6 +31,7 @@ import {
 	BoltIcon,
 	CloseIcon,
 	IntoSectionIcon,
+	PauseIcon,
 	PlusIcon,
 	TrashIcon,
 } from "../inbox/icons.tsx";
@@ -41,6 +47,8 @@ import "./rules.css";
 interface RulesState {
 	rules: Rule[];
 	log: RuleLogEntry[];
+	/** Paused for the session, by whom, and what's waiting; null when running. */
+	pause: RulesPause | null;
 }
 
 const stores = new WeakMap<Y.Doc, { get(): RulesState; subscribe(l: () => void): () => void }>();
@@ -48,14 +56,20 @@ const stores = new WeakMap<Y.Doc, { get(): RulesState; subscribe(l: () => void):
 function rulesStore(doc: Y.Doc) {
 	let store = stores.get(doc);
 	if (store) return store;
-	let state: RulesState = { rules: listRules(doc), log: readRuleLog(doc) };
+	const read = (): RulesState => ({
+		rules: listRules(doc),
+		log: readRuleLog(doc),
+		pause: readRulesPause(doc),
+	});
+	let state = read();
 	const listeners = new Set<() => void>();
 	const update = () => {
-		state = { rules: listRules(doc), log: readRuleLog(doc) };
+		state = read();
 		for (const listener of listeners) listener();
 	};
 	rulesMap(doc).observeDeep(update);
 	ruleLog(doc).observe(update);
+	rulesPauseMap(doc).observe(update);
 	store = {
 		get: () => state,
 		subscribe: (listener) => {
@@ -121,8 +135,9 @@ export function RulesButton({
 	toasts: ToastStore;
 	onReveal: (shape: string) => void;
 }) {
-	const { rules, log } = useRules(doc);
+	const { rules, log, pause } = useRules(doc);
 	const active = rules.filter((rule) => rule.enabled).length;
+	const paused = pause !== null && active > 0;
 	// A zap for every new log entry, and a toast for cards placed while you watch.
 	const seen = useRef(log.length > 0 ? log.at(-1)?.id : null);
 	const [zaps, setZaps] = useState(0);
@@ -154,16 +169,32 @@ export function RulesButton({
 			type="button"
 			className="rules-button"
 			aria-pressed={open}
-			aria-label={`Rules: ${active} on`}
-			title="Rules: automation that places cards"
+			aria-label={
+				paused
+					? `Rules: paused${pause.held > 0 ? `, ${pause.held} waiting` : ""}`
+					: `Rules: ${active} on`
+			}
+			title={
+				paused
+					? `Rules paused by ${pause.by.name}: what they'd place waits until they resume`
+					: "Rules: automation that places cards"
+			}
 			onClick={onToggle}
 			data-active={active > 0}
+			data-paused={paused || undefined}
 		>
 			<span key={zaps} className="rules-button-icon" data-zap={zaps > 0}>
 				<BoltIcon size={15} />
 			</span>
 			<span>Rules</span>
-			{rules.length > 0 && <span className="rules-button-count">{active}</span>}
+			{paused ? (
+				<span className="rules-button-count" data-paused="true">
+					<PauseIcon size={11} />
+					{pause.held > 0 && pause.held}
+				</span>
+			) : (
+				rules.length > 0 && <span className="rules-button-count">{active}</span>
+			)}
 		</button>
 	);
 }
@@ -189,7 +220,7 @@ export function RulesPanel({
 	/** Open with the composer showing (the gallery). */
 	initiallyComposing?: boolean;
 }) {
-	const { rules, log } = useRules(doc);
+	const { rules, log, pause } = useRules(doc);
 	const [composing, setComposing] = useState(initiallyComposing);
 	const now = useNow();
 	const title = sectionTitle(doc);
@@ -225,21 +256,27 @@ export function RulesPanel({
 			</header>
 
 			<div className="rules-body">
-				{rules.length === 0 && !composing && (
+				{rules.length > 0 && (
+					<SessionPause doc={doc} pause={pause} user={user} readOnly={readOnly} />
+				)}
+				{rules.length === 0 && !composing && readOnly && (
+					<div className="rules-empty">
+						<p>No rules on this board.</p>
+					</div>
+				)}
+				{rules.length === 0 && !composing && !readOnly && (
 					<div className="rules-empty">
 						<p>No rules yet. Start with one of these:</p>
-						{!readOnly && (
-							<Suggestions
-								doc={doc}
-								user={user}
-								onAdded={(rule) =>
-									toasts.show({
-										message: `Rule added: ${describeRule(rule, title).when.toLowerCase()}`,
-									})
-								}
-								onCustom={() => setComposing(true)}
-							/>
-						)}
+						<Suggestions
+							doc={doc}
+							user={user}
+							onAdded={(rule) =>
+								toasts.show({
+									message: `Rule added: ${describeRule(rule, title).when.toLowerCase()}`,
+								})
+							}
+							onCustom={() => setComposing(true)}
+						/>
 					</div>
 				)}
 
@@ -311,6 +348,62 @@ export function RulesPanel({
 				board.
 			</footer>
 		</aside>
+	);
+}
+
+/** Pausing every rule for a live session, and what's waiting for when they resume. */
+function SessionPause({
+	doc,
+	pause,
+	user,
+	readOnly,
+}: {
+	doc: Y.Doc;
+	pause: RulesPause | null;
+	user: RuleAuthor;
+	readOnly: boolean;
+}) {
+	if (!pause) {
+		if (readOnly) return null;
+		return (
+			<div className="rules-pause">
+				<span className="rules-pause-text">
+					Running a session? Pause them so nothing lands mid-discussion.
+				</span>
+				<button
+					type="button"
+					className="inbox-button rules-pause-button"
+					onClick={() => pauseRules(doc, user)}
+				>
+					<PauseIcon size={13} />
+					Pause all
+				</button>
+			</div>
+		);
+	}
+	const waiting =
+		pause.held === 0
+			? "Nothing waiting yet"
+			: `${pause.held} ${pause.held === 1 ? "update" : "updates"} waiting`;
+	return (
+		<div className="rules-pause" data-paused="true" role="status">
+			<span className="rules-pause-icon" aria-hidden="true">
+				<PauseIcon size={14} />
+			</span>
+			<span className="rules-pause-text">
+				<strong>Paused by {pause.by.name}</strong>
+				{waiting}: placed when they resume.
+			</span>
+			{!readOnly && (
+				<button
+					type="button"
+					className="inbox-button primary rules-pause-button"
+					onClick={() => resumeRules(doc)}
+				>
+					Resume
+				</button>
+			)}
+		</div>
 	);
 }
 

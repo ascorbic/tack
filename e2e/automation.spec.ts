@@ -219,6 +219,27 @@ test.describe("rules", () => {
 		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(1);
 	});
 
+	test("pausing rules for a session holds their cards until they resume", async ({ page }) => {
+		await page.getByRole("button", { name: "Facilitate" }).click();
+		await page.getByRole("button", { name: "Pause rules for this session" }).click();
+		await page.keyboard.press("Escape");
+
+		await play(page, "New bug").click();
+		await play(page, "New bug").click();
+		// Nothing lands mid-discussion, and the top bar says what's waiting.
+		const button = page.getByRole("button", { name: "Rules: paused, 2 waiting" });
+		await expect(button).toBeVisible();
+		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(0);
+
+		await button.click();
+		const panel = page.getByRole("dialog", { name: "Rules" });
+		await expect(panel.getByRole("status")).toContainText("2 updates waiting");
+		await panel.getByRole("button", { name: "Resume" }).click();
+		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(2);
+		await expect(page.getByRole("button", { name: /^Rules: \d+ on/ })).toBeVisible();
+		await expect(panel.getByRole("button", { name: "Pause all" })).toBeVisible();
+	});
+
 	test("rules are added and deleted from the panel", async ({ page }) => {
 		await page.getByRole("button", { name: /^Rules/ }).click();
 		const panel = page.getByRole("dialog", { name: "Rules" });
@@ -253,7 +274,9 @@ test("the inbox and rules gallery shows every state", async ({ page }) => {
 		"rules-empty",
 		"rules-busy",
 		"rules-composing",
+		"rules-paused",
 		"rules-read-only",
+		"rules-read-only-empty",
 	]) {
 		await expect(page.locator(`figure[data-state="${state}"]`).first()).toBeVisible();
 	}
@@ -262,4 +285,11 @@ test("the inbox and rules gallery shows every state", async ({ page }) => {
 	await expect(page.locator('figure[data-state="error"]')).toContainText("repo:owner/name");
 	await expect(page.locator('figure[data-state="empty"]')).toContainText("All sorted");
 	await expect(page.locator(".card-unmatched")).toHaveCount(2);
+	await expect(page.locator('figure[data-state="rules-paused"] [role="status"]')).toContainText(
+		/Paused by Kai Andersen\s*3 updates waiting/,
+	);
+	// Viewers aren't told to start with something they can't use.
+	const viewerEmpty = page.locator('figure[data-state="rules-read-only-empty"]');
+	await expect(viewerEmpty).toContainText("No rules on this board.");
+	await expect(viewerEmpty).not.toContainText("Start with");
 });

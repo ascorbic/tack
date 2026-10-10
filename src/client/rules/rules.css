@@ -161,6 +161,69 @@
 	gap: 12px;
 }
 
+/* Paused for a session: a calm amber strip, not an alarm. */
+.rules-pause {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 8px 8px 12px;
+	border: 1px dashed var(--line-strong);
+	border-radius: 12px;
+	color: var(--muted);
+	font-size: 12.5px;
+	line-height: 1.35;
+	transition:
+		background var(--t-base) var(--ease-out),
+		border-color var(--t-base) var(--ease-out);
+}
+
+.rules-pause[data-paused="true"] {
+	border-style: solid;
+	border-color: color-mix(in srgb, var(--pending) 45%, transparent);
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	animation: rules-pause-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes rules-pause-in {
+	from {
+		opacity: 0;
+		translate: 0 -4px;
+	}
+}
+
+.rules-pause-icon {
+	display: inline-grid;
+	flex: none;
+}
+
+.rules-pause-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.rules-pause-text strong {
+	display: block;
+	color: var(--ink);
+	font-weight: 600;
+}
+
+.rules-pause-button {
+	flex: none;
+}
+
+/* The top bar's count turns into a pause mark, with what's waiting. */
+.rules-button-count[data-paused="true"] {
+	gap: 3px;
+	grid-auto-flow: column;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+}
+
+.rules-button[data-paused="true"] .rules-button-icon {
+	color: var(--pending);
+}
+
 .rules-empty p {
 	margin: 2px 4px 10px;
 	color: var(--muted);

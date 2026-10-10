@@ -103,3 +103,10 @@ export const IntoSectionIcon = () => (
 		<path d="M11.5 1v3M10 2.5h3" />
 	</Icon>
 );
+
+/** Rules paused for a session. */
+export const PauseIcon = ({ size }: { size?: number }) => (
+	<Icon size={size}>
+		<path d="M5.5 3.5v9M10.5 3.5v9" />
+	</Icon>
+);

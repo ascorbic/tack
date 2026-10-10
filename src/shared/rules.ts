@@ -157,6 +157,55 @@ export function readRuleLog(doc: Y.Doc): RuleLogEntry[] {
 	return ruleLog(doc).toArray();
 }
 
+// Pausing every rule at once, for a live session: nothing lands on the board
+// mid-discussion. The pause lives in the document (`rulesPause`: `paused`,
+// written by whoever paused, and `held`, by the server), so everyone sees
+// it. While paused, the server keeps the deliveries rules would have acted
+// on, and runs them when the rules resume, so nothing is missed.
+
+/** The origin of pausing and resuming: a session switch, not an undoable edit. */
+export const RULES_PAUSE_ORIGIN = "rules-pause";
+
+export interface RulesPause {
+	by: RuleAuthor;
+	/** ISO 8601. */
+	at: string;
+	/** Deliveries the server is holding for when the rules resume. */
+	held: number;
+}
+
+export function rulesPauseMap(doc: Y.Doc): Y.Map<unknown> {
+	return doc.getMap("rulesPause");
+}
+
+/** Whether rules are paused for the session, and by whom; null if they're running. */
+export function readRulesPause(doc: Y.Doc): RulesPause | null {
+	const map = rulesPauseMap(doc);
+	const paused = map.get("paused") as { by?: RuleAuthor; at?: string } | undefined;
+	if (!paused || typeof paused !== "object") return null;
+	const held = map.get("held");
+	return {
+		by: paused.by ?? { name: "Someone" },
+		at: typeof paused.at === "string" ? paused.at : new Date(0).toISOString(),
+		held: typeof held === "number" && held > 0 ? held : 0,
+	};
+}
+
+/** Pause every rule until someone resumes them. */
+export function pauseRules(doc: Y.Doc, by: RuleAuthor, origin: unknown = RULES_PAUSE_ORIGIN): void {
+	if (readRulesPause(doc)) return;
+	doc.transact(
+		() => rulesPauseMap(doc).set("paused", { by, at: new Date().toISOString() }),
+		origin,
+	);
+}
+
+/** Let rules run again: the server places what it held. */
+export function resumeRules(doc: Y.Doc, origin: unknown = RULES_PAUSE_ORIGIN): void {
+	if (!rulesPauseMap(doc).has("paused")) return;
+	doc.transact(() => rulesPauseMap(doc).delete("paused"), origin);
+}
+
 /**
  * Why a rule can't be added, or null if it can: a query the server can't
  * check for itself, or a section that isn't there.

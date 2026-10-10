@@ -22,6 +22,9 @@ import { useServices } from "../actions/services.ts";
 import { CarryPanel, openActionItems } from "../actionItems/CarryPanel.tsx";
 import { CarryIcon } from "../actionItems/icons.tsx";
 import { isEditableTarget, isOffBoardTarget } from "../keys.ts";
+import { pauseRules, resumeRules } from "../../shared/rules.ts";
+import { BoltIcon } from "../inbox/icons.tsx";
+import { useRules } from "../rules/RulesPanel.tsx";
 import type { ToastStore } from "../Toasts.tsx";
 import { transactLocal } from "../undo.ts";
 import { PreparedSteps, stepSection, usePrepared } from "./Prepared.tsx";
@@ -113,6 +116,8 @@ export function FacilitateMenu({
 		setCarrying(false);
 		if (refocus) button.current?.focus();
 	};
+	const { rules, pause } = useRules(doc);
+	const rulesOn = rules.some((rule) => rule.enabled);
 
 	useEffect(() => {
 		if (!open) return;
@@ -402,6 +407,34 @@ export function FacilitateMenu({
 								>
 									{selectedSection ? "Start on this section" : "Start on a section…"}
 								</button>
+							</div>
+						</section>
+					)}
+					{!readOnly && rulesOn && (
+						<section className="facilitate-row">
+							<span className="facilitate-row-icon">
+								<BoltIcon />
+							</span>
+							<div className="facilitate-row-body">
+								<h3>Rules</h3>
+								<p className="facilitate-note">
+									{pause
+										? `Paused by ${pause.by.name}${pause.held > 0 ? `: ${pause.held} waiting` : ""}. What they’d place lands when you resume`
+										: "Pause them so no cards land mid-discussion; nothing’s missed"}
+								</p>
+								{pause ? (
+									<button
+										type="button"
+										className="facilitate-primary"
+										onClick={() => resumeRules(doc)}
+									>
+										Resume rules
+									</button>
+								) : (
+									<button type="button" onClick={() => pauseRules(doc, user)}>
+										Pause rules for this session
+									</button>
+								)}
 							</div>
 						</section>
 					)}

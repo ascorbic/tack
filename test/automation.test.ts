@@ -7,7 +7,14 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
 import type { CardMessage } from "../src/shared/cards.ts";
 import { inboxQuery, previewId, setInbox } from "../src/shared/inbox.ts";
-import { addRule, listRules, readRuleLog } from "../src/shared/rules.ts";
+import {
+	addRule,
+	listRules,
+	pauseRules,
+	readRuleLog,
+	readRulesPause,
+	resumeRules,
+} from "../src/shared/rules.ts";
 import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
 import { addSection } from "../src/shared/structure.ts";
 import type { SearchResult, WidgetMessage } from "../src/shared/widgets.ts";
@@ -195,6 +202,31 @@ describe("rules", () => {
 		});
 		await eventually(() => typeof ruleCards(client)[0]?.unmatched === "string", 8000);
 		expect(ruleCards(client)[0]).toMatchObject({ x: placed.x, y: placed.y, parent: section });
+	});
+
+	it("holds what rules would place while paused for a session, and places it on resuming", async () => {
+		const { mf, client } = await open("rules-paused");
+		await addCard(client, `${REPO}#12`);
+		addRule(client.doc, { kind: "pull-links" }, { kind: "beside-linked" }, ME);
+		pauseRules(client.doc, ME);
+		await client.roundTrip();
+
+		await deliver(mf, "pull_request", {
+			action: "opened",
+			repository: WIDGETS,
+			pull_request: pullPayload(40, "Fixes #12"),
+		});
+		// Nothing lands mid-discussion; everyone sees what's waiting.
+		await eventually(() => readRulesPause(client.doc)?.held === 1, 8000);
+		expect(ruleCards(client)).toHaveLength(0);
+		expect(readRulesPause(client.doc)).toMatchObject({ by: { name: "Alice" } });
+
+		resumeRules(client.doc);
+		await client.roundTrip();
+		await eventually(() => ruleCards(client).length === 1, 8000);
+		expect(ruleCards(client)[0]).toMatchObject({ ref: `${REPO}#40` });
+		await eventually(() => readRulesPause(client.doc) === null, 8000);
+		expect(client.doc.getMap("rulesPause").has("held")).toBe(false);
 	});
 
 	it("never places items from repositories that aren't on the board", async () => {

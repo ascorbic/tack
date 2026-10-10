@@ -6,9 +6,11 @@ import { dismissFromInbox, inboxQuery, setInbox } from "../../shared/inbox.ts";
 import {
 	type RuleLogEntry,
 	addRule,
+	pauseRules,
 	refreshMatches,
 	ruleLog,
 	rulesMap,
+	rulesPauseMap,
 	setRuleEnabled,
 } from "../../shared/rules.ts";
 import { type ShapeProps, addShape, nextZ, readShape, shapesMap } from "../../shared/shapes.ts";
@@ -243,7 +245,7 @@ function MarkFigure({
 }
 
 /** A board with rules, some activity, and one paused. */
-function useRulesDoc(kind: "empty" | "busy") {
+function useRulesDoc(kind: "empty" | "busy" | "paused") {
 	return useMemo(() => {
 		const doc = new Y.Doc();
 		const bugs = addSection(doc, { x: 0, y: 0, w: 600, h: 400 }, { title: "New bugs" });
@@ -264,6 +266,10 @@ function useRulesDoc(kind: "empty" | "busy") {
 			{ name: "Kai Andersen" },
 		);
 		setRuleEnabled(doc, docs, false);
+		if (kind === "paused") {
+			pauseRules(doc, { name: "Kai Andersen" });
+			rulesPauseMap(doc).set("held", 3);
+		}
 		const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 		rulesMap(doc).get(beside)?.set("fired", 3);
 		rulesMap(doc).get(beside)?.set("lastAt", ago(2));
@@ -364,6 +370,7 @@ export default function InboxGallery() {
 	const emptyRules = useRulesDoc("empty");
 	const busyRules = useRulesDoc("busy");
 	const composingRules = useRulesDoc("empty");
+	const pausedRules = useRulesDoc("paused");
 
 	return (
 		<ReactFlowProvider>
@@ -429,8 +436,14 @@ export default function InboxGallery() {
 						<Figure label="A new rule" state="rules-composing">
 							<RulesFigure key={`c${round}`} doc={composingRules} composing toasts={toasts} />
 						</Figure>
+						<Figure label="Paused for a session" state="rules-paused">
+							<RulesFigure key={`p${round}`} doc={pausedRules} toasts={toasts} />
+						</Figure>
 						<Figure label="View only" state="rules-read-only">
 							<RulesFigure key={`r${round}`} doc={busyRules} readOnly toasts={toasts} />
+						</Figure>
+						<Figure label="View only, no rules" state="rules-read-only-empty">
+							<RulesFigure key={`v${round}`} doc={emptyRules} readOnly toasts={toasts} />
 						</Figure>
 					</div>
 				</section>
