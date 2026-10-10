@@ -27,6 +27,8 @@ import {
 	resizeSection,
 	sectionGeometries,
 } from "../src/shared/structure.ts";
+import { placeCommandCard } from "../src/shared/commands.ts";
+import { sortFromInbox } from "../src/shared/inbox.ts";
 import { boardContext } from "../src/shared/related.ts";
 import { containerFor } from "../src/shared/sections.ts";
 
@@ -476,5 +478,51 @@ describe("expanding from a row", () => {
 		const context = boardContext(doc, "c");
 		expect(context.box).toEqual({ x: LIST.pad, y: LIST.pad, w: 600 - LIST.pad * 2, h: LIST.row });
 		expect(context.obstacles).toContainEqual({ x: 0, y: 0, w: 600, h: LIST.pad * 2 + LIST.row });
+	});
+});
+
+describe("placing into a list by name", () => {
+	/** A list whose rows end well above the free spot its section's box has. */
+	function crowded() {
+		const b = board();
+		b.section("s", 0, 0, 640, 900);
+		b.add("big", { type: "widget", widget: "list", x: 20, y: 20, w: 600, h: 400, parent: "s" });
+		shapesMap(b.doc).get("s")?.set("title", "Next up");
+		setDisplay(b.doc, ["s"], "list");
+		return b;
+	}
+
+	it("a comment command's card goes into the list it names", () => {
+		const { doc, get, layout } = crowded();
+		const result = placeCommandCard(
+			doc,
+			{
+				key: "github.com/acme/widgets#12",
+				section: "Next up",
+				provenance: {
+					via: "comment",
+					source: "https://github.com/acme/widgets/issues/12",
+					by: "a",
+				},
+			},
+			"command",
+		);
+		expect(result).toMatchObject({ status: "added", full: false });
+		const id = (result as { shape: string }).shape;
+		expect(get(id)?.parent).toBe("s");
+		expect(layout().sections.get("s")?.order.at(-1)).toBe(id);
+	});
+
+	it("an inbox's card clicked in goes into its list", () => {
+		const { doc, get } = crowded();
+		const id = sortFromInbox(
+			doc,
+			"s",
+			"github.com/acme/widgets#3",
+			{ x: 40, y: 500 },
+			"local",
+			true,
+		);
+		expect(get(id)?.parent).toBe("s");
 	});
 });

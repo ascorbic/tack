@@ -2,7 +2,8 @@ import type * as Y from "yjs";
 import { BOARD_ID, boardIdFromPath } from "./boards.ts";
 import { PLACE_GAP, PLACED_CARD, spotBelow, spotInSection, spotNear } from "./placement.ts";
 import { addCardShape, provenanceOf } from "./provenance.ts";
-import { boxOf } from "./sections.ts";
+import { displaySections, keepInSection } from "./display.ts";
+import { boxOf, readStructure } from "./sections.ts";
 import { type ShapeProps, cardRefs } from "./shapes.ts";
 import { placeInSections, readShapes } from "./structure.ts";
 import type { Provenance } from "./widgets.ts";
@@ -342,6 +343,7 @@ export function placeCommandCard(doc: Y.Doc, request: PlaceRequest, origin: unkn
 	let section: { id: string; title: string } | null = null;
 	let spot: { x: number; y: number } | null;
 	let full = false;
+	let listed = false;
 	if (request.section) {
 		const sections = sectionsOf(shapes);
 		const match = bestMatch(request.section, sections, (s) => [s.title]);
@@ -354,7 +356,9 @@ export function placeCommandCard(doc: Y.Doc, request: PlaceRequest, origin: unkn
 		section = match.value;
 		const inside = spotInSection(shapes, section.id);
 		spot = inside ?? spotBelow(shapes, section.id);
-		full = !inside;
+		// A section showing a list is never full: it grows (display.ts).
+		listed = displaySections(shapes, readStructure(shapes)).has(section.id);
+		full = !inside && !listed;
 	} else {
 		spot = spotNear(shapes, idealSpot(shapes));
 	}
@@ -365,6 +369,8 @@ export function placeCommandCard(doc: Y.Doc, request: PlaceRequest, origin: unkn
 	doc.transact(() => {
 		addCardShape(doc, id, { ref: request.key, x: at.x, y: at.y }, request.provenance);
 		placeInSections(doc, [id]);
+		// Named a section showing a list: into it, wherever the spot was.
+		if (section && listed) keepInSection(doc, id, section.id);
 	}, origin);
 	return { status: "added", shape: id, section, full };
 }
