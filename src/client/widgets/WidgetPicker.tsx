@@ -1,6 +1,6 @@
 import type { DragEvent } from "react";
 import { LIST_PRESETS, WIDGETS } from "../../shared/widgetRegistry.ts";
-import { ListIcon, UnknownIcon } from "./icons.tsx";
+import { ListIcon, MilestoneIcon, ReviewIcon, StaleIcon, UnknownIcon } from "./icons.tsx";
 import { DependencyIcon, ReleaseIcon, TimelineIcon } from "./kindIcons.tsx";
 
 // The widget picker (#37): the widget tool's tray. Every kind in the
@@ -21,6 +21,9 @@ const ICONS: Record<string, () => React.ReactNode> = {
 	timeline: () => <TimelineIcon size={18} />,
 	release: () => <ReleaseIcon size={18} />,
 	dependencies: () => <DependencyIcon size={18} />,
+	review: () => <ReviewIcon size={18} />,
+	milestone: () => <MilestoneIcon size={18} />,
+	stale: () => <StaleIcon size={18} />,
 };
 
 export function WidgetPicker({
@@ -50,7 +53,7 @@ export function WidgetPicker({
 					onDragStart={drag(definition.kind)}
 					onClick={() => onAdd(definition.kind)}
 				>
-					<span className="widget-kind" aria-hidden="true">
+					<span className="widget-kind" data-kind={definition.kind} aria-hidden="true">
 						{ICONS[definition.kind]?.() ?? <UnknownIcon size={18} />}
 					</span>
 					<span className="widget-picker-text">

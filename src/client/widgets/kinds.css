@@ -1,0 +1,1235 @@
+/* ---------------------------------------------------------------------------
+   Review queue, milestone and stale finder (#43)
+
+   Built on the list's widget chrome (widgets.css). Each kind has its own
+   tint, so they're told apart across the board: reviews in violet,
+   milestones in green, stale items in amber. Zoomed out, each turns into
+   its one big number, readable from across the board.
+   ------------------------------------------------------------------------ */
+
+[data-kind="review"] {
+	--kind: var(--merged);
+	--kind-soft: var(--merged-bg);
+}
+
+[data-kind="milestone"] {
+	--kind: var(--open);
+	--kind-soft: var(--open-bg);
+}
+
+[data-kind="stale"] {
+	--kind: var(--pending-ink);
+	--kind-soft: var(--pending-bg);
+}
+
+.widget[data-kind] .widget-kind,
+.widget-kind[data-kind] {
+	background: var(--kind-soft, var(--accent-soft));
+	color: var(--kind, var(--accent));
+}
+
+.widget-icon .soft {
+	fill: currentColor;
+	fill-opacity: 0.22;
+}
+
+/* Rows' quick actions, over the right of the row on hover ------------------------- */
+
+.widget-row-actions {
+	position: absolute;
+	top: 50%;
+	right: 6px;
+	z-index: 1;
+	display: flex;
+	gap: 1px;
+	padding: 3px;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: var(--surface);
+	box-shadow: var(--shadow-hover);
+	opacity: 0;
+	pointer-events: none;
+	transform: translate(4px, -50%) scale(0.96);
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring);
+}
+
+.widget-row:hover .widget-row-actions,
+.widget-row-actions:focus-within {
+	opacity: 1;
+	pointer-events: auto;
+	transform: translate(0, -50%);
+}
+
+body[data-row-drag] .widget-row-actions {
+	display: none;
+}
+
+/* Zoomed out: one big number ---------------------------------------------------- */
+
+.widget[data-compact] .widget-head {
+	padding: 22px 24px;
+	gap: 16px;
+}
+
+.widget[data-compact] .widget-kind {
+	width: 56px;
+	height: 56px;
+	border-radius: 16px;
+}
+
+.widget[data-compact] .widget-kind svg {
+	width: 30px;
+	height: 30px;
+}
+
+.widget[data-compact] .widget-title {
+	font-size: 32px;
+	line-height: 1.1;
+}
+
+.widget[data-compact] :is(.widget-query, .widget-tools, .widget-count) {
+	display: none;
+}
+
+.kind-far {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	height: 100%;
+	padding: 20px;
+	text-align: center;
+	animation: skeleton-in var(--t-base) var(--ease-out);
+}
+
+.kind-far-number {
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-size: 128px;
+	font-weight: 700;
+	line-height: 0.95;
+	letter-spacing: -0.045em;
+	font-variant-numeric: tabular-nums;
+}
+
+.kind-far[data-tone="long"] .kind-far-number {
+	color: var(--fail-ink);
+}
+
+.kind-far[data-tone="waiting"] .kind-far-number {
+	color: var(--pending-ink);
+}
+
+.kind-far[data-tone="clear"] .kind-far-number {
+	color: var(--open);
+}
+
+.kind-far-label {
+	color: var(--ink-soft);
+	font-size: 26px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+.kind-far-detail {
+	color: var(--muted);
+	font-size: 22px;
+}
+
+.kind-far-detail strong {
+	color: var(--ink);
+}
+
+/* Review queue --------------------------------------------------------------------- */
+
+.review-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+	padding: 9px 12px 3px;
+}
+
+.review-stat {
+	--tone: var(--ink-soft);
+	--tone-bg: var(--chip);
+	padding: 2px 9px;
+	border-radius: 999px;
+	background: var(--tone-bg);
+	color: var(--tone);
+	font-size: 11.5px;
+	font-weight: 550;
+	white-space: nowrap;
+	animation: step-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.review-stat:nth-child(2) {
+	animation-delay: calc(40ms * var(--motion));
+}
+
+.review-stat:nth-child(3) {
+	animation-delay: calc(80ms * var(--motion));
+}
+
+.review-stat:nth-child(4) {
+	animation-delay: calc(120ms * var(--motion));
+}
+
+.review-stat strong {
+	font-weight: 720;
+	font-variant-numeric: tabular-nums;
+}
+
+:is(.review-stat, .review-age)[data-tone="fresh"] {
+	--tone: var(--open);
+	--tone-bg: var(--open-bg);
+}
+
+:is(.review-stat, .review-age)[data-tone="waiting"] {
+	--tone: var(--pending-ink);
+	--tone-bg: var(--pending-bg);
+}
+
+:is(.review-stat, .review-age)[data-tone="long"],
+.review-stat[data-tone="fail"] {
+	--tone: var(--fail-ink);
+	--tone-bg: var(--fail-bg);
+}
+
+.review-stat[data-tone="author"] {
+	--tone: var(--merged);
+	--tone-bg: var(--merged-bg);
+}
+
+.review-author {
+	flex: none;
+	font-weight: 550;
+}
+
+.review-size {
+	flex: none;
+	padding: 0 5px;
+	border-radius: 5px;
+	background: var(--chip);
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-size: 9.5px;
+	font-weight: 700;
+	line-height: 15px;
+	letter-spacing: 0.02em;
+}
+
+.review-size[data-size="m"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.review-size[data-size="l"] {
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+}
+
+.review-size[data-size="xl"] {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.review-ci {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: 4px;
+	font-size: 10.5px;
+}
+
+.review-ci-dot {
+	position: relative;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--pass);
+}
+
+.review-ci[data-ci="failing"] {
+	color: var(--fail-ink);
+	font-weight: 600;
+}
+
+.review-ci[data-ci="failing"] .review-ci-dot {
+	background: var(--fail);
+}
+
+.review-ci[data-ci="pending"] .review-ci-dot {
+	background: var(--pending);
+	animation: ci-breathe calc(1600ms * var(--motion)) ease-in-out infinite;
+}
+
+@keyframes ci-breathe {
+	50% {
+		opacity: 0.35;
+	}
+}
+
+.review-standing {
+	display: grid;
+	place-items: center;
+	color: var(--muted);
+}
+
+.review-standing[data-standing="commented"] {
+	color: var(--ink-soft);
+}
+
+.review-standing[data-standing="changes"] {
+	color: var(--pending-ink);
+}
+
+.review-standing[data-standing="approved"] {
+	color: var(--pass);
+}
+
+.review-age {
+	--tone: var(--ink-soft);
+	--tone-bg: var(--chip);
+	min-width: 32px;
+	padding: 2px 7px;
+	border-radius: 999px;
+	background: var(--tone-bg);
+	color: var(--tone);
+	font-size: 11.5px;
+	font-weight: 680;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+	transition:
+		background var(--t-base) var(--ease-out),
+		color var(--t-base) var(--ease-out);
+}
+
+/* Back with its author: still in the queue, but not waiting on a reviewer. */
+.review-row[data-standing="changes"] :is(.widget-row-title, .state-icon) {
+	opacity: 0.7;
+}
+
+/* All caught up: the check springs in, with a little burst. */
+.review-clear .widget-empty-icon,
+.stale-clear .widget-empty-icon {
+	position: relative;
+	background: var(--open-bg);
+	color: var(--open);
+	animation: clear-in calc(720ms * var(--motion)) var(--ease-spring) backwards;
+}
+
+.review-clear .widget-empty-icon::before,
+.review-clear .widget-empty-icon::after,
+.stale-clear .widget-empty-icon::before,
+.stale-clear .widget-empty-icon::after {
+	content: "";
+	position: absolute;
+	inset: -6px;
+	border-radius: 18px;
+	border: 2px dotted var(--open);
+	opacity: 0;
+	animation: clear-burst calc(900ms * var(--motion)) var(--ease-out) calc(120ms * var(--motion));
+}
+
+.review-clear .widget-empty-icon::after,
+.stale-clear .widget-empty-icon::after {
+	inset: -12px;
+	border-radius: 22px;
+	animation-delay: calc(200ms * var(--motion));
+}
+
+@keyframes clear-in {
+	from {
+		opacity: 0;
+		transform: scale(0.4) rotate(-25deg);
+	}
+}
+
+@keyframes clear-burst {
+	from {
+		opacity: 0.8;
+		transform: scale(0.7);
+	}
+	to {
+		opacity: 0;
+		transform: scale(1.25);
+	}
+}
+
+/* Milestone ---------------------------------------------------------------------------- */
+
+.milestone-due[data-due="soon"],
+[data-due="soon"]:is(.milestone-due-line, span) {
+	color: var(--pending-ink);
+}
+
+.milestone-due[data-due="soon"] {
+	background: var(--pending-bg);
+}
+
+.milestone-due[data-due="overdue"] {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+[data-due="overdue"]:is(.milestone-due-line, span) {
+	color: var(--fail-ink);
+}
+
+.milestone-due[data-due="done"] {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.milestone-report {
+	display: grid;
+	gap: 14px;
+	padding: 14px 14px 8px;
+}
+
+.milestone-hero {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+	gap: 16px;
+}
+
+.milestone-hero-text {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+
+.milestone-hero-text p {
+	margin: 0;
+}
+
+.milestone-done {
+	color: var(--ink-soft);
+	font-size: 13px;
+}
+
+.milestone-done strong {
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+}
+
+.milestone-due-line {
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	font-weight: 620;
+}
+
+.milestone-due-line[data-due="done"] {
+	color: var(--open);
+}
+
+.milestone-date {
+	color: var(--muted);
+	font-weight: 500;
+}
+
+.milestone-forecast {
+	color: var(--muted);
+	font-size: 11.5px;
+	line-height: 1.4;
+	text-wrap: pretty;
+}
+
+.milestone-forecast[data-late="true"] {
+	color: var(--fail-ink);
+}
+
+.milestone-ring {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: var(--ring, 84px);
+	height: var(--ring, 84px);
+}
+
+.milestone-ring svg {
+	position: absolute;
+	inset: 0;
+	rotate: -90deg;
+}
+
+.milestone-ring-track,
+.milestone-ring-fill {
+	fill: none;
+	stroke-width: 9;
+}
+
+.milestone-ring-track {
+	stroke: var(--well);
+}
+
+.milestone-ring-fill {
+	stroke: var(--chart-done);
+	stroke-linecap: round;
+	stroke-dashoffset: var(--offset);
+	transition: stroke-dashoffset var(--t-settle) var(--ease-settle);
+	animation: ring-fill calc(1100ms * var(--motion)) var(--ease-settle) backwards;
+	animation-delay: calc(120ms * var(--motion));
+}
+
+@keyframes ring-fill {
+	from {
+		stroke-dashoffset: var(--length);
+	}
+}
+
+.milestone-ring-value {
+	font-family: var(--font-display);
+	font-size: calc(var(--ring, 84px) * 0.27);
+	font-weight: 700;
+	letter-spacing: -0.03em;
+	font-variant-numeric: tabular-nums;
+}
+
+.milestone-ring-value small {
+	margin-left: 1px;
+	color: var(--muted);
+	font-size: 0.5em;
+	font-weight: 600;
+}
+
+.milestone-ring-skeleton.skeleton {
+	width: 84px;
+	height: 84px;
+	margin: 0;
+	border-radius: 50%;
+}
+
+.milestone-chart-skeleton.skeleton {
+	height: 120px;
+	margin: 0;
+	border-radius: 10px;
+}
+
+/* The burn-up. Lines stay 2px whatever the widget's size. */
+.milestone-chart {
+	margin: 0;
+}
+
+.milestone-legend {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 6px;
+	color: var(--ink-soft);
+	font-size: 11px;
+	font-weight: 560;
+}
+
+.milestone-key {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.milestone-key::before {
+	content: "";
+	width: 12px;
+	height: 0;
+	border-top: 2px solid var(--chart-done);
+	border-radius: 2px;
+}
+
+.milestone-key[data-series="scope"]::before {
+	border-top: 2px dashed var(--chart-scope);
+}
+
+.milestone-sampled {
+	margin-left: auto;
+	color: var(--muted);
+	font-weight: 450;
+}
+
+.milestone-plot {
+	position: relative;
+	height: 112px;
+	margin-right: 22px;
+	cursor: crosshair;
+}
+
+.milestone-plot svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+	animation: chart-reveal calc(900ms * var(--motion)) var(--ease-settle) backwards;
+}
+
+@keyframes chart-reveal {
+	from {
+		clip-path: inset(-10% 100% -10% 0);
+	}
+	to {
+		clip-path: inset(-10% -10% -10% 0);
+	}
+}
+
+.milestone-plot :is(path, line) {
+	fill: none;
+	vector-effect: non-scaling-stroke;
+}
+
+.milestone-grid {
+	stroke: var(--line);
+	stroke-width: 1;
+}
+
+.milestone-area {
+	fill: var(--chart-done) !important;
+	fill-opacity: 0.13;
+	stroke: none;
+}
+
+.milestone-line {
+	stroke: var(--chart-done);
+	stroke-width: 2;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+.milestone-scope {
+	stroke: var(--chart-scope);
+	stroke-width: 2;
+	stroke-dasharray: 5 4;
+	stroke-linejoin: round;
+}
+
+.milestone-projection {
+	stroke: var(--chart-done);
+	stroke-width: 2;
+	stroke-dasharray: 0.5 5;
+	stroke-linecap: round;
+	opacity: 0.75;
+}
+
+.milestone-today {
+	stroke: var(--line-strong);
+	stroke-width: 1;
+	stroke-dasharray: 2 3;
+}
+
+.milestone-due-mark {
+	stroke: var(--fail);
+	stroke-width: 1;
+	stroke-dasharray: 3 3;
+	opacity: 0.6;
+}
+
+.milestone-cursor {
+	stroke: var(--ink-soft);
+	stroke-width: 1;
+}
+
+/* Direct labels at the lines' ends: the number in ink, the mark beside it in the series' colour. */
+.milestone-end {
+	position: absolute;
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	color: var(--ink-soft);
+	font-size: 10.5px;
+	font-weight: 680;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	pointer-events: none;
+	transform: translate(5px, -100%);
+	animation: skeleton-in var(--t-base) var(--ease-out) backwards;
+	animation-delay: calc(700ms * var(--motion));
+}
+
+.milestone-end[data-series="done"] {
+	transform: translate(5px, 2px);
+}
+
+.milestone-end::before {
+	content: "";
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--chart-done);
+}
+
+.milestone-end[data-series="scope"]::before {
+	background: var(--chart-scope);
+}
+
+.milestone-dot {
+	position: absolute;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--chart-done);
+	box-shadow: 0 0 0 2px var(--surface);
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+}
+
+.milestone-dot[data-series="scope"] {
+	background: var(--chart-scope);
+}
+
+.milestone-tip {
+	position: absolute;
+	top: -8px;
+	z-index: 2;
+	padding: 3px 8px;
+	border-radius: 7px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 11px;
+	white-space: nowrap;
+	pointer-events: none;
+	transform: translate(-50%, -100%);
+	animation: skeleton-in var(--t-quick) var(--ease-out);
+}
+
+.milestone-tip strong {
+	font-weight: 650;
+}
+
+.milestone-axis {
+	position: relative;
+	display: flex;
+	justify-content: space-between;
+	margin: 5px 22px 0 0;
+	color: var(--muted);
+	font-size: 10.5px;
+	font-variant-numeric: tabular-nums;
+}
+
+.milestone-axis-today {
+	position: absolute;
+	transform: translateX(-50%);
+}
+
+.milestone-risks {
+	display: grid;
+	gap: 2px;
+	margin: 0 -8px;
+}
+
+.milestone-risks .widget-rows {
+	padding: 0 2px;
+}
+
+.milestone-risks-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 10px 2px;
+	color: var(--ink-soft);
+	font-size: 12px;
+	font-weight: 650;
+}
+
+.milestone-risks-title .widget-count {
+	min-width: 20px;
+	padding: 0 6px;
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+	font-size: 11px;
+}
+
+.milestone-calm {
+	margin: 0 10px 6px;
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.milestone-risk {
+	flex: none;
+	padding: 0 6px;
+	border-radius: 5px;
+	font-size: 10px;
+	font-weight: 640;
+	line-height: 16px;
+}
+
+.milestone-risk[data-reason="stale"] {
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+}
+
+.milestone-risk[data-reason="blocked"] {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.milestone-risk[data-reason="big"] {
+	background: var(--merged-bg);
+	color: var(--merged);
+}
+
+/* Picking a milestone, in the body or the panel. */
+.milestone-choices,
+.milestone-picks {
+	display: grid;
+	gap: 6px;
+	width: 100%;
+	margin-top: 10px;
+}
+
+.milestone-picks {
+	margin-top: 0;
+}
+
+:is(.milestone-choices, .milestone-picks) .skeleton {
+	height: 38px;
+	margin: 0;
+	border-radius: 10px;
+}
+
+.milestone-choice,
+.milestone-pick {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px;
+	padding: 9px 11px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	font-size: 12.5px;
+	text-align: left;
+	cursor: pointer;
+	animation: step-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i, 0) * 40ms * var(--motion));
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+:is(.milestone-choice, .milestone-pick) svg {
+	color: var(--open);
+}
+
+:is(.milestone-choice, .milestone-pick) strong {
+	overflow: hidden;
+	font-weight: 640;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+:is(.milestone-choice, .milestone-pick) span {
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+:is(.milestone-choice, .milestone-pick):hover {
+	border-color: var(--open);
+	transform: translateY(-1px);
+}
+
+:is(.milestone-choice, .milestone-pick):active {
+	transform: scale(0.98);
+}
+
+.milestone-pick[aria-checked="true"] {
+	border-color: var(--open);
+	background: var(--open-bg);
+	box-shadow: inset 0 0 0 1px var(--open);
+}
+
+.milestone-far .kind-far-label {
+	margin-top: 10px;
+}
+
+.milestone-far[data-due="overdue"] .kind-far-detail {
+	color: var(--fail-ink);
+}
+
+.milestone-far[data-due="soon"] .kind-far-detail {
+	color: var(--pending-ink);
+}
+
+/* Stale finder -------------------------------------------------------------------------- */
+
+.stale-threshold {
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+}
+
+.stale-groups {
+	padding: 2px 0 6px;
+}
+
+.stale-group {
+	--group: var(--pending);
+}
+
+.stale-group[data-group="quieter"] {
+	--group: color-mix(in oklab, var(--pending) 45%, var(--fail));
+}
+
+.stale-group[data-group="silent"] {
+	--group: var(--fail);
+}
+
+.stale-group-head {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	display: grid;
+	grid-template-columns: 28px minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: 8px;
+	padding: 9px 14px 5px;
+	background: linear-gradient(var(--surface) 80%, transparent);
+}
+
+.stale-group[data-empty] .stale-group-head {
+	opacity: 0.5;
+}
+
+.stale-group-bar {
+	height: 6px;
+	overflow: hidden;
+	border-radius: 3px;
+	background: var(--well);
+}
+
+.stale-group-bar span {
+	display: block;
+	width: max(3px, calc(var(--share) * 100%));
+	height: 100%;
+	border-radius: 3px;
+	background: var(--group);
+	transition: width var(--t-settle) var(--ease-settle);
+	animation: bar-grow var(--t-settle) var(--ease-settle) backwards;
+	animation-delay: calc(var(--g, 0) * 70ms * var(--motion));
+}
+
+.stale-group[data-empty] .stale-group-bar span {
+	width: 0;
+}
+
+@keyframes bar-grow {
+	from {
+		width: 0;
+	}
+}
+
+.stale-group-title {
+	margin: 0;
+	overflow: hidden;
+	color: var(--ink-soft);
+	font-size: 12px;
+	font-weight: 650;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.stale-group-count {
+	color: var(--muted);
+	font-size: 11.5px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.stale-group-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border: 0;
+	border-radius: 7px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+	opacity: 0;
+	transform: translateX(4px);
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring),
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out);
+}
+
+.stale-group:hover .stale-group-action,
+.stale-group-action:focus-visible {
+	opacity: 1;
+	transform: none;
+}
+
+.stale-group-action:hover {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.stale-group-action:active {
+	transform: scale(0.95);
+}
+
+.stale-group .widget-rows {
+	padding-top: 0;
+}
+
+.stale-idle {
+	flex: none;
+	color: var(--pending-ink);
+	font-weight: 560;
+}
+
+.stale-group[data-group="silent"] .stale-idle {
+	color: var(--fail-ink);
+}
+
+.stale-act {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.stale-act:hover {
+	background: var(--hover);
+}
+
+.stale-act[data-action="close"]:hover {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.stale-act[data-action="label"]:hover {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.stale-act[data-action="ping"]:hover {
+	background: var(--merged-bg);
+	color: var(--merged);
+}
+
+.stale-act:active {
+	transform: scale(0.88);
+}
+
+.stale-act:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.stale-act::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	bottom: calc(100% + 7px);
+	right: 0;
+	padding: 4px 8px;
+	border-radius: 6px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 11.5px;
+	font-weight: 550;
+	white-space: nowrap;
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(3px);
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.stale-act:hover::after {
+	opacity: 1;
+	transform: none;
+	transition-delay: calc(350ms * var(--motion));
+}
+
+/* Staged: says so on the row, with a way back. */
+.stale-staged {
+	display: inline-flex;
+	align-items: center;
+	flex: none;
+	gap: 1px;
+	padding: 0 1px 0 7px;
+	border-radius: 999px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-size: 10px;
+	font-weight: 650;
+	line-height: 16px;
+	white-space: nowrap;
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.stale-staged[data-action="close"] {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.stale-staged[data-action="label"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.stale-staged[data-action="ping"] {
+	background: var(--merged-bg);
+	color: var(--merged);
+}
+
+.stale-unstage {
+	display: grid;
+	place-items: center;
+	width: 15px;
+	height: 15px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.stale-unstage:hover {
+	background: var(--surface);
+	transform: rotate(-30deg);
+}
+
+.stale-row .widget-row-title {
+	text-decoration-line: line-through;
+	text-decoration-color: transparent;
+	text-decoration-thickness: 1.5px;
+	transition:
+		text-decoration-color var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.stale-row[data-closing] .widget-row-title {
+	text-decoration-color: color-mix(in srgb, var(--fail-ink) 60%, transparent);
+	opacity: 0.66;
+}
+
+.stale-far-bars {
+	display: grid;
+	gap: 10px;
+	width: 100%;
+	margin-top: 18px;
+}
+
+.stale-far-bar {
+	position: relative;
+	display: block;
+	height: 40px;
+	overflow: hidden;
+	border-radius: 10px;
+	background: var(--well);
+}
+
+.stale-far-fill {
+	position: absolute;
+	inset: 0 auto 0 0;
+	width: calc(var(--share) * 100%);
+	background: var(--pending);
+	opacity: 0.55;
+}
+
+.stale-far-bar[data-group="quieter"] .stale-far-fill {
+	background: color-mix(in oklab, var(--pending) 45%, var(--fail));
+}
+
+.stale-far-bar[data-group="silent"] .stale-far-fill {
+	background: var(--fail);
+}
+
+.stale-far-text {
+	position: relative;
+	display: block;
+	padding: 0 14px;
+	color: var(--ink);
+	font-size: 22px;
+	font-weight: 650;
+	line-height: 40px;
+	text-align: left;
+	white-space: nowrap;
+}
+
+/* Config panels ------------------------------------------------------------------------ */
+
+.kind-reveal {
+	animation: step-in var(--t-base) var(--ease-spring);
+}
+
+.kind-hint {
+	margin: 0;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.kind-runs {
+	margin: 0;
+}
+
+/* The gallery's zoomed-out samples: drawn at full size, shown at half. */
+.widget-sample.kind-far-sample {
+	width: 200px;
+	height: 250px;
+}
+
+.kind-far-scale {
+	width: 400px;
+	height: 500px;
+	transform: scale(0.5);
+	transform-origin: 0 0;
+}
+
+/* Done: the ring turns green and gives a little pop. */
+.milestone-ring[data-complete] .milestone-ring-fill {
+	stroke: var(--pass);
+}
+
+.milestone-ring[data-complete] {
+	animation: ring-pop calc(560ms * var(--motion)) var(--ease-spring);
+	animation-delay: calc(1000ms * var(--motion));
+}
+
+@keyframes ring-pop {
+	40% {
+		transform: scale(1.08);
+	}
+}
+
+.milestone-risks[hidden] {
+	display: none;
+}
+
+/* Zoomed out, titles may take two lines rather than be cut short. */
+.widget[data-compact] .widget-title {
+	display: -webkit-box;
+	white-space: normal;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	text-wrap: balance;
+}

@@ -1,17 +1,9 @@
-import {
-	type PointerEvent as ReactPointerEvent,
-	type ReactNode,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useMemo } from "react";
 import type { Card } from "../../shared/cards.ts";
 import type { MatchStep } from "../../shared/search.ts";
 import { parseSearch } from "../../shared/search.ts";
 import type { QueryError, SearchResult } from "../../shared/widgets.ts";
 import { StateIcon } from "../CardView.tsx";
-import { scaledDuration } from "../motion.ts";
 import {
 	Count,
 	QueryErrorEmpty,
@@ -20,6 +12,7 @@ import {
 	WidgetFoot,
 	useNow,
 } from "./chrome.tsx";
+import { type Motion, useRowMotion } from "./rows.tsx";
 import { queryChips } from "./describe.ts";
 import {
 	DropIcon,
@@ -224,58 +217,6 @@ function Body(props: ListViewProps) {
 			}
 			return <Rows {...props} rows={status.result.items} stale={status.stale} />;
 	}
-}
-
-type Motion = "enter" | "leave" | "changed";
-
-/** What a row shows, to tell when it changed. */
-function signature(card: Card): string {
-	return JSON.stringify([
-		card.title,
-		card.state,
-		card.labels.map((l) => l.name),
-		card.assignees.map((a) => a.login),
-		card.pull?.checks?.state,
-	]);
-}
-
-/**
- * Rows as they come and go: new ones slide in (a cascade, on first load),
- * ones that stopped matching fold away where they were, and changed ones
- * flash.
- */
-function useRowMotion(rows: Card[]): { card: Card; motion?: Motion }[] {
-	const [shown, setShown] = useState<{ card: Card; motion?: Motion }[]>(() =>
-		rows.map((card) => ({ card })),
-	);
-	const previous = useRef(rows);
-	useEffect(() => {
-		const before = previous.current;
-		previous.current = rows;
-		if (before === rows) return;
-		const old = new Map(before.map((card) => [card.key, card]));
-		const keys = new Set(rows.map((card) => card.key));
-		const next: { card: Card; motion?: Motion }[] = rows.map((card) => {
-			const was = old.get(card.key);
-			return {
-				card,
-				motion: !was ? "enter" : signature(was) !== signature(card) ? "changed" : undefined,
-			};
-		});
-		before.forEach((card, i) => {
-			if (!keys.has(card.key)) next.splice(Math.min(i, next.length), 0, { card, motion: "leave" });
-		});
-		setShown(next);
-		const settle = setTimeout(
-			() =>
-				setShown((current) =>
-					current.filter((row) => row.motion !== "leave").map(({ card }) => ({ card })),
-				),
-			scaledDuration(900),
-		);
-		return () => clearTimeout(settle);
-	}, [rows]);
-	return shown;
 }
 
 function Rows(props: ListViewProps & { rows: Card[]; stale: boolean }) {

@@ -34,6 +34,7 @@ import { ListConfigPanel, SchemaConfigPanel } from "./ConfigPanel.tsx";
 import { WidgetContext } from "./context.ts";
 import { listTitle } from "./describe.ts";
 import { DropConfirm } from "./DropConfirm.tsx";
+import { MilestoneWidget, ReviewWidget, StaleWidget } from "./KindNodes.tsx";
 import { UnknownIcon } from "./icons.tsx";
 import { DependencyWidget, type KindProps, ReleaseWidget, TimelineWidget } from "./kinds.tsx";
 import { type ListStatus, ListView } from "./ListView.tsx";
@@ -66,6 +67,9 @@ const KINDS: Record<string, (props: KindProps) => React.ReactNode> = {
 	timeline: TimelineWidget,
 	release: ReleaseWidget,
 	dependencies: DependencyWidget,
+	review: ReviewWidget,
+	milestone: MilestoneWidget,
+	stale: StaleWidget,
 };
 
 export function useResizeGrips(id: string, shape: ShapeProps, selected: boolean) {

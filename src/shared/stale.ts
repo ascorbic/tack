@@ -110,6 +110,11 @@ export function spanText(days: number): string {
 	return plural(Math.round((days / 365) * 10) / 10, "year");
 }
 
+/** How long an item's been quiet, in words: days up to two months, so rows compare at a glance. */
+export function quietText(days: number): string {
+	return days < 60 ? `${days} ${days === 1 ? "day" : "days"}` : spanText(days);
+}
+
 /** Days since an item's last activity. */
 export function idleDays(card: Card, now: number): number {
 	const at = Date.parse(card.updatedAt);
@@ -181,6 +186,6 @@ export function pingComment(card: Card, now: number): string {
 			: [];
 	const who = people.length ? `${people.join(" ")}: ` : "";
 	const thing = card.kind === "pull" ? "pull request" : "issue";
-	const quiet = spanText(idleDays(card, now));
+	const quiet = quietText(idleDays(card, now));
 	return `${who}this ${thing} has been quiet for ${quiet}. Is it still something we want? If not, we'll close it as not planned.`;
 }

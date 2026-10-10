@@ -110,6 +110,9 @@
 	--connector-green: #1f7a4a;
 	--connector-blue: #2a62c9;
 	--connector-purple: #7444c4;
+	/* Charts: what's done, against the scope it's done out of (dataviz-validated pair). */
+	--chart-done: #3b4cca;
+	--chart-scope: #a8701f;
 }
 
 [data-theme="dark"] {
@@ -207,6 +210,8 @@
 	--connector-green: #6fd38a;
 	--connector-blue: #8fb0ff;
 	--connector-purple: #bfa2ff;
+	--chart-done: #7480e6;
+	--chart-scope: #b07c33;
 }
 
 /* Before the theme is applied, at least paint the page dark in dark mode. */
