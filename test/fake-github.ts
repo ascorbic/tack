@@ -86,6 +86,8 @@ export interface FakeItem {
 	mergedAt?: string;
 	/** Pull requests: issues they mention without closing (cross-references). */
 	mentions?: number[];
+	/** Logins who reacted 👍. */
+	thumbsUp?: string[];
 }
 
 /** A published release. */
@@ -1431,7 +1433,11 @@ export class FakeGitHub {
 				})),
 			},
 			comments: { totalCount: 0 },
-			reactions: { totalCount: 0 },
+			reactions: { totalCount: item.thumbsUp?.length ?? 0 },
+			thumbsUp: {
+				totalCount: item.thumbsUp?.length ?? 0,
+				nodes: (item.thumbsUp ?? []).map((login) => ({ user: { login } })),
+			},
 		};
 		if (item.kind === "issue") {
 			return {
@@ -1485,6 +1491,7 @@ export class FakeGitHub {
 			updated_at: item.updatedAt,
 			node_id: `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`,
 			comments: 0,
+			reactions: { total_count: item.thumbsUp?.length ?? 0, "+1": item.thumbsUp?.length ?? 0 },
 			labels: item.labels ?? [],
 			assignees: (item.assignees ?? []).map((login) => ({
 				login,

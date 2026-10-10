@@ -24,6 +24,12 @@ export interface Card {
 	author: { login: string; avatarUrl: string } | null;
 	comments: number;
 	reactions: number;
+	/**
+	 * 👍 reactions on the item, which dot votes can count (#48): how many,
+	 * and who, where the forge said (GitHub's GraphQL does; REST and webhook
+	 * payloads only count). `logins` may be fewer than `count`.
+	 */
+	thumbsUp?: { count: number; logins?: string[] };
 	url: string;
 	updatedAt: string;
 	/** When it was opened, ISO 8601, where the forge said (absent in older caches and fixtures). */

@@ -992,8 +992,13 @@ function dedupe(entries: Entry[]): Entry[] {
  * until the debounced refetch replaces them, rather than flickering.
  */
 function keepDetails(existing: Card, incoming: Card): Card {
-	const card =
+	let card =
 		incoming.nodeId || !existing.nodeId ? incoming : { ...incoming, nodeId: existing.nodeId };
+	// Webhooks count 👍 without saying who: keep who, from the last full fetch.
+	if (incoming.thumbsUp && !incoming.thumbsUp.logins && existing.thumbsUp?.logins) {
+		const logins = existing.thumbsUp.logins.slice(0, incoming.thumbsUp.count);
+		card = { ...card, thumbsUp: { count: incoming.thumbsUp.count, logins } };
+	}
 	const before = existing.pull;
 	const after = incoming.pull;
 	if (!before || !after || after.detail !== "basic" || before.detail !== "full") return card;

@@ -34,7 +34,8 @@ const COMMON = `
 	labels(first: 10) { nodes { name color } }
 	assignees(first: 5) { nodes { login avatarUrl } }
 	comments { totalCount }
-	reactions { totalCount }`;
+	reactions { totalCount }
+	thumbsUp: reactions(content: THUMBS_UP, first: 50) { totalCount nodes { user { login } } }`;
 
 const COUNTS = `
 	checkRunCountsByState { state count }
@@ -108,6 +109,8 @@ interface Common {
 	assignees: { nodes: Actor[] };
 	comments: { totalCount: number };
 	reactions: { totalCount: number };
+	/** 👍 reactions and who left them (dot votes count them, #48). Absent from older fixtures. */
+	thumbsUp?: { totalCount: number; nodes: { user: { login: string } | null }[] };
 }
 
 export interface GqlIssue extends Common {
@@ -374,6 +377,16 @@ function base(node: Common): Omit<Card, "kind" | "state" | "stateReason"> {
 		author: node.author ? { login: node.author.login, avatarUrl: node.author.avatarUrl } : null,
 		comments: node.comments.totalCount,
 		reactions: node.reactions.totalCount,
+		...(node.thumbsUp
+			? {
+					thumbsUp: {
+						count: node.thumbsUp.totalCount,
+						logins: node.thumbsUp.nodes.flatMap((n) =>
+							n.user ? [n.user.login.toLowerCase()] : [],
+						),
+					},
+				}
+			: {}),
 		url: node.url,
 		updatedAt: node.updatedAt,
 		...(node.createdAt ? { createdAt: node.createdAt } : {}),

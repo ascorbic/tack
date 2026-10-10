@@ -46,7 +46,7 @@ export interface GitHubIssueLike {
 	labels?: ({ name?: string; color?: string } | string)[];
 	assignees?: { login: string; avatar_url: string }[] | null;
 	user?: { login: string; avatar_url: string } | null;
-	reactions?: { total_count?: number };
+	reactions?: { total_count?: number; "+1"?: number };
 	pull_request?: { merged_at?: string | null } | null;
 	draft?: boolean;
 	merged?: boolean;
@@ -142,6 +142,10 @@ export function normaliseIssue(
 		author: issue.user ? { login: issue.user.login, avatarUrl: issue.user.avatar_url } : null,
 		comments: issue.comments ?? 0,
 		reactions: issue.reactions?.total_count ?? 0,
+		// REST and webhooks count 👍 but don't say who (GraphQL does).
+		...(typeof issue.reactions?.["+1"] === "number"
+			? { thumbsUp: { count: issue.reactions["+1"] } }
+			: {}),
 		url: issue.html_url,
 		updatedAt: issue.updated_at,
 		...(issue.created_at ? { createdAt: issue.created_at } : {}),
