@@ -145,6 +145,9 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 	test.setTimeout(120_000);
 	await page.goto(`/auth/dev?login=e2e-m2-${run}&name=M2%20Tester&return_to=/`);
 	await page.getByRole("button", { name: "Create your first board" }).click();
+	// It opens the template picker: start blank.
+	await page.getByRole("option", { name: /^Blank board/ }).click();
+	await page.getByRole("button", { name: "Create board" }).click();
 	// The first load of a board can be slow on a cold dev server.
 	await expect(page.getByRole("textbox", { name: "Board title" })).toBeFocused({ timeout: 15_000 });
 	await page.keyboard.type("M2 exit");

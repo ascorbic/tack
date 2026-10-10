@@ -38,6 +38,9 @@ test.describe.serial("a board's life", () => {
 
 		// Creating opens the new board with its title ready to type over.
 		await page.getByRole("button", { name: "Create your first board" }).click();
+		// It opens the template picker: start blank.
+		await page.getByRole("option", { name: /^Blank board/ }).click();
+		await page.getByRole("button", { name: "Create board" }).click();
 		await expect(page).toHaveURL(/\/b\/[a-z0-9]{10}\/untitled-board$/);
 		const title = page.getByRole("textbox", { name: "Board title" });
 		// The first load of a board can be slow on a cold dev server.
