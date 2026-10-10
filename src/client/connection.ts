@@ -6,7 +6,9 @@ import type { BoardMessage, Role } from "../shared/boards.ts";
 import type { BoardRequest, CardMessage } from "../shared/cards.ts";
 import type { WidgetMessage } from "../shared/widgets.ts";
 import { cardStore } from "./cardStore.ts";
+import type { WidgetRequest } from "../shared/widgets.ts";
 import { inboxStore } from "./inbox/store.ts";
+import { widgetStore } from "./widgets/store.ts";
 
 /** Everything a board needs to render, whether live or simulated. */
 export interface BoardSource {
@@ -46,6 +48,8 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 					handlers.current.onRenamed?.(message.title, message.slug);
 					return;
 				case "widget-data":
+					// Widgets and inbox frames each pick out their own ids.
+					widgetStore.apply(message);
 					inboxStore.apply(message);
 					return;
 				default:
@@ -60,6 +64,19 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		cardStore.recheck = () =>
 			provider.sendMessage(JSON.stringify({ type: "recheck" } satisfies BoardRequest));
 		inboxStore.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
+		// Widgets ask for their data over the same connection (#37). Until it's
+		// open, nothing is sent: everything wanted is asked for once it is.
+		const request = (message: WidgetRequest) => {
+			if (provider.wsconnected) provider.sendMessage(JSON.stringify(message));
+		};
+		widgetStore.connect({
+			watch: (ids) => request({ type: "widget-watch", ids }),
+			unwatch: (ids) => request({ type: "widget-unwatch", ids }),
+			refresh: (id) => request({ type: "widget-refresh", id }),
+		});
+		provider.on("status", ({ status }: { status: string }) => {
+			if (status === "connected") widgetStore.rewatch();
+		});
 		return { doc, provider };
 	});
 	const [synced, setSynced] = useState(false);
@@ -74,6 +91,7 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		provider.on("sync", onSync);
 		return () => {
 			provider.off("sync", onSync);
+			widgetStore.connect(null);
 			provider.destroy();
 		};
 	}, [connection]);

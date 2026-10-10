@@ -72,6 +72,16 @@ import { usePublishStatus } from "./useActivity.ts";
 import { InboxLayer } from "./inbox/InboxTray.tsx";
 import { scaledDuration } from "./motion.ts";
 import { RulesButton, RulesPanel } from "./rules/RulesPanel.tsx";
+import { boardRepos } from "../shared/actions.ts";
+import { transactLocal } from "../shared/shapes.ts";
+import { placeInSections } from "../shared/structure.ts";
+import { addWidget, widgetDefinition } from "../shared/widgetRegistry.ts";
+import { cardStore } from "./cardStore.ts";
+import type { WidgetBoard } from "./widgets/context.ts";
+import { RowGhost } from "./widgets/RowDrag.tsx";
+import { linkStore } from "./widgets/store.ts";
+import { useDropToMatch } from "./widgets/useDropToMatch.ts";
+import { WIDGET_DRAG_TYPE } from "./widgets/WidgetPicker.tsx";
 
 // Every shape shows the changes staged about it.
 const NODE_TYPES = Object.fromEntries(
@@ -184,6 +194,9 @@ export function Board({
 	// Shift-dragging a marquee adds to the selection instead of replacing it.
 	const marqueeBase = useRef<Set<string> | null>(null);
 
+	// Cards dragged over a list, and dropped on one to match it (#39).
+	const matching = useDropToMatch(shapeNodes, sizeOf);
+
 	// Selection, measured sizes and in-progress drags are local UI state, so
 	// they live outside the document. Unchanged nodes keep their identity so
 	// React Flow's memoised nodes skip re-rendering.
@@ -209,7 +222,9 @@ export function Board({
 					? "remote-drag"
 					: structure.followsRemote.has(base.id)
 						? "remote-follow"
-						: undefined;
+						: matching.returning.has(base.id)
+							? "snap-back"
+							: undefined;
 				const cached = merged.current.get(base.id)?.out;
 				if (
 					cached &&
@@ -239,7 +254,7 @@ export function Board({
 				merged.current.set(base.id, { base, out });
 				return out;
 			}),
-		[shapeNodes, selected, measured, structure],
+		[shapeNodes, selected, measured, structure, matching.returning],
 	);
 
 	// A dragged section's contents move with it, so they're never snapped to.
@@ -268,6 +283,68 @@ export function Board({
 			});
 		},
 		[flow],
+	);
+
+	// What widgets need from the board (#37, #38, #39).
+	const widgetBoard = useMemo<WidgetBoard>(
+		() => ({
+			user,
+			toasts,
+			hovering: matching.hovering,
+			dropped: matching.dropped,
+			closeDrop: matching.closeDrop,
+			select: (ids) => setSelected(new Set(ids)),
+			reveal: (ids) => {
+				if (ids.length === 0) return;
+				follow.stop();
+				setSelected(new Set(ids));
+				void flow.fitView({
+					nodes: ids.map((id) => ({ id })),
+					duration: scaledDuration(520),
+					padding: 0.6,
+					maxZoom: Math.max(flow.getZoom(), 1),
+				});
+			},
+			seedCard: (card) => {
+				if (!cardStore.get(card.key)) cardStore.set(card);
+			},
+		}),
+		[user, toasts, matching, follow.stop, flow],
+	);
+	const suggestedRepo = useMemo(() => {
+		const busiest = boardRepos(doc)[0]?.repo;
+		return busiest ? busiest.split("/").slice(1).join("/") : null;
+		// Read again whenever the tool changes: it's only needed when the picker opens.
+	}, [doc, tool]);
+
+	/** Add a widget centred on `at` (or the middle of the view), selected, with its panel open if it needs setting up. */
+	const addWidgetAt = useCallback(
+		(kind: string, config?: Record<string, unknown>, at?: { x: number; y: number }) => {
+			const definition = widgetDefinition(kind);
+			if (!definition || readOnly) return;
+			const busiestHost = boardRepos(doc)[0]?.repo.split("/")[0];
+			const centreAt =
+				at ?? flow.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+			const id = transactLocal(doc, () => {
+				const id = addWidget(
+					doc,
+					kind,
+					{ x: centreAt.x - definition.size.w / 2, y: centreAt.y - definition.size.h / 2 },
+					{
+						...(definition.defaults as object),
+						// Lists search the forge the board's cards are mostly on.
+						...(kind === "list" && busiestHost ? { host: busiestHost } : {}),
+						...config,
+					},
+				);
+				placeInSections(doc, [id], boxSize);
+				return id;
+			});
+			if (!config?.q) focusWhenMounted(id);
+			setSelected(new Set([id]));
+			setTool("select");
+		},
+		[doc, flow, readOnly, boxSize],
 	);
 
 	// Keyboard shortcuts, the clipboard (paste a URL for a card, or text for
@@ -345,9 +422,18 @@ export function Board({
 			if (readOnly) return;
 			presence.onPositionChanges(changes);
 			commands.onRemove(changes.flatMap((change) => (change.type === "remove" ? [change.id] : [])));
-			applyNodeChanges(doc, changes, presence.lastDragPosition, boxSize);
+			// Cards dropped on a list don't move: they ask to match it (#39).
+			const dropped = matching.track(changes);
+			applyNodeChanges(
+				doc,
+				dropped
+					? changes.filter((change) => change.type !== "position" || !dropped.has(change.id))
+					: changes,
+				presence.lastDragPosition,
+				boxSize,
+			);
 		},
-		[doc, presence, snapping, commands, boxSize, readOnly],
+		[doc, presence, snapping, commands, boxSize, readOnly, matching],
 	);
 
 	const sectionUI = useMemo(
@@ -414,6 +500,8 @@ export function Board({
 			const id = addDecisionAt(doc, at, { name: user.name, color: user.color });
 			focusWhenMounted(id);
 			setSelected(new Set([id]));
+		} else if (tool === "widget") {
+			addWidgetAt("list", undefined, at);
 		} else {
 			return;
 		}
@@ -427,12 +515,31 @@ export function Board({
 
 	// Drag a sticky straight off the toolbar.
 	const onDragOver = (event: DragEvent) => {
-		if (event.dataTransfer.types.includes(STICKY_DRAG_TYPE)) {
+		const types = event.dataTransfer.types;
+		if (types.includes(STICKY_DRAG_TYPE) || types.includes(WIDGET_DRAG_TYPE)) {
 			event.preventDefault();
 			event.dataTransfer.dropEffect = "copy";
 		}
 	};
 	const onDrop = (event: DragEvent) => {
+		const widget = event.dataTransfer.getData(WIDGET_DRAG_TYPE);
+		if (widget && !readOnly) {
+			event.preventDefault();
+			try {
+				const { kind, config } = JSON.parse(widget) as {
+					kind: string;
+					config?: Record<string, unknown>;
+				};
+				addWidgetAt(
+					kind,
+					config,
+					flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+				);
+			} catch {
+				// Not something we made.
+			}
+			return;
+		}
 		const color = event.dataTransfer.getData(STICKY_DRAG_TYPE) as StickyColor;
 		if (!color || readOnly) return;
 		event.preventDefault();
@@ -459,6 +566,7 @@ export function Board({
 				sections={sectionUI}
 				readOnly={readOnly}
 				decisions={decisionBoard}
+				widgets={widgetBoard}
 			>
 				<ServicesContext value={writeServices}>
 					<div className="app" data-read-only={readOnly || undefined}>
@@ -536,6 +644,15 @@ export function Board({
 								}}
 								onSelectionEnd={() => {
 									marqueeBase.current = null;
+								}}
+								onNodeMouseEnter={(_event, node) => {
+									// Light up this item's rows in any list (#38).
+									if (node.type === "card" && node.data.shape.ref) {
+										linkStore.set(node.data.shape.ref, "card");
+									}
+								}}
+								onNodeMouseLeave={(_event, node) => {
+									if (node.type === "card") linkStore.set(null, "card");
 								}}
 								onNodeClick={(event, node) => {
 									// Clicking one shape in a multi-selection selects just that one.
@@ -664,6 +781,8 @@ export function Board({
 									stickyColor={stickyColor}
 									onStickyColor={setStickyColor}
 									onAddCard={onAddCard}
+									onAddWidget={addWidgetAt}
+									suggestedRepo={suggestedRepo}
 								/>
 							)}
 							{rulesOpen && (
@@ -677,6 +796,7 @@ export function Board({
 									toasts={toasts}
 								/>
 							)}
+							<RowGhost />
 							<Toasts store={toasts} />
 							<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
 							<ChangesPanel />
@@ -697,5 +817,6 @@ function minimapClass(node: ShapeNode): string {
 	if (type === "section") return `minimap-section minimap-section-${color ?? "grey"}`;
 	if (type === "decision")
 		return `minimap-decision minimap-decision-${node.data.shape.status ?? "proposed"}`;
+	if (type === "widget") return "minimap-widget";
 	return `minimap-${type}`;
 }

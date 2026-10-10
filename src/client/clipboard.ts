@@ -117,7 +117,8 @@ export function fromHtml(html: string | undefined | null): ClipboardPayload | nu
 
 /**
  * Plain text for pasting outside Tack: each sticky's text, each card's link,
- * and each decision's title and body, one per paragraph.
+ * each decision's title and body, and each list's title and search, one per
+ * paragraph.
  */
 export function toPlainText(
 	payload: ClipboardPayload,
@@ -127,6 +128,12 @@ export function toPlainText(
 	for (const { props } of payload.shapes) {
 		if (props.type === "decision" && typeof props.title === "string" && props.title.trim()) {
 			parts.push(props.title.trim());
+		}
+		// A list: its title and search.
+		if (props.type === "widget" && props.config && typeof props.config === "object") {
+			const { title, q } = props.config as { title?: unknown; q?: unknown };
+			const line = [title, q].filter((s): s is string => typeof s === "string" && s.trim() !== "");
+			if (line.length > 0) parts.push(line.join(": "));
 		}
 		if (typeof props.ref === "string") parts.push(cardUrl(props.ref) ?? props.ref);
 		const text = plainString(props.text);

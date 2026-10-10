@@ -9,6 +9,8 @@ import { useCardProvenance } from "./Provenance.tsx";
 import { StickyNode } from "./StickyNode.tsx";
 import { TextNode } from "./TextNode.tsx";
 import { DecisionNode } from "./decisions/DecisionNode.tsx";
+import { useLinked } from "./widgets/store.ts";
+import { WidgetNode } from "./widgets/WidgetNode.tsx";
 
 export { DocContext };
 
@@ -28,17 +30,21 @@ export const CardNode = memo(function CardNode({ data, selected }: NodeProps<Sha
 		data.shape,
 		useContext(ReadOnlyContext),
 	);
+	// Someone's pointing at this item's row in a list (#38).
+	const linked = useLinked(key, "row");
 	return (
-		<CardView
-			card={card}
-			cardKey={key}
-			selected={selected}
-			compact={compact}
-			enter={enter}
-			entrance={entrance}
-			origin={origin}
-			unmatched={unmatched}
-		/>
+		<div className="card-link" data-linked={linked || undefined}>
+			<CardView
+				card={card}
+				cardKey={key}
+				selected={selected}
+				compact={compact}
+				enter={enter}
+				entrance={entrance}
+				origin={origin}
+				unmatched={unmatched}
+			/>
+		</div>
 	);
 });
 
@@ -47,4 +53,5 @@ export const nodeTypes = {
 	sticky: StickyNode,
 	text: TextNode,
 	decision: DecisionNode,
+	widget: WidgetNode,
 };

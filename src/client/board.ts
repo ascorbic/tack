@@ -16,6 +16,7 @@ import {
 	shapesMap,
 } from "../shared/shapes.ts";
 import { commitMoves, placeInSections, removeShapes } from "../shared/structure.ts";
+import { widgetSize } from "../shared/widgetRegistry.ts";
 import { transactLocal } from "./undo.ts";
 
 export type ShapeNode = Node<{
@@ -97,6 +98,13 @@ function createNodeStore(doc: Y.Doc) {
 						// Sections are picked up by their title; dragging inside one
 						// selects what's in it.
 						dragHandle: ".section-handle",
+					}),
+					// Widgets are sized by their shape, and picked up by their header, so
+					// their contents can scroll and their rows be dragged out.
+					...(type === "widget" && {
+						width: widgetSize(props).w,
+						height: widgetSize(props).h,
+						dragHandle: ".widget-handle",
 					}),
 				};
 				cache.set(id, node);

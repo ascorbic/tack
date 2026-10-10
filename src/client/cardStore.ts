@@ -20,6 +20,15 @@ class CardStore {
 	set(card: Entry): void {
 		this.cards.set(card.key, card);
 		for (const listener of this.listeners.get(card.key) ?? []) listener();
+		for (const listener of this.everything) listener(card.key);
+	}
+
+	private everything = new Set<(key: string) => void>();
+
+	/** Hear about every card that changes (the playground's stand-in server). */
+	subscribeAll(listener: (key: string) => void): () => void {
+		this.everything.add(listener);
+		return () => this.everything.delete(listener);
 	}
 
 	get(key: string): Entry | undefined {

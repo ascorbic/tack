@@ -4,6 +4,7 @@ import type { Rect } from "../shared/geometry.ts";
 import type { ResizeHandle, SizeOf } from "../shared/sections.ts";
 import { type DecisionBoard, DecisionContext } from "./decisions/context.ts";
 import type { History } from "./undo.ts";
+import { NO_WIDGET_BOARD, type WidgetBoard, WidgetContext } from "./widgets/context.ts";
 
 /** The board's document, for nodes that write to it. */
 export const DocContext = createContext<Y.Doc | null>(null);
@@ -47,6 +48,7 @@ export function BoardContext({
 	sections,
 	readOnly = false,
 	decisions = NO_DECISION_BOARD,
+	widgets = NO_WIDGET_BOARD,
 	children,
 }: {
 	doc: Y.Doc;
@@ -55,6 +57,8 @@ export function BoardContext({
 	readOnly?: boolean;
 	/** Who's voting on decisions, and the board's address. */
 	decisions?: DecisionBoard;
+	/** What widgets need from the board: who's looking, cards being dropped on them (#37). */
+	widgets?: WidgetBoard;
 	children: ReactNode;
 }) {
 	return createElement(
@@ -69,7 +73,11 @@ export function BoardContext({
 				createElement(
 					ReadOnlyContext,
 					{ value: readOnly },
-					createElement(DecisionContext, { value: decisions }, children),
+					createElement(
+						DecisionContext,
+						{ value: decisions },
+						createElement(WidgetContext, { value: widgets }, children),
+					),
 				),
 			),
 		),

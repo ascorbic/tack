@@ -1,6 +1,8 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { STICKY_COLORS, type StickyColor } from "./board.ts";
 import { GavelPaths } from "./decisions/icons.tsx";
+import { ListPaths } from "./widgets/icons.tsx";
+import { type AddWidget, WidgetPicker } from "./widgets/WidgetPicker.tsx";
 
 export type Tool =
 	| "select"
@@ -10,7 +12,8 @@ export type Tool =
 	| "card"
 	| "section"
 	| "connector"
-	| "decision";
+	| "decision"
+	| "widget";
 
 export const TOOL_KEYS: Record<string, Tool> = {
 	v: "select",
@@ -21,6 +24,7 @@ export const TOOL_KEYS: Record<string, Tool> = {
 	f: "section",
 	x: "connector",
 	d: "decision",
+	w: "widget",
 };
 
 /** The MIME type for dragging a new sticky off the toolbar onto the canvas. */
@@ -33,9 +37,21 @@ interface ToolbarProps {
 	onStickyColor: (color: StickyColor) => void;
 	/** Returns false if the reference couldn't be parsed. */
 	onAddCard: (input: string) => boolean;
+	/** Add a widget from the picker (#37). */
+	onAddWidget?: AddWidget;
+	/** The board's busiest repository, for ready-made lists: `owner/name`. */
+	suggestedRepo?: string | null;
 }
 
-export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }: ToolbarProps) {
+export function Toolbar({
+	tool,
+	onTool,
+	stickyColor,
+	onStickyColor,
+	onAddCard,
+	onAddWidget,
+	suggestedRepo = null,
+}: ToolbarProps) {
 	return (
 		<div className="toolbar-dock">
 			{tool === "sticky" && <StickyOptions color={stickyColor} onColor={onStickyColor} />}
@@ -51,6 +67,15 @@ export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }:
 			{tool === "connector" && <ToolHint>Drag from a shape to another, or anywhere</ToolHint>}
 			{tool === "decision" && (
 				<ToolHint>Click to propose a decision, then connect the issues it settles</ToolHint>
+			)}
+			{tool === "widget" && onAddWidget && (
+				<WidgetPicker
+					suggestedRepo={suggestedRepo}
+					onAdd={(kind, config) => {
+						onAddWidget(kind, config);
+						onTool("select");
+					}}
+				/>
 			)}
 			<div className="toolbar" role="toolbar" aria-label="Tools">
 				<ToolButton tool="select" active={tool} onTool={onTool} label="Select" shortcut="V">
@@ -84,6 +109,13 @@ export function Toolbar({ tool, onTool, stickyColor, onStickyColor, onAddCard }:
 				<ToolButton tool="decision" active={tool} onTool={onTool} label="Decision" shortcut="D">
 					<GavelPaths />
 				</ToolButton>
+				{onAddWidget && (
+					<ToolButton tool="widget" active={tool} onTool={onTool} label="Widget" shortcut="W">
+						<g transform="translate(2 2)">
+							<ListPaths />
+						</g>
+					</ToolButton>
+				)}
 			</div>
 		</div>
 	);

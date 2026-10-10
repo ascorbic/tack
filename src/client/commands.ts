@@ -659,6 +659,7 @@ const NOUNS: Record<string, [string, string]> = {
 	section: ["section", "sections"],
 	connector: ["connector", "connectors"],
 	decision: ["decision", "decisions"],
+	widget: ["widget", "widgets"],
 };
 
 /** "a sticky", "5 cards", "3 shapes" */

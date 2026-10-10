@@ -9,6 +9,7 @@ import {
 	descendantsOf,
 	readStructure,
 } from "../shared/sections.ts";
+import { widgetSize } from "../shared/widgetRegistry.ts";
 import { SECTION_Z, type ShapeNode } from "./board.ts";
 import { useAwarenessField } from "./ephemeral.ts";
 import type { RemoteDrag } from "./presence.ts";
@@ -45,6 +46,7 @@ export interface CanvasStructure {
 export function nodeSize(node: ShapeNode, measured?: { width?: number; height?: number }): Size {
 	const shape = node.data.shape;
 	if (shape.type === "section") return { w: shape.w ?? 0, h: shape.h ?? 0 };
+	if (shape.type === "widget") return widgetSize(shape);
 	if (measured?.width && measured.height) return { w: measured.width, h: measured.height };
 	return NOMINAL_SIZE[shape.type] ?? { w: 0, h: 0 };
 }
@@ -53,7 +55,7 @@ export function nodeSize(node: ShapeNode, measured?: { width?: number; height?: 
 export function nodeBox(node: ShapeNode): Rect {
 	const shape = node.data.shape;
 	const size =
-		shape.type === "section"
+		shape.type === "section" || shape.type === "widget"
 			? { w: node.width ?? shape.w ?? 0, h: node.height ?? shape.h ?? 0 }
 			: nodeSize(node, node.measured);
 	return { x: node.position.x, y: node.position.y, ...size };
