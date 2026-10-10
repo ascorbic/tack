@@ -236,8 +236,12 @@ test.describe("changes gallery", () => {
 		await expect(panels.getByRole("heading", { name: "Nothing staged" })).toBeVisible();
 
 		const marks = section(page, "Marks on shapes");
-		await expect(marks.locator("figure")).toHaveCount(13);
+		await expect(marks.locator("figure")).toHaveCount(15);
 		await expect(marks.locator(".staged-ghost")).toHaveCount(4);
+		// A section about to become a parent issue: its card-to-be above it.
+		await expect(marks.locator(".staged-parent")).toHaveCount(2);
+		await expect(marks.locator(".staged-parent[data-status=sending]")).toHaveCount(1);
+		await expect(marks.locator(".staged-parent").first()).toContainText("Docs for 5.0");
 		await expect(marks.locator(".staged-flag[data-status=failed]")).toHaveCount(1);
 		await expect(marks.locator(".staged-flag[data-included=false]")).toHaveCount(1);
 		await expect(marks.locator(".staged-label[data-status=sent]")).toHaveCount(1);
