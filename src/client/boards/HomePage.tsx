@@ -7,6 +7,7 @@ import { personUser, useMe } from "../auth/me.ts";
 import { BrandMark } from "../BrandMark.tsx";
 import { localUser, type User } from "../presence.ts";
 import { ThemeToggle } from "../ThemeToggle.tsx";
+import { NotificationsButton } from "../comments/Notifications.tsx";
 import { boardsApi } from "./api.ts";
 import { BoardTile, type TileActions, type TileTime } from "./BoardTile.tsx";
 import { PlusIcon, SearchIcon } from "./icons.tsx";
@@ -151,6 +152,7 @@ export function HomeView({
 					tack
 				</a>
 				<span className="home-bar-end">
+					{me.viewer && <NotificationsButton />}
 					<ThemeToggle />
 					{me.viewer || me.signIn !== "ready" ? (
 						<span className="people home-account">

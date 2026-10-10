@@ -45,8 +45,19 @@ export class NotificationStore {
 	private list: NotificationList = EMPTY;
 	private listeners = new Set<() => void>();
 	private loading: Promise<void> | null = null;
+	private again = false;
+	private api: NotificationsApi;
 
-	constructor(public api: NotificationsApi = liveNotifications) {}
+	constructor(api: NotificationsApi = liveNotifications) {
+		this.api = api;
+	}
+
+	/** Ask somewhere else from now on (the playground), forgetting anything on its way. */
+	use(api: NotificationsApi): void {
+		this.api = api;
+		this.loading = null;
+		void this.refresh();
+	}
 
 	get = (): NotificationList => this.list;
 
@@ -56,15 +67,26 @@ export class NotificationStore {
 	};
 
 	refresh(): Promise<void> {
-		if (this.loading) return this.loading;
-		const loading = this.api
+		// Asked again while asking: ask once more afterwards, as something may have changed.
+		if (this.loading) {
+			this.again = true;
+			return this.loading;
+		}
+		const api = this.api;
+		const loading = api
 			.list()
 			.then((list) => {
-				if (list) this.set(list);
+				// Only the answer from where we're asking now.
+				if (list && api === this.api) this.set(list);
 			})
 			.catch(() => {})
 			.finally(() => {
+				if (this.loading !== loading) return;
 				this.loading = null;
+				if (this.again) {
+					this.again = false;
+					void this.refresh();
+				}
 			});
 		this.loading = loading;
 		return loading;

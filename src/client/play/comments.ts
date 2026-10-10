@@ -71,7 +71,7 @@ export class SimulatedComments {
 		const previous = this.store.channel;
 		this.store.channel = { send: (request) => this.receive(request) };
 		peopleSource.reset(async () => this.people());
-		this.inbox.api = {
+		this.inbox.use({
 			list: async () => this.inboxList(),
 			read: async (which) => {
 				for (const n of this.notifications) {
@@ -85,8 +85,7 @@ export class SimulatedComments {
 				}
 				return this.inboxList();
 			},
-		};
-		this.inbox.set(this.inboxList());
+		});
 		this.store.apply({
 			type: "comments",
 			threads: [...this.threads.values()],

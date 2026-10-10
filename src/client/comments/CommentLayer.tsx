@@ -278,9 +278,17 @@ function Popover({ at, children }: { at: { x: number; y: number }; children: Rea
 		const element = ref.current;
 		if (!element) return;
 		setHeight(element.offsetHeight);
-		const observer = new ResizeObserver(() => setHeight(element.offsetHeight));
+		// Measured on the next frame, so moving it never loops the observer.
+		let frame = 0;
+		const observer = new ResizeObserver(() => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(() => setHeight(element.offsetHeight));
+		});
 		observer.observe(element);
-		return () => observer.disconnect();
+		return () => {
+			cancelAnimationFrame(frame);
+			observer.disconnect();
+		};
 	}, []);
 	void transform;
 	const top = screen.y + POPOVER_TOP;
