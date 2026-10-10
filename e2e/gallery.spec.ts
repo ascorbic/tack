@@ -320,3 +320,34 @@ test.describe("boards gallery", () => {
 		}
 	});
 });
+
+test("every facilitation, silent mode and dot voting state renders", async ({ page }) => {
+	await page.goto("/play/facilitation");
+	await expect(page.getByRole("heading", { name: "Facilitation", exact: true })).toBeVisible();
+	for (const state of ["running", "final", "paused", "done"]) {
+		await expect(
+			page.locator(`figure[data-state=${state}] .timer[data-state=${state}]`).first(),
+		).toBeVisible();
+	}
+	await expect(page.locator(".spotlight-pill")).toHaveCount(3);
+	await expect(page.locator("figure[data-state=stamps] .stamp")).toHaveCount(3);
+	await expect(page.locator("figure[data-state=dots-hidden] .vote-dot")).toHaveCount(1);
+	await expect(page.getByRole("menu", { name: "Emotes" }).getByRole("menuitem")).toHaveCount(8);
+	await expect(
+		page
+			.getByRole("img", { name: "Priya Shah and Kai Andersen high-fived" })
+			.locator(".high-five-clap"),
+	).toBeVisible();
+	await expect(page.locator("figure[data-state=face-down] .sticky[data-face-down]")).toBeVisible();
+	await expect(page.locator("figure[data-state=hidden] .sticky[data-hidden]")).toBeVisible();
+	await expect(page.getByRole("button", { name: /^Reveal/ })).toHaveCount(2);
+	await expect(page.locator(".vote-bar")).toHaveCount(6);
+	await expect(
+		page.locator("figure[data-state=vote-closed] .vote-bar[data-open=false]"),
+	).toBeVisible();
+	await expect(page.locator(".tally-panel")).toHaveCount(4);
+	await expect(page.locator("figure[data-state=tally-hidden]")).toContainText("Results are hidden");
+	await expect(page.locator("figure[data-state=tally-open] .tally-row").first()).toContainText(
+		"👍",
+	);
+});
