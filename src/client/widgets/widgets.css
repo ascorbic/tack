@@ -1410,3 +1410,17 @@ body[data-row-drag] * {
 .widget-config-foot button:not(.primary):hover {
 	background: var(--surface-muted);
 }
+
+/* The gallery (/play/widgets) ---------------------------------------------------------- */
+
+.gallery-grid.widget-samples {
+	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+
+.gallery-grid.widget-panels {
+	grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+}
+
+.widget-sample {
+	width: 360px;
+}
