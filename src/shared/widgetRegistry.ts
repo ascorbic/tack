@@ -7,7 +7,7 @@ import { DEFAULT_HOST } from "./refs.ts";
 import { releaseWidget } from "./releaseDraft.ts";
 import { reviewWidget } from "./review.ts";
 import { staleWidget } from "./stale.ts";
-import { parseSearch, searchScope } from "./search.ts";
+import { parseSearch, searchScope, withLogin } from "./search.ts";
 import { type ShapeProps, addShape, nextZ, shapesMap } from "./shapes.ts";
 import { timelineWidget } from "./timeline.ts";
 import {
@@ -84,8 +84,17 @@ export const listWidget: WidgetDefinition<ListConfig> = {
 	refresh: 300,
 };
 
-/** Ready-made lists for the picker and the empty state. */
-export const LIST_PRESETS: { label: string; title: string; q: (repo: string) => string }[] = [
+/** A ready-made search: for lists, inboxes and rules alike. */
+export interface ListPreset {
+	label: string;
+	title: string;
+	q: (repo: string) => string;
+	/** A search about whoever's looking (`@me`): its title for one person, by login. */
+	mine?: (login: string) => string;
+}
+
+/** Ready-made lists for the picker, the empty state, inboxes and rules. */
+export const LIST_PRESETS: ListPreset[] = [
 	{ label: "Open bugs", title: "Open bugs", q: (repo) => `repo:${repo} is:open label:bug` },
 	{
 		label: "Needs triage",
@@ -102,13 +111,40 @@ export const LIST_PRESETS: { label: string; title: string; q: (repo: string) => 
 		title: "Good first issues",
 		q: (repo) => `repo:${repo} is:open label:"good first issue"`,
 	},
-	{ label: "Assigned to me", title: "Assigned to me", q: () => "is:open assignee:@me" },
+	{
+		label: "Assigned to me",
+		title: "Assigned to me",
+		q: () => "is:open assignee:@me",
+		mine: (login) => `Assigned to ${login}`,
+	},
 	{
 		label: "My review queue",
 		title: "Review queue",
 		q: () => "is:pr is:open review-requested:@me",
+		mine: (login) => `${login}'s review queue`,
 	},
 ];
+
+/**
+ * The ready-made searches for a board, filled in: for its busiest repository
+ * (those that need one are left out without it), and with `@me` as `login`,
+ * whoever's adding it, when they're signed in. A board is shared: an `@me`
+ * list shows each person their own, so "look at the review queue" would mean
+ * eight different lists. Named, it's the same list for everyone.
+ */
+export function listPresets(
+	repo: string | null,
+	login?: string | null,
+	{ personal = true }: { personal?: boolean } = {},
+): { label: string; title: string; q: string }[] {
+	return LIST_PRESETS.filter((preset) => repo || !preset.q("x/y").includes("x/y"))
+		.filter((preset) => personal || !preset.mine)
+		.map((preset) => {
+			const q = preset.q(repo ?? "");
+			if (!preset.mine || !login) return { label: preset.label, title: preset.title, q };
+			return { label: preset.label, title: preset.mine(login), q: withLogin(q, login) };
+		});
+}
 
 // --- The registry --------------------------------------------------------------
 

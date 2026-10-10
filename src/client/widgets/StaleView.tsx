@@ -1,6 +1,6 @@
 import { type CSSProperties, useMemo } from "react";
 import type { Card } from "../../shared/cards.ts";
-import { parseSearch } from "../../shared/search.ts";
+import { mentionsMe, parseSearch } from "../../shared/search.ts";
 import {
 	type StaleConfig,
 	type StaleGroup,
@@ -10,6 +10,7 @@ import {
 } from "../../shared/stale.ts";
 import {
 	Count,
+	PersonalChip,
 	QueryErrorEmpty,
 	SkeletonRows,
 	WidgetEmpty,
@@ -105,6 +106,7 @@ export function StaleView(props: StaleViewProps) {
 					</h3>
 					{chips.length > 0 && (
 						<p className="widget-query" title={config.q}>
+							{mentionsMe(config.q) && <PersonalChip />}
 							{config.title.trim() && (
 								<span className="widget-chip mono stale-threshold">{spanText(config.days)}+</span>
 							)}

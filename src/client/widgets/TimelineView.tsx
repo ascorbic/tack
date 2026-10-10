@@ -1,5 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from "react";
 import type { Card } from "../../shared/cards.ts";
+import { mentionsMe } from "../../shared/search.ts";
 import {
 	type TimelineConfig,
 	type TimelineMark,
@@ -103,6 +104,7 @@ export function TimelineView(props: TimelineViewProps) {
 			icon={<TimelineIcon />}
 			title={props.title}
 			subtitle={config.q.trim() ? subtitle : undefined}
+			personal={mentionsMe(config.q)}
 			count={state.kind === "ready" ? shown : null}
 			status={state.kind}
 			stale={state.kind === "ready" && state.stale}

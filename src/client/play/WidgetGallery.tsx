@@ -110,6 +110,12 @@ const SAMPLES: Sample[] = [
 		h: 320,
 	},
 	{
+		label: "Nothing matches words, everywhere",
+		q: "bugs in imagekit",
+		status: { kind: "ready", result: result([]), at: NOW, stale: false },
+		h: 320,
+	},
+	{
 		label: "Signed out, about @me",
 		q: "is:open assignee:@me",
 		status: error("signed_out", "Sign in to see what “@me” means for you."),

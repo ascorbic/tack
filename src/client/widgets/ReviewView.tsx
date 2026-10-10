@@ -14,6 +14,7 @@ import {
 } from "../../shared/review.ts";
 import {
 	Count,
+	PersonalChip,
 	QueryErrorEmpty,
 	SkeletonRows,
 	WidgetEmpty,
@@ -87,6 +88,7 @@ export function ReviewView(props: ReviewViewProps) {
 					</h3>
 					{chip && (
 						<p className="widget-query">
+							{config.scope === "me" && <PersonalChip />}
 							<span className="widget-chip mono" data-tone="scope">
 								{chip}
 							</span>

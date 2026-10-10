@@ -2,13 +2,14 @@ import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "rea
 import type * as v from "valibot";
 import { parseSearch } from "../../shared/search.ts";
 import {
-	LIST_PRESETS,
 	LIST_SORTS,
 	type ListConfig,
 	type ListSort,
+	listPresets,
 } from "../../shared/widgetRegistry.ts";
 import { describeSearch, dropNote, queryChips, refreshNote } from "./describe.ts";
 import { CheckIcon, DropIcon, RefreshIcon, WarnIcon } from "./icons.tsx";
+import { ForgeField, QueryHelp } from "./QueryHelp.tsx";
 
 // Configuring widgets: a panel written for the list (the search, with live
 // feedback on what it reads and whether cards can be dropped on it), and one
@@ -21,7 +22,6 @@ const SORT_LABELS: Record<ListSort, string> = {
 	reactions: "Reactions",
 };
 const LIMITS = [10, 30, 50, 100];
-const HOSTS = ["github.com", "fake.tack"];
 
 /** The panel's frame: a floating sheet, like the selection actions' panels. */
 export function ConfigSheet({
@@ -78,12 +78,18 @@ export function ListConfigPanel({
 	onChange,
 	onClose,
 	suggestedRepo,
+	login = null,
+	showPresets = true,
 }: {
 	config: ListConfig;
 	onChange: (changes: Partial<ListConfig>) => void;
 	onClose: () => void;
 	/** For the ready-made searches: the board's busiest repository (`owner/name`). */
 	suggestedRepo?: string | null;
+	/** Who's editing it, signed in: offered in place of `@me`, and in ready-made lists. */
+	login?: string | null;
+	/** Offer ready-made searches while it's empty (not when the list itself already does). */
+	showPresets?: boolean;
 }) {
 	const id = useId();
 	// The search is committed when you press Enter or leave the field, not on
@@ -95,9 +101,12 @@ export function ListConfigPanel({
 		if (draft.trim() !== config.q.trim()) onChange({ q: draft.trim() });
 	};
 	const drop = dropNote(draft);
-	const presets = suggestedRepo
-		? LIST_PRESETS
-		: LIST_PRESETS.filter((preset) => !preset.q("x/y").includes("x/y"));
+	const presets = showPresets ? listPresets(suggestedRepo ?? null, login) : [];
+	// A `sort:` in the search wins over the control: GitHub reads it first.
+	const sortTerm = useMemo(
+		() => parseSearch(draft).terms.find((term) => term.key === "sort" && !term.negated),
+		[draft],
+	);
 
 	return (
 		<ConfigSheet label="Edit list" onClose={() => (commit(), onClose())}>
@@ -139,23 +148,33 @@ export function ListConfigPanel({
 					))}
 				</div>
 			) : (
-				<div className="widget-config-presets">
-					{presets.map((preset) => (
-						<button
-							key={preset.label}
-							type="button"
-							className="widget-preset"
-							onClick={() => {
-								const q = preset.q(suggestedRepo ?? "");
-								setDraft(q);
-								onChange({ q, title: config.title || preset.title });
-							}}
-						>
-							{preset.label}
-						</button>
-					))}
-				</div>
+				presets.length > 0 && (
+					<div className="widget-config-presets">
+						{presets.map((preset) => (
+							<button
+								key={preset.label}
+								type="button"
+								className="widget-preset"
+								onClick={() => {
+									setDraft(preset.q);
+									onChange({ q: preset.q, title: config.title || preset.title });
+								}}
+							>
+								{preset.label}
+							</button>
+						))}
+					</div>
+				)
 			)}
+			<QueryHelp
+				q={draft}
+				host={config.host}
+				login={login}
+				onUse={(q) => {
+					setDraft(q);
+					onChange({ q });
+				}}
+			/>
 			{draft.trim() && (
 				<ul className="widget-config-notes">
 					<li>
@@ -185,8 +204,14 @@ export function ListConfigPanel({
 					label="Sort by"
 					options={LIST_SORTS.map((sort) => ({ value: sort, label: SORT_LABELS[sort] }))}
 					value={config.sort}
+					disabled={sortTerm !== undefined}
 					onChange={(sort) => onChange({ sort })}
 				/>
+				{sortTerm && (
+					<span className="widget-field-note">
+						The search's <span className="mono">{sortTerm.raw}</span> decides the order.
+					</span>
+				)}
 			</div>
 			<div className="widget-field-row">
 				<div className="widget-field">
@@ -198,20 +223,7 @@ export function ListConfigPanel({
 						onChange={(limit) => onChange({ limit })}
 					/>
 				</div>
-				<label className="widget-field" htmlFor={`${id}-host`}>
-					<span className="widget-field-label">On</span>
-					<select
-						id={`${id}-host`}
-						value={config.host}
-						onChange={(event) => onChange({ host: event.target.value })}
-					>
-						{[...new Set([config.host, ...HOSTS])].map((host) => (
-							<option key={host} value={host}>
-								{host}
-							</option>
-						))}
-					</select>
-				</label>
+				<ForgeField value={config.host} onChange={(host) => onChange({ host })} />
 			</div>
 			<footer className="widget-config-foot">
 				<button type="button" className="primary" onClick={() => (commit(), onClose())}>
@@ -227,20 +239,28 @@ export function Segmented<T extends string | number>({
 	label,
 	options,
 	value,
+	disabled = false,
 	onChange,
 }: {
 	label: string;
 	options: { value: T; label: string }[];
 	value: T;
+	disabled?: boolean;
 	onChange: (value: T) => void;
 }) {
 	return (
-		<div className="widget-segmented" role="radiogroup" aria-label={label}>
+		<div
+			className="widget-segmented"
+			role="radiogroup"
+			aria-label={label}
+			aria-disabled={disabled || undefined}
+		>
 			{options.map((option) => (
 				<button
 					key={String(option.value)}
 					type="button"
 					role="radio"
+					disabled={disabled}
 					aria-checked={option.value === value}
 					onClick={() => onChange(option.value)}
 				>

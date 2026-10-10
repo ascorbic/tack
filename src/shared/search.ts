@@ -99,6 +99,11 @@ export function mentionsMe(q: string): boolean {
 	return /(^|[\s:,])@me\b/i.test(q);
 }
 
+/** A search with `@me` as one person, by login, so it means the same to everyone. */
+export function withLogin(q: string, login: string): string {
+	return q.replace(/(^|[\s:,])@me\b/gi, (_, before: string) => `${before}${login}`);
+}
+
 // --- Evaluating --------------------------------------------------------------
 
 /** What a matcher needs beyond the card. */

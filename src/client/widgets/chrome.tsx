@@ -54,6 +54,8 @@ export interface ShellProps {
 	title: string;
 	/** A line under the title: what it reads. */
 	subtitle?: ReactNode;
+	/** Its search names `@me`, so everyone sees their own. */
+	personal?: boolean;
 	/** A number beside the title (it ticks when it changes). */
 	count?: number | null;
 	status: WidgetState<unknown>["kind"];
@@ -97,7 +99,12 @@ export function WidgetShell(props: ShellProps) {
 					<h3 className="widget-title" title={props.title}>
 						{props.title}
 					</h3>
-					{props.subtitle && <p className="widget-subtitle">{props.subtitle}</p>}
+					{(props.subtitle || props.personal) && (
+						<p className="widget-subtitle">
+							{props.personal && <PersonalChip />}
+							{props.subtitle}
+						</p>
+					)}
 				</div>
 				{props.count !== undefined && props.count !== null ? (
 					<Count value={props.count} />
@@ -150,6 +157,38 @@ export function WidgetShell(props: ShellProps) {
 				</div>
 			)}
 		</section>
+	);
+}
+
+/**
+ * Said on a widget whose search names `@me`: everyone looking sees their own
+ * results, so on a shared board, "look at the review queue" means eight
+ * different lists. It says so, rather than leaving people to read the chip.
+ */
+export function PersonalChip() {
+	return (
+		<span
+			className="widget-chip widget-personal"
+			title="@me is whoever's looking: everyone here sees their own"
+		>
+			<PersonIcon />
+			Your view
+		</span>
+	);
+}
+
+function PersonIcon() {
+	return (
+		<svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+			<circle cx="6" cy="4" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+			<path
+				d="M1.8 10.6c.7-2 2.3-3 4.2-3s3.5 1 4.2 3"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="1.4"
+				strokeLinecap="round"
+			/>
+		</svg>
 	);
 }
 

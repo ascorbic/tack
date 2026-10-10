@@ -1,11 +1,13 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useMemo } from "react";
 import type { Card } from "../../shared/cards.ts";
 import type { MatchStep } from "../../shared/search.ts";
-import { parseSearch } from "../../shared/search.ts";
+import { mightMiss } from "../../shared/queryHelp.ts";
+import { mentionsMe, parseSearch } from "../../shared/search.ts";
 import type { QueryError, SearchResult } from "../../shared/widgets.ts";
 import { StateIcon } from "../CardView.tsx";
 import {
 	Count,
+	PersonalChip,
 	QueryErrorEmpty,
 	SkeletonRows,
 	WidgetEmpty,
@@ -101,6 +103,7 @@ export function ListView(props: ListViewProps) {
 					</h3>
 					{chips.length > 0 && (
 						<p className="widget-query" title={q}>
+							{mentionsMe(q) && <PersonalChip />}
 							{chips.map((chip, i) => (
 								<span
 									key={`${i}:${chip.text}`}
@@ -202,6 +205,27 @@ function Body(props: ListViewProps) {
 				/>
 			);
 		case "ready":
+			if (status.result.items.length === 0 && mightMiss(props.q)) {
+				// Words, or everywhere: more likely a search that says something
+				// other than was meant than one whose matches haven't happened yet.
+				return (
+					<WidgetEmpty
+						icon={<SearchIcon size={20} />}
+						title="Nothing matches this search"
+						detail={
+							searchesWords(props.q)
+								? "It looks for those words in titles and descriptions. Check it says what you mean."
+								: "It searches everywhere you can see. Check it says what you mean."
+						}
+					>
+						{!props.readOnly && props.onConfigure && (
+							<button type="button" className="widget-action" onClick={props.onConfigure}>
+								Check the search
+							</button>
+						)}
+					</WidgetEmpty>
+				);
+			}
 			if (status.result.items.length === 0) {
 				return (
 					<WidgetEmpty
@@ -386,6 +410,10 @@ function DropOverlay({ drop }: { drop: DropPreview }) {
 			)}
 		</div>
 	);
+}
+
+function searchesWords(q: string): boolean {
+	return parseSearch(q).terms.some((term) => term.key === null && !term.negated);
 }
 
 /** A step as a short phrase: “Add bug”, “Assign @kai”. */

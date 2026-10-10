@@ -13,10 +13,10 @@ import { boardRepos } from "../../shared/actions.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import type { QueryError, SearchResult } from "../../shared/widgets.ts";
 import {
-	LIST_PRESETS,
 	type ListConfig,
 	WIDGET_MIN,
 	listConfig,
+	listPresets,
 	listWidget,
 	readConfig,
 	updateWidgetConfig,
@@ -143,15 +143,8 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 	}, [hovering, doc, config, configured, board.user?.login]);
 
 	const repo = doc ? suggestedRepo(doc) : null;
-	const presets = useMemo(
-		() =>
-			LIST_PRESETS.filter((preset) => repo || !preset.q("x/y").includes("x/y")).map((preset) => ({
-				label: preset.label,
-				title: preset.title,
-				q: preset.q(repo ?? ""),
-			})),
-		[repo],
-	);
+	const login = board.user?.login ?? null;
+	const presets = useMemo(() => listPresets(repo, login), [repo, login]);
 	const change = (changes: Partial<ListConfig>) => {
 		if (doc) transactLocal(doc, () => updateWidgetConfig(doc, id, changes));
 	};
@@ -183,6 +176,8 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 				<ListConfigPanel
 					config={config}
 					suggestedRepo={repo}
+					login={login}
+					showPresets={false}
 					onChange={change}
 					onClose={() => setConfigOpen(false)}
 				/>
