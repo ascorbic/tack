@@ -105,7 +105,7 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 
 ## Comment commands
 
-Comment commands (#58) put an issue or pull request on a board from GitHub: `@tack add to roadmap`, `@tack add to roadmap in Next up`, `@tack help`. The app answers to its GitHub App slug (`@tack-example-com`) and to the aliases in `TACK_COMMAND_ALIAS` (a text binding in `cloudflare.config.ts`, comma-separated, `tack` by default; empty for the slug alone).
+Comment commands (#58) put an issue or pull request on a board from GitHub: `@tack add to roadmap`, `@tack add to roadmap in Next up`, `@tack help`. The app answers to its GitHub App slug (`@tack-example-com`) and to the aliases in `TACK_COMMAND_ALIAS` (a text binding in `cloudflare.config.ts`, comma-separated, empty by default, so only the slug works: a short alias like `tack` is a real GitHub login, which every command would notify).
 
 - **Reading**: the app subscribes to `issue_comment`. The GitHub adapter only turns a comment into a delivery when it's a command (`findCommand`: a mention, then `add [to|on|onto] <board> [in|into <section>]` or `help`, outside quotes, code and HTML comments; other mentions are left alone). Comments by bots are never commands, the app's own replies included. An edited comment counts only if it held no command before the edit (`changes.body.from`). The delivery carries no card.
 - **Once per comment**: the `Repo` remembers each command by comment id for 30 days, so redeliveries and edits never run it twice, and runs it from its alarm (the webhook answers at once), up to four tries a few seconds to minutes apart. The outcome is decided once; a retry only finishes answering, and a reply an unanswered attempt may have left is looked for before posting again.

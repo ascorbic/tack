@@ -33,8 +33,9 @@ export default defineConfig(({ isPreview, mode }) => ({
 			Directory: bindings.durableObject({ worker: "tack", exportName: "Directory" }),
 			// Short names the app also answers to in comment commands (#58),
 			// besides its GitHub App slug: `@tack add to roadmap`. Comma-separated;
-			// empty for the slug alone.
-			TACK_COMMAND_ALIAS: bindings.text("tack"),
+			// empty for the slug alone. Empty by default: a short alias like `tack`
+			// is someone's real GitHub login, and every command would notify them.
+			TACK_COMMAND_ALIAS: bindings.text(""),
 			...(isPreview
 				? {}
 				: {
