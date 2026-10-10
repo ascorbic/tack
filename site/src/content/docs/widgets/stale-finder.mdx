@@ -1,0 +1,41 @@
+---
+title: Stale finder
+description: Items with no activity for a while, grouped by age, with quick ways to tidy them up.
+sidebar:
+  order: 8
+---
+
+import WidgetConfig from "../../../components/WidgetConfig.astro";
+
+A stale finder lists items in a search that have gone quiet, oldest first, with quick actions to close, label or ask about them.
+
+## Settings
+
+<WidgetConfig
+	kind="stale"
+	labels={{
+		title: "Title (“Quiet for 30 days+” if empty)",
+		host: "On",
+		q: "Look through",
+		days: "Quiet for at least: 14 days, 30 days, 2 months, 3 months or 6 months",
+		label: "Label to add",
+		limit: null,
+	}}
+/>
+
+Tack adds the cutoff to the search itself (`updated:<2026-09-10` for 30 days), unless the search already says `updated:`.
+
+## Using it
+
+Items are grouped by how long they've been quiet: from the threshold to twice it, two to four times, and longer ("30 days – 2 months", "2–4 months", "4 months+"). Each row says how long, "quiet 52 days".
+
+Quick actions on each row **stage** changes, like every action: nothing changes until someone [pushes](/writing-back/pushing/).
+
+- **Close as not planned**
+- **Label “stale”** (or whichever label you chose)
+- **Ask if it's still wanted**: a comment to its assignees (or its author, if nobody's assigned): "@kai: this issue has been quiet for 52 days. Is it still something we want? If not, we'll close it as not planned."
+- **Close all N**, for a whole group
+
+A staged row says "Closing", "Labelling" or "Pinging", with a button to unstage it. The quick actions only show for people who can edit the board, and for repositories Tack can write to.
+
+Rows drag out onto the board as cards.

@@ -1,0 +1,51 @@
+---
+title: Review queue
+description: Pull requests waiting for review, oldest first, with their age, size, CI and reviews.
+sidebar:
+  order: 6
+---
+
+import WidgetConfig from "../../../components/WidgetConfig.astro";
+
+A review queue lists open pull requests waiting for review, oldest first.
+
+## Settings
+
+<WidgetConfig
+	kind="review"
+	labels={{
+		title: "Title",
+		host: "On",
+		scope: "Waiting on: Waiting on me, A team, or A repository",
+		team: "Team (for A team)",
+		repo: "Repository (for A repository)",
+		drafts: "Include drafts",
+		limit: "Show up to: 10, 30, 50 or 100",
+	}}
+	accepts={{
+		team: "A team, as `org/team`",
+		repo: "A repository, as `owner/name`",
+	}}
+/>
+
+What it searches for:
+
+| Waiting on   | Search                                           |
+| ------------ | ------------------------------------------------ |
+| Me           | `is:pr is:open review-requested:@me`             |
+| A team       | `is:pr is:open team-review-requested:org/team`   |
+| A repository | `repo:owner/name is:pr is:open -review:approved` |
+
+Drafts are left out (`draft:false`) unless **Include drafts** is on. "Waiting on me" needs you to be signed in.
+
+## Using it
+
+The summary picks out the oldest wait, how many have waited four days or more, how many are failing CI, and how many are back with their author. Each row shows:
+
+- the author
+- its size, XS to XL, by lines changed (under 10, 100, 500, 1000, and more)
+- CI: passing, running or failing
+- its reviews: none yet, reviewed without a decision, changes requested, or approved
+- how long it's waited, coloured once it's been four days
+
+Rows drag out onto the board as cards.

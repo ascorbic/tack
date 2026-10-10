@@ -1,0 +1,51 @@
+---
+title: Release draft
+description: What's merged since the last release, sorted into release notes to copy.
+sidebar:
+  order: 4
+---
+
+import WidgetConfig from "../../../components/WidgetConfig.astro";
+
+A release draft gathers the pull requests merged into a repository's default branch since its latest release, sorts them into sections by label, and suggests the next version.
+
+## Settings
+
+<WidgetConfig
+	kind="release"
+	labels={{
+		title: "Title (named after the repository if empty)",
+		host: "On",
+		repo: "Repository",
+		sections: "Sections, by label",
+		skip: "Leave out pull requests labelled",
+		contributors: "Thank contributors",
+	}}
+	accepts={{
+		sections:
+			"1 to 12 sections, each a title (up to 60 characters) and up to 20 labels. A section with no labels takes everything else",
+		skip: "Up to 20 labels",
+	}}
+/>
+
+The default sections are:
+
+| Section          | Labels                                        |
+| ---------------- | --------------------------------------------- |
+| Breaking changes | `breaking`, `breaking change`, `semver-major` |
+| Features         | `enhancement`, `feature`, `feat`              |
+| Fixes            | `bug`, `fix`, `bugfix`                        |
+| Docs             | `docs`, `documentation`                       |
+| Other            | everything else                               |
+
+A pull request goes in the first section with one of its labels. **Reset** puts the default sections back.
+
+## Using it
+
+The header says which release it's since ("since v5.3.0 · 23 d ago", or "No releases yet: everything merged so far"), and the next version: `v5.3.0 → v5.4.0`, with "Breaking", "New features" or "Fixes only".
+
+- The bump is **major** if anything is labelled breaking (or `semver-major`, or `major`), **minor** for features, and **patch** otherwise. Before 1.0, a breaking change bumps the minor version.
+- **Preview notes** shows the notes as Markdown, and **Copy notes** copies them: a "What's changed" heading, a section for each group with "- Title (#123) by @author", the contributors ("Thanks to @a, @b and @c.", leaving out bots), and a full changelog link comparing the tags.
+- It reads the first 50 merged pull requests since the release.
+
+Rows drag out onto the board as cards.

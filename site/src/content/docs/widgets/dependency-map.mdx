@@ -1,0 +1,39 @@
+---
+title: Dependency map
+description: What blocks what, for a search or a section's cards, with the critical path and cycles.
+sidebar:
+  order: 5
+---
+
+import WidgetConfig from "../../../components/WidgetConfig.astro";
+
+A dependency map asks GitHub what blocks each item in a search, or each card in a section, and draws the graph: blockers on the left, what they block to the right.
+
+## Settings
+
+<WidgetConfig
+	kind="dependencies"
+	labels={{
+		title: "Title (named after what it maps if empty)",
+		source: "Map: A search, or A section's cards",
+		host: "On (for a search)",
+		q: "Search",
+		section: "Section",
+		limit: "Ask about up to: 10, 20 or 40",
+	}}
+	accepts={{ section: "A section on the board" }}
+/>
+
+For a section, it maps the cards in the section (however deeply nested), in reading order, and updates as cards move in and out. Relationships come from GitHub's blocked-by and blocking links, including items one step outside the set.
+
+## Using it
+
+- **Ready** marks open items that nothing open blocks.
+- **Cycles** are flagged ("A cycle"): items in one can't start until it's broken.
+- **The critical path** is the chain with the most open items, highlighted ("Critical path · 4").
+- Click an item to see what blocks it and what it blocks, and **Show on the board** or **Add to the board**.
+- Items with no dependencies are listed below the graph.
+
+**Put the map on the board** turns the map into cards and connectors: a card for each item not yet on the board, in columns beside the widget, and red "blocks" connectors for each dependency. Cards already on the board are connected where they are, and nothing is connected twice.
+
+Like every widget, it asks as whoever's looking: items you can't read show as "Not visible to you".

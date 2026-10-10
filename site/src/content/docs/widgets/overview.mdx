@@ -1,0 +1,90 @@
+---
+title: Widgets
+description: Live searches and views on the board, whose permissions they run with, and when they refresh.
+sidebar:
+  order: 1
+  label: Overview
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+import Screenshot from "../../../components/Screenshot.astro";
+
+Widgets are live views on the board: searches and summaries that keep themselves up to date, and whose rows you can drag out as cards.
+
+<Screenshot
+	name="tracking"
+	alt="Three widgets: a review queue of pull requests waiting for review, a milestone with a progress ring and burn-up chart, and a stale finder grouping quiet items by age."
+	caption="A review queue, a milestone and a stale finder."
+/>
+
+<CardGrid>
+	<LinkCard title="List" description="Any search, kept live." href="/widgets/list/" />
+	<LinkCard
+		title="Timeline"
+		description="What was opened, closed or merged between two dates."
+		href="/widgets/timeline/"
+	/>
+	<LinkCard
+		title="Release draft"
+		description="What's merged since the last release, as notes."
+		href="/widgets/release-draft/"
+	/>
+	<LinkCard
+		title="Dependency map"
+		description="What blocks what: the critical path, and cycles."
+		href="/widgets/dependency-map/"
+	/>
+	<LinkCard
+		title="Review queue"
+		description="Pull requests waiting for review, oldest first."
+		href="/widgets/review-queue/"
+	/>
+	<LinkCard
+		title="Milestone"
+		description="Progress, burn-up, due date, and what's at risk."
+		href="/widgets/milestone/"
+	/>
+	<LinkCard
+		title="Stale finder"
+		description="Items gone quiet, with quick ways to tidy them."
+		href="/widgets/stale-finder/"
+	/>
+</CardGrid>
+
+## Adding a widget
+
+Press <kbd>W</kbd> (or **Widget** in the toolbar) to open the picker. Click a kind to add it in the middle of the view, or drag it onto the board. Clicking the board with the widget tool adds a blank list there.
+
+The picker also has **Ready-made lists**, searches over the board's busiest repository (the one with the most cards): "Open bugs", "Needs triage", "Open pull requests", "Good first issues", "Assigned to me" and "My review queue".
+
+## Configuring and resizing
+
+The gear in a widget's header opens its settings beside it. Searches and text apply when you press <kbd>Enter</kbd> or leave the field, since each change runs the widget's searches again for everyone. Settings changes are undoable, like any other edit. **Done** or <kbd>Esc</kbd> closes the panel.
+
+Select a widget to resize it from its edges and corners (at least 260 × 200). Pick it up by its header to move it. Zoomed out, each widget shows one big number.
+
+Every setting of every kind is in its reference page, generated from the widget's schema.
+
+## Whose permissions
+
+**A widget's searches run as whoever's looking at it.** Two people looking at the same widget can see different rows.
+
+- **Signed in**: searches run with your own GitHub account, so you see exactly what you could see on GitHub, private repositories included, and `@me` means you. Your results only go to you.
+- **Not signed in** (on a public board): searches only look at public repositories (Tack adds `is:public`), and anything not known to be public is dropped. `@me` means nothing: "Sign in to see what “@me” means for you."
+
+## When widgets refresh
+
+- **On a schedule**, while anyone has the widget on screen: every 5 minutes for lists, timelines, review queues and milestones; every 10 for release drafts and dependency maps; every 15 for stale finders.
+- **When GitHub says something changed** in a repository a widget searches (or whose items it's showing), from the [app's webhooks](/self-hosting/repositories/). Searches with no `repo:`, `org:` or `user:` run again on any delivery the board hears about. These refreshes wait a couple of seconds for more news, and never run a search more than once every ten seconds. Repositories without the app send no webhooks, so widgets over them refresh on the schedule.
+- **When you ask**: the header's **Refresh**.
+- **When its settings change**.
+
+Results are shared: two tabs, or two widgets with the same search, cost one search. If a refresh fails, the widget keeps showing what it had: "Updated 10 min ago · couldn't refresh", with **Retry**.
+
+GitHub limits how often anyone can search, so each board keeps well inside: at most 20 searches and 60 other reads a minute for each person (people who aren't signed in share one allowance). If a board needs more, its widgets wait: "Lots of searches on this board just now: trying again in a moment." If GitHub itself says to slow down, the widget says when it'll try again.
+
+GitHub only searches up to 256 characters, and Tack adds a sort (and `is:public` for people who aren't signed in), so keep searches comfortably shorter than that.
+
+## Rows and cards
+
+Rows in every widget drag out onto the board as cards. The row stays, and the card remembers it came from the widget (see [Where cards come from](/automation/provenance/)). A pin marks rows whose item is already on the board; point at a row and its card lights up, and the other way round.

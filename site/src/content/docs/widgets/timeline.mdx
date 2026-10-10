@@ -1,0 +1,44 @@
+---
+title: Timeline
+description: What was opened, closed, merged or updated between two dates, along a line.
+sidebar:
+  order: 3
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+import WidgetConfig from "../../../components/WidgetConfig.astro";
+
+A timeline plots items along a line, by when they were opened, closed, merged or updated.
+
+<Screenshot
+	name="roadmap"
+	alt="A timeline of issues and pull requests opened over the last month, with markers stacked by day and a Today line, beside a release draft and a dependency map."
+/>
+
+## Settings
+
+<WidgetConfig
+	kind="timeline"
+	labels={{
+		title: "Title (named after what it shows if empty)",
+		host: "On",
+		q: "What to follow",
+		event: "Plot when they were: Opened, Closed, Merged or Updated",
+		range: "Over: Week, 2 weeks, Month, 3 months or Dates",
+		from: "From (for Dates)",
+		to: "To (for Dates)",
+		limit: null,
+	}}
+	accepts={{
+		from: "A date, `YYYY-MM-DD`, or empty",
+		to: "A date, `YYYY-MM-DD`, or empty",
+	}}
+/>
+
+**What to follow** narrows the search, usually to a repository (`repo:owner/name`). Tack adds the dates itself: `created:2026-09-27..2026-10-10` for opened items, and so on, plus `is:pr` when you plot merges. Relative ranges are whole days ending today, and move on each day.
+
+## Using it
+
+Markers stack by day, with density bars along the axis and a line for today. Where too many land close together they cluster ("12 items: zoom in"); click a cluster to zoom in, and **Show the whole range** to zoom out.
+
+Point at a marker to see the item. Click it to find its card on the board, or open it on GitHub. Drag it out to add a card.

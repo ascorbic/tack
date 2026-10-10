@@ -1,0 +1,48 @@
+---
+title: List
+description: Any GitHub search, kept live. Drag rows out as cards, or drop cards in to make them match.
+sidebar:
+  order: 2
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+import WidgetConfig from "../../../components/WidgetConfig.astro";
+
+A list shows the results of any GitHub search, kept live for everyone looking at it.
+
+<Screenshot
+	name="widgets"
+	alt="Lists on a board: open bugs, good first issues and needs triage, each with rows of issues showing labels and assignees, and a section of cards below to drop on them."
+/>
+
+## Settings
+
+<WidgetConfig
+	kind="list"
+	labels={{
+		title: "Title (named after the search if empty)",
+		host: "On",
+		q: "Search",
+		sort: "Sort by: Updated, Created, Comments or Reactions",
+		limit: "Show up to: 10, 30, 50 or 100",
+	}}
+/>
+
+The search is anything GitHub's issue search understands, such as `repo:owner/name is:open label:bug`. Under the field, **How Tack reads it** shows its parts as chips: where it looks, what it filters, the words it searches for, and its order. A `sort:` in the search wins over **Sort by**.
+
+The panel also says what refreshes it: "Live: refreshes when owner/name changes." for a search in one repository, or "Searches everywhere you can see: refreshes every few minutes." for one with no repository. See [when widgets refresh](/widgets/overview/#when-widgets-refresh).
+
+## Using it
+
+Each row shows the item's state, title, repository and number, up to three labels and two assignees. Rows already on the board have a pin (click it to find the card); the rest link to GitHub. The footer counts the results, "30 of 112".
+
+- **Drag a row out** onto the board to add a card for it. The list doesn't change.
+- **A new list** asks "What should this list show?", with the [ready-made searches](/widgets/overview/#adding-a-widget) and **Write a search**.
+
+## Drop to match
+
+Drop cards onto a list, and Tack works out what would make them match its search, and offers to stage it: "Make #412 match", "So it shows in “Open bugs”. Staged, not pushed." The cards glide back to where they were.
+
+It can stage labels added or removed, assignees, a milestone, and closing or reopening (with `reason:` deciding how it's closed). Some searches can't be matched by changing an item, and the list says why: words in the title, a different repository or author, whether a pull request is merged, or a repository without the app ("Tack can't change items in owner/repo: the app isn't installed there"). A list that searches for words says so in its settings: "dropping cards on it can't make them match".
+
+The changes are staged like any other, and go to GitHub when someone [pushes](/writing-back/pushing/).

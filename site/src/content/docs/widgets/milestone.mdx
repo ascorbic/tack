@@ -1,0 +1,41 @@
+---
+title: Milestone
+description: A milestone's progress, burn-up, pace and due date, and the open items most at risk.
+sidebar:
+  order: 7
+---
+
+import WidgetConfig from "../../../components/WidgetConfig.astro";
+
+A milestone widget follows one GitHub milestone: how much is done, whether it'll be done in time, and what's at risk.
+
+## Settings
+
+<WidgetConfig
+	kind="milestone"
+	labels={{
+		title: "Title (named after the milestone if empty)",
+		host: "On",
+		repo: "Repository",
+		milestone: "Milestone",
+		staleDays: "At risk when quiet for: 7, 14 or 30 days",
+	}}
+	accepts={{
+		repo: "A repository, as `owner/name`",
+		milestone: "A milestone's title, up to 255 characters",
+	}}
+/>
+
+Pick the repository, then one of its open milestones. If they can't be loaded, type the milestone's title.
+
+## Using it
+
+- **Progress**: a ring with "10 of 16 done", and the due date: "Due in 18 days", "Due today", "3 days overdue".
+- **Pace and forecast**: closes per week over the last two weeks, and when that'll be done: "At 3 a week, done 24 Oct: on track", or "later than it's due".
+- **Burn-up**: what's done against the scope over time, from when items were opened and closed. Drag along it to read any day. With more than 100 open or closed items, it's drawn from the latest 100 of each.
+- **At risk**: open items that are
+  - **quiet**: no activity for the number of days in the settings
+  - **blocked**: labelled blocked, on hold or waiting
+  - **big and late**: a large pull request or an epic-sized issue, with the milestone due within a week or overdue
+
+At-risk rows drag out onto the board as cards.
