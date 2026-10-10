@@ -220,3 +220,30 @@ describe("GitHub pull requests over REST", () => {
 		});
 	});
 });
+
+describe("👍 reactions, which dot votes count", () => {
+	it("say who reacted over GraphQL", () => {
+		const card = normaliseGqlPull(
+			pull({
+				thumbsUp: {
+					totalCount: 3,
+					nodes: [{ user: { login: "Priya" } }, { user: null }, { user: { login: "kai" } }],
+				},
+			}),
+		);
+		expect(card.thumbsUp).toEqual({ count: 3, logins: ["priya", "kai"] });
+		expect(normaliseGqlPull(pull()).thumbsUp).toBeUndefined();
+	});
+
+	it("only count over REST and in webhooks", () => {
+		const card = normaliseIssue("acme/widgets", {
+			number: 5,
+			title: "t",
+			state: "open",
+			html_url: "https://github.com/acme/widgets/issues/5",
+			updated_at: "2026-01-01T00:00:00Z",
+			reactions: { total_count: 4, "+1": 3 },
+		});
+		expect(card.thumbsUp).toEqual({ count: 3 });
+	});
+});
