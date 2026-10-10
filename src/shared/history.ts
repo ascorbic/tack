@@ -349,7 +349,10 @@ export class HistoryLog {
 		const saved = this.store.meta("sv");
 		if (!saved) return;
 		const sv = fromBase64(saved);
-		if (equalBytes(sv, Y.encodeStateVector(this.doc))) return;
+		const recorded = Y.decodeStateVector(sv);
+		const current = Y.decodeStateVector(Y.encodeStateVector(this.doc));
+		// History can only be ahead if the board's last save was lost; then there's nothing to add.
+		if (![...current].some(([client, clock]) => clock > (recorded.get(client) ?? 0))) return;
 		const missing = Y.encodeStateAsUpdate(this.doc, sv);
 		const at = this.now();
 		this.store.addStep(
@@ -403,8 +406,9 @@ export class HistoryLog {
 	/** Note what a transaction did to shapes (and which other maps it touched). */
 	private describe(tr: Y.Transaction, pending: Pending): void {
 		const shapes = shapesMap(this.doc);
+		const shapesType = shapes as unknown as Y.AbstractType<unknown>;
 		for (const [type, keys] of tr.changed) {
-			if (type === shapes) {
+			if (type === shapesType) {
 				for (const id of keys) {
 					if (id === null) continue;
 					const shape = shapes.get(id);
@@ -418,15 +422,15 @@ export class HistoryLog {
 			// A shape's own properties, or something nested in one (a decision's votes).
 			let child: Y.AbstractType<unknown> = type as Y.AbstractType<unknown>;
 			let key: string | null = null;
-			while (child._item && child._item.parent !== shapes) {
+			while (child._item && child._item.parent !== shapesType) {
 				key = child._item.parentSub;
 				child = child._item.parent as Y.AbstractType<unknown>;
 			}
-			if (child._item?.parent === shapes) {
+			if (child._item?.parent === shapesType) {
 				const id = child._item.parentSub;
 				if (id === null) continue;
 				const shape = shapes.get(id);
-				if (!shape || shape !== child) continue;
+				if (!shape || (shape as unknown) !== child) continue;
 				const changed =
 					child === type ? [...keys].filter((k): k is string => k !== null) : key ? [key] : [];
 				note(pending.changes, id, "edit", changed, this.shapes.get(id));
@@ -679,7 +683,7 @@ export class HistoryLog {
 		// A new origin's keyframe will be about the size of the latest.
 		const keyframe = frames.at(-1)?.bytes ?? 0;
 		// What's kept after each step: its successors' updates and keyframes.
-		const after = new Array<number>(steps.length + 1).fill(0);
+		const after = Array.from({ length: steps.length + 1 }, () => 0);
 		for (let i = steps.length - 1; i >= 0; i--) {
 			after[i] = after[i + 1]! + steps[i]!.bytes + (frameBytes.get(steps[i]!.id) ?? 0);
 		}
@@ -818,7 +822,7 @@ function note(
 	return existing;
 }
 
-function createdIn(tr: Y.Transaction, type: Y.AbstractType<unknown>): boolean {
+function createdIn(tr: Y.Transaction, type: { _item: Y.Item | null }): boolean {
 	const item = type._item;
 	return item !== null && item.id.clock >= (tr.beforeState.get(item.id.client) ?? 0);
 }
@@ -868,10 +872,6 @@ function unionBoxes(changes: readonly { box?: Box }[]): Box | undefined {
 
 function actorFingerprint(actor: Actor): string {
 	return JSON.stringify([actor.name, actor.color, actor.login, actor.avatarUrl, actor.system]);
-}
-
-function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
-	return a.byteLength === b.byteLength && a.every((byte, i) => byte === b[i]);
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -1011,11 +1011,15 @@ const VERB_ORDER = [
  * A step in words, without who: "added 3 stickies and moved a card". Pass
  * `only` to describe one person's part of a merged step.
  */
-export function describeChanges(step: Pick<StepMeta, "changes" | "more" | "other">, only?: string): string {
+export function describeChanges(
+	step: Pick<StepMeta, "changes" | "more" | "other">,
+	only?: string,
+): string {
 	const counts = new Map<string, Map<string, number>>();
 	for (const change of step.changes) {
 		if (only && change.by && !change.by.includes(only)) continue;
-		const verb = change.op === "add" ? "added" : change.op === "remove" ? "removed" : editKind(change.keys);
+		const verb =
+			change.op === "add" ? "added" : change.op === "remove" ? "removed" : editKind(change.keys);
 		const noun = change.type ?? "shape";
 		const byNoun = counts.get(verb) ?? new Map<string, number>();
 		byNoun.set(noun, (byNoun.get(noun) ?? 0) + 1);

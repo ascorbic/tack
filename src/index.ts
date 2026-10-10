@@ -6,6 +6,7 @@ import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
 import { handleNotifications } from "./server/notifications.ts";
 import { handlePush } from "./server/push/routes.ts";
+import { handleHistory } from "./server/history.ts";
 import { handleRelated } from "./server/related.ts";
 import { handleSnapshots } from "./server/snapshots.ts";
 import { handleWebhook } from "./server/webhooks.ts";
@@ -33,6 +34,10 @@ export default {
 		// What's related to a card, as the viewer may see it (Expand related).
 		const related = await handleRelated(request, env);
 		if (related) return related;
+
+		// The board's history: its timeline, and segments of it to replay.
+		const history = await handleHistory(request, env);
+		if (history) return history;
 
 		// Pushing staged changes, the audit log, and what repositories offer to write with.
 		const push = await handlePush(request, env);

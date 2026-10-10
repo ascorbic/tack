@@ -123,7 +123,8 @@ describe("recording", () => {
 			shapesMap(doc).get("d")?.set("votes", new Y.Map());
 		});
 		history.flush();
-		as("ben", () => (shapesMap(doc).get("d")?.get("votes") as Y.Map<unknown>).set("ben", "agree"));
+		const votes = shapesMap(doc).get("d")!.get("votes") as Y.Map<unknown>;
+		as("ben", () => votes.set("ben", "agree"));
 		history.flush();
 		expect(history.timeline().steps[2]!.changes[0]).toMatchObject({
 			id: "d",
@@ -238,7 +239,10 @@ describe("thinning", () => {
 			clock.now = START + i * MINUTE;
 			as(i % 3 ? "ana" : "ben", () => {
 				const id = `s${i % 6}`;
-				if (shapesMap(doc).has(id)) shapesMap(doc).get(id)?.set("text", "z".repeat(i * 10));
+				if (shapesMap(doc).has(id))
+					shapesMap(doc)
+						.get(id)
+						?.set("text", "z".repeat(i * 10));
 				else sticky(doc, id, i * 20, 0);
 			});
 			history.flush();

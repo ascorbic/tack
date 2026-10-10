@@ -2,6 +2,13 @@ import type { Connection, ConnectionContext } from "partyserver";
 import { YServer } from "y-partyserver";
 import * as Y from "yjs";
 import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
+import {
+	type CompactResult,
+	type HistoryLimits,
+	HistoryLog,
+	type Timeline,
+	encodeSegment,
+} from "../shared/history.ts";
 import type { BoardRequest, Card, CardMessage, MissingCard } from "../shared/cards.ts";
 import type { AuditEntry, PushResponse } from "../shared/push.ts";
 import {
@@ -36,6 +43,7 @@ import { watchCardRefs } from "./card-refs.ts";
 import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
 import { Facilitation } from "./facilitation.ts";
 import { type Commenter, CommentsService } from "./comments.ts";
+import { attributeOrigin, sqlHistoryStore } from "./history.ts";
 import { userToken } from "./identity.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
@@ -168,6 +176,8 @@ export class Board extends YServer<Env> {
 	private visits: Visits | null = null;
 	/** Comment requests per connection in the current window, to stop floods. */
 	private commentBudget = new Map<string, { count: number; until: number }>();
+	/** The document kept over time, with who changed what (#47). */
+	private history: HistoryLog | null = null;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -195,6 +205,8 @@ export class Board extends YServer<Env> {
 			this.routes.set(row.repo_key, JSON.parse(row.identity) as RepoIdentity);
 		}
 		await super.onStart();
+		// Before anything else writes to the document, so every write is recorded.
+		this.history = this.startHistory();
 		this.pushes = new PushEngine({
 			name: this.name,
 			env: this.env,
@@ -302,6 +314,63 @@ export class Board extends YServer<Env> {
 		return loadSnapshot(this.ctx.storage, token);
 	}
 
+	// --- History (M4, #47) ---------------------------------------------------------
+
+	private startHistory(): HistoryLog | null {
+		try {
+			const history = new HistoryLog({
+				doc: this.document,
+				store: sqlHistoryStore(this.ctx.storage),
+				attribute: (origin) => attributeOrigin(origin, this.document.awareness),
+				log: (level, event, context) => log[level](event, { board: this.name, ...context }),
+			});
+			history.start();
+			return history;
+		} catch (error) {
+			// The board works without history.
+			log.error("history.failed", { board: this.name, during: "start", error });
+			return null;
+		}
+	}
+
+	private flushHistory(): void {
+		try {
+			this.history?.flush();
+		} catch (error) {
+			log.error("history.failed", { board: this.name, during: "flush", error });
+		}
+	}
+
+	/** The board's history: every step, and who made them (`GET /api/boards/:id/history`). */
+	historyTimeline(): Timeline | null {
+		// Save with it, so history is never ahead of what's saved.
+		if (this.history?.dirty) {
+			try {
+				this.writeSnapshot();
+			} catch {
+				// Logged as board.save.failed; the debounced save tries again.
+			}
+		}
+		return this.history?.timeline() ?? null;
+	}
+
+	/** The segment of history holding `step`, as bytes (see `encodeSegment`). */
+	historySegment(step: number): Uint8Array | null {
+		const segment = this.history?.segment(step);
+		return segment ? encodeSegment(segment) : null;
+	}
+
+	/** For tests: thin history out now, as if it were `now`. */
+	async historyCompact(now?: number): Promise<CompactResult | null> {
+		this.historyTimeline();
+		return this.history?.compact(now) ?? null;
+	}
+
+	/** For tests: change history's limits (its budget, how often keyframes are written). */
+	async historyLimits(limits: Partial<HistoryLimits>): Promise<void> {
+		if (this.history) Object.assign(this.history.limits, limits);
+	}
+
 	private repairTimer: ReturnType<typeof setTimeout> | undefined;
 
 	/**
@@ -365,6 +434,8 @@ export class Board extends YServer<Env> {
 
 	/** Write the document to storage now. */
 	private writeSnapshot(): void {
+		// History first, so it's never behind what was saved (see `HistoryLog.start`).
+		this.flushHistory();
 		// Re-encoding the full state compacts the update history each save.
 		const update = Y.encodeStateAsUpdate(this.document);
 		const context = {
