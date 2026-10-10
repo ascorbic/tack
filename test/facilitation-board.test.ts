@@ -8,6 +8,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import type { BoardInfo, Role } from "../src/shared/boards.ts";
 import type { CardMessage } from "../src/shared/cards.ts";
+import {
+	closeVote,
+	deleteVote,
+	dotVotesMap,
+	placeDot,
+	readVotes,
+	reopenVote,
+	startVote,
+} from "../src/shared/dotvotes.ts";
 import { type FacilitationMessage, readTimer } from "../src/shared/facilitation.ts";
 import { addShape, shapesMap } from "../src/shared/shapes.ts";
 import { type SilentMessage, joinSilentSession, parseSession } from "../src/shared/silent.ts";
@@ -30,6 +39,7 @@ github.setItem(42, {
 });
 let olive = ""; // owns the board, and facilitates
 let eddie = ""; // an editor
+let erin = ""; // another editor
 let vera = ""; // a viewer
 
 beforeAll(async () => {
@@ -42,6 +52,7 @@ beforeAll(async () => {
 	expect(setup.ok).toBe(true);
 	olive = await signIn(mf, "olive", { name: "Olive Owner" });
 	eddie = await signIn(mf, "eddie");
+	erin = await signIn(mf, "erin");
 	vera = await signIn(mf, "vera");
 });
 afterAll(() => mf.dispose());
@@ -66,6 +77,7 @@ async function boardWithMembers(): Promise<string> {
 	const board = (await (await api("/api/boards", olive, { title: "Retro" })).json()) as BoardInfo;
 	for (const [login, role] of [
 		["eddie", "editor"],
+		["erin", "editor"],
 		["vera", "viewer"],
 	] as [string, Role][]) {
 		const invited = await api(`/api/boards/${board.id}/members`, olive, { logins: [login], role });
@@ -329,6 +341,188 @@ describe("spotlight", () => {
 
 		facilitator.close();
 		await eventually(() => ofType(viewer, "spotlight").at(-1)?.spotlight === null);
+	});
+});
+
+/** Who the server says a client is (its author key), once it's said. */
+async function authorOf(client: BoardClient): Promise<string> {
+	await eventually(() => ofType(client, "facilitation-you").length > 0);
+	return ofType(client, "facilitation-you").at(-1)!.author;
+}
+
+describe("who runs what", () => {
+	it("tells each person who they are, and everyone who's here", async () => {
+		const id = await boardWithMembers();
+		const owner = await open(id, olive);
+		const viewer = await open(id, vera);
+		expect(ofType(owner, "facilitation-you").at(-1)).toMatchObject({ editor: true, owner: true });
+		await eventually(() => ofType(viewer, "facilitation-you").length > 0);
+		expect(ofType(viewer, "facilitation-you").at(-1)).toMatchObject({
+			editor: false,
+			owner: false,
+		});
+		const ownerKey = await authorOf(owner);
+		const viewerKey = await authorOf(viewer);
+		await eventually(
+			() => ofType(owner, "facilitation-present").at(-1)?.authors.includes(viewerKey) ?? false,
+		);
+		viewer.close();
+		await eventually(
+			() =>
+				JSON.stringify(ofType(owner, "facilitation-present").at(-1)?.authors) ===
+				JSON.stringify([ownerKey]),
+		);
+	});
+
+	it("keeps a dot vote in the hands of whoever started it, and the owner", async () => {
+		const id = await boardWithMembers();
+		const starter = await open(id, eddie);
+		const other = await open(id, erin);
+		const owner = await open(id, olive);
+		const starterKey = await authorOf(starter);
+		const otherKey = await authorOf(other);
+		section(starter.doc);
+		addShape(starter.doc, "s1", { type: "sticky", x: 40, y: 40, z: "b1", parent: "ideas" });
+		// Claiming someone else started it is put right: the server knows who did.
+		const voteId = startVote(starter.doc, {
+			scope: "ideas",
+			by: { name: "Eddie", color: "" },
+			starter: otherKey,
+		});
+		await starter.roundTrip();
+		await eventually(() => readVotes(other.doc)[0]?.starter === starterKey);
+		other.doc.transact(() =>
+			placeDot(other.doc, voteId, { name: "Erin", login: "erin", color: "" }, "s1"),
+		);
+		await other.roundTrip();
+
+		// Another editor can't close it, delete it, or claim it: each comes back.
+		closeVote(other.doc, voteId, { name: "Erin", color: "" });
+		await other.roundTrip();
+		await eventually(() => readVotes(owner.doc)[0]?.closedAt === undefined);
+		await eventually(() => readVotes(other.doc)[0]?.closedAt === undefined);
+		dotVotesMap(other.doc).get(voteId)?.set("starter", otherKey);
+		await other.roundTrip();
+		await eventually(() => readVotes(other.doc)[0]?.starter === starterKey);
+		deleteVote(other.doc, voteId);
+		await other.roundTrip();
+		await eventually(() => readVotes(other.doc).length === 1);
+		const back = readVotes(owner.doc)[0]!;
+		expect(back.id).toBe(voteId);
+		expect(back.starter).toBe(starterKey);
+		// Ballots and all.
+		expect(Object.values(back.ballots).map((ballot) => ballot.dots)).toEqual([{ s1: 1 }]);
+		// But their own dots are theirs to move.
+		expect(readVotes(other.doc)[0]?.ballots["@erin"]?.dots).toEqual({ s1: 1 });
+
+		// Whoever started it closes it, and the owner can reopen it.
+		closeVote(starter.doc, voteId, { name: "Eddie", color: "" });
+		await starter.roundTrip();
+		await eventually(() => readVotes(owner.doc)[0]?.closedAt !== undefined);
+		reopenVote(owner.doc, voteId);
+		await owner.roundTrip();
+		await eventually(() => readVotes(starter.doc)[0]?.closedAt === undefined);
+		expect(readVotes(other.doc)[0]?.closedAt).toBeUndefined();
+
+		// Once its starter has left, any editor may close it, but not delete it.
+		starter.close();
+		await eventually(
+			() => !(ofType(other, "facilitation-present").at(-1)?.authors.includes(starterKey) ?? true),
+		);
+		closeVote(other.doc, voteId, { name: "Erin", color: "" });
+		await other.roundTrip();
+		await owner.roundTrip();
+		expect(readVotes(owner.doc)[0]?.closedAt).toBeDefined();
+		deleteVote(other.doc, voteId);
+		await other.roundTrip();
+		await eventually(() => readVotes(other.doc).length === 1);
+		// The owner can.
+		deleteVote(owner.doc, voteId);
+		await owner.roundTrip();
+		await other.roundTrip();
+		expect(readVotes(other.doc)).toEqual([]);
+	});
+
+	it("keeps the timer with whoever started it, and the owner", async () => {
+		const id = await boardWithMembers();
+		const starter = await open(id, eddie);
+		const other = await open(id, erin);
+		const owner = await open(id, olive);
+		const starterKey = await authorOf(starter);
+		await authorOf(other);
+		starter.send({ type: "timer", action: "start", ms: 60_000, by: { name: "Eddie", color: "" } });
+		await eventually(() => readTimer(other.doc) !== null);
+		expect(readTimer(other.doc)?.starter).toBe(starterKey);
+
+		// Another editor can't pause, stop or replace it.
+		for (const action of ["pause", "stop"] as const) {
+			other.send({ type: "timer", action, by: { name: "Erin", color: "" } });
+		}
+		other.send({ type: "timer", action: "start", ms: 5_000, by: { name: "Erin", color: "" } });
+		await eventually(() => ofType(other, "facilitation-refused").length === 3);
+		expect(ofType(other, "facilitation-refused").map((r) => r.reason)).toEqual([
+			"not_facilitator",
+			"not_facilitator",
+			"not_facilitator",
+		]);
+		expect(readTimer(owner.doc)).toMatchObject({ state: "running", duration: 60_000 });
+
+		// The owner can, and everyone hears who did.
+		owner.send({ type: "timer", action: "pause", by: { name: "Olive", color: "" } });
+		await eventually(() => readTimer(starter.doc)?.state === "paused");
+		await eventually(() => ofType(starter, "timer-changed").some((m) => m.action === "pause"));
+		expect(ofType(starter, "timer-changed").at(-1)).toMatchObject({
+			action: "pause",
+			by: { name: "Olive" },
+		});
+
+		// Once whoever started it has left, anyone may.
+		starter.close();
+		await eventually(
+			() => !(ofType(other, "facilitation-present").at(-1)?.authors.includes(starterKey) ?? true),
+		);
+		other.send({ type: "timer", action: "stop", by: { name: "Erin", color: "" } });
+		await eventually(() => readTimer(owner.doc) === null);
+	});
+
+	it("lets whoever's running the session take over or end a spotlight", async () => {
+		const id = await boardWithMembers();
+		const spotter = await open(id, erin);
+		const editor = await open(id, eddie);
+		const owner = await open(id, olive);
+		const user = (name: string) => ({ name, color: "" });
+		spotter.send({ type: "spotlight", on: true, clientId: 1, user: user("Erin") });
+		await eventually(() => ofType(owner, "spotlight").at(-1)?.spotlight?.clientId === 1);
+
+		// An editor who isn't running anything can't take it over or end it.
+		editor.send({ type: "spotlight", on: true, clientId: 2, user: user("Eddie") });
+		editor.send({ type: "spotlight", on: false, end: true });
+		await eventually(() => ofType(editor, "facilitation-refused").length === 2);
+		// Stopping without `end` only ever stops your own.
+		editor.send({ type: "spotlight", on: false });
+		await editor.roundTrip();
+		expect(ofType(owner, "spotlight").at(-1)?.spotlight?.clientId).toBe(1);
+
+		// Once they've started the timer, they're running the session.
+		editor.send({ type: "timer", action: "start", ms: 60_000, by: user("Eddie") });
+		await eventually(() => readTimer(editor.doc) !== null);
+		editor.send({ type: "spotlight", on: true, clientId: 2, user: user("Eddie") });
+		await eventually(() => ofType(owner, "spotlight").at(-1)?.spotlight?.clientId === 2);
+
+		// And the owner can always end it.
+		owner.send({ type: "spotlight", on: false, end: true });
+		await eventually(() => ofType(spotter, "spotlight").at(-1)?.spotlight === null);
+	});
+
+	it("marks a silent section with who started it", async () => {
+		const id = await boardWithMembers();
+		const starter = await open(id, eddie);
+		const key = await authorOf(starter);
+		section(starter.doc);
+		await starter.roundTrip();
+		starter.send({ type: "silent-start", section: "ideas", by: { name: "Eddie", color: "" } });
+		await eventually(() => sessionOf(starter) !== null);
+		expect(sessionOf(starter)?.starter).toBe(key);
 	});
 });
 

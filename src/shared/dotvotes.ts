@@ -23,6 +23,10 @@ import { type Author, readShape, shapesMap, type ShapeProps } from "./shapes.ts"
 // the document like everything else (unlike silent mode's text, see
 // silent.ts).
 //
+// Whoever started a vote runs it (`starter`, stamped by the server): they
+// and the board's owner close, reopen and delete it, and the server puts
+// right anyone else's changes (`VoteGuard` in facilitator.ts).
+//
 // With `reactions`, 👍 reactions on a card's GitHub item count as votes for
 // it, one each. Someone who reacted and also put a dot on that card on the
 // board is counted once, by their dots, where their GitHub login is known.
@@ -45,6 +49,11 @@ export interface DotVote {
 	closedBy?: Author;
 	startedAt: string;
 	by: Author;
+	/**
+	 * Who started it, as the server knows them (an author key, see
+	 * facilitator.ts): they, and the board's owner, run it.
+	 */
+	starter?: string;
 	ballots: Record<string, Ballot>;
 }
 
@@ -73,6 +82,8 @@ export interface NewVote {
 	reactions?: boolean;
 	endsAt?: string;
 	by: Author;
+	/** Your author key, if the server has said (it stamps it anyway). */
+	starter?: string;
 	at?: string;
 }
 
@@ -88,6 +99,7 @@ export function startVote(doc: Y.Doc, vote: NewVote): string {
 	if (vote.endsAt) map.set("endsAt", vote.endsAt);
 	map.set("startedAt", vote.at ?? new Date().toISOString());
 	map.set("by", { name: vote.by.name, color: vote.by.color });
+	if (vote.starter) map.set("starter", vote.starter);
 	map.set("ballots", new Y.Map());
 	dotVotesMap(doc).set(id, map);
 	return id;
@@ -116,6 +128,7 @@ export function readVote(id: string, map: Y.Map<unknown>): DotVote | null {
 		...(json.closedBy ? { closedBy: json.closedBy } : {}),
 		startedAt: json.startedAt,
 		by: json.by ?? { name: "Someone", color: "" },
+		...(typeof json.starter === "string" ? { starter: json.starter } : {}),
 		ballots,
 	};
 }

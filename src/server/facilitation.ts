@@ -2,13 +2,20 @@ import type { Connection } from "partyserver";
 import type * as Y from "yjs";
 import { canEdit } from "../shared/boards.ts";
 import {
-	FACILITATION_ORIGIN,
 	type FacilitationMessage,
+	type FacilitationRefusal,
 	type FacilitationRequest,
 	type Spotlight,
 	type TimerAction,
 	applyTimer,
+	readTimer,
 } from "../shared/facilitation.ts";
+import {
+	type FacilitationYou,
+	VoteGuard,
+	isFacilitator,
+	mayChangeTimer,
+} from "../shared/facilitator.ts";
 import type { Author } from "../shared/shapes.ts";
 import type { SilentMessage, SilentRequest } from "../shared/silent.ts";
 import { type SilentPeer, SilentHub, type SilentStore, type TextRow } from "../shared/silentHub.ts";
@@ -55,6 +62,7 @@ export class Facilitation {
 	/** Each connection's requests are handled in order, even those that wait (hashing a secret). */
 	private queues = new Map<string, Promise<void>>();
 	readonly silent: SilentHub;
+	readonly votes: VoteGuard;
 
 	constructor(private readonly host: FacilitationHost) {
 		host.sql.exec(`
@@ -84,6 +92,12 @@ export class Facilitation {
 		// Marks on sections must match the sessions kept here, whatever the
 		// document said when it was saved.
 		this.silent.reconcile();
+		this.votes = new VoteGuard({
+			doc: host.doc,
+			actor: (origin) => (isConnection(origin) ? this.youOf(origin) : null),
+			present: () => this.present(),
+			log: (level, event, context) => log[level](event, { board: host.board, ...context }),
+		});
 	}
 
 	/** Whether a custom message is ours. */
@@ -98,6 +112,7 @@ export class Facilitation {
 		// Signed-in people are known at once; guests say hello with their secret.
 		if (connection.state?.userId != null) {
 			this.authors.set(connection.id, `u:${connection.state.userId}`);
+			this.introduce(connection);
 		}
 	}
 
@@ -108,6 +123,38 @@ export class Facilitation {
 			log.info("spotlight.stopped", { board: this.host.board, reason: "left" });
 			this.setSpotlight(null);
 		}
+		this.broadcastPresent();
+	}
+
+	/** Someone's role changed: tell them what they may do now. */
+	roleChanged(connection: Connection<ConnectionAccess>): void {
+		this.sendTo(connection.id, { type: "facilitation-you", ...this.youOf(connection) });
+	}
+
+	/** Tell a connection who it is, and everyone who's here. */
+	private introduce(connection: Connection<ConnectionAccess>): void {
+		this.sendTo(connection.id, { type: "facilitation-you", ...this.youOf(connection) });
+		this.broadcastPresent();
+	}
+
+	private broadcastPresent(): void {
+		const message = JSON.stringify({
+			type: "facilitation-present",
+			authors: [...this.present()],
+		} satisfies Message);
+		for (const connection of this.host.connections()) this.host.send(connection, message);
+	}
+
+	/** Everyone on the board, by author key. */
+	private present(): Set<string> {
+		const authors = new Set<string>();
+		for (const connection of this.host.connections()) authors.add(this.authorOf(connection));
+		return authors;
+	}
+
+	private youOf(connection: Connection<ConnectionAccess>): FacilitationYou {
+		const role = connection.state?.role ?? null;
+		return { author: this.authorOf(connection), editor: canEdit(role), owner: role === "owner" };
 	}
 
 	/** Handle a request, after any this connection sent before it. */
@@ -134,29 +181,57 @@ export class Facilitation {
 			case "timer": {
 				if (!editor) return this.refuse(connection, "timer", "not_editor");
 				const { type: _type, by, ...command } = request;
+				const now = Date.now();
+				const you = this.youOf(connection);
+				const action = (command as TimerAction).action;
+				if (!mayChangeTimer(you, action, readTimer(this.host.doc), this.present(), now)) {
+					return this.refuse(connection, "timer", "not_facilitator");
+				}
+				const author = cleanAuthor(by);
+				// Their own edit, as far as history goes: "Olive set the timer".
 				const changed = applyTimer(
 					this.host.doc,
 					command as TimerAction,
-					Date.now(),
-					cleanAuthor(by),
-					FACILITATION_ORIGIN,
+					now,
+					author,
+					connection,
+					you.author,
 				);
 				if (!changed) return this.refuse(connection, "timer", "invalid");
-				log.info("timer.changed", { board: this.host.board, action: command.action });
+				log.info("timer.changed", { board: this.host.board, action });
+				const message = JSON.stringify({
+					type: "timer-changed",
+					action,
+					by: author,
+					author: you.author,
+				} satisfies Message);
+				for (const other of this.host.connections()) this.host.send(other, message);
 				return;
 			}
 			case "spotlight": {
 				if (!editor) return this.refuse(connection, "spotlight", "not_editor");
+				const current = this.spotlight;
+				const theirs = current !== null && current.connection !== connection.id;
+				// Taking over or ending someone else's is for whoever's running the session.
+				const facilitator = () => isFacilitator(this.youOf(connection), this.host.doc, Date.now());
 				if (!request.on) {
-					if (this.spotlight?.connection === connection.id) {
-						log.info("spotlight.stopped", { board: this.host.board, reason: "stopped" });
-						this.setSpotlight(null);
+					if (!current || (theirs && !request.end)) return;
+					if (theirs && !facilitator()) {
+						return this.refuse(connection, "spotlight", "not_facilitator");
 					}
+					log.info("spotlight.stopped", {
+						board: this.host.board,
+						reason: theirs ? "ended" : "stopped",
+					});
+					this.setSpotlight(null);
 					return;
 				}
 				if (typeof request.clientId !== "number")
 					return this.refuse(connection, "spotlight", "invalid");
-				log.info("spotlight.started", { board: this.host.board });
+				if (theirs && !facilitator()) {
+					return this.refuse(connection, "spotlight", "not_facilitator");
+				}
+				log.info("spotlight.started", { board: this.host.board, takeover: theirs });
 				this.setSpotlight({
 					connection: connection.id,
 					clientId: request.clientId,
@@ -173,6 +248,7 @@ export class Facilitation {
 						secret.length >= MIN_SECRET ? `a:${await sha256(secret)}` : `c:${connection.id}`,
 					);
 				}
+				this.introduce(connection);
 				this.silent.hello(this.peer(connection));
 				return;
 			}
@@ -184,7 +260,7 @@ export class Facilitation {
 		}
 	}
 
-	private refuse(connection: Connection, request: string, reason: "not_editor" | "invalid"): void {
+	private refuse(connection: Connection, request: string, reason: FacilitationRefusal): void {
 		log.warn("facilitation.refused", { board: this.host.board, request, reason });
 		this.sendTo(connection.id, { type: "facilitation-refused", request, reason });
 	}
@@ -223,6 +299,16 @@ export class Facilitation {
 		const connection = this.host.connection(id);
 		if (connection) this.host.send(connection, JSON.stringify(message));
 	}
+}
+
+function isConnection(origin: unknown): origin is Connection<ConnectionAccess> {
+	return (
+		typeof origin === "object" &&
+		origin !== null &&
+		typeof (origin as { id?: unknown }).id === "string" &&
+		"state" in origin &&
+		typeof (origin as { send?: unknown }).send === "function"
+	);
 }
 
 function publicSpotlight({

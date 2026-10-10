@@ -259,7 +259,7 @@ export class SilentHub {
 			if (shape.get("type") !== "section") continue;
 			const marked = parseSession(shape.get("silent"));
 			const session = sessions.get(id);
-			if (session && marked?.id !== session.id)
+			if (session && (marked?.id !== session.id || marked.starter !== session.starter))
 				fixes.push(() => shape.set("silent", markOf(session)));
 			else if (!session && shape.has("silent")) fixes.push(() => shape.delete("silent"));
 		}
@@ -273,7 +273,12 @@ export class SilentHub {
 }
 
 function markOf(row: SessionRow): SilentSession {
-	return { id: row.id, by: row.by, at: new Date(row.startedAt).toISOString() };
+	return {
+		id: row.id,
+		by: row.by,
+		starter: row.starter,
+		at: new Date(row.startedAt).toISOString(),
+	};
 }
 
 function cleanAuthor(by: Author | undefined): Author {

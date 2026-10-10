@@ -557,6 +557,7 @@ export class Board extends YServer<Env> {
 						connection,
 						JSON.stringify({ type: "access", role } satisfies BoardMessage),
 					);
+					this.facilitation?.roleChanged(connection);
 				}
 				// What they can do with comments may have changed too.
 				if (this.comments) {

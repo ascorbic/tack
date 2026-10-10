@@ -41,6 +41,11 @@ export interface SilentSession {
 	id: string;
 	/** Who started it (the facilitator). */
 	by: Author;
+	/**
+	 * Their author key (see facilitator.ts), so everyone's client knows who
+	 * may reveal it: they, the owner, or anyone once they've left.
+	 */
+	starter?: string;
 	/** When, ISO 8601. */
 	at: string;
 }

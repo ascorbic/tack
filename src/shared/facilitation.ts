@@ -35,10 +35,14 @@ export interface Timer {
 	remaining?: number;
 	startedAt: number;
 	by: Author;
+	/** Who started it, as the server knows them (see facilitator.ts): they run it. */
+	starter?: string;
+	/** What it's timing: "Silent brainstorm". */
+	label?: string;
 }
 
 export type TimerAction =
-	| { action: "start"; ms: number }
+	| { action: "start"; ms: number; label?: string }
 	| { action: "pause" }
 	| { action: "resume" }
 	| { action: "add"; ms: number }
@@ -100,6 +104,7 @@ export function applyTimer(
 	now: number,
 	by: Author,
 	origin: unknown = FACILITATION_ORIGIN,
+	starter?: string,
 ): boolean {
 	const map = facilitationMap(doc);
 	const current = readTimer(doc);
@@ -108,6 +113,7 @@ export function applyTimer(
 		case "start": {
 			const ms = clampMs(command.ms);
 			if (ms === null) return false;
+			const label = typeof command.label === "string" ? command.label.trim().slice(0, 60) : "";
 			next = {
 				id: crypto.randomUUID(),
 				state: "running",
@@ -115,6 +121,8 @@ export function applyTimer(
 				endsAt: now + ms,
 				startedAt: now,
 				by: { name: by.name, color: by.color },
+				...(starter ? { starter } : {}),
+				...(label ? { label } : {}),
 			};
 			break;
 		}
@@ -194,15 +202,28 @@ export interface Spotlight {
 export type FacilitationRequest =
 	| { type: "clock"; t: number }
 	| ({ type: "timer"; by: Author } & TimerAction)
-	| { type: "spotlight"; on: boolean; clientId?: number; user?: Author };
+	/**
+	 * Spotlight yourself (`on`), taking over from whoever's spotlighting if
+	 * you may, or stop yours. With `end`, end whoever's it is, if you may.
+	 */
+	| { type: "spotlight"; on: boolean; clientId?: number; user?: Author; end?: boolean };
+
+/** Why the server turned a facilitation request down. */
+export type FacilitationRefusal = "not_editor" | "not_facilitator" | "invalid";
 
 /** Facilitation messages from the board's server. */
 export type FacilitationMessage =
 	/** The answer to a `clock` ping: `t` is the client's, `now` the server's. */
 	| { type: "clock"; t: number; now: number }
 	| { type: "spotlight"; spotlight: Spotlight | null }
+	/** Who you are to facilitation (see facilitator.ts): on connecting, and when it changes. */
+	| { type: "facilitation-you"; author: string; editor: boolean; owner: boolean }
+	/** The author keys of everyone on the board, whenever someone comes or goes. */
+	| { type: "facilitation-present"; authors: string[] }
+	/** Someone changed the timer: who, for "Kai stopped the timer". */
+	| { type: "timer-changed"; action: TimerAction["action"]; by: Author; author: string }
 	/** A request this connection isn't allowed to make. */
-	| { type: "facilitation-refused"; request: string; reason: "not_editor" | "invalid" };
+	| { type: "facilitation-refused"; request: string; reason: FacilitationRefusal };
 
 /**
  * The server's clock as seen from here: the offset from the ping with the
