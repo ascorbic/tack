@@ -163,6 +163,8 @@ export interface RowProps {
 	onRowHover?: (key: string | null) => void;
 	onRowPointerDown?: (event: ReactPointerEvent<HTMLElement>, card: Card) => void;
 	onReveal?: (key: string) => void;
+	/** Clicked, or Enter: its card on the board, shown if it's there, else added beside the widget. */
+	onRowActivate?: (card: Card) => void;
 }
 
 /** Row behaviour for a widget on the board. */
@@ -190,6 +192,11 @@ export function useRows(id: string): RowProps {
 		onRowHover: (key) => linkStore.set(key, "row"),
 		onRowPointerDown: drag.onPointerDown,
 		onReveal: (key) => board.reveal(cards?.shapesFor(key) ?? []),
+		onRowActivate: (card) => {
+			const placed = cards?.shapesFor(card.key) ?? [];
+			if (placed.length > 0) board.reveal(placed);
+			else drag.activate(card);
+		},
 	};
 }
 

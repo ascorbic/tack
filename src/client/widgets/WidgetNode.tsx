@@ -170,6 +170,11 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 				onRowHover={(key) => linkStore.set(key, "row")}
 				onRowPointerDown={rowDrag.onPointerDown}
 				onReveal={(key) => board.reveal(cards?.shapesFor(key) ?? [])}
+				onRowActivate={(card) => {
+					const placed = cards?.shapesFor(card.key) ?? [];
+					if (placed.length > 0) board.reveal(placed);
+					else rowDrag.activate(card);
+				}}
 			/>
 			{useResizeGrips(id, shape, selected)}
 			<WidgetPanel nodeId={id} open={configOpen && !readOnly}>

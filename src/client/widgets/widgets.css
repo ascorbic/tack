@@ -315,6 +315,17 @@
 		opacity var(--t-base) var(--ease-out);
 }
 
+/* Rows are buttons too: click or Enter puts the card beside the widget. */
+.widget-row[role="button"] {
+	cursor: pointer;
+}
+
+.widget-row[role="button"]:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
+	background: var(--accent-soft);
+}
+
 .widget-row[data-state="merged"],
 .widget-row[data-state="closed"] {
 	--state: var(--merged);

@@ -109,7 +109,7 @@ export function ItemRow({
 			onPointerEnter={() => rows.onRowHover?.(card.key)}
 			onPointerLeave={() => rows.onRowHover?.(null)}
 			onPointerDown={(event) => rows.onRowPointerDown?.(event, card)}
-			title={rows.readOnly ? undefined : "Drag onto the board to add a card"}
+			{...rowActivation(card, onBoard, rows)}
 			{...attributes}
 		>
 			<span className="state-icon" aria-hidden="true">
@@ -162,6 +162,44 @@ export function ItemRow({
 			)}
 		</li>
 	);
+}
+
+/**
+ * A row as a button: click it, or Enter or Space when it has focus, to put
+ * its card on the board beside the widget (or show the one that's there).
+ * Dragging it out is the other way, and a drag never counts as a click.
+ */
+export function rowActivation(
+	card: Card,
+	onBoard: boolean,
+	rows: Pick<RowProps, "readOnly" | "onRowActivate">,
+) {
+	const activate = rows.onRowActivate;
+	const usable = activate && (onBoard || !rows.readOnly);
+	if (!usable) return {};
+	const label = `${card.repo.split("/").at(-1)} ${card.item}: ${card.title}`;
+	return {
+		tabIndex: 0,
+		role: "button",
+		"aria-label": onBoard
+			? `${label}. On the board: Enter to show it`
+			: `${label}. Enter to add it`,
+		title: onBoard
+			? "On the board: click to show it"
+			: "Click to add beside the widget, or drag it out",
+		onClick: (event: React.MouseEvent) => {
+			if ((event.target as Element).closest("a, button")) return;
+			event.stopPropagation();
+			activate(card);
+		},
+		onKeyDown: (event: React.KeyboardEvent) => {
+			if (event.target !== event.currentTarget) return;
+			if (event.key !== "Enter" && event.key !== " ") return;
+			event.preventDefault();
+			event.stopPropagation();
+			activate(card);
+		},
+	};
 }
 
 /** Labels, a few of them, as small chips. */

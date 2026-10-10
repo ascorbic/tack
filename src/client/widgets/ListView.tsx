@@ -14,7 +14,7 @@ import {
 	WidgetFoot,
 	useNow,
 } from "./chrome.tsx";
-import { type Motion, useRowMotion } from "./rows.tsx";
+import { type Motion, rowActivation, useRowMotion } from "./rows.tsx";
 import { queryChips } from "./describe.ts";
 import {
 	DropIcon,
@@ -72,6 +72,8 @@ export interface ListViewProps {
 	onRowPointerDown?: (event: ReactPointerEvent<HTMLElement>, card: Card) => void;
 	/** Show the item's card on the board. */
 	onReveal?: (key: string) => void;
+	/** A row clicked, or Enter: its card shown, or added beside the list. */
+	onRowActivate?: (card: Card) => void;
 	/** Extra UI in the header, e.g. the config panel. */
 	children?: ReactNode;
 }
@@ -261,6 +263,7 @@ function Rows(props: ListViewProps & { rows: Card[]; stale: boolean }) {
 					onHover={props.onRowHover}
 					onPointerDown={props.onRowPointerDown}
 					onReveal={props.onReveal}
+					onActivate={props.onRowActivate}
 				/>
 			))}
 		</ul>
@@ -278,6 +281,7 @@ function Row({
 	onHover,
 	onPointerDown,
 	onReveal,
+	onActivate,
 }: {
 	card: Card;
 	motion?: Motion;
@@ -289,6 +293,7 @@ function Row({
 	onHover?: (key: string | null) => void;
 	onPointerDown?: (event: ReactPointerEvent<HTMLElement>, card: Card) => void;
 	onReveal?: (key: string) => void;
+	onActivate?: (card: Card) => void;
 }) {
 	const repo = card.repo.split("/").at(-1);
 	return (
@@ -304,7 +309,7 @@ function Row({
 			onPointerEnter={() => onHover?.(card.key)}
 			onPointerLeave={() => onHover?.(null)}
 			onPointerDown={(event) => onPointerDown?.(event, card)}
-			title={readOnly ? undefined : "Drag onto the board to add a card"}
+			{...rowActivation(card, onBoard, { readOnly, onRowActivate: onActivate })}
 		>
 			<span className="state-icon" aria-hidden="true">
 				<StateIcon card={card} size={14} />

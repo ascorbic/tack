@@ -133,6 +133,42 @@ test("rows drag out onto the board as cards from the list", async ({ page }) => 
 	await expect(page.locator(".widget-ghost")).toHaveCount(0);
 });
 
+test("a clicked row, or Enter on one, adds its card beside the list, then shows it", async ({
+	page,
+}) => {
+	const bugs = list(page, "Open bugs");
+	const cards = async () => (await shapes(page)).filter((s) => s.type === "card");
+	const before = (await cards()).length;
+	const widget = (await shapes(page)).find((s) => s.config?.title === "Open bugs");
+
+	// A click is a button press, not a drag: the card lands beside the list.
+	const netlify = row(bugs, "Netlify provider");
+	await expect(netlify).toHaveAttribute("role", "button");
+	await netlify.click();
+	await expect.poll(async () => (await cards()).length).toBe(before + 1);
+	const card = (await shapes(page)).find((s) => s.ref === "fake.tack/acme/imagekit#430");
+	expect(card?.provenance).toEqual({ via: "list", source: widget?.id });
+	await expect(netlify.locator(".widget-row-marker")).toBeVisible();
+	await expect(page.locator(".react-flow__node.selected")).toHaveCount(1);
+
+	// Clicked again, it's already there: shown, not added twice.
+	await netlify.click();
+	await page.waitForTimeout(200);
+	expect((await cards()).length).toBe(before + 1);
+
+	// The keyboard does the same: Tab to a row, Enter.
+	const next = bugs
+		.locator('.widget-row[role="button"]')
+		.filter({ hasNot: page.locator(".widget-row-marker") })
+		.first();
+	await next.focus();
+	await page.keyboard.press("Enter");
+	await expect.poll(async () => (await cards()).length).toBe(before + 2);
+	// And one undo takes it back off.
+	await page.keyboard.press("ControlOrMeta+z");
+	await expect.poll(async () => (await cards()).length).toBe(before + 1);
+});
+
 test("a row dropped back on its list goes home", async ({ page }) => {
 	const bugs = list(page, "Open bugs");
 	const before = (await shapes(page)).length;

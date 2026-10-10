@@ -8,17 +8,20 @@ import {
 import { createPortal } from "react-dom";
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
-import { NOMINAL_SIZE } from "../../shared/sections.ts";
+import { PLACED_CARD, spotBeside } from "../../shared/placement.ts";
+import { NOMINAL_SIZE, boxOf } from "../../shared/sections.ts";
 import { addCardShape } from "../../shared/provenance.ts";
-import { transactLocal } from "../../shared/shapes.ts";
-import { placeInSections } from "../../shared/structure.ts";
+import { shapesMap, transactLocal } from "../../shared/shapes.ts";
+import { placeInSections, readShapes } from "../../shared/structure.ts";
 import { CardView } from "../CardView.tsx";
 import { scaledDuration } from "../motion.ts";
 
 // Dragging a row out of a list (#38): the row lifts off as the card it'll
 // become, follows the pointer at the board's zoom, and lands as a copy (the
 // list keeps the row), recording that it came from this list. Dropped back
-// on the list, or off the board, it flies home instead.
+// on the list, or off the board, it flies home instead. Clicked, or Enter on
+// a focused row, the card goes in the free space beside the widget instead,
+// as an inbox's tray puts a clicked item into its section.
 
 /** Below this many screen pixels, a press is a click, not a drag. */
 const SLOP = 5;
@@ -173,7 +176,47 @@ export function useRowDrag({
 		window.addEventListener("keydown", onKey, true);
 	};
 
-	return { onPointerDown, lifted };
+	/** Put a row's card on the board beside the widget, in free space, and show it. */
+	const activate = (card: Card) => {
+		if (!enabled || !doc) return;
+		const shapes = readShapes(doc);
+		const home = shapes.get(widget);
+		if (!home) return;
+		const box = boxOf(widget, home);
+		const spot = spotBeside(shapes, widget, PLACED_CARD) ?? { x: box.x + box.w + 24, y: box.y };
+		latest.current.seedCard(card);
+		const id = crypto.randomUUID();
+		transactLocal(doc, () => {
+			addCardShape(
+				doc,
+				id,
+				{ ref: card.key, x: spot.x, y: spot.y },
+				{ via: "list", source: widget },
+			);
+			placeInSections(doc, [id]);
+		});
+		latest.current.onPlaced(id);
+		// Beside a widget at the edge of the screen, it may land out of sight: follow it.
+		const placed = shapesMap(doc).get(id);
+		const at = { x: Number(placed?.get("x") ?? spot.x), y: Number(placed?.get("y") ?? spot.y) };
+		const corner = flow.flowToScreenPosition(at);
+		const far = flow.flowToScreenPosition({ x: at.x + PLACED_CARD.w, y: at.y + PLACED_CARD.h });
+		const canvas = document.querySelector(".react-flow")?.getBoundingClientRect();
+		if (
+			canvas &&
+			(corner.x < canvas.left ||
+				corner.y < canvas.top ||
+				far.x > canvas.right ||
+				far.y > canvas.bottom)
+		) {
+			void flow.setCenter(at.x + PLACED_CARD.w / 2, at.y + PLACED_CARD.h / 2, {
+				zoom: flow.getZoom(),
+				duration: scaledDuration(420),
+			});
+		}
+	};
+
+	return { onPointerDown, lifted, activate };
 }
 
 function swallow(event: Event) {
