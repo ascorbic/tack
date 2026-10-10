@@ -477,7 +477,7 @@ export default function Playground() {
 				push={push}
 			>
 				<PenProbe doc={sim.doc} mode={pen} onStats={setPenStats} />
-				<aside className="play-panel" aria-label="Playground controls">
+				<aside className="play-panel" aria-label="Playground controls" data-chrome>
 					<div className="play-section">
 						<label className="play-label" htmlFor="scenario">
 							Scenario

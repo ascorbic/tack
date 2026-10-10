@@ -1,15 +1,57 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isApplePlatform } from "../shortcuts.ts";
+import { type Box, type Side, placePopover } from "./popoverPlacement.ts";
 import "./actions.css";
 
 // A small panel that opens from the action bar (or a connector's toolbar)
 // and stays attached to it as the board moves. It's a dialog, so board
 // shortcuts leave its keys alone (see keys.ts); Escape and clicking away
-// close it. It opens below its bar, or above when there's no room.
+// close it. It opens below its bar, or above when there's no room, within
+// the visible canvas and clear of the chrome fixed over it (the minimap, the
+// zoom controls, the tool dock: `CHROME`), shifting sideways or flipping to
+// get clear (popoverPlacement.ts). It keeps clear as its contents grow.
 
-const MARGIN = 12;
 const DOCK = 84;
 const HEADER = 56;
+
+/** Chrome fixed over the canvas that popovers keep clear of. */
+export const CHROME = ".react-flow__panel, .toolbar-dock, [data-chrome]";
+
+const boxOf = (rect: DOMRect | Box): Box => ({
+	left: rect.left,
+	top: rect.top,
+	right: rect.right,
+	bottom: rect.bottom,
+});
+
+/** Where a popover can go on screen, and what's fixed over that area. */
+function surroundings(el: HTMLElement, bar: HTMLElement): { bounds: Box; obstacles: Box[] } {
+	const screen = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+	const flow = bar.closest<HTMLElement>(".react-flow");
+	// Not on a board (the gallery): leave room for a board's header and dock.
+	if (!flow)
+		return { bounds: { ...screen, top: HEADER, bottom: screen.bottom - DOCK }, obstacles: [] };
+	const canvas = flow.getBoundingClientRect();
+	const bounds = {
+		left: Math.max(screen.left, canvas.left),
+		top: Math.max(screen.top, canvas.top),
+		right: Math.min(screen.right, canvas.right),
+		bottom: Math.min(screen.bottom, canvas.bottom),
+	};
+	const obstacles = [...document.querySelectorAll<HTMLElement>(CHROME)]
+		.filter((chrome) => !chrome.contains(bar) && !el.contains(chrome))
+		.map((chrome) => boxOf(chrome.getBoundingClientRect()))
+		.filter(
+			(box) =>
+				box.right > box.left &&
+				box.bottom > box.top &&
+				box.left < bounds.right &&
+				box.right > bounds.left &&
+				box.top < bounds.bottom &&
+				box.bottom > bounds.top,
+		);
+	return { bounds, obstacles };
+}
 
 /** The keys that stage from a panel with a list or text in it. */
 export const SUBMIT_HINT = isApplePlatform() ? "⌘↵" : "Ctrl ↵";
@@ -37,28 +79,44 @@ export function Popover({
 	const close = useRef(onClose);
 	close.current = onClose;
 
-	// Room below? Otherwise above. And keep it on screen sideways.
+	// Room below? Otherwise above. On the canvas sideways, and clear of its
+	// chrome. Placed when it opens; after that it keeps its side (so it never
+	// jumps across its bar) but shifts and sizes again as its contents change.
 	useLayoutEffect(() => {
 		const el = ref.current;
 		const bar = el?.parentElement;
 		if (!el || !bar) return;
-		const box = el.getBoundingClientRect();
-		const anchor = bar.getBoundingClientRect();
-		// Off screen (in a scrolling gallery, say): leave it be.
-		if (anchor.top > window.innerHeight || anchor.bottom < 0) return;
-		// Leave room for the tool dock along the bottom of the canvas.
-		const below = window.innerHeight - DOCK - anchor.bottom;
-		const above = anchor.top - HEADER;
-		const fits = (room: number) => room >= box.height + MARGIN;
-		let chosen = prefer;
-		if (prefer === "below" && !fits(below) && above > below) chosen = "above";
-		if (prefer === "above" && !fits(above) && below > above) chosen = "below";
-		setSide(chosen);
-		// Taller than the room it has? Then it scrolls, rather than running off screen.
-		setRoom(Math.max(180, (chosen === "above" ? above : below) - MARGIN));
-		if (box.left < MARGIN) setNudge(MARGIN - box.left);
-		else if (box.right > window.innerWidth - MARGIN)
-			setNudge(window.innerWidth - MARGIN - box.right);
+		let placed: Side | null = null;
+		const place = () => {
+			const anchor = bar.getBoundingClientRect();
+			// Off screen (in a scrolling gallery, say): leave it be.
+			if (anchor.top > window.innerHeight || anchor.bottom < 0) return;
+			const { bounds, obstacles } = surroundings(el, bar);
+			const placement = placePopover({
+				anchor: boxOf(anchor),
+				// Its natural size: taller than the room it has, it scrolls.
+				size: { width: el.offsetWidth, height: el.scrollHeight },
+				bounds,
+				obstacles,
+				prefer: placed ?? prefer,
+				stay: placed !== null,
+			});
+			placed = placement.side;
+			setSide(placement.side);
+			setNudge(placement.nudge);
+			setRoom(placement.room);
+		};
+		place();
+		let frame = 0;
+		const observer = new ResizeObserver(() => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(place);
+		});
+		for (const child of el.children) observer.observe(child);
+		return () => {
+			cancelAnimationFrame(frame);
+			observer.disconnect();
+		};
 	}, []);
 
 	useEffect(() => {
