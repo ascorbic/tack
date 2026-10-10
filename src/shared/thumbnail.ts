@@ -1,7 +1,8 @@
 // A board's thumbnail: a compact sketch of where its shapes are and what
 // colour they are, computed by the board's Durable Object on save. The home
 // page draws it as SVG (see `BoardThumbnail.tsx`), so it never loads a board
-// document and the sketch follows the light or dark theme.
+// document and the sketch follows the light or dark theme. Templates (#53)
+// are sketched the same way, from their content.
 
 import type * as Y from "yjs";
 import {
@@ -10,11 +11,13 @@ import {
 	type Thumbnail,
 	type ThumbnailKind,
 	type ThumbnailShape,
-} from "../../shared/boards.ts";
-import { shapesMap } from "../../shared/shapes.ts";
+} from "./boards.ts";
+import { shapesMap } from "./shapes.ts";
 
 /** Rendered sizes of shapes the document doesn't size, from styles.css. */
 const CARD = { width: 252, height: 128 };
+const ACTION = { width: 296, height: 104 };
+const DECISION = { width: 320, height: 230 };
 const STICKY = 176;
 const TEXT_SIZES: Record<string, number> = { s: 14, m: 20, l: 34, xl: 56 };
 const TEXT_MAX_WIDTH = 520;
@@ -36,9 +39,20 @@ export function boardThumbnail(
 	doc: Y.Doc,
 	cardTone: (ref: string) => string = () => "",
 ): Thumbnail | null {
+	return sketch(
+		[...shapesMap(doc).values()].map((shape) => shape.toJSON()),
+		cardTone,
+	);
+}
+
+/** Sketch shapes given as plain properties (a document's, or a template's). */
+export function sketch(
+	shapes: Iterable<Record<string, unknown>>,
+	cardTone: (ref: string) => string = () => "",
+): Thumbnail | null {
 	const boxes: Box[] = [];
-	for (const shape of shapesMap(doc).values()) {
-		const box = shapeBox(shape.toJSON(), cardTone);
+	for (const shape of shapes) {
+		const box = shapeBox(shape, cardTone);
 		if (box) boxes.push(box);
 	}
 	if (boxes.length === 0) return null;
@@ -93,6 +107,23 @@ function shapeBox(props: Record<string, unknown>, cardTone: (ref: string) => str
 			const { lines, ...size } = textSize(props);
 			return { kind: "text", x, y, ...(sized ?? size), tone: String(lines) };
 		}
+		case "widget":
+			// A widget's tone is its kind, which picks how its body is drawn.
+			return sized
+				? {
+						kind: "widget",
+						x,
+						y,
+						...sized,
+						tone: typeof props.widget === "string" ? props.widget : "",
+					}
+				: null;
+		case "action":
+			// An action item's tone says whether it's done (on the board; linked
+			// items' status needs the live issue).
+			return { kind: "action", x, y, ...(sized ?? ACTION), tone: props.done ? "done" : "" };
+		case "decision":
+			return { kind: "card", x, y, ...(sized ?? DECISION), tone: "" };
 		case "section":
 		case "frame":
 			return sized

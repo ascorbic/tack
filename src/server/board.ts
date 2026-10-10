@@ -38,7 +38,7 @@ import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
 import type { WidgetRequest } from "../shared/widgets.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
-import { boardThumbnail } from "./boards/thumbnail.ts";
+import { boardThumbnail } from "../shared/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
 import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
 import { Facilitation } from "./facilitation.ts";

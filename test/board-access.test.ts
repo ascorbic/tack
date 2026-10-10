@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import { type Policy, canManage, roleFor } from "../src/server/boards/access.ts";
-import { boardThumbnail } from "../src/server/boards/thumbnail.ts";
+import { boardThumbnail } from "../src/shared/thumbnail.ts";
 import {
 	THUMBNAIL_MAX_SHAPES,
 	boardIdFromPath,
