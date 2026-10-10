@@ -1,0 +1,69 @@
+---
+title: Pushing
+description: The push sheet, pushing as yourself or as the bot, confirmation, retries and the history.
+sidebar:
+  order: 3
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+Choose **Changes**, then **Review and push**, to open the push sheet.
+
+<Screenshot
+	name="push"
+	alt="The push sheet: new issues with their bodies and labels, how many people will be notified, Push as You or Tack's bot, and Push 10 changes."
+/>
+
+## Reviewing
+
+The sheet groups the changes by repository, then by kind: new issues, pull requests, discussions, sub-issues, blocked-by, labels, assignees, milestones, closing and reopening, and comments.
+
+- **Previews** show exactly what will be written: each issue's title, body, labels, assignees and milestone; each comment; a pull request's branch and files. Markdown is shown as it'll read on GitHub.
+- **Notifications**: each repository says roughly how many people its changes will notify ("Notifies ~40 people"). New issues, pull requests, discussions, comments and closing or reopening notify the repository's watchers; labels, milestones and links are quiet. People being assigned hear about it too.
+- **Switches** leave a change, or a whole group, out of this push. Leaving out a new issue also leaves out the changes about it.
+- Each change says what happens on the board afterwards, such as "On the board, its sticky turns into the new card".
+
+## Pushing as yourself or the bot
+
+**Push as** has two choices, remembered in your browser:
+
+- **You**: GitHub shows the issues, comments and pull requests as yours, "via Tack". Written with your own GitHub sign-in.
+- **Tack's bot**: "Written by the app, not by you". Written with the app's installation.
+
+Either way, Tack checks that **you** can write to every repository first, and the app must be installed there.
+
+Choose **Push N changes** (<kbd>⌘</kbd> <kbd>Enter</kbd>).
+
+### When a push can't start
+
+| The sheet says                                  | Because                                                           | What to do                                                     |
+| ----------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| Sign in to push                                 | Pushing writes as a person, so Tack needs to know who you are     | **Sign in with GitHub**                                        |
+| You can stage but not push here                 | GitHub says you can't write to the repository                     | Someone with write access can push, or leave those changes out |
+| Install the app on these repos                  | The [GitHub App](/self-hosting/github-app/) isn't installed there | **Install the app**, or leave them out                         |
+| A change needs an issue that isn't in this push | A change refers to a new issue you left out                       | **Include it**                                                 |
+| Couldn't start the push                         | Another push is still going, or the changes changed meanwhile     | Try again: nothing is ever sent twice                          |
+
+## Progress and confirmation
+
+Tack writes one change at a time, a second apart, in dependency order (new issues before the changes about them). You can close the sheet: the push carries on, and the changes panel follows along. Everyone on the board sees it.
+
+Each change goes **Waiting its turn** → **Sending…** → **Sent, waiting for GitHub to confirm** → **On GitHub**, linking to what it wrote. When they're all done: "All N changes are on GitHub".
+
+**Confirming** is what makes a push trustworthy. Changes a card can show (new issues and pull requests, labels, assignees, state) count as done only when the card shows them, from GitHub's webhook. If that hasn't happened within two minutes, Tack fetches the item to check, and if it still doesn't show the change, it fails: "GitHub accepted this, but owner/repo#12 didn't show it within 2 minutes." That usually means webhooks aren't arriving: see [Troubleshooting](/help/troubleshooting/).
+
+Changes no card shows (milestones, sub-issues, blocked-by, comments, discussions) are done when GitHub accepts them.
+
+When it's done, the board catches up by itself: stickies turn into their issues' cards in place, a parent issue's card lands above its section connected to its sub-issues, and a decision shows its pull request.
+
+## Failures and retries
+
+- **Rate limits, timeouts and GitHub outages** are waited out and retried, in order, for up to eight attempts. A rate limit that won't lift within 70 minutes fails instead.
+- **Refusals** (no permission, an item that's gone) fail that change, with GitHub's reason, and changes that needed it fail too.
+- A failed change stays in the changes panel. **Retry** pushes it again (as you or as the bot, whichever it was pushed as before), or unstage it to let it go.
+
+Tack never writes anything twice. A change being pushed or already done is never pushed again, and a retried create first looks for what an unanswered earlier attempt made.
+
+## History
+
+**History**, in the changes panel or the push sheet, is the board's audit log: every push, who pushed it and as whom ("as Tack's bot"), when, and each change with its status, linking to what it wrote on GitHub. Anyone who can open the board can read it. The board keeps its last 200 pushes.

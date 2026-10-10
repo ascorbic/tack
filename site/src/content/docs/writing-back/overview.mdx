@@ -1,0 +1,75 @@
+---
+title: How writing back works
+description: Staging changes, the changes panel, and why nothing reaches GitHub by accident.
+sidebar:
+  order: 1
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+Moving things on a board never changes GitHub. Only **pending changes** do, and they go through three steps:
+
+1. **Stage.** An action on the board (making issues from stickies, adding a label, linking a blocked-by) stages a change. The change shows on the shapes it's about and in the changes panel, for everyone on the board. Nothing is written yet.
+2. **Review.** Someone opens the push sheet, reads what will be written (issue bodies, labels, files, how many people will be notified), and leaves out anything that shouldn't go.
+3. **Push.** Tack writes the changes one at a time, and confirms each one when GitHub shows it.
+
+<Screenshot
+	name="writes"
+	alt="Stickies with ghost issue cards behind them, cards with staged labels hanging under them, and flags such as Will close, Blocked by #418 and New pull request."
+	caption="Staged changes on the board: ghost cards behind stickies that will become issues, labels being added, and flags for everything else."
+/>
+
+## Who can do what
+
+- **Anyone who can edit the board** can stage changes, including people who aren't signed in.
+- **Pushing** needs a GitHub sign-in, write access to each repository being written to, and the [GitHub App](/self-hosting/github-app/) installed there. GitHub decides, not the board: someone with push access can push what anyone else staged.
+- **Viewers** see the changes panel, but can't change it.
+
+## Staging
+
+Every action is one undo step, and shows a toast with **Undo**: "Staged 2 issues for acme/app, with 1 label", "Staged: #377 blocked by #412". The [built-in actions](/writing-back/actions/) are the full list.
+
+Staged changes show on the board:
+
+- a **ghost card** behind a sticky that will become an issue, and a dashed card above a section that will become a parent issue
+- **label chips** under a card for labels being added (+) or removed (−)
+- **flags** for the rest: "Will close as not planned", "+@kai", "→ v5.0", "Sub-issue of #412", "Blocked by #418", "Will comment", "New pull request"
+- an **outline** around anything with changes, red if one failed
+
+Click a flag to find its change in the panel.
+
+Staging is careful about duplicates and dependencies:
+
+- Your labels and assignees on the same item merge into one change. Adding then removing a label cancels out, and a change that would change nothing is dropped.
+- Stickies already staged as issues are skipped, not made twice.
+- A change about an issue that's still to be made depends on it: including one includes the other, and unstaging the new issue unstages what refers to it.
+
+## The changes panel
+
+Choose **Changes** in the top bar. Its badge counts what's waiting, and turns red if something failed.
+
+<Screenshot
+	name="changes"
+	alt="The changes panel beside the board: staged changes grouped by repository, each with who staged it and when, one failed with a Retry button, and Review and push 10 at the bottom."
+/>
+
+The panel lists the changes waiting to go, grouped by repository, each with who staged it and when. Click a change to see its shapes on the board.
+
+- **The switch** beside a change leaves it out of the next push, without unstaging it.
+- **×** unstages it (with Undo).
+- **Failed** changes show why, with **Retry**.
+- Changes being pushed show "Sending…" or "Sent, waiting for GitHub to confirm", and the latest few that landed show under **On GitHub**, linking to what they wrote.
+- **History** opens the board's [push history](/writing-back/pushing/#history).
+- **Review and push** opens the [push sheet](/writing-back/pushing/).
+
+A change is one of:
+
+| Status  | Means                                                         |
+| ------- | ------------------------------------------------------------- |
+| Staged  | Waiting to be pushed                                          |
+| Sending | A push is writing it                                          |
+| Sent    | GitHub accepted it, and Tack is waiting for GitHub to show it |
+| Applied | On GitHub                                                     |
+| Failed  | GitHub refused it, or it never showed up. The error says why  |
+
+The list is part of the board, so everyone on it sees the same changes, live.
