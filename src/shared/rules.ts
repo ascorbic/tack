@@ -2,7 +2,7 @@ import * as Y from "yjs";
 import type { Card } from "./cards.ts";
 import type { ItemMention } from "./mentions.ts";
 import { spotBelow, spotBeside, spotInSection } from "./placement.ts";
-import { matchesQuery, unsupportedForRules } from "./query.ts";
+import { matchesQuery, unsupportedForRules } from "./search.ts";
 import { repoKeyOf } from "./refs.ts";
 import type { SizeOf } from "./sections.ts";
 import { inboxSections } from "./inbox.ts";

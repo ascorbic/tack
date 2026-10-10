@@ -5,10 +5,13 @@ import { listChanges } from "../src/shared/changes.ts";
 import {
 	formatTerm,
 	matchSearch,
+	matchesQuery,
 	mentionsMe,
 	parseSearch,
 	planMatch,
+	queryRepos,
 	searchScope,
+	unsupportedForRules,
 } from "../src/shared/search.ts";
 import * as Y from "yjs";
 
@@ -84,6 +87,82 @@ describe("matchSearch", () => {
 		expect(matchSearch(c, parseSearch("assignee:@me"))).toBe("no");
 		expect(matchSearch(c, parseSearch("comments:>2 sort:updated-desc"))).toBe("yes");
 		expect(matchSearch(c, parseSearch("label:bug,docs"))).toBe("yes");
+	});
+});
+
+// Rules and inbox frames read searches locally (#40, #44): everything from the card.
+describe("matchesQuery", () => {
+	const q = (text: string) => ({ host: "github.com", q: text });
+	const plain = (overrides: Partial<Card> = {}) =>
+		card({ title: "Widgets wobble on Tuesdays", labels: [], assignees: [], ...overrides });
+
+	it("matches the triage example: open issues with no label", () => {
+		const query = q("repo:acme/widgets is:issue is:open no:label");
+		expect(matchesQuery(plain(), query)).toBe(true);
+		expect(matchesQuery(plain({ labels: [{ name: "bug", color: "f00" }] }), query)).toBe(false);
+		expect(matchesQuery(plain({ state: "closed" }), query)).toBe(false);
+		expect(matchesQuery(plain({ kind: "pull" }), query)).toBe(false);
+		expect(matchesQuery(plain({ repo: "acme/gears" }), query)).toBe(false);
+	});
+
+	it("reads labels as any of a comma list, and negation", () => {
+		const bug = plain({ labels: [{ name: "Bug", color: "f00" }] });
+		expect(matchesQuery(bug, q("label:bug,docs"))).toBe(true);
+		expect(matchesQuery(bug, q("-label:bug"))).toBe(false);
+		expect(matchesQuery(plain(), q("-label:bug"))).toBe(true);
+	});
+
+	it("decides words by the title alone", () => {
+		expect(matchesQuery(plain(), q("wobble tuesdays"))).toBe(true);
+		expect(matchesQuery(plain(), q("wobble -tuesdays"))).toBe(false);
+		expect(matchesQuery(plain(), q('"on tuesdays"'))).toBe(true);
+		expect(matchesQuery(plain(), q("gyroscope"))).toBe(false);
+	});
+
+	it("knows pull request states", () => {
+		const draft = plain({ kind: "pull", state: "draft" });
+		expect(matchesQuery(draft, q("is:pr is:open is:draft"))).toBe(true);
+		expect(matchesQuery(plain({ kind: "pull", state: "merged" }), q("is:closed is:merged"))).toBe(
+			true,
+		);
+	});
+
+	it("says it can't tell rather than guessing", () => {
+		expect(matchesQuery(plain(), q("milestone:v1"))).toBeNull();
+		expect(matchesQuery(plain(), q("assignee:@me"))).toBeNull();
+		expect(matchesQuery(plain({ author: null }), q("author:alice"))).toBeNull();
+		// ...unless something it can tell already rules the card out.
+		expect(matchesQuery(plain({ state: "closed" }), q("is:open milestone:v1"))).toBe(false);
+		// ...or someone else it can tell is assigned.
+		expect(
+			matchesQuery(plain({ assignees: [{ login: "kai", avatarUrl: "" }] }), q("assignee:@me,kai")),
+		).toBe(true);
+	});
+
+	it("never matches another forge", () => {
+		expect(matchesQuery(plain(), { host: "fake.tack", q: "is:open" })).toBe(false);
+	});
+
+	it("lists the repositories a query searches", () => {
+		expect(queryRepos(q("repo:Acme/Widgets repo:acme/gears -repo:acme/old is:open"))).toEqual([
+			"github.com/acme/widgets",
+			"github.com/acme/gears",
+		]);
+	});
+});
+
+describe("unsupportedForRules", () => {
+	it("accepts what a card can answer, with a repository", () => {
+		expect(unsupportedForRules("repo:acme/widgets is:issue label:bug")).toBeNull();
+		expect(unsupportedForRules("repo:acme/widgets -label:wontfix flaky sort:updated")).toBeNull();
+	});
+
+	it("explains what it can't check", () => {
+		expect(unsupportedForRules("repo:a/b milestone:v1")).toMatch(/milestone:v1/);
+		expect(unsupportedForRules("repo:a/b assignee:@me")).toMatch(/@me/);
+		expect(unsupportedForRules("is:issue")).toMatch(/repo:/);
+		expect(unsupportedForRules("repo:a/b is:locked")).toMatch(/is:locked/);
+		expect(unsupportedForRules("repo:a/b is:public")).toMatch(/is:public/);
 	});
 });
 

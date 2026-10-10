@@ -8,7 +8,7 @@ import {
 	previewId,
 } from "../../shared/inbox.ts";
 import type { ItemMention } from "../../shared/mentions.ts";
-import { matchesQuery, queryRepos } from "../../shared/query.ts";
+import { matchesQuery, queryRepos } from "../../shared/search.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
 import { RULE_ORIGIN, memoryOfRules, refreshMatches, runRules } from "../../shared/rules.ts";
 import { cardRefs, shapesMap } from "../../shared/shapes.ts";

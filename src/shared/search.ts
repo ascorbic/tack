@@ -1,12 +1,19 @@
 import type { Triage } from "./actions.ts";
 import type { Card } from "./cards.ts";
 import type { CloseReason } from "./changes.ts";
+import type { SearchQuery } from "./widgets.ts";
 
 // Forge searches, in GitHub's issue search syntax (which the fake forge and
 // the playground speak too): parsing a query into its qualifiers, saying
 // which repositories it can match (so a board knows which webhooks should
 // refresh it), evaluating it against a card where that's possible, and
 // working out what would make a card match it (drop to match, #39).
+//
+// It's the one reading of searches there is: widgets and the fake forges
+// use `matchSearch`; rules and inbox frames use its local reading,
+// `matchesQuery`, which decides words from titles alone and never guesses
+// who `@me` is, and `unsupportedForRules` says which searches a rule can
+// decide card by card.
 //
 // Parsing is forgiving, like GitHub's: anything that isn't a qualifier is
 // words to search for.
@@ -100,6 +107,12 @@ export interface MatchContext {
 	viewer?: string | null;
 	/** An item's milestone, where known (cards don't carry it). */
 	milestoneOf?: (card: Card) => string | null | undefined;
+	/**
+	 * A local reading, where every answer must come from the card (rules,
+	 * inbox frames): words are decided by the title alone, and `@me` means
+	 * nobody in particular, so it can't be told.
+	 */
+	local?: boolean;
 }
 
 /** Yes, no, or can't tell from what's known about the card. */
@@ -124,7 +137,8 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 		case null: {
 			const word = lower(term.value);
 			// A word in the title is a match; one that isn't may be in the body.
-			return lower(card.title).includes(word) ? "yes" : "unknown";
+			if (lower(card.title).includes(word)) return "yes";
+			return context.local ? "no" : "unknown";
 		}
 		case "repo":
 			return values.includes(lower(card.repo)) ? "yes" : "no";
@@ -170,12 +184,14 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 			return values.some((value) => labels.includes(value)) ? "yes" : "no";
 		case "assignee": {
 			const people = values.map((value) => me(value, context));
-			return people.some((person) => person !== null && assignees.includes(person)) ? "yes" : "no";
+			if (people.some((person) => person !== null && assignees.includes(person))) return "yes";
+			return context.local && values.includes("@me") ? "unknown" : "no";
 		}
 		case "author": {
 			if (!card.author) return "unknown";
 			const people = values.map((value) => me(value, context));
-			return people.includes(lower(card.author.login)) ? "yes" : "no";
+			if (people.includes(lower(card.author.login))) return "yes";
+			return context.local && values.includes("@me") ? "unknown" : "no";
 		}
 		case "milestone": {
 			const milestone = context.milestoneOf?.(card);
@@ -254,6 +270,72 @@ export function matchSearch(card: Card, parsed: ParsedSearch, context: MatchCont
 		if (result === "unknown") unknown = true;
 	}
 	return unknown ? "unknown" : "yes";
+}
+
+// --- Local readings: rules and inbox frames (#40, #44) ----------------------------
+
+/** The repositories a query is limited to, as repository keys (`github.com/owner/repo`). */
+export function queryRepos(query: Pick<SearchQuery, "host" | "q">): string[] {
+	const host = query.host.toLowerCase();
+	return searchScope(parseSearch(query.q)).repos.map((repo) => `${host}/${repo}`);
+}
+
+/**
+ * Whether a card matches a query, from the card alone: true or false, or
+ * null when the query asks something the card can't answer (a qualifier it
+ * doesn't carry, like `milestone:` on most cards, or `@me`). Words are
+ * decided by the title. A card on another forge never matches.
+ */
+export function matchesQuery(card: Card, query: Pick<SearchQuery, "host" | "q">): boolean | null {
+	if (card.host.toLowerCase() !== query.host.toLowerCase()) return false;
+	const result = matchSearch(card, parseSearch(query.q), { local: true });
+	return result === "yes" ? true : result === "no" ? false : null;
+}
+
+/** Cards of every kind and state, to tell which terms any card can answer. */
+const PROBES: Card[] = (["open", "closed", "merged", "draft"] as const).map((state) => ({
+	key: "",
+	forge: "github",
+	host: "",
+	repo: "",
+	item: "",
+	kind: state === "merged" || state === "draft" ? "pull" : "issue",
+	title: "",
+	state,
+	stateReason: state === "closed" ? "completed" : null,
+	labels: [],
+	assignees: [],
+	author: { login: "", avatarUrl: "" },
+	comments: 0,
+	reactions: 0,
+	url: "",
+	updatedAt: "",
+}));
+
+/** Whether any card can answer a term, from what every card carries. */
+function decidable(term: SearchTerm): boolean {
+	return PROBES.every((probe) => termVerdict(probe, term, { local: true }) !== "unknown");
+}
+
+/**
+ * Why a query can't be used where every match must be decided locally (a
+ * rule), or null if it can: qualifiers a card can't answer, or `@me`, which
+ * means nobody in particular to a rule.
+ */
+export function unsupportedForRules(q: string): string | null {
+	const parsed = parseSearch(q);
+	const mine = (term: SearchTerm) => alternatives(term).some((value) => lower(value) === "@me");
+	const undecidable = parsed.terms.filter((term) => !mine(term) && !decidable(term));
+	if (undecidable.length > 0) {
+		return `Rules can't check ${undecidable.map((term) => `“${term.raw}”`).join(", ")} yet.`;
+	}
+	if (parsed.terms.some(mine)) {
+		return "Rules run for the whole board, so “@me” means nobody in particular.";
+	}
+	if (searchScope(parsed).repos.length === 0) {
+		return "Add a repository (repo:owner/name), so the rule knows where to look.";
+	}
+	return null;
 }
 
 // --- Drop to match (#39) ----------------------------------------------------------
