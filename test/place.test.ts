@@ -64,6 +64,18 @@ describe("placeCard", () => {
 		expect(intersects(box, { x: 0, y: 0, w: 800, h: 400 })).toBe(false);
 	});
 
+	it("keeps clear of other sections' titles", () => {
+		const doc = board({
+			section,
+			// A thin section just above, whose title pill reaches up to where the card would go.
+			strip: { type: "section", x: 250, y: -60, z: "a1", w: 300, h: 40, title: "Strip" },
+		});
+		const placed = placeCard(doc, KEY, ["section"]);
+		const box = boxOf(placed!.card, read(doc).get(placed!.card)!);
+		expect(intersects(box, { x: 250, y: -96, w: 260, h: 36 })).toBe(false);
+		expect(intersects(box, { x: 250, y: -60, w: 300, h: 40 })).toBe(false);
+	});
+
 	it("joins a section the section is in", () => {
 		const doc = board({
 			outer: { type: "section", x: -200, y: -600, z: "a0", w: 1200, h: 1200, title: "Q4" },

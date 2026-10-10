@@ -23,6 +23,8 @@ import { addConnector, placeInSections, readShapes } from "./structure.ts";
 /** Where a connector attaches: bottom middle of the parent, top middle of each child. */
 const BOTTOM = { x: 0.5, y: 1 };
 const TOP = { x: 0.5, y: 0 };
+/** How much room a section's title pill takes above it (as in placement.ts). */
+const TITLE = { w: 260, h: 36 };
 
 export interface Placement {
 	/** The card for the item: new, or the one already showing it. */
@@ -72,6 +74,10 @@ export function placeCard(
 		// Sections around them aren't in the way: the card may join them.
 		if (shape.type === "section" && encloses(box, around)) continue;
 		obstacles.push(box);
+		// Nor over a section's title, which sits above its box.
+		if (shape.type === "section") {
+			obstacles.push({ x: box.x, y: box.y - TITLE.h, w: Math.min(box.w, TITLE.w), h: TITLE.h });
+		}
 	}
 
 	let card = existing;
