@@ -18,6 +18,40 @@
 	scale: var(--unzoom, 1);
 }
 
+/* On a section's left, when its right is taken: grows leftwards from the edge. */
+.inbox-anchor[data-side="left"] > * {
+	transform-origin: 100% 0;
+	translate: -100% 0;
+}
+
+.inbox-anchor[data-side="left"] .inbox-tray::before {
+	left: auto;
+	right: -15px;
+	border-radius: 0 6px 6px 0;
+	background: linear-gradient(to left, transparent, var(--line-strong));
+}
+
+.inbox-anchor[data-side="left"] > .inbox-pill:hover {
+	translate: calc(-100% - 2px) 0;
+}
+
+.inbox-anchor[data-side="left"] .inbox-fold .auto-icon {
+	rotate: 0deg;
+}
+
+.inbox-anchor[data-side="left"] > .inbox-tray,
+.inbox-anchor[data-side="left"] > .inbox-pill {
+	animation-name: inbox-tray-in-left;
+}
+
+@keyframes inbox-tray-in-left {
+	from {
+		opacity: 0;
+		translate: calc(-100% + 10px) 0;
+		scale: calc(var(--unzoom, 1) * 0.96);
+	}
+}
+
 /* In the gallery: in the page, not on a board. */
 .inbox-anchor[data-static] {
 	position: relative;

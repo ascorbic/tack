@@ -96,11 +96,20 @@ export function useTray(doc: Y.Doc | null, id: string, shape: ShapeProps): Tray 
 }
 
 // Per-viewer UI state for inboxes: whether a tray is folded away, and which
-// one is being set up. Not in the document: it's yours alone.
+// one is being set up. Not in the document: it's yours alone. A tray folds
+// away by itself when it has nowhere to go without covering something
+// (`auto`, from layout.ts), or for people who can only view the board; one
+// you've opened or folded yourself stays that way.
 
-type InboxUI = { collapsed: Set<string>; editing: string | null };
+export type InboxUI = {
+	/** Trays you've opened or folded yourself. */
+	overrides: ReadonlyMap<string, "open" | "folded">;
+	/** Trays folded because of where they are. */
+	auto: ReadonlySet<string>;
+	editing: string | null;
+};
 
-let ui: InboxUI = { collapsed: new Set(), editing: null };
+let ui: InboxUI = { overrides: new Map(), auto: new Set(), editing: null };
 const uiListeners = new Set<() => void>();
 
 function setUI(next: InboxUI) {
@@ -108,18 +117,33 @@ function setUI(next: InboxUI) {
 	for (const listener of uiListeners) listener();
 }
 
+/** Whether a tray is folded to its pill, by you or by where it is. */
+export function isFolded(state: InboxUI, id: string): boolean {
+	const override = state.overrides.get(id);
+	return override ? override === "folded" : state.auto.has(id);
+}
+
+function override(id: string, value: "open" | "folded") {
+	if (ui.overrides.get(id) === value) return;
+	const overrides = new Map(ui.overrides);
+	overrides.set(id, value);
+	setUI({ ...ui, overrides });
+}
+
 export const inboxUI = {
 	toggle(id: string): void {
-		const collapsed = new Set(ui.collapsed);
-		if (collapsed.has(id)) collapsed.delete(id);
-		else collapsed.add(id);
-		setUI({ ...ui, collapsed });
+		override(id, isFolded(ui, id) ? "open" : "folded");
 	},
 	expand(id: string): void {
-		if (!ui.collapsed.has(id)) return;
-		const collapsed = new Set(ui.collapsed);
-		collapsed.delete(id);
-		setUI({ ...ui, collapsed });
+		if (isFolded(ui, id)) override(id, "open");
+	},
+	/** Fold a tray away (or not) because of where it is. */
+	auto(id: string, folded: boolean): void {
+		if (ui.auto.has(id) === folded) return;
+		const auto = new Set(ui.auto);
+		if (folded) auto.add(id);
+		else auto.delete(id);
+		setUI({ ...ui, auto });
 	},
 	edit(id: string | null): void {
 		if (id) inboxUI.expand(id);

@@ -1,10 +1,13 @@
-import { ViewportPortal, useReactFlow, useStore } from "@xyflow/react";
+import { type ReactFlowState, ViewportPortal, useReactFlow, useStore } from "@xyflow/react";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type PointerEvent as ReactPointerEvent,
+	type RefObject,
 	memo,
+	useCallback,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -32,9 +35,15 @@ import {
 	TrayIcon,
 	UndoDismissIcon,
 } from "./icons.tsx";
+import { chromeWithin } from "../actions/Popover.tsx";
+import { panIntoView } from "../actions/popoverPlacement.ts";
+import { scaledDuration } from "../motion.ts";
+import type { Rect } from "../../shared/geometry.ts";
+import { boxOf } from "../../shared/sections.ts";
 import { InboxEditor } from "./InboxEditor.tsx";
+import { TRAY_GAP, TRAY_WIDTH, type TraySide, trayHeight, traySide } from "./layout.ts";
 import { inboxStore, useRefreshing } from "./store.ts";
-import { inboxUI, useInboxUI, useTray } from "./useTray.ts";
+import { inboxUI, isFolded, useInboxUI, useTray } from "./useTray.ts";
 import "./inbox.css";
 
 // Inbox trays: on the right edge of every inbox section, new matches wait,
@@ -43,8 +52,6 @@ import "./inbox.css";
 // the board's shapes, in board space so they travel with their section, and
 // stay readable when zoomed out, as section titles do.
 
-/** How far right of its section a tray sits. */
-const GAP = 14;
 /** Movement before a press on a tray item becomes a drag, in screen pixels. */
 const DRAG_SLOP = 4;
 /** Items shown before the list scrolls. */
@@ -66,43 +73,114 @@ export interface InboxLayerProps {
 /** Every inbox section's tray (and the one being set up). */
 export function InboxLayer(props: InboxLayerProps) {
 	const ui = useInboxUI();
-	const sections = props.nodes.filter(
-		(node) => node.type === "section" && (node.data.shape.inbox || ui.editing === node.id),
+	const { nodes, sizeOf } = props;
+	const sections = useMemo(
+		() =>
+			nodes.filter(
+				(node) => node.type === "section" && (node.data.shape.inbox || ui.editing === node.id),
+			),
+		[nodes, ui.editing],
 	);
+	// Everything on the board, to keep trays from covering it.
+	const boxes = useMemo(() => {
+		if (sections.length === 0) return [];
+		return nodes
+			.filter((node) => node.data.shape.type !== "connector")
+			.map((node) => ({
+				id: node.id,
+				parent: node.data.shape.parent ?? null,
+				box: {
+					...boxOf(node.id, node.data.shape, sizeOf),
+					x: node.position.x,
+					y: node.position.y,
+				},
+			}));
+	}, [nodes, sections.length, sizeOf]);
 	if (sections.length === 0) return null;
 	return (
 		<ViewportPortal>
-			{sections.map((node) => (
-				<InboxTray
-					key={node.id}
-					id={node.id}
-					shape={node.data.shape}
-					x={node.position.x + (node.width ?? node.data.shape.w ?? SECTION_DEFAULT.w)}
-					y={node.position.y}
-					editing={ui.editing === node.id}
-					collapsed={ui.collapsed.has(node.id)}
-					{...props}
-				/>
-			))}
+			{sections.map((node) => {
+				const box = boxes.find((entry) => entry.id === node.id)?.box ?? {
+					x: node.position.x,
+					y: node.position.y,
+					w: node.width ?? node.data.shape.w ?? SECTION_DEFAULT.w,
+					h: node.height ?? node.data.shape.h ?? SECTION_DEFAULT.h,
+				};
+				return (
+					<InboxTray
+						key={node.id}
+						id={node.id}
+						shape={node.data.shape}
+						section={box}
+						others={othersFor(node.id, boxes)}
+						editing={ui.editing === node.id}
+						collapsed={isFolded(ui, node.id)}
+						{...props}
+					/>
+				);
+			})}
 		</ViewportPortal>
 	);
+}
+
+/**
+ * What a section's tray mustn't cover: everything but the section, what's
+ * in it, and the sections it's in (a tray over its own parent's background
+ * covers nothing).
+ */
+function othersFor(
+	id: string,
+	boxes: readonly { id: string; parent: string | null; box: Rect }[],
+): Rect[] {
+	const parents = new Map(boxes.map((entry) => [entry.id, entry.parent]));
+	const ancestors = new Set<string>();
+	for (let at = parents.get(id); at && !ancestors.has(at); at = parents.get(at)) ancestors.add(at);
+	const inside = (shape: string) => {
+		const seen = new Set<string>();
+		for (let at = parents.get(shape); at && !seen.has(at); at = parents.get(at)) {
+			if (at === id) return true;
+			seen.add(at);
+		}
+		return false;
+	};
+	return boxes
+		.filter((entry) => entry.id !== id && !ancestors.has(entry.id) && !inside(entry.id))
+		.map((entry) => entry.box);
 }
 
 export interface TrayProps extends Omit<InboxLayerProps, "nodes"> {
 	id: string;
 	shape: ShapeProps;
-	/** The section's top-right corner, on the board. Without it, the tray sits in the page (the gallery). */
-	x?: number;
-	y?: number;
+	/** The section, on the board. Without it, the tray sits in the page (the gallery). */
+	section?: Rect;
+	/** What the tray mustn't cover, on the board. */
+	others?: readonly Rect[];
 	editing: boolean;
 	collapsed: boolean;
+}
+
+/** Which side of its section a tray goes, at the board's zoom: null when it has no room. */
+function useTraySide(
+	section: Rect | undefined,
+	others: readonly Rect[] | undefined,
+	height: number,
+): TraySide | null {
+	return useStore(
+		useCallback(
+			(state: ReactFlowState) =>
+				section
+					? traySide(section, { w: TRAY_WIDTH, h: height }, state.transform[2], others ?? [])
+					: "right",
+			[section, others, height],
+		),
+	);
 }
 
 export const InboxTray = memo(function InboxTray({
 	id,
 	shape,
-	x,
-	y,
+	section,
+	others,
 	editing,
 	collapsed,
 	doc,
@@ -112,9 +190,26 @@ export const InboxTray = memo(function InboxTray({
 	sizeOf,
 	onPlaced,
 }: TrayProps) {
-	const isStatic = x === undefined || y === undefined;
-	const anchor = isStatic ? undefined : { transform: `translate(${x + GAP}px, ${y}px)` };
+	const isStatic = section === undefined;
 	const tray = useTray(doc, id, shape);
+	const fits = useTraySide(section, others, trayHeight(tray.items.length, tray.dismissed.size > 0));
+	// No room either side, or only here to look: folded to its pill unless you open it.
+	const autoFold = !isStatic && (fits === null || readOnly);
+	useEffect(() => {
+		if (isStatic) return;
+		inboxUI.auto(id, autoFold);
+	}, [id, isStatic, autoFold]);
+	useEffect(() => () => inboxUI.auto(id, false), [id]);
+	const side: TraySide = fits ?? "right";
+	const x = section
+		? side === "right"
+			? section.x + section.w + TRAY_GAP
+			: section.x - TRAY_GAP
+		: 0;
+	const y = section?.y ?? 0;
+	const anchor = isStatic ? undefined : { transform: `translate(${x}px, ${y}px)` };
+	const trayRef = useRef<HTMLElement>(null);
+	useKeepInView(trayRef, editing && !isStatic);
 	const refreshing = useRefreshing(id);
 	const [showDismissed, setShowDismissed] = useState(false);
 	const arrivals = useArrivals(tray.items);
@@ -128,7 +223,7 @@ export const InboxTray = memo(function InboxTray({
 		if (!spot) {
 			const shapes = readShapes(doc);
 			spot = spotInSection(shapes, id, PLACED_CARD, sizeOf) ??
-				spotBelow(shapes, id, PLACED_CARD, sizeOf) ?? { x: (x ?? 0) + GAP, y: y ?? 0 };
+				spotBelow(shapes, id, PLACED_CARD, sizeOf) ?? { x, y };
 		}
 		// Clicked in (rather than dropped): into the section, even one showing a list.
 		const shapeId = sortFromInbox(doc, id, card.key, spot, LOCAL_ORIGIN, !at);
@@ -159,7 +254,12 @@ export const InboxTray = memo(function InboxTray({
 
 	if (collapsed && !editing) {
 		return (
-			<div className="inbox-anchor" data-static={isStatic || undefined} style={anchor}>
+			<div
+				className="inbox-anchor"
+				data-static={isStatic || undefined}
+				data-side={side}
+				style={anchor}
+			>
 				<button
 					type="button"
 					className="inbox-pill nodrag nopan"
@@ -178,8 +278,14 @@ export const InboxTray = memo(function InboxTray({
 	}
 
 	return (
-		<div className="inbox-anchor" data-static={isStatic || undefined} style={anchor}>
+		<div
+			className="inbox-anchor"
+			data-static={isStatic || undefined}
+			data-side={side}
+			style={anchor}
+		>
 			<aside
+				ref={trayRef}
 				className="inbox-tray nodrag nopan nowheel"
 				data-state={state}
 				aria-label={`Inbox: ${title}`}
@@ -332,6 +438,50 @@ export const InboxTray = memo(function InboxTray({
 		</div>
 	);
 });
+
+/**
+ * While `active`, keep what `ref` holds on the visible canvas and out from
+ * under its chrome, panning the board to bring it into view: an inbox's
+ * editor opened on a section low on the screen, say, and again as it grows.
+ */
+function useKeepInView(ref: RefObject<HTMLElement | null>, active: boolean) {
+	const flow = useReactFlow();
+	useEffect(() => {
+		const el = ref.current;
+		const canvas = el?.closest<HTMLElement>(".react-flow");
+		if (!active || !el || !canvas) return;
+		let frame = 0;
+		const check = () => {
+			const screen = canvas.getBoundingClientRect();
+			const rect = el.getBoundingClientRect();
+			const bounds = {
+				left: screen.left,
+				top: screen.top,
+				right: screen.right,
+				bottom: screen.bottom,
+			};
+			const { dx, dy } = panIntoView({
+				rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+				bounds,
+				obstacles: chromeWithin(bounds, [el]),
+			});
+			if (dx === 0 && dy === 0) return;
+			const { x, y, zoom } = flow.getViewport();
+			void flow.setViewport({ x: x + dx, y: y + dy, zoom }, { duration: scaledDuration(320) });
+		};
+		// Once it's drawn, and again whenever it grows (the count, a warning).
+		frame = requestAnimationFrame(check);
+		const observer = new ResizeObserver(() => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(check);
+		});
+		observer.observe(el);
+		return () => {
+			cancelAnimationFrame(frame);
+			observer.disconnect();
+		};
+	}, [ref, active, flow]);
+}
 
 /** Keys that arrived since the tray first showed results: they slide in, marked new. */
 function useArrivals(items: Card[]): Set<string> {

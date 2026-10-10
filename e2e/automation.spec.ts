@@ -126,12 +126,63 @@ test.describe("inbox frames", () => {
 		await editor.getByRole("textbox").fill("repo:acme/imagekit is:issue is:open no:label");
 		await expect(editor.locator(".inbox-count")).toContainText(/\d+ match/);
 		await editor.getByRole("button", { name: /Start collecting/ }).click();
+		// Between Bugs and Later there's no room for its tray: it waits folded.
+		await page.getByRole("button", { name: /Open Docs's inbox/ }).click();
 		await expect(editor.getByRole("list", { name: "New matches" })).toBeVisible();
 		const docs = (await shapes(page)).find(
 			(shape) =>
 				shape.inbox?.query.q === "repo:acme/imagekit is:issue is:open no:label" && shape.id,
 		);
 		expect(docs).toBeTruthy();
+	});
+
+	test("the editor comes out from under the dock, wherever the section is", async ({ page }) => {
+		// Docs is low on the screen at 1280×800: its editor used to open behind the dock.
+		await page.locator(".section-title", { hasText: "Docs" }).click({ position: { x: 12, y: 8 } });
+		await page.getByRole("button", { name: "Make inbox" }).click();
+		const start = page.getByRole("button", { name: /Start collecting/ });
+		const dock = page.locator(".toolbar-dock");
+		await expect
+			.poll(async () => {
+				const button = await start.boundingBox();
+				const under = await dock.boundingBox();
+				return button && under ? button.y + button.height <= under.y : false;
+			})
+			.toBe(true);
+		const button = (await start.boundingBox())!;
+		expect(button.y).toBeGreaterThan(56);
+	});
+
+	test("a tray never covers the section next door: it moves aside or folds away", async ({
+		page,
+	}) => {
+		// Triage has room on its right.
+		await expect(page.locator(".inbox-anchor").first()).toHaveAttribute("data-side", "right");
+		// Docs sits between Bugs and Later, with no room either side for a tray.
+		await page.locator(".section-title", { hasText: "Docs" }).click({ position: { x: 12, y: 8 } });
+		await page.getByRole("button", { name: "Make inbox" }).click();
+		const editor = page.getByRole("complementary", { name: "Inbox: Docs" });
+		await editor.getByRole("textbox").fill("repo:acme/imagekit is:issue is:open label:docs");
+		await editor.getByRole("button", { name: /Start collecting/ }).click();
+		const pill = page.getByRole("button", { name: /Open Docs's inbox/ });
+		await expect(pill).toBeVisible();
+		await expect(page.getByRole("complementary", { name: "Inbox: Docs" })).toHaveCount(0);
+		// Asked for, it opens anyway, and folds again when asked.
+		await pill.click();
+		await expect(page.getByRole("complementary", { name: "Inbox: Docs" })).toBeVisible();
+		await page
+			.getByRole("complementary", { name: "Inbox: Docs" })
+			.getByRole("button", { name: "Fold the tray away" })
+			.click();
+		await expect(pill).toBeVisible();
+	});
+
+	test("zoomed far out, trays fold to their pills", async ({ page }) => {
+		await expect(tray(page)).toBeVisible();
+		const zoomOut = page.locator(".react-flow__controls-zoomout");
+		for (let i = 0; i < 12 && (await tray(page).count()) > 0; i++) await zoomOut.click();
+		await expect(tray(page)).toHaveCount(0);
+		await expect(page.getByRole("button", { name: /Open Triage's inbox: 5 new/ })).toBeVisible();
 	});
 });
 
