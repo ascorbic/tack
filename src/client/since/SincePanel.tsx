@@ -22,7 +22,7 @@ import { personColor } from "../auth/me.ts";
 import { relativeTime } from "../boards/api.ts";
 import { cardStore, useCard } from "../cardStore.ts";
 import { StateIcon } from "../CardView.tsx";
-import { useComments } from "../comments/store.ts";
+import { type CommentStore, commentStore, useComments } from "../comments/store.ts";
 import { authorUser, useNow } from "../comments/Thread.tsx";
 import { BubbleIcon, ChevronIcon, CloseIcon, PushIcon, SinceIcon } from "../comments/icons.tsx";
 import { Avatar } from "../People.tsx";
@@ -99,17 +99,20 @@ export function sinceWhen(since: number, now: number): string {
 export function SinceButton({
 	doc,
 	store = sinceStore,
+	commentsStore = commentStore,
 	login,
 	youId,
 }: {
 	doc: Y.Doc;
 	store?: SinceStore;
+	/** Where comments come from (the gallery has its own). */
+	commentsStore?: CommentStore;
 	login?: string;
 	youId: number | null;
 }) {
 	const state = useSince(store);
 	const highlights = useHighlights(doc, state.digest);
-	const { threads } = useComments();
+	const { threads } = useComments(commentsStore);
 	const comments = useMemo(
 		() => commentDigest(threads.values(), state.digest?.since ?? null, { id: youId, login }),
 		[threads, state.digest?.since, youId, login],
@@ -143,6 +146,7 @@ export function SincePanel({
 	onJump,
 	onOpenThread,
 	store = sinceStore,
+	commentsStore = commentStore,
 }: {
 	doc: Y.Doc;
 	login?: string;
@@ -151,9 +155,11 @@ export function SincePanel({
 	onJump: (shape: string) => void;
 	onOpenThread: (thread: CommentThread) => void;
 	store?: SinceStore;
+	/** Where comments come from (the gallery has its own). */
+	commentsStore?: CommentStore;
 }) {
 	const state = useSince(store);
-	const { threads } = useComments();
+	const { threads } = useComments(commentsStore);
 	const highlights = useHighlights(doc, state.digest);
 	const now = useNow();
 	const [step, setStep] = useState(-1);

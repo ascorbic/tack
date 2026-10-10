@@ -115,7 +115,7 @@ export function HighlightLayer({
 					const box = boxes.get(highlight.shape);
 					if (!box) return null;
 					return (
-						<Ring
+						<HighlightRing
 							key={highlight.shape}
 							highlight={highlight}
 							box={box}
@@ -129,7 +129,7 @@ export function HighlightLayer({
 	);
 }
 
-function Ring({
+export function HighlightRing({
 	highlight,
 	box,
 	index,

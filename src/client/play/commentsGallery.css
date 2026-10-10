@@ -1,0 +1,106 @@
+/* The comments and "since you were here" gallery: /play/comments. */
+
+.comment-gallery-stage {
+	position: relative;
+}
+
+.comment-gallery-pins {
+	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+/* Room for a hovered pin's preview to open into. */
+.comment-gallery-pin {
+	position: relative;
+	height: 120px;
+	display: flex;
+	align-items: flex-end;
+	padding: 0 0 18px 18px;
+}
+
+.comment-gallery-pin .comment-anchor[data-static] {
+	position: relative;
+}
+
+.comment-gallery-threads {
+	grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+}
+
+.comment-gallery-popover {
+	position: relative;
+	left: 0;
+	top: 0;
+	width: 100%;
+	max-width: 340px;
+	translate: none;
+	animation: none;
+}
+
+/* Room above for the people to mention. */
+.comment-gallery-composing {
+	margin-top: 150px;
+}
+
+.comment-gallery-panels {
+	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+
+.comment-gallery-panel {
+	position: relative;
+	height: 560px;
+}
+
+.comment-gallery-panel :is(.comments-panel, .since-panel) {
+	inset: 0;
+	width: auto;
+	max-height: none;
+}
+
+.comment-gallery-topbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 24px 32px;
+	padding: 16px 20px;
+	border-radius: 16px;
+	border: 1px solid var(--line);
+	z-index: 1;
+}
+
+.comment-gallery-topbar figure {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+}
+
+.comment-gallery-notifications {
+	position: relative;
+	height: 470px;
+	width: 380px;
+	display: flex;
+	justify-content: flex-end;
+	align-items: flex-start;
+}
+
+.comment-gallery-rings {
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.comment-gallery-ring {
+	position: relative;
+	width: 176px;
+	height: 120px;
+	margin: 36px 0 12px 12px;
+}
+
+.comment-gallery-shape {
+	position: absolute;
+	inset: 0;
+	border-radius: 12px;
+	background: var(--sticky-yellow);
+	box-shadow: var(--sticky-shadow);
+}
+
+/* Fading is a transition; in the gallery, show where it ends up. */
+.comment-gallery-ring .since-ring[data-fading] {
+	opacity: 0.25;
+}

@@ -168,7 +168,7 @@ export function CommentLayer({
 		<ViewportPortal>
 			<div className="comment-layer" data-placing={placing || undefined}>
 				{shown.map((thread) => (
-					<Pin
+					<CommentPin
 						key={thread.id}
 						thread={thread}
 						at={positionOf(thread.anchor)}
@@ -331,7 +331,8 @@ function DraftPin({
 	);
 }
 
-const Pin = memo(function Pin({
+/** A thread's pin. Exported for the gallery, which shows them `still`, outside a board. */
+export const CommentPin = memo(function CommentPin({
 	thread,
 	at,
 	unread,
@@ -341,6 +342,8 @@ const Pin = memo(function Pin({
 	movable,
 	onOpen,
 	onMove,
+	preview = false,
+	still = false,
 }: {
 	thread: CommentThread;
 	at: { x: number; y: number };
@@ -351,6 +354,10 @@ const Pin = memo(function Pin({
 	movable: boolean;
 	onOpen: () => void;
 	onMove: (point: { x: number; y: number }) => void;
+	/** Show the hover preview (the gallery). */
+	preview?: boolean;
+	/** In the page, not on a board. */
+	still?: boolean;
 }) {
 	const flow = useReactFlow();
 	const now = useNow(60_000);
@@ -359,7 +366,6 @@ const Pin = memo(function Pin({
 	const first = messages[0];
 	const last = messages.at(-1);
 	const author = starter(thread);
-	const others = new Set(messages.map((m) => m.author.id)).size;
 	const where = drag ?? at;
 
 	const onPointerDown = (event: React.PointerEvent) => {
@@ -395,12 +401,18 @@ const Pin = memo(function Pin({
 	return (
 		<div
 			className="comment-anchor comment-ui"
-			style={{ transform: `translate(${where.x}px, ${where.y}px) scale(var(--inv-zoom, 1))` }}
+			style={
+				still
+					? undefined
+					: { transform: `translate(${where.x}px, ${where.y}px) scale(var(--inv-zoom, 1))` }
+			}
+			data-static={still || undefined}
 			data-dragging={drag ? true : undefined}
 		>
 			<button
 				type="button"
 				className="comment-pin nodrag nopan"
+				data-preview={preview || undefined}
 				data-thread={thread.id}
 				data-unread={unread || undefined}
 				data-open={open || undefined}
@@ -428,7 +440,7 @@ const Pin = memo(function Pin({
 					) : (
 						<span className="avatar">{initials(name)}</span>
 					)}
-					{others > 1 && <span className="comment-pin-count">{messages.length}</span>}
+					{messages.length > 1 && <span className="comment-pin-count">{messages.length}</span>}
 				</span>
 				{first && (
 					<span className="comment-pin-preview" aria-hidden="true">

@@ -74,6 +74,8 @@ export function ThreadView({
 	canTriage,
 	actions,
 	unreadSince,
+	initialEditing = null,
+	autoFocus = true,
 }: {
 	thread: CommentThread;
 	you: CommentsYou;
@@ -84,9 +86,13 @@ export function ThreadView({
 	actions: ThreadActions;
 	/** Messages after this were new when the thread opened. */
 	unreadSince?: number;
+	/** A message being edited when it opens (the gallery). */
+	initialEditing?: string | null;
+	/** Whether the reply box takes focus (not in the gallery). */
+	autoFocus?: boolean;
 }) {
 	const now = useNow();
-	const [editing, setEditing] = useState<string | null>(null);
+	const [editing, setEditing] = useState<string | null>(initialEditing);
 	const list = useRef<HTMLOListElement>(null);
 	const count = useRef(thread.messages.length);
 
@@ -231,6 +237,7 @@ export function ThreadView({
 					<Composer
 						key={thread.id}
 						compact
+						autoFocus={autoFocus}
 						placeholder={resolved ? "Reply to reopen" : "Reply"}
 						onSubmit={actions.reply}
 						onCancel={actions.close}
