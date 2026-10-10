@@ -1,5 +1,13 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type * as Y from "yjs";
+import {
+	useContext,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
+import * as Y from "yjs";
 import {
 	DOTS_DEFAULT,
 	DOTS_MAX,
@@ -20,6 +28,7 @@ import type { Stamper } from "../../shared/facilitation.ts";
 import { readShape, shapesMap } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { cardStore, useCard } from "../cardStore.ts";
+import { DocContext } from "../DocContext.ts";
 import { initials } from "../People.tsx";
 import type { ToastStore } from "../Toasts.tsx";
 import { transactLocal } from "../undo.ts";
@@ -64,12 +73,18 @@ class VoteUI {
 
 export const voteUI = new VoteUI();
 
+const NO_DOC = new Y.Doc();
+
 export function useVoteUI() {
 	return useSyncExternalStore(voteUI.subscribe, voteUI.get);
 }
 
-/** "Vote" in the header of a section selected on its own. */
+/** "Vote" in the header of a section selected on its own, unless it has a vote open. */
 export function VoteButton({ id }: { id: string }) {
+	const doc = useContext(DocContext);
+	const votes = useVotes(doc ?? NO_DOC);
+	const now = useServerNow(30_000);
+	if (votes.some((vote) => vote.scope === id && isOpen(vote, now))) return null;
 	return (
 		<button
 			type="button"
@@ -137,6 +152,7 @@ export function StartVoteForm({
 	now,
 	onCancel,
 	onStart,
+	autoFocus = true,
 }: {
 	doc: Y.Doc;
 	user: Stamper;
@@ -144,6 +160,7 @@ export function StartVoteForm({
 	now: () => number;
 	onCancel: () => void;
 	onStart: (id: string) => void;
+	autoFocus?: boolean;
 }) {
 	const [dots, setDots] = useState(DOTS_DEFAULT);
 	const [ending, setEnding] = useState(0);
@@ -155,7 +172,9 @@ export function StartVoteForm({
 	const [reactions, setReactions] = useState(hasCards);
 	const id = useId();
 	const first = useRef<HTMLButtonElement>(null);
-	useEffect(() => first.current?.focus(), []);
+	useEffect(() => {
+		if (autoFocus) first.current?.focus();
+	}, [autoFocus]);
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key === "Escape") {

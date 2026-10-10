@@ -39,12 +39,11 @@ export const StopwatchIcon = ({ size }: { size?: number }) => (
 	</Icon>
 );
 
-/** Silent mode: a finger to the lips. */
+/** Silent mode: an eye, closed. */
 export const HushIcon = ({ size }: { size?: number }) => (
 	<Icon size={size}>
-		<path d="M3 9.2c1.6 1.8 3.3 2.6 5 2.6s3.4-.8 5-2.6" />
-		<path d="M5.4 9.6c.9.5 1.7.7 2.6.7s1.7-.2 2.6-.7" />
-		<path d="M8 2.2v6.4" />
+		<path d="M2.2 6.5c1.6 2.2 3.5 3.3 5.8 3.3s4.2-1.1 5.8-3.3" />
+		<path d="M4.1 9 3 10.7M8 9.9v2M11.9 9l1.1 1.7" />
 	</Icon>
 );
 
