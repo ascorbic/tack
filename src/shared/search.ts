@@ -105,7 +105,10 @@ export function mentionsMe(q: string): boolean {
 export interface MatchContext {
 	/** The login `@me` stands for. Without one, `@me` matches nothing. */
 	viewer?: string | null;
-	/** An item's milestone, where known (cards don't carry it). */
+	/**
+	 * An item's milestone, where known: overrides the card's own (which only
+	 * cards fetched with it carry).
+	 */
 	milestoneOf?: (card: Card) => string | null | undefined;
 	/**
 	 * A local reading, where every answer must come from the card (rules,
@@ -194,7 +197,7 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 			return context.local && values.includes("@me") ? "unknown" : "no";
 		}
 		case "milestone": {
-			const milestone = context.milestoneOf?.(card);
+			const milestone = milestoneOf(card, context);
 			if (milestone === undefined) return "unknown";
 			return milestone !== null && values.includes(lower(milestone)) ? "yes" : "no";
 		}
@@ -205,12 +208,46 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 				case "assignee":
 					return assignees.length === 0 ? "yes" : "no";
 				case "milestone": {
-					const milestone = context.milestoneOf?.(card);
+					const milestone = milestoneOf(card, context);
 					return milestone === undefined ? "unknown" : milestone === null ? "yes" : "no";
 				}
 				default:
 					return "unknown";
 			}
+		case "review-requested":
+		case "team-review-requested": {
+			// Only full details list who's been asked (teams by their slug).
+			if (!isPull) return "no";
+			if (card.pull?.detail !== "full") return "unknown";
+			const requested = card.pull.reviewers
+				.filter((reviewer) => reviewer.state === "requested")
+				.map((reviewer) => lower(reviewer.login));
+			const wanted = values.map((value) =>
+				term.key === "team-review-requested"
+					? (value.split("/").at(-1) ?? value)
+					: me(value, context),
+			);
+			if (wanted.some((who) => who !== null && requested.includes(who))) return "yes";
+			return context.local && values.includes("@me") ? "unknown" : "no";
+		}
+		case "review": {
+			if (!isPull) return "no";
+			if (card.pull?.detail !== "full") return "unknown";
+			const review = card.pull.review;
+			const wanted = values[0]?.replace(/-/g, "_");
+			if (wanted === "none") return review === null ? "yes" : "no";
+			if (wanted === "required") return review === "review_required" ? "yes" : "no";
+			if (wanted === "approved" || wanted === "changes_requested")
+				return review === wanted ? "yes" : "no";
+			return "unknown";
+		}
+		case "created":
+			return compareDate(card.createdAt, term.value);
+		case "updated":
+			return compareDate(card.updatedAt, term.value);
+		case "closed":
+			if (open) return "no";
+			return compareDate(card.closedAt ?? undefined, term.value);
 		case "reason": {
 			if (open) return "no";
 			const reason = lower(card.stateReason ?? "completed").replace(/_/g, " ");
@@ -246,6 +283,51 @@ function compare(actual: number, spec: string): Verdict {
 					: match[1] === "<"
 						? actual < n
 						: actual === n;
+	return ok ? "yes" : "no";
+}
+
+/** An item's milestone's title: from the context, else the card; undefined if unknown. */
+function milestoneOf(card: Card, context: MatchContext): string | null | undefined {
+	if (context.milestoneOf) return context.milestoneOf(card);
+	return card.milestone === undefined ? undefined : (card.milestone?.title ?? null);
+}
+
+/**
+ * Date qualifiers, by day in UTC as GitHub reads them: `2026-10-01`,
+ * `>2026-10-01`, `<=2026-10-01`, `2026-09-01..2026-10-01`, `*..2026-10-01`.
+ * Full timestamps (`2026-10-01T12:00:00Z`) compare exactly.
+ */
+function compareDate(actual: string | undefined, spec: string): Verdict {
+	const at = actual ? Date.parse(actual) : Number.NaN;
+	if (Number.isNaN(at)) return "unknown";
+	const day = (text: string, end: boolean): number | null => {
+		if (text === "*") return end ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+		const time = Date.parse(text);
+		if (Number.isNaN(time)) return null;
+		// A bare date is the whole day.
+		return /^\d{4}-\d{2}-\d{2}$/.test(text) && end ? time + 86_400_000 - 1 : time;
+	};
+	const range = /^(\S+?)\.\.(\S+)$/.exec(spec);
+	if (range) {
+		const from = day(range[1] ?? "", false);
+		const to = day(range[2] ?? "", true);
+		if (from === null || to === null) return "unknown";
+		return at >= from && at <= to ? "yes" : "no";
+	}
+	const match = /^(>=|<=|>|<)?(.+)$/.exec(spec);
+	const start = day(match?.[2] ?? "", false);
+	const end = day(match?.[2] ?? "", true);
+	if (!match || start === null || end === null) return "unknown";
+	const ok =
+		match[1] === ">="
+			? at >= start
+			: match[1] === "<="
+				? at <= end
+				: match[1] === ">"
+					? at > end
+					: match[1] === "<"
+						? at < start
+						: at >= start && at <= end;
 	return ok ? "yes" : "no";
 }
 

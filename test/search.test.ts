@@ -90,6 +90,64 @@ describe("matchSearch", () => {
 	});
 });
 
+describe("matchSearch on dates, milestones and reviews", () => {
+	const dated = card({
+		createdAt: "2026-08-01T09:00:00Z",
+		updatedAt: "2026-09-15T12:00:00Z",
+		state: "closed",
+		stateReason: "completed",
+		closedAt: "2026-09-15T12:00:00Z",
+	});
+	const m = (q: string, c: Card = dated) => matchSearch(c, parseSearch(q));
+
+	it("compares dates by day, with ranges and open ends", () => {
+		expect(m("updated:<2026-09-16")).toBe("yes");
+		expect(m("updated:<2026-09-15")).toBe("no");
+		expect(m("updated:<=2026-09-15")).toBe("yes");
+		expect(m("updated:2026-09-15")).toBe("yes");
+		expect(m("updated:>2026-09-15")).toBe("no");
+		expect(m("created:2026-07-01..2026-08-01")).toBe("yes");
+		expect(m("created:*..2026-07-31")).toBe("no");
+		expect(m("closed:>=2026-09-01")).toBe("yes");
+		expect(m("closed:>=2026-09-01", card())).toBe("no");
+		expect(m("created:>2026-01-01", card())).toBe("unknown");
+		expect(m("updated:<soon")).toBe("unknown");
+	});
+
+	it("reads the card's milestone when it carries one", () => {
+		const v1 = card({ milestone: { title: "v1", dueOn: null } });
+		expect(m("milestone:v1", v1)).toBe("yes");
+		expect(m("milestone:v2", v1)).toBe("no");
+		expect(m("no:milestone", card({ milestone: null }))).toBe("yes");
+		expect(m("milestone:v1", card())).toBe("unknown");
+	});
+
+	it("knows who's been asked to review, and the review decision", () => {
+		const pull = card({
+			kind: "pull",
+			pull: {
+				detail: "full",
+				head: null,
+				checks: null,
+				review: "review_required",
+				reviewers: [
+					{ login: "kai", avatarUrl: "", state: "requested" },
+					{ login: "core", avatarUrl: "", state: "requested" },
+					{ login: "jo", avatarUrl: "", state: "approved" },
+				],
+				mergeable: "mergeable",
+				linked: [],
+			},
+		});
+		expect(matchSearch(pull, parseSearch("review-requested:@me"), { viewer: "kai" })).toBe("yes");
+		expect(matchSearch(pull, parseSearch("review-requested:jo"))).toBe("no");
+		expect(m("team-review-requested:acme/core", pull)).toBe("yes");
+		expect(m("review:required", pull)).toBe("yes");
+		expect(m("review:approved", pull)).toBe("no");
+		expect(m("review-requested:kai")).toBe("no");
+	});
+});
+
 // Rules and inbox frames read searches locally (#40, #44): everything from the card.
 describe("matchesQuery", () => {
 	const q = (text: string) => ({ host: "github.com", q: text });
