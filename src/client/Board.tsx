@@ -115,7 +115,7 @@ import { boardRepos } from "../shared/actions.ts";
 import { addShape, readShape, shapesMap, transactLocal } from "../shared/shapes.ts";
 import type * as Y from "yjs";
 import { isEditingShape } from "./useEditing.ts";
-import { placeInSections } from "../shared/structure.ts";
+import { addSection, placeInSections } from "../shared/structure.ts";
 import { addWidget, widgetDefinition } from "../shared/widgetRegistry.ts";
 import { cardStore } from "./cardStore.ts";
 import type { WidgetBoard } from "./widgets/context.ts";
@@ -202,7 +202,7 @@ export function Board({
 	awareness,
 	synced,
 	waiting = 0,
-	user,
+	user: person,
 	account,
 	actions,
 	children,
@@ -218,6 +218,8 @@ export function Board({
 	const readOnly = viewOnly || replay.state.open;
 	const shapeNodes = useShapeNodes(doc);
 	const flow = useReactFlow();
+	// Your colour here: one nobody else present has, while there's one free.
+	const user = useBoardColor(awareness, person, name);
 	const presence = usePresence(awareness, user);
 	const follow = useFollow(awareness, presence.people);
 	// Opening a board: where you left it, if you've been here and there's
@@ -316,6 +318,7 @@ export function Board({
 	const history = useMemo(() => new History(liveDoc), [liveDoc]);
 	useEffect(() => () => history.destroy(), [history]);
 	const [toasts] = useState(() => new ToastStore());
+<<<<<<< HEAD
 	useSilentToasts(liveDoc, toasts);
 	// Someone else deleting the sticky or text you're typing in says so, and
 	// offers it back as you last had it.
@@ -348,6 +351,8 @@ export function Board({
 		map.observe(onChange);
 		return () => map.unobserve(onChange);
 	}, [liveDoc, toasts]);
+=======
+>>>>>>> aa66773 (feat(presence): colours nobody present shares, and everyone in reach)
 	// Selection actions: staging changes for the forge (src/client/actions/).
 	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
 	const [actionRequests] = useState(() => new ActionRequests());
@@ -1213,6 +1218,7 @@ export function Board({
 							ref={canvas}
 							className="canvas"
 							data-tool={tool}
+							data-picking={picking ?? undefined}
 							data-history={
 								replay.state.open ? (replay.state.position === null ? "now" : "past") : undefined
 							}

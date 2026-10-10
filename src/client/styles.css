@@ -3456,6 +3456,186 @@ a.card-title {
 	color: var(--ink-soft);
 }
 
+/* Faces overlap only a little, and spread apart while you reach for one. */
+.people > .avatar,
+.people-more {
+	margin-left: -3px;
+	transition:
+		margin var(--t-settle) var(--ease-spring),
+		opacity var(--t-base) var(--ease-out),
+		filter var(--t-base) var(--ease-out),
+		transform var(--t-base) var(--ease-spring),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.people:hover > .avatar,
+.people:hover .people-more,
+.people:focus-within > .avatar,
+.people:focus-within .people-more {
+	margin-left: 2px;
+}
+
+/* Having clicked, the tooltip makes way for what the click did. */
+.avatar[data-clicked]::after {
+	visibility: hidden;
+}
+
+.people-more {
+	position: relative;
+	display: flex;
+}
+
+.people button.avatar-more {
+	min-width: 28px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-family: var(--font-mono);
+	font-size: 11px;
+}
+
+.people button.avatar-more:hover,
+.people button.avatar-more[aria-expanded="true"] {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+/* Everyone here, from "+N": follow them or go to them. */
+.people-list {
+	position: absolute;
+	top: calc(100% + 10px);
+	right: -8px;
+	z-index: 30;
+	width: 300px;
+	max-height: min(480px, calc(100dvh - 90px));
+	overflow-y: auto;
+	padding: 8px;
+	border-radius: 14px;
+	background: var(--chrome-solid);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+	transform-origin: top right;
+	animation: people-list-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes people-list-in {
+	from {
+		opacity: 0;
+		scale: 0.96;
+		translate: 0 -6px;
+	}
+}
+
+.people-list h3 {
+	display: flex;
+	gap: 6px;
+	margin: 2px 6px 6px;
+	font-family: var(--font-display);
+	font-size: 13px;
+	font-weight: 650;
+}
+
+.people-list h3 span {
+	color: var(--muted);
+	font-weight: 500;
+}
+
+.people-list ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.people-list li {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 5px 6px;
+	border-radius: 9px;
+	animation: pop-in var(--t-base) var(--ease-spring) backwards;
+}
+
+.people-list li:hover {
+	background: var(--hover);
+}
+
+.people-list li .avatar {
+	flex: none;
+	margin: 0;
+}
+
+.people-list-who {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.people-list-name {
+	overflow: hidden;
+	font-size: 13px;
+	font-weight: 560;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.people-list-note {
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.people-list li button {
+	flex: none;
+	height: 26px;
+	padding: 0 9px;
+	border-radius: 7px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	font-size: 12px;
+	font-weight: 560;
+	cursor: pointer;
+}
+
+.people-list li button:hover {
+	background: var(--hover);
+}
+
+.people-list .people-list-follow[aria-pressed="true"] {
+	border-color: transparent;
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+/* "Priya is following you": being followed, said where you'd see it. */
+.people-followers {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 24px;
+	margin: 2px 8px 0 0;
+	padding: 0 9px 0 7px;
+	border-radius: 999px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.people-eye {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.1;
+}
+
+.people-eye circle {
+	fill: currentColor;
+	stroke: none;
+}
+
 /* An eye on the avatar of someone following you. */
 .avatar-badge {
 	position: absolute;

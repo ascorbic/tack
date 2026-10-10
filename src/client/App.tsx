@@ -85,7 +85,7 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 				user={user}
 				push={push}
 				historySource={history}
-				account={(label) => <AccountMenu me={me} user={user} label={label} />}
+				account={(label, here) => <AccountMenu me={me} user={here} label={label} />}
 				actions={
 					<>
 						{actions}

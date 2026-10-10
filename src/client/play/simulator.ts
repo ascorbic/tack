@@ -18,7 +18,7 @@ import type { Status } from "../activity.ts";
 import { STICKY_COLORS, addCard, addSticky, moveShape, type Position } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { CHAT_LINGER_MS } from "../chat.ts";
-import { type PresenceState, randomUser, type User } from "../presence.ts";
+import { type PresenceState, pickColor, randomUser, type User } from "../presence.ts";
 import type { View } from "../viewport.ts";
 
 // A board that runs entirely in the browser, with simulated people and
@@ -79,8 +79,14 @@ export class SimulatedBoard {
 		});
 	}
 
-	join(user: User = randomUser()): RemotePerson {
-		const person = new RemotePerson(this, user);
+	join(user?: User): RemotePerson {
+		// Made-up people take a colour nobody here has, as real people do.
+		const random = randomUser();
+		const taken = this.people.map((p) => p.user.color);
+		const person = new RemotePerson(
+			this,
+			user ?? { ...random, color: pickColor([random.color], taken) },
+		);
 		this.people.push(person);
 		this.onPeople?.();
 		return person;

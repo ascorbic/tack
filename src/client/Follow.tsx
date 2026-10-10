@@ -108,7 +108,27 @@ export function useFollow(awareness: Awareness, people: RemotePresence[]) {
 		[following],
 	);
 
-	return { following, target, follow: setFollowing, stop, onMoveStart };
+	/** Go to where someone is looking, once, without following them. */
+	const latestPeople = useRef(people);
+	latestPeople.current = people;
+	const jump = useCallback(
+		(clientId: number) => {
+			const view = latestPeople.current.find((p) => p.clientId === clientId)?.view;
+			if (!view) return;
+			setFollowing(null);
+			const state = store.getState();
+			void flow.setViewport(
+				viewportFor(view, state.width, state.height, {
+					minZoom: state.minZoom,
+					maxZoom: state.maxZoom,
+				}),
+				{ duration: scaledDuration(JUMP_MS) },
+			);
+		},
+		[flow, store],
+	);
+
+	return { following, target, follow: setFollowing, stop, onMoveStart, jump };
 }
 
 /**
