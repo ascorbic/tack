@@ -4,7 +4,7 @@ A GitHub-native whiteboard for open source planning.
 
 Tack cards, issues and ideas to a shared board, change tack together, and say _tack_ (Swedish for "thanks") to the people who got you there.
 
-- **Live GitHub cards**: paste any issue, PR, discussion, release, milestone, code permalink or search, and it stays live via webhooks
+- **Live GitHub cards**: paste any issue or pull request link and it stays live via webhooks; lists and other widgets keep searches live
 - **Freeform canvas**: layout never changes GitHub; explicit actions do
 - **Staged pushes**: create issues from stickies, label, link, and write decisions back, reviewed and pushed as one batch
 - **Async first**: "since you were here", history replay, open voting windows

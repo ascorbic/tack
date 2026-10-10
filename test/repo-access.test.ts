@@ -175,8 +175,14 @@ async function connect(mf: Miniflare, board: string, cookie?: string): Promise<S
 		if (typeof event.data !== "string" || !event.data.startsWith("__YPS:")) return;
 		const text = event.data.slice("__YPS:".length);
 		raw.push(text);
-		const message = JSON.parse(text) as CardMessage;
-		for (const card of message.type === "cards" ? message.cards : [message.card]) {
+		const message = JSON.parse(text) as CardMessage | { type: string };
+		// Boards send more than cards now (comments, widgets, the timer…).
+		if (message.type === "cards") {
+			for (const card of (message as Extract<CardMessage, { type: "cards" }>).cards) {
+				cards.set(card.key, card);
+			}
+		} else if (message.type === "card" || message.type === "card-missing") {
+			const { card } = message as Extract<CardMessage, { card: unknown }>;
 			cards.set(card.key, card);
 		}
 	});

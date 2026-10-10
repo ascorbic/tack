@@ -95,8 +95,14 @@ async function openBoard(mf: Miniflare, name: string): Promise<BoardClient> {
 	const cards = new Map<string, Card | MissingCard>();
 	const provider = new YProvider(url.host, name, doc, { party: "board" });
 	provider.on("custom-message", (raw: string) => {
-		const message = JSON.parse(raw) as CardMessage;
-		for (const card of message.type === "cards" ? message.cards : [message.card]) {
+		const message = JSON.parse(raw) as CardMessage | { type: string };
+		// Boards send more than cards now (comments, widgets, the timer…).
+		if (message.type === "cards") {
+			for (const card of (message as Extract<CardMessage, { type: "cards" }>).cards) {
+				cards.set(card.key, card);
+			}
+		} else if (message.type === "card" || message.type === "card-missing") {
+			const { card } = message as Extract<CardMessage, { card: unknown }>;
 			cards.set(card.key, card);
 		}
 	});

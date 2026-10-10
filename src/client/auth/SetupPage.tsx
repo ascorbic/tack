@@ -83,7 +83,8 @@ function NeedsSecret() {
 const PERMISSIONS = [
 	["Issues, pull requests, discussions", "read and write, for pushing staged changes"],
 	["Checks, statuses, Actions runs", "read, for CI on cards"],
-	["Code and metadata", "read"],
+	["Code", "read and write, for decision records (ADR pull requests)"],
+	["Metadata", "read"],
 	["Organisation members", "read, for the access list"],
 ];
 
