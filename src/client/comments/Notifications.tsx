@@ -185,7 +185,7 @@ export function NotificationsButton({
 				className="notifications-button"
 				aria-label={unread > 0 ? `Notifications: ${unread} unread` : "Notifications"}
 				aria-expanded={open}
-				title={
+				data-tooltip={
 					unread > 0
 						? `${unread} unread: mentions of you and replies in threads you’re in, on any board`
 						: "Mentions of you and replies in threads you’re in, on any board"

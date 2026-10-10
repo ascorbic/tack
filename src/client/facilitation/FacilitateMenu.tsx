@@ -201,7 +201,8 @@ export function FacilitateMenu({
 				aria-expanded={open}
 				aria-controls={id}
 				aria-keyshortcuts="Shift+F"
-				title={live ? "Facilitate (⇧F): a session’s running, see what’s on" : "Facilitate (⇧F)"}
+				data-tooltip={live ? "Facilitate: a session’s running, see what’s on" : "Facilitate"}
+				data-shortcut="⇧F"
 				data-live={live || undefined}
 				data-ready={(ready && !readOnly) || undefined}
 				onClick={(event) => {
@@ -212,7 +213,7 @@ export function FacilitateMenu({
 				}}
 			>
 				<BatonIcon />
-				Facilitate
+				<span className="topbar-label">Facilitate</span>
 				{ready && !readOnly ? (
 					<span className="facilitate-ready" aria-label="Steps ready to start" />
 				) : (

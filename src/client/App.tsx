@@ -1,6 +1,6 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
-import { boardIdFromPath } from "../shared/boards.ts";
+import { boardIdFromPath, isHomePath } from "../shared/boards.ts";
 import { shapesMap, transactLocal } from "../shared/shapes.ts";
 import { AccountMenu, SignInButton } from "./auth/AccountMenu.tsx";
 import { personUser } from "./auth/me.ts";
@@ -9,7 +9,12 @@ import { Board } from "./Board.tsx";
 import { type Operation, stageChange } from "../shared/changes.ts";
 import { pushApi } from "./changes/api.ts";
 import { stagerFor } from "./changes/context.ts";
-import { type BoardPageProps, BoardRoute, LegacyRedirect } from "./boards/BoardPage.tsx";
+import {
+	type BoardPageProps,
+	BoardRoute,
+	LegacyRedirect,
+	NotFoundPage,
+} from "./boards/BoardPage.tsx";
 import { HomeRoute } from "./boards/HomePage.tsx";
 import { NotificationsButton } from "./comments/Notifications.tsx";
 import { commentStore } from "./comments/store.ts";
@@ -31,6 +36,7 @@ export function App() {
 	if (id) return <BoardRoute id={id}>{(page) => <LiveBoard {...page} />}</BoardRoute>;
 	const legacy = params.get("board");
 	if (legacy) return <LegacyRedirect name={legacy} />;
+	if (!isHomePath(location.pathname)) return <NotFoundPage />;
 	return <HomeRoute />;
 }
 
@@ -86,11 +92,11 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 				push={push}
 				historySource={history}
 				account={(label, here) => <AccountMenu me={me} user={here} label={label} />}
+				inbox={me.viewer && <NotificationsButton boardId={id} />}
 				actions={
 					<>
-						{actions}
-						{me.viewer && <NotificationsButton boardId={id} />}
 						<SignInButton me={me} />
+						{actions}
 					</>
 				}
 				{...source}

@@ -130,11 +130,11 @@ export function SinceButton({
 			className="since-button"
 			aria-pressed={state.panel}
 			aria-label={`Since you were here: ${total} new`}
-			title={sinceButtonTitle(unseen, commentCount)}
+			data-tooltip={sinceButtonTitle(unseen, commentCount)}
 			onClick={() => store.setPanel(!state.panel)}
 		>
 			<SinceIcon size={15} />
-			<span>New</span>
+			<span className="topbar-label">New</span>
 			{total > 0 && <span className="since-button-count">{total}</span>}
 		</button>
 	);

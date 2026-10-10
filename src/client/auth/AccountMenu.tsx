@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import type { Me } from "../../shared/auth.ts";
 import { Avatar } from "../People.tsx";
 import type { User } from "../presence.ts";
+import { ThemeMenuRow } from "../ThemeToggle.tsx";
 import "./auth.css";
 import { GitHubMark } from "./GitHubMark.tsx";
 import { devSignInHref, signInHref, signOut } from "./me.ts";
@@ -111,6 +112,7 @@ function AccountMenuBody({ me, user }: { me: Me; user: User }) {
 						Instance settings
 					</a>
 				)}
+				<ThemeMenuRow />
 				<button
 					type="button"
 					className="account-item"
@@ -156,6 +158,7 @@ function AccountMenuBody({ me, user }: { me: Me; user: User }) {
 					previews). You can still use boards as a guest.
 				</p>
 			)}
+			<ThemeMenuRow />
 			{me.devAuth && <DevSignIn />}
 		</>
 	);

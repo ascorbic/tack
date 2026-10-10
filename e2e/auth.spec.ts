@@ -18,6 +18,24 @@ test("every sign-in, access and setup state renders", async ({ page }) => {
 	await expect(page.getByRole("heading", { name: "This Tack is invite-only" })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Set up Tack" }).first()).toBeVisible();
 	await expect(page.getByRole("group", { name: "Admins" }).last()).toBeVisible();
+
+	// Where the app is installed, and whether it can push there.
+	const installed = page.locator("figure").filter({
+		has: page.locator("figcaption", { hasText: "Installed: one read-only, one suspended" }),
+	});
+	await expect(installed.getByRole("heading", { name: "Where it’s installed" })).toBeVisible();
+	await expect(installed.locator(".install")).toHaveCount(3);
+	await expect(installed.locator(".install[data-tone=ok]")).toContainText("Live · Tack can push");
+	await expect(installed.locator(".install[data-tone=warn]")).toContainText("Live, read-only");
+	await expect(installed.getByRole("img", { name: "Private" })).toHaveCount(1);
+	const fresh = page
+		.locator("figure")
+		.filter({ has: page.locator("figcaption", { hasText: /^Just created$/ }) });
+	await expect(fresh.getByText("It isn’t installed anywhere yet.")).toBeVisible();
+	const down = page.locator("figure").filter({
+		has: page.locator("figcaption", { hasText: "Installed, GitHub unreachable" }),
+	});
+	await expect(down.getByRole("alert")).toContainText("Couldn’t ask GitHub");
 });
 
 test("dev sign-in shows who you are, and signing out makes you a guest", async ({ page }) => {
@@ -34,9 +52,15 @@ test("dev sign-in shows who you are, and signing out makes you a guest", async (
 	await expect(menu).toContainText("E2E Octocat");
 	await expect(menu).toContainText("@e2e-octocat");
 
+	// Theme lives in the account menu, not the top bar.
+	await expect(menu.getByRole("radiogroup", { name: "Theme" })).toBeVisible();
+	await expect(page.locator(".topbar .theme-switch")).toHaveCount(0);
+
 	await menu.getByRole("menuitem", { name: "Sign out" }).click();
 	await expect(page.getByRole("button", { name: "You (guest)" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Account: e2e-octocat" })).toHaveCount(0);
+	// And it says so.
+	await expect(page.getByRole("status").filter({ hasText: "Signed out" })).toBeVisible();
 });
 
 // Routes the Worker handles must reach it rather than the static site's

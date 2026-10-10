@@ -189,7 +189,7 @@ export function RulesButton({
 					? `Rules: paused${pause.held > 0 ? `, ${pause.held} waiting` : ""}`
 					: `Rules: ${active} on`
 			}
-			title={
+			data-tooltip={
 				paused
 					? `Rules paused by ${pause.by.name}: what they'd place waits until they resume`
 					: "Rules: automation that places cards"
@@ -201,7 +201,7 @@ export function RulesButton({
 			<span key={zaps} className="rules-button-icon" data-zap={zaps > 0}>
 				<BoltIcon size={15} />
 			</span>
-			<span>Rules</span>
+			<span className="topbar-label">Rules</span>
 			{paused ? (
 				<span className="rules-button-count" data-paused="true">
 					<PauseIcon size={11} />

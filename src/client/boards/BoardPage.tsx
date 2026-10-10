@@ -1,11 +1,21 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Me } from "../../shared/auth.ts";
-import { type BoardInfo, type Role, boardPath, canEdit } from "../../shared/boards.ts";
+import {
+	type BoardInfo,
+	type MemberRole,
+	type Role,
+	type Visibility,
+	boardPath,
+	canEdit,
+} from "../../shared/boards.ts";
 import { AuthPage, NotAllowedPage, SignInPage } from "../auth/AccessGate.tsx";
 import { useMe } from "../auth/me.ts";
 import type { LiveBoardEvents } from "../connection.ts";
+import { type Flash, setFlash, takeFlash } from "../flash.ts";
 import { useLinger } from "../useLinger.ts";
-import { type ApiError, boardsApi, boardUrlFor } from "./api.ts";
+import { accessDescription, accessLabel } from "./access.ts";
+import { type ApiError, boardsApi, boardUrlFor, peopleApi } from "./api.ts";
+import { BoardRepoList } from "./BoardRepos.tsx";
 import { BoardTitle } from "./BoardTitle.tsx";
 import { ArchiveIcon, EyeIcon, ShareIcon, VisibilityIcon } from "./icons.tsx";
 import { BoardMenu } from "./SaveTemplate.tsx";
@@ -33,7 +43,7 @@ export interface BoardPageProps {
 type Load =
 	| { status: "loading" }
 	| { status: "ready"; board: BoardInfo }
-	| { status: "error"; error: ApiError };
+	| { status: "error"; error: ApiError; lost?: boolean };
 
 /**
  * `/b/{id}/{slug}`: checks the board exists and the viewer may open it,
@@ -54,10 +64,11 @@ export function BoardRoute({
 
 	const fetchBoard = useCallback(async () => {
 		const result = await boardsApi.get(id);
-		setLoad(
+		setLoad((current) =>
 			result.ok
 				? { status: "ready", board: result.value }
-				: { status: "error", error: result.error },
+				: // Had it open, and now can't: say so, rather than that it was never yours.
+					{ status: "error", error: result.error, lost: current.status === "ready" },
 		);
 	}, [id]);
 
@@ -90,7 +101,9 @@ export function BoardRoute({
 	if (me.status === "loading" || load.status === "loading") {
 		return <div className="app" aria-busy="true" />;
 	}
-	if (load.status === "error") return <BoardErrorPage me={me.me} error={load.error} />;
+	if (load.status === "error") {
+		return <BoardErrorPage me={me.me} error={load.error} lost={load.lost} />;
+	}
 	return (
 		<LoadedBoard
 			me={me.me}
@@ -103,6 +116,13 @@ export function BoardRoute({
 		</LoadedBoard>
 	);
 }
+
+/** Something to say over the canvas for a moment: your role changed, or why. */
+type Notice = { at: number } & (
+	| { kind: "role"; role: Role }
+	| { kind: "archived"; by: string | null }
+	| { kind: "flash"; flash: Flash }
+);
 
 function LoadedBoard({
 	me,
@@ -120,8 +140,14 @@ function LoadedBoard({
 	children: (props: BoardPageProps) => ReactNode;
 }) {
 	const [sharing, setSharing] = useState(false);
-	const [toast, setToast] = useState<{ role: Role; at: number } | null>(null);
+	// "Signed out", say, from the page before this one.
+	const [notice, setNotice] = useState<Notice | null>(() => {
+		const flash = takeFlash();
+		return flash ? { kind: "flash", flash, at: Date.now() } : null;
+	});
 	const editable = canEdit(board.role);
+	const archivedRef = useRef(board.archivedAt !== null);
+	archivedRef.current = board.archivedAt !== null;
 
 	const rename = useCallback(
 		async (title: string) => {
@@ -141,10 +167,21 @@ function LoadedBoard({
 		() => ({
 			onRole: (role) => {
 				setBoard((current) => ({ ...current, role }));
-				setToast({ role, at: Date.now() });
-				// Ownership and archiving can change too; catch up quietly.
+				const wasArchived = archivedRef.current;
+				// Ownership and archiving can change too: catch up, then say
+				// which it was, so an archive doesn't read as a demotion.
 				void boardsApi.get(board.id).then((result) => {
 					if (result.ok) setBoard(result.value);
+					const archived = result.ok && result.value.archivedAt !== null && !wasArchived;
+					setNotice(
+						archived
+							? {
+									kind: "archived",
+									by: result.value.owner?.name || result.value.owner?.login || null,
+									at: Date.now(),
+								}
+							: { kind: "role", role, at: Date.now() },
+					);
 				});
 			},
 			onRenamed: (title, slug) => setBoard((current) => ({ ...current, title, slug })),
@@ -154,6 +191,7 @@ function LoadedBoard({
 	);
 
 	const link = boardUrlFor(board);
+	const signedIn = me.viewer !== null;
 	const shareActions = useMemo<ShareActions>(
 		() => ({
 			members: () => boardsApi.members(board.id),
@@ -161,30 +199,18 @@ function LoadedBoard({
 			setRole: (login, role) => boardsApi.setRole(board.id, login, role),
 			remove: (login) => boardsApi.remove(board.id, login),
 			update: (request) => boardsApi.update(board.id, request),
+			...(signedIn ? { lookup: peopleApi.lookup, suggest: peopleApi.suggest } : {}),
 			link,
 		}),
-		[board.id, link],
+		[board.id, link, signedIn],
 	);
 
 	const archived = board.archivedAt !== null;
+	const canShare = me.viewer !== null || board.canManage;
 	const actions = (
 		<>
 			{!editable && !archived && <ViewOnlyBadge />}
-			{(me.viewer || board.canManage) && (
-				<button
-					type="button"
-					className="share-button"
-					data-visibility={board.visibility}
-					onClick={() => setSharing(true)}
-				>
-					{board.visibility === "private" ? (
-						<ShareIcon />
-					) : (
-						<VisibilityIcon visibility={board.visibility} />
-					)}
-					Share
-				</button>
-			)}
+			{canShare && <ShareButton visibility={board.visibility} onClick={() => setSharing(true)} />}
 			<ShareDialog
 				open={sharing}
 				onClose={() => setSharing(false)}
@@ -192,7 +218,12 @@ function LoadedBoard({
 				me={me.viewer}
 				actions={shareActions}
 				onBoard={setBoard}
-				onLeft={() => location.assign("/")}
+				setupPending={me.signIn === "unconfigured"}
+				repos={editable ? <BoardRepoList returnTo={boardPath(board)} /> : undefined}
+				onLeft={() => {
+					setFlash({ message: `You left “${board.title}”` });
+					location.assign("/");
+				}}
 			/>
 		</>
 	);
@@ -200,7 +231,7 @@ function LoadedBoard({
 	const overlay = (
 		<>
 			{archived && <ArchivedNotice board={board} onRestore={setBoard} />}
-			<RoleToast toast={toast} />
+			<NoticeToast notice={notice} />
 		</>
 	);
 
@@ -215,6 +246,11 @@ function LoadedBoard({
 					onRename={rename}
 					startEditing={justCreated}
 				/>
+				<AccessChip
+					visibility={board.visibility}
+					instanceRole={board.instanceRole}
+					onClick={canShare ? () => setSharing(true) : undefined}
+				/>
 				{editable && (me.viewer || me.signIn !== "ready") && <BoardMenu board={board} />}
 			</>
 		),
@@ -226,9 +262,70 @@ function LoadedBoard({
 	});
 }
 
+/** The top bar's Share button: its icon says who can open the board. */
+export function ShareButton({
+	visibility,
+	onClick,
+}: {
+	visibility: Visibility;
+	onClick?: () => void;
+}) {
+	return (
+		<button type="button" className="share-button" data-visibility={visibility} onClick={onClick}>
+			{visibility === "private" ? <ShareIcon /> : <VisibilityIcon visibility={visibility} />}
+			<span className="share-label">Share</span>
+		</button>
+	);
+}
+
+/**
+ * Who can open the board, in a few words beside its title, so nobody's
+ * surprised who can edit it. Opens Share, for those who can.
+ */
+export function AccessChip({
+	visibility,
+	instanceRole,
+	onClick,
+}: {
+	visibility: Visibility;
+	instanceRole: MemberRole;
+	onClick?: () => void;
+}) {
+	const label = accessLabel(visibility, instanceRole);
+	const description = accessDescription(visibility, instanceRole);
+	const content = (
+		<>
+			<VisibilityIcon visibility={visibility} size={14} />
+			<span className="access-chip-label">{label}</span>
+		</>
+	);
+	return onClick ? (
+		<button
+			type="button"
+			className="access-chip"
+			data-visibility={visibility}
+			data-tooltip={description}
+			aria-label={`${description}. Change who can open it`}
+			onClick={onClick}
+		>
+			{content}
+		</button>
+	) : (
+		<span
+			className="access-chip"
+			data-visibility={visibility}
+			data-tooltip={description}
+			role="img"
+			aria-label={description}
+		>
+			{content}
+		</span>
+	);
+}
+
 export function ViewOnlyBadge() {
 	return (
-		<span className="view-only" title="You can look around and chat, but not change this board">
+		<span className="view-only" data-tooltip="You can look around and comment, but not change it">
 			<EyeIcon />
 			View only
 		</span>
@@ -270,18 +367,34 @@ export function ArchivedNotice({
 	);
 }
 
-/** "You can edit now": a toast when someone changes your role while you're here. */
-function RoleToast({ toast }: { toast: { role: Role; at: number } | null }) {
-	const [current, setCurrent] = useState(toast);
+/** "You can edit now", "Matt archived this board": a toast over the canvas for a moment. */
+function NoticeToast({ notice }: { notice: Notice | null }) {
+	const [current, setCurrent] = useState(notice);
 	useEffect(() => {
-		setCurrent(toast);
-		if (!toast) return;
-		const timer = setTimeout(() => setCurrent(null), 3200);
+		setCurrent(notice);
+		if (!notice) return;
+		const timer = setTimeout(() => setCurrent(null), notice.kind === "role" ? 3200 : 4800);
 		return () => clearTimeout(timer);
-	}, [toast]);
+	}, [notice]);
 	const shown = useLinger(current, 240);
 	if (!shown.value) return null;
-	return <RoleToastView key={shown.value.at} role={shown.value.role} leaving={shown.leaving} />;
+	const value = shown.value;
+	if (value.kind === "role") {
+		return <RoleToastView key={value.at} role={value.role} leaving={shown.leaving} />;
+	}
+	return (
+		<div key={value.at} className="role-toast" role="status" data-leaving={shown.leaving}>
+			{value.kind === "archived" ? (
+				<>
+					<ArchiveIcon />
+					{value.by ? `${value.by} archived this board.` : "This board was archived."} It’s
+					read-only now.
+				</>
+			) : (
+				value.flash.message
+			)}
+		</div>
+	);
 }
 
 export function RoleToastView({ role, leaving = false }: { role: Role; leaving?: boolean }) {
@@ -318,13 +431,31 @@ const ERRORS: Partial<Record<ApiError, { title: string; lede: string }>> = {
 	},
 };
 
-export function BoardErrorPage({ me, error }: { me: Me; error: ApiError }) {
-	if (error === "sign_in_required") {
+/** Access went while the board was open. */
+const LOST = {
+	title: "You no longer have access to this board",
+	lede: "Its owner changed who can open it while you were here. Ask them to invite you if you need it again.",
+};
+
+export function BoardErrorPage({
+	me,
+	error,
+	lost = false,
+}: {
+	me: Me;
+	error: ApiError;
+	/** They had it open, and lost access. */
+	lost?: boolean;
+}) {
+	if (error === "sign_in_required" && !lost) {
 		return <SignInPage me={me} />;
 	}
 	// Signed in but not on the instance's allowlist: say so, rather than blame the board.
 	if (error === "forbidden" && me.viewer && !me.allowed) return <NotAllowedPage me={me} />;
-	const copy = ERRORS[error] ?? OFFLINE;
+	const copy =
+		lost && (error === "forbidden" || error === "sign_in_required" || error === "not_found")
+			? LOST
+			: (ERRORS[error] ?? OFFLINE);
 	return (
 		<AuthPage>
 			<div className="board-missing-art" aria-hidden="true">
@@ -350,6 +481,33 @@ export function BoardErrorPage({ me, error }: { me: Me; error: ApiError }) {
 						Try again
 					</button>
 				)}
+			</div>
+		</AuthPage>
+	);
+}
+
+/** Any other address: say so, with the way home, rather than show home at the wrong URL. */
+export function NotFoundPage() {
+	const me = useMe();
+	useEffect(() => {
+		document.title = "Not found · Tack";
+	}, []);
+	if (me.status === "loading") return <div className="app" aria-busy="true" />;
+	return (
+		<AuthPage>
+			<div className="board-missing-art" aria-hidden="true">
+				<span className="home-empty-note" data-color="blue" />
+				<span className="home-empty-pin" />
+			</div>
+			<h1>This page isn’t here</h1>
+			<p className="auth-lead">
+				There’s nothing at <code>{location.pathname}</code>. Boards live at links like{" "}
+				<code>/b/…</code>, and all of yours are on the home page.
+			</p>
+			<div className="auth-actions">
+				<a className="auth-button primary" href="/">
+					All boards
+				</a>
 			</div>
 		</AuthPage>
 	);

@@ -1,12 +1,28 @@
 import { type ReactNode, useMemo, useState } from "react";
 import type { Me } from "../../shared/auth.ts";
-import type { BoardInfo, BoardList, BoardMember, MemberRole, Role } from "../../shared/boards.ts";
+import type {
+	BoardInfo,
+	BoardList,
+	BoardMember,
+	MemberRole,
+	PeopleSuggestions,
+	PersonLookup,
+	Role,
+	Visibility,
+} from "../../shared/boards.ts";
 import type { ApiResult } from "../boards/api.ts";
-import { ArchivedNotice, RoleToastView, ViewOnlyBadge } from "../boards/BoardPage.tsx";
+import {
+	AccessChip,
+	ArchivedNotice,
+	RoleToastView,
+	ShareButton,
+	ViewOnlyBadge,
+} from "../boards/BoardPage.tsx";
+import { RepoList } from "../boards/BoardRepos.tsx";
 import { BoardTile } from "../boards/BoardTile.tsx";
 import { BoardTitle } from "../boards/BoardTitle.tsx";
 import { HomeView } from "../boards/HomePage.tsx";
-import { ShareIcon, VisibilityIcon } from "../boards/icons.tsx";
+import type { BoardRepo } from "../boards/repoStatus.ts";
 import { type ShareActions, SharePanel } from "../boards/SharePanel.tsx";
 import { BrandMark } from "../BrandMark.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
@@ -25,6 +41,7 @@ import {
 	NOW,
 	PUBLIC,
 	PRIYA,
+	TOM,
 	board,
 } from "./boardFixtures.ts";
 import "../boards/boards.css";
@@ -81,11 +98,62 @@ const TILES: { label: string; board: BoardInfo }[] = [
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** People on this pretend Tack, for suggestions and lookups. */
+const ON_THIS_TACK = [PRIYA, KAI, TOM, JO];
+
+/** Who a login is, simulated: "ghost" isn't anyone, "emdash-cms" is an organisation. */
+async function fakeLookup(login: string): Promise<ApiResult<PersonLookup>> {
+	await delay(350);
+	const key = login.replace(/^@/, "").toLowerCase();
+	const known = ON_THIS_TACK.find((person) => person.login === key);
+	const value: PersonLookup = known
+		? { login: key, status: "known", person: known, allowed: true }
+		: key === "ghost"
+			? { login: key, status: "unknown", person: null, allowed: null }
+			: key === "emdash-cms"
+				? { login: key, status: "organization", person: null, allowed: null }
+				: {
+						login: key,
+						status: "github",
+						person: { id: 9000 + key.length, login: key, name: null, avatarUrl: "" },
+						allowed: null,
+					};
+	return { ok: true, value };
+}
+
+async function fakeSuggest(q: string): Promise<ApiResult<PeopleSuggestions>> {
+	await delay(80);
+	const query = q.toLowerCase();
+	const people = ON_THIS_TACK.filter(
+		(person) =>
+			person.login.startsWith(query) ||
+			(person.name ?? "")
+				.toLowerCase()
+				.split(/\s+/)
+				.some((word) => word.startsWith(query)),
+	).map((person): PersonLookup => ({
+		login: person.login,
+		status: "known",
+		person,
+		allowed: true,
+	}));
+	return { ok: true, value: { people } };
+}
+
+/** The repositories of a board that's mostly ready, for the Share dialog's pre-flight. */
+const REPOS: BoardRepo[] = [
+	{ key: "github.com/lovell/sharp", name: "lovell/sharp", cards: 3, state: "readonly" },
+	{ key: "github.com/emdash-cms/docs", name: "emdash-cms/docs", cards: 4, state: "loading" },
+	{ key: "github.com/emdash-cms/emdash", name: "emdash-cms/emdash", cards: 18, state: "ready" },
+];
+
 /** Sharing, simulated: invite "ghost" to see an error. */
 function fakeShare(initial: BoardMember[], board: BoardInfo, slow = 500): ShareActions {
 	let members = initial;
 	const ok = <T,>(value: T): ApiResult<T> => ({ ok: true, value });
 	return {
+		lookup: fakeLookup,
+		suggest: fakeSuggest,
 		link: `https://tack.example.com/b/${board.id}/${board.slug}`,
 		members: async () => {
 			await delay(slow);
@@ -215,6 +283,9 @@ function Sections({ round }: { round: number }) {
 	);
 	const shareViewer = useMemo(() => fakeShare(MEMBERS, viewerBoard), [viewerBoard, round]);
 	const shareLoading = useMemo(() => fakeShare(MEMBERS, owner, 60_000), [owner, round]);
+	const publicBoard = useMemo(() => ({ ...owner, visibility: "public" as const }), [owner]);
+	const sharePublic = useMemo(() => fakeShare(MEMBERS, publicBoard), [publicBoard, round]);
+	const shareSetup = useMemo(() => fakeShare(MEMBERS, owner), [owner, round]);
 	const [shared, setShared] = useState(owner);
 	const privateBoard = { ...owner, visibility: "private" as const };
 
@@ -277,6 +348,24 @@ function Sections({ round }: { round: number }) {
 							onBoard={() => undefined}
 						/>
 					</ShareFrame>
+					<ShareFrame label="Public, with the board’s repositories" key={`repos-${round}`}>
+						<SharePanel
+							board={publicBoard}
+							me={ME_SIGNED_IN.viewer}
+							actions={sharePublic}
+							onBoard={() => undefined}
+							repos={<RepoList repos={REPOS} returnTo="/b/demo/demo" />}
+						/>
+					</ShareFrame>
+					<ShareFrame label="Before setup" key={`setup-${round}`}>
+						<SharePanel
+							board={owner}
+							me={ME_SIGNED_IN.viewer}
+							actions={shareSetup}
+							onBoard={() => undefined}
+							setupPending
+						/>
+					</ShareFrame>
 				</div>
 			</section>
 
@@ -286,8 +375,9 @@ function Sections({ round }: { round: number }) {
 					<figure>
 						<TopBar>
 							<BoardTitle title="unpic 5.0 release" editable onRename={() => delay(400)} />
+							<AccessChip visibility="instance" instanceRole="editor" onClick={() => undefined} />
 							<span className="gallery-bar-end">
-								<ShareButton icon={<VisibilityIcon visibility="instance" />} />
+								<ShareButton visibility="instance" />
 							</span>
 						</TopBar>
 						<figcaption>Owner: click the title to rename</figcaption>
@@ -300,8 +390,9 @@ function Sections({ round }: { round: number }) {
 								startEditing
 								onRename={() => delay(400)}
 							/>
+							<AccessChip visibility="private" instanceRole="editor" onClick={() => undefined} />
 							<span className="gallery-bar-end">
-								<ShareButton icon={<ShareIcon />} />
+								<ShareButton visibility="private" />
 							</span>
 						</TopBar>
 						<figcaption>Just created</figcaption>
@@ -309,11 +400,26 @@ function Sections({ round }: { round: number }) {
 					<figure>
 						<TopBar>
 							<BoardTitle title="Good first issues" editable={false} onRename={() => delay(0)} />
+							<AccessChip visibility={"public" satisfies Visibility} instanceRole="viewer" />
 							<span className="gallery-bar-end">
 								<ViewOnlyBadge />
 							</span>
 						</TopBar>
 						<figcaption>View only</figcaption>
+					</figure>
+					<figure>
+						<TopBar>
+							<BoardTitle
+								title="Incident review: the image CDN outage on the first of October, and what we learned"
+								editable
+								onRename={() => delay(400)}
+							/>
+							<AccessChip visibility="instance" instanceRole="viewer" onClick={() => undefined} />
+							<span className="gallery-bar-end">
+								<ShareButton visibility="public" />
+							</span>
+						</TopBar>
+						<figcaption>A long title gives way, and never wraps the bar</figcaption>
 					</figure>
 					<figure>
 						<div className="gallery-frame gallery-canvas">
@@ -368,14 +474,5 @@ function TopBar({ children }: { children: ReactNode }) {
 			</span>
 			{children}
 		</header>
-	);
-}
-
-function ShareButton({ icon }: { icon: ReactNode }) {
-	return (
-		<button type="button" className="share-button">
-			{icon}
-			Share
-		</button>
 	);
 }

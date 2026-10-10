@@ -77,13 +77,13 @@ export function CommentsButton({ store = commentStore }: { store?: CommentStore 
 			className="comments-button"
 			aria-pressed={ui.panel}
 			aria-label={`Comments: ${open.length} open${unread > 0 ? `, ${unread} unread` : ""}`}
-			title={[
+			data-tooltip={[
 				`${open.length} open ${open.length === 1 ? "thread" : "threads"} on this board`,
 				unread > 0 ? `${unread} with replies you haven’t read` : null,
-				"B to add one",
 			]
 				.filter(Boolean)
 				.join(" · ")}
+			data-shortcut="B to add one"
 			data-unread={unread > 0 || undefined}
 			onClick={() => store.setUI({ panel: !ui.panel })}
 		>
@@ -91,7 +91,7 @@ export function CommentsButton({ store = commentStore }: { store?: CommentStore 
 				<BubbleIcon size={15} />
 				{unread > 0 && <span className="comments-button-dot" key={unread} />}
 			</span>
-			<span>Comments</span>
+			<span className="topbar-label">Comments</span>
 			{open.length > 0 && (
 				<span className="comments-button-count" data-unread={unread > 0 || undefined}>
 					{unread > 0 ? unread : open.length}

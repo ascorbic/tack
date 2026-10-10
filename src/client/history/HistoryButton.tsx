@@ -8,11 +8,12 @@ export function HistoryButton({ open, onToggle }: { open: boolean; onToggle: () 
 			type="button"
 			className="history-button"
 			aria-pressed={open}
-			title={`History (${shortcutHint("history", isApplePlatform())})`}
+			data-tooltip="History"
+			data-shortcut={shortcutHint("history", isApplePlatform())}
 			onClick={onToggle}
 		>
 			<HistoryIcon />
-			<span className="history-button-label">History</span>
+			<span className="history-button-label topbar-label">History</span>
 		</button>
 	);
 }

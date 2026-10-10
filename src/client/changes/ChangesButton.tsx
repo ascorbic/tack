@@ -44,12 +44,14 @@ export function ChangesButton() {
 			data-open={ui.panelOpen || undefined}
 			data-pushing={pushing || undefined}
 			data-failed={failed || undefined}
+			data-tooltip="Changes staged for GitHub"
+			data-tooltip-align="end"
 			onClick={() => ui.setPanelOpen(!ui.panelOpen)}
 		>
 			<span className="changes-button-icon" key={drops} data-drop={drops > 0 || undefined}>
 				<OutboxIcon />
 			</span>
-			Changes
+			<span className="changes-button-label">Changes</span>
 			{count > 0 && (
 				<span className="changes-badge" key={`b${count}`} aria-hidden="true">
 					{count}

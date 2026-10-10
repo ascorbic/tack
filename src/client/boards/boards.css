@@ -144,12 +144,151 @@ a.brand {
 	font-size: 14px;
 }
 
+/* One row, scrolling sideways on a phone rather than wrapping. */
 .home-tabs {
 	display: flex;
-	flex-wrap: wrap;
 	gap: 2px;
 	margin: 26px 0 22px;
+	overflow-x: auto;
 	border-bottom: 1px solid var(--line);
+	scrollbar-width: none;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.home-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+/* While searching, results come from every tab. */
+.home-tabs[data-searching] {
+	opacity: 0.55;
+}
+
+.home-tabs button {
+	flex: none;
+	border-radius: 8px 8px 0 0;
+}
+
+.home-tabs button:focus-visible {
+	outline-offset: -2px;
+}
+
+/* Something shared with you that you haven't opened. */
+.home-tab-new {
+	width: 7px;
+	height: 7px;
+	margin-left: -3px;
+	border-radius: 50%;
+	background: var(--accent);
+	box-shadow: 0 0 0 3px var(--accent-soft);
+	animation: pop-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.home-results {
+	margin: -6px 0 0;
+	color: var(--muted);
+	font-size: 13.5px;
+}
+
+.home-more {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent);
+	font: inherit;
+	font-weight: 600;
+}
+
+.home-more:hover {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.home-archived-results {
+	margin-top: 40px;
+	animation: notice-in var(--t-settle) var(--ease-spring);
+}
+
+.home-search {
+	position: relative;
+}
+
+.home-search-key {
+	display: grid;
+	place-items: center;
+	min-width: 20px;
+	height: 20px;
+	padding: 0 5px;
+	border: 1px solid var(--line-strong);
+	border-radius: 5px;
+	background: var(--surface-muted);
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	line-height: 1;
+}
+
+.home-search input::-webkit-search-cancel-button {
+	cursor: pointer;
+}
+
+/* Before setup: access control is off, and the first to set it up becomes admin. */
+.home-setup {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px 16px;
+	margin: 0 0 28px;
+	padding: 14px 16px 14px 18px;
+	border: 1px solid color-mix(in srgb, var(--pending) 45%, var(--line));
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--pending-bg) 70%, var(--surface));
+	box-shadow: var(--shadow-rest);
+	animation: notice-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.home-setup p {
+	flex: 1 1 320px;
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 14px;
+	line-height: 1.45;
+}
+
+.home-setup strong {
+	color: var(--ink);
+}
+
+.home-setup-pin {
+	flex: none;
+	width: 13px;
+	height: 13px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 35% 35%, #ff8f7a, #e5533d 60%, #b8392a);
+	box-shadow: 1px 2px 3px rgb(0 0 0 / 22%);
+}
+
+.home-setup .auth-button {
+	display: inline-flex;
+	align-items: center;
+	height: 36px;
+	padding: 0 14px;
+	border-radius: 10px;
+	background: var(--accent);
+	color: var(--on-accent);
+	font-size: 14px;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.home-setup .auth-button:hover {
+	background: var(--accent-hover);
+}
+
+/* Home toasts sit at the bottom of the window, not of a canvas. */
+.home .toasts {
+	position: fixed;
+	bottom: 28px;
 }
 
 .home-tabs button {
@@ -391,6 +530,37 @@ a.brand {
 	outline-offset: 2px;
 }
 
+/* Archived or restored: it folds away before the grid closes up. */
+.board-tile[data-leaving] {
+	pointer-events: none;
+	animation: tile-out calc(260ms * var(--motion)) var(--ease-out) forwards;
+}
+
+@keyframes tile-out {
+	to {
+		opacity: 0;
+		transform: scale(0.92) translateY(6px);
+		filter: blur(1px);
+	}
+}
+
+/* Shared with you, not opened yet. */
+.board-tile-new {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	padding: 3px 8px;
+	border-radius: 999px;
+	background: var(--accent);
+	color: var(--on-accent);
+	font-size: 11.5px;
+	font-weight: 650;
+	letter-spacing: 0.01em;
+	box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
+	animation: pop-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc((var(--i, 0) * 32ms + 200ms) * var(--motion));
+}
+
 @keyframes tile-in {
 	from {
 		opacity: 0;
@@ -466,6 +636,28 @@ a.brand {
 	stroke: var(--line-strong);
 	stroke-width: 1.2;
 	stroke-dasharray: 3 3;
+}
+
+.board-thumb-empty[data-color] .board-thumb-empty-note rect {
+	fill: color-mix(in srgb, var(--sticky-note) 55%, var(--surface));
+	stroke: color-mix(in srgb, var(--sticky-note) 60%, var(--line-strong));
+	stroke-dasharray: none;
+}
+
+.board-thumb-empty[data-color="yellow"] {
+	--sticky-note: var(--sticky-yellow);
+}
+.board-thumb-empty[data-color="pink"] {
+	--sticky-note: var(--sticky-pink);
+}
+.board-thumb-empty[data-color="blue"] {
+	--sticky-note: var(--sticky-blue);
+}
+.board-thumb-empty[data-color="green"] {
+	--sticky-note: var(--sticky-green);
+}
+.board-thumb-empty[data-color="purple"] {
+	--sticky-note: var(--sticky-purple);
 }
 
 .board-thumb-empty-pin {
@@ -661,9 +853,81 @@ a.brand {
 
 /* The board's top bar ----------------------------------------------------- */
 
+/* Who can open the board, beside its title. */
+.topbar .access-chip {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 9px 0 7px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	animation: pop-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(120ms * var(--motion));
+}
+
+.topbar button.access-chip:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.topbar .access-chip[data-visibility="instance"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.topbar .access-chip[data-visibility="public"] {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.topbar .access-chip .icon {
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.topbar .access-chip[data-tooltip]::after {
+	left: 0;
+	transform: translateY(-4px);
+}
+
+.topbar .access-chip[data-tooltip]:is(:hover, :focus-visible)::after {
+	transform: none;
+}
+
+@media (max-width: 1099px) {
+	.access-chip-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
+	.topbar .access-chip {
+		width: 26px;
+		padding: 0;
+		justify-content: center;
+	}
+}
+
+@media (max-width: 599px) {
+	.topbar .access-chip {
+		display: none;
+	}
+}
+
+/* The title gives way first: an ellipsis, with the whole of it on hover. */
 .board-title {
 	position: relative;
 	display: inline-flex;
+	flex: 0 1 auto;
 	min-width: 0;
 	max-width: min(42vw, 520px);
 	margin: 0 0 0 -4px;
@@ -693,16 +957,54 @@ a.brand {
 
 .topbar .board-title-button {
 	max-width: 100%;
-	overflow: hidden;
 	border-color: transparent;
 	background: none;
-	text-overflow: ellipsis;
 	white-space: nowrap;
 	cursor: text;
 }
 
+.topbar .board-title-button[data-tooltip]::after {
+	left: 4px;
+	max-width: min(520px, 80vw);
+	white-space: pre-wrap;
+	transform: translateY(-4px);
+}
+
+.topbar .board-title-button[data-tooltip]:is(:hover, :focus-visible)::after {
+	transform: none;
+}
+
 .topbar .board-title-button:hover {
 	background: var(--hover);
+}
+
+/* A pencil on hover says the title can be renamed. */
+.topbar .board-title-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.board-title-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.board-title-pencil {
+	flex: none;
+	margin-right: -2px;
+	opacity: 0;
+	color: var(--muted);
+	transform: translateX(-4px) rotate(-12deg);
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-settle) var(--ease-spring);
+}
+
+.board-title-button:is(:hover, :focus-visible) .board-title-pencil {
+	opacity: 1;
+	transform: none;
 }
 
 .topbar .board-title-button:active {
@@ -809,6 +1111,15 @@ a.brand {
 	border-color: transparent;
 }
 
+/* Below the archived notice, rather than over it. */
+.board-notice ~ .role-toast {
+	top: 66px;
+}
+
+.role-toast .icon {
+	flex: none;
+}
+
 .role-toast[data-leaving="true"] {
 	animation: notice-out var(--t-base) var(--ease-out) forwards;
 }
@@ -829,9 +1140,13 @@ a.brand {
 
 /* Share dialog ------------------------------------------------------------ */
 
+/* Pinned by its top edge, so the field under your cursor stays put as
+   people and errors are added below it. */
 .share-dialog {
 	width: min(500px, calc(100vw - 32px));
-	max-height: calc(100dvh - 48px);
+	max-height: calc(100dvh - min(14vh, 112px) - 24px);
+	margin-top: min(14vh, 112px);
+	margin-bottom: auto;
 	padding: 0;
 	overflow: visible;
 	border: 1px solid var(--line);
@@ -943,9 +1258,138 @@ a.brand {
 	transform: rotate(90deg);
 }
 
-.share-invite {
+.share-invite-row {
+	position: relative;
 	display: flex;
 	gap: 8px;
+}
+
+/* People on this Tack, as you type. */
+.invite-suggestions {
+	position: absolute;
+	top: calc(100% + 6px);
+	left: 0;
+	right: 0;
+	z-index: 3;
+	margin: 0;
+	padding: 5px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+	box-shadow: var(--shadow-lifted);
+	list-style: none;
+	transform-origin: top left;
+	animation: suggest-in var(--t-base) var(--ease-spring);
+}
+
+@keyframes suggest-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px) scale(0.98);
+	}
+}
+
+.invite-suggestions li {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 8px;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.invite-suggestions li[aria-selected="true"] {
+	background: var(--hover);
+}
+
+.invite-suggestions .avatar,
+.invite-preview .avatar {
+	flex: none;
+	width: 26px;
+	height: 26px;
+	margin: 0;
+	font-size: 10px;
+	animation: none;
+}
+
+.invite-who {
+	display: flex;
+	flex: 1;
+	align-items: baseline;
+	gap: 8px;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.invite-who strong {
+	overflow: hidden;
+	font-size: 13.5px;
+	font-weight: 600;
+	text-overflow: ellipsis;
+}
+
+.invite-who .share-login,
+.invite-note {
+	overflow: hidden;
+	color: var(--muted);
+	font-size: 12.5px;
+	text-overflow: ellipsis;
+}
+
+/* Who you're about to invite, looked up as you type. */
+.invite-preview {
+	display: grid;
+	gap: 2px;
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.invite-preview li {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 36px;
+	padding: 4px 8px;
+	border-radius: 9px;
+	background: var(--surface-muted);
+	animation: member-in var(--t-settle) var(--ease-spring);
+	transition: background var(--t-base) var(--ease-out);
+}
+
+.invite-preview li[data-checking] .avatar {
+	animation: title-saving 1.2s ease-in-out infinite;
+}
+
+.invite-preview li[data-tone="bad"] {
+	background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+}
+
+.invite-preview li[data-tone="bad"] .invite-note {
+	color: var(--danger);
+}
+
+.invite-preview li[data-tone="warn"] .invite-note {
+	color: var(--pending-ink);
+}
+
+.invite-flag {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.invite-preview li[data-tone="ok"] .invite-flag {
+	color: var(--open);
+}
+
+.invite-preview li[data-tone="bad"] .invite-flag {
+	color: var(--danger);
 }
 
 .share-invite-field {
@@ -982,7 +1426,7 @@ a.brand {
 	font-size: 14px;
 }
 
-.share-invite > button {
+.share-invite-row > button {
 	height: 38px;
 	padding: 0 16px;
 	border-radius: 10px;
@@ -992,11 +1436,11 @@ a.brand {
 	transition: transform var(--t-quick) var(--ease-out);
 }
 
-.share-invite > button:active:not(:disabled) {
+.share-invite-row > button:active:not(:disabled) {
 	transform: scale(0.96);
 }
 
-.share-invite > button:disabled {
+.share-invite-row > button:disabled {
 	cursor: default;
 	opacity: 0.55;
 }
@@ -1090,10 +1534,15 @@ a.brand {
 	display: block;
 	overflow: hidden;
 	color: var(--muted);
-	font-family: var(--font-mono);
-	font-size: 12px;
+	font-size: 12.5px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* Logins are code-ish; the prose around them isn't. */
+.share-login {
+	font-family: var(--font-mono);
+	font-size: 12px;
 }
 
 .share-role-label {
@@ -1170,6 +1619,24 @@ a.brand {
 	display: flex;
 	align-items: center;
 	gap: 12px;
+}
+
+.share-access-row + .share-access-row {
+	margin-top: 12px;
+}
+
+.share-access-row[data-entering] {
+	animation: member-in var(--t-settle) var(--ease-spring);
+}
+
+.share-note {
+	margin: 12px 0 0;
+	padding: 8px 11px;
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--pending-bg) 70%, var(--surface));
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	line-height: 1.45;
 }
 
 .share-access-icon {
@@ -1283,8 +1750,78 @@ a.brand {
 	background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
+/* After an invite: Tack sends nothing, so the link has to go to them. */
+.share-hint {
+	flex: 1;
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	line-height: 1.4;
+	animation: notice-in var(--t-settle) var(--ease-spring);
+}
+
+.share-copy[data-nudge] {
+	border-color: var(--accent);
+	color: var(--accent);
+	animation: copy-nudge calc(1400ms * var(--motion)) var(--ease-out) 2;
+}
+
+@keyframes copy-nudge {
+	0% {
+		box-shadow: 0 0 0 0 var(--accent-soft);
+	}
+	60% {
+		box-shadow: 0 0 0 7px transparent;
+	}
+}
+
+/* Leaving, asked first. */
+.share-confirm {
+	flex-wrap: wrap;
+	padding: 10px 10px 10px 12px;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+	animation: notice-in var(--t-base) var(--ease-spring);
+}
+
+.share-confirm p {
+	flex: 1 1 220px;
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.share-confirm strong {
+	color: var(--ink);
+}
+
+.share-cancel,
+.share-leave-confirm {
+	height: 34px;
+	padding: 0 13px;
+	border-radius: 9px;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.share-cancel {
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+}
+
+.share-leave-confirm {
+	border: 1px solid var(--danger);
+	background: var(--danger);
+	color: #fff;
+}
+
+.share-leave-confirm:disabled {
+	opacity: 0.7;
+}
+
 @media (max-width: 520px) {
-	.share-invite {
+	.share-invite-row {
 		flex-direction: column;
 	}
 
@@ -1325,4 +1862,126 @@ a.brand {
 		opacity: 0;
 		transform: scale(0.82) translateY(6px);
 	}
+}
+
+/* The board's repositories, for editors: live and writable, or not. */
+.share-repos {
+	margin-top: 14px;
+	padding-top: 14px;
+	border-top: 1px solid var(--line);
+}
+
+.share-repos h3 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 8px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 650;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.share-repos-flag {
+	padding: 1px 8px;
+	border-radius: 999px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-size: 11.5px;
+	letter-spacing: 0;
+	text-transform: none;
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.share-repos ul {
+	display: grid;
+	gap: 2px;
+	max-height: 160px;
+	margin: 0 -8px;
+	padding: 0;
+	overflow-y: auto;
+	list-style: none;
+}
+
+.share-repos li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 32px;
+	padding: 4px 8px;
+	border-radius: 8px;
+	font-size: 13px;
+	animation: member-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i, 0) * 30ms * var(--motion));
+}
+
+.share-repos li[data-state="readonly"] {
+	background: color-mix(in srgb, var(--pending-bg) 60%, var(--surface));
+}
+
+.share-repo-glyph {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: var(--chip);
+	color: var(--muted);
+}
+
+.share-repo-glyph svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.share-repos li[data-state="ready"] .share-repo-glyph {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.share-repos li[data-state="readonly"] .share-repo-glyph {
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+}
+
+.share-repos li[data-state="loading"] .share-repo-glyph svg {
+	animation: title-saving 1.2s ease-in-out infinite;
+}
+
+.share-repo-name {
+	min-width: 0;
+	overflow: hidden;
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.share-repo-state {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--muted);
+	font-size: 12.5px;
+	text-align: right;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.share-repo-install {
+	flex: none;
+	color: var(--accent);
+	font-size: 12.5px;
+	font-weight: 620;
+	text-decoration: none;
+}
+
+.share-repo-install:hover {
+	text-decoration: underline;
+	text-underline-offset: 3px;
 }

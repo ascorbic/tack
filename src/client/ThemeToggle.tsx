@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { ThemePreference } from "./theme.ts";
 import { setThemePreference, toggleTheme, useTheme } from "./useTheme.ts";
 
@@ -61,10 +62,30 @@ function ThemeSwitch() {
 	);
 }
 
-function ThemeChoice({ labelled = true }: { labelled?: boolean }) {
+/**
+ * Theme in the account menu: a set-once preference, so it lives there
+ * rather than in the top bar. Light, dark, or following the system.
+ */
+export function ThemeMenuRow() {
+	const id = useId();
+	return (
+		<div className="account-theme">
+			<span id={id}>Theme</span>
+			<ThemeChoice labelled={false} labelledBy={id} />
+		</div>
+	);
+}
+
+function ThemeChoice({ labelled = true, labelledBy }: { labelled?: boolean; labelledBy?: string }) {
 	const { preference } = useTheme();
 	return (
-		<div className="theme-toggle" role="radiogroup" aria-label="Theme" data-labelled={labelled}>
+		<div
+			className="theme-toggle"
+			role="radiogroup"
+			aria-label={labelledBy ? undefined : "Theme"}
+			aria-labelledby={labelledBy}
+			data-labelled={labelled}
+		>
 			{OPTIONS.map((option) => (
 				<button
 					key={option.value}

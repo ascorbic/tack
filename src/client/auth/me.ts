@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { Me, Person } from "../../shared/auth.ts";
+import { boardIdFromPath } from "../../shared/boards.ts";
+import { setFlash } from "../flash.ts";
 import { COLORS, type User } from "../presence.ts";
 
 // Who's signed in, from `/api/me`, loaded once per page.
@@ -60,9 +62,14 @@ export function devSignInHref(
 	return `/auth/dev?${params.toString()}`;
 }
 
-/** End the session, then reload so the board reconnects as a guest. */
+/** End the session, then reload so the board reconnects as a guest, and say so when it does. */
 export async function signOut(): Promise<void> {
 	await fetch("/auth/signout", { method: "POST", headers: { accept: "application/json" } });
+	setFlash({
+		message: boardIdFromPath(location.pathname)
+			? "Signed out. You’re here as a guest now."
+			: "Signed out.",
+	});
 	location.reload();
 }
 

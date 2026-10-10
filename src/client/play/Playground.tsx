@@ -502,7 +502,7 @@ export default function Playground() {
 		<ReactFlowProvider key={scenario}>
 			<Board
 				name={boardName}
-				actions={signedIn && <NotificationsButton boardId={boardName} />}
+				inbox={signedIn && <NotificationsButton boardId={boardName} />}
 				user={user}
 				doc={sim.doc}
 				awareness={sim.awareness}

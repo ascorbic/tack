@@ -94,7 +94,7 @@ export function BoardTitle({
 
 	if (!editable) {
 		return (
-			<h1 className="board-title" data-editable="false">
+			<h1 className="board-title" data-editable="false" title={title}>
 				{title}
 			</h1>
 		);
@@ -139,13 +139,23 @@ export function BoardTitle({
 				<button
 					type="button"
 					className="board-title-button"
-					title="Rename"
+					// The whole title, when it's cut short.
+					data-tooltip={title.length > 28 ? `${title}\nClick to rename` : "Click to rename"}
 					onClick={() => {
 						cancelled.current = false;
 						setEditing(true);
 					}}
 				>
-					{title}
+					<span className="board-title-text">{title}</span>
+					<svg
+						className="board-title-pencil icon"
+						width="13"
+						height="13"
+						viewBox="0 0 16 16"
+						aria-hidden="true"
+					>
+						<path d="M10.75 2.75l2.5 2.5L6 12.5l-3.25.75L3.5 10z" />
+					</svg>
 				</button>
 			)}
 		</h1>

@@ -43,7 +43,6 @@ import { BlockedByAction } from "./actions/BlockedBy.tsx";
 import { ActionRequests } from "./actions/selection.ts";
 import { ServicesContext, type WriteServices, liveServices } from "./actions/services.ts";
 import type { BoardSource } from "./connection.ts";
-import { BrandMark } from "./BrandMark.tsx";
 import type { PushClient } from "./changes/api.ts";
 import { ChangesButton } from "./changes/ChangesButton.tsx";
 import { ChangesPanel } from "./changes/ChangesPanel.tsx";
@@ -103,9 +102,9 @@ import { SectionTool, ZoomVariable, sectionNodeTypes } from "./sections.tsx";
 import { SelectionTools } from "./SelectionTools.tsx";
 import { ShapeToolbar, styledShapes } from "./ShapeToolbar.tsx";
 import { ShortcutSheet } from "./Shortcuts.tsx";
-import { ThemeToggle } from "./ThemeToggle.tsx";
 import { Toasts, ToastStore } from "./Toasts.tsx";
 import type { AddOutcome } from "./cardInput.ts";
+import { SyncStatus, TopBar } from "./TopBar.tsx";
 import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar, VIEW_TOOLS } from "./Toolbar.tsx";
 import { History } from "./undo.ts";
 import { usePublishStatus } from "./useActivity.ts";
@@ -168,7 +167,9 @@ interface BoardProps extends BoardSource {
 	 * this board). Defaults to a plain avatar.
 	 */
 	account?: (label: string, user: User) => ReactNode;
-	/** Extra controls at the end of the top bar, e.g. a sign-in button. */
+	/** Beside your avatar, as on the home page: the notifications bell. */
+	inbox?: ReactNode;
+	/** Extra controls at the end of the top bar, e.g. Share. */
 	actions?: ReactNode;
 	/** Extra UI drawn over the canvas, e.g. the playground's controls. */
 	children?: ReactNode;
@@ -206,6 +207,7 @@ export function Board({
 	waiting = 0,
 	user: person,
 	account,
+	inbox,
 	actions,
 	children,
 	services,
@@ -1212,51 +1214,63 @@ export function Board({
 			>
 				<ServicesContext value={writeServices}>
 					<div className="app" data-read-only={readOnly || undefined}>
-						<header className="topbar">
-							<a className="brand" href="/" aria-label="Tack: all boards">
-								<BrandMark />
-								tack
-							</a>
-							{title ?? <span className="board-name">{name}</span>}
-							<People
-								user={user}
-								selfId={awareness.clientID}
-								people={presence.people}
-								following={follow.following}
-								onFollow={follow.follow}
-								onJump={follow.jump}
-								self={account && ((label) => account(label, user))}
-							/>
-							<SinceButton doc={liveDoc} login={user.login} youId={comments.youId} />
-							{replay.controller && (
-								<HistoryButton open={replay.state.open} onToggle={toggleHistory} />
-							)}
-							<RulesButton
-								doc={doc}
-								open={rulesOpen}
-								onToggle={() => {
-									setRulesOpen((open) => !open);
-									comments.closePanel();
-								}}
-								toasts={toasts}
-								onReveal={reveal}
-							/>
-							<FacilitateMenu
-								doc={doc}
-								awareness={awareness}
-								user={user}
-								readOnly={readOnly}
-								toasts={toasts}
-								onReveal={reveal}
-								selectedSection={selectedSection}
-								onStamp={() => setTool("stamp")}
-							/>
-							<CommentsButton />
-							<ThemeToggle />
-							<SyncStatus synced={synced} waiting={waiting} />
-							<ChangesButton />
-							{actions}
-						</header>
+						<TopBar
+							title={
+								<>
+									{title ?? <span className="board-name">{name}</span>}
+									<SyncStatus synced={synced} waiting={waiting} />
+								</>
+							}
+							people={
+								<>
+									{inbox}
+									<People
+										user={user}
+										selfId={awareness.clientID}
+										people={presence.people}
+										following={follow.following}
+										onFollow={follow.follow}
+										onJump={follow.jump}
+										self={account && ((label) => account(label, user))}
+									/>
+								</>
+							}
+							tools={
+								<>
+									<SinceButton doc={liveDoc} login={user.login} youId={comments.youId} />
+									{replay.controller && (
+										<HistoryButton open={replay.state.open} onToggle={toggleHistory} />
+									)}
+									<RulesButton
+										doc={doc}
+										open={rulesOpen}
+										onToggle={() => {
+											setRulesOpen((open) => !open);
+											comments.closePanel();
+										}}
+										toasts={toasts}
+										onReveal={reveal}
+									/>
+									<FacilitateMenu
+										doc={doc}
+										awareness={awareness}
+										user={user}
+										readOnly={readOnly}
+										toasts={toasts}
+										onReveal={reveal}
+										selectedSection={selectedSection}
+										onStamp={() => setTool("stamp")}
+									/>
+									<CommentsButton />
+								</>
+							}
+							actions={
+								<>
+									<ChangesButton />
+									{actions}
+								</>
+							}
+						/>
 						<main
 							ref={canvas}
 							className="canvas"
@@ -1642,45 +1656,6 @@ export function Board({
 				</ServicesContext>
 			</BoardContext>
 		</ChangesContext>
-	);
-}
-
-/**
- * Whether the board's in step with its server, and if not, what's waiting
- * for it: edits made offline are kept on this device and sent on reconnecting.
- */
-function SyncStatus({ synced, waiting }: { synced: boolean; waiting: number }) {
-	const [everSynced, setEverSynced] = useState(synced);
-	if (synced && !everSynced) setEverSynced(true);
-	const state = synced
-		? "synced"
-		: waiting > 0
-			? "waiting"
-			: everSynced
-				? "reconnecting"
-				: "connecting";
-	const label =
-		state === "synced"
-			? "Synced"
-			: state === "waiting"
-				? `Offline · ${waiting} ${waiting === 1 ? "edit" : "edits"} waiting`
-				: state === "reconnecting"
-					? "Reconnecting…"
-					: "Connecting…";
-	return (
-		<span
-			className="status"
-			data-synced={synced}
-			data-state={state}
-			role="status"
-			title={
-				state === "waiting"
-					? "Your edits are kept on this device, and will be sent when the connection’s back."
-					: undefined
-			}
-		>
-			{label}
-		</span>
 	);
 }
 
