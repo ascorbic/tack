@@ -5,7 +5,12 @@ import { itemKey } from "../../shared/refs.ts";
 import { forgetRepoToken, isInstalled, repoToken, watchInstallation } from "../github/tokens.ts";
 import { log } from "../log.ts";
 import { INSTALLATION_EVENTS, installationEvent, verifyWebhook } from "../github/webhooks.ts";
-import { fetchItemsGraphQL, GraphQLUnavailable, staleItemsGraphQL } from "./github-graphql.ts";
+import {
+	fetchItemsGraphQL,
+	GraphQLUnavailable,
+	size,
+	staleItemsGraphQL,
+} from "./github-graphql.ts";
 import { relatedGitHub, releaseGitHub } from "./github-related.ts";
 import { searchGitHub } from "./github-search.ts";
 import {
@@ -41,6 +46,7 @@ export interface GitHubIssueLike {
 	updated_at: string;
 	created_at?: string;
 	closed_at?: string | null;
+	milestone?: { title: string; due_on?: string | null } | null;
 	node_id?: string;
 	comments?: number;
 	labels?: ({ name?: string; color?: string } | string)[];
@@ -55,6 +61,9 @@ export interface GitHubIssueLike {
 	head?: { sha?: string };
 	mergeable?: boolean | null;
 	requested_reviewers?: { login: string; avatar_url: string }[] | null;
+	additions?: number;
+	deletions?: number;
+	changed_files?: number;
 }
 
 interface GitHubRepository {
@@ -93,6 +102,11 @@ function repoFromUrl(url: string | undefined): string | null {
 function basicPullDetails(pull: GitHubIssueLike): PullDetails {
 	return {
 		detail: "basic",
+		...size({
+			additions: pull.additions,
+			deletions: pull.deletions,
+			changedFiles: pull.changed_files,
+		}),
 		head: pull.head?.sha ?? null,
 		checks: null,
 		review: null,
@@ -151,6 +165,13 @@ export function normaliseIssue(
 		...(issue.created_at ? { createdAt: issue.created_at } : {}),
 		...(issue.closed_at !== undefined ? { closedAt: issue.closed_at } : {}),
 		...(isPull && mergedAt !== undefined ? { mergedAt } : {}),
+		...(issue.milestone !== undefined
+			? {
+					milestone: issue.milestone
+						? { title: issue.milestone.title, dueOn: issue.milestone.due_on ?? null }
+						: null,
+				}
+			: {}),
 		...(issue.node_id ? { nodeId: issue.node_id } : {}),
 		...(isPull ? { pull: basicPullDetails(issue) } : {}),
 	};

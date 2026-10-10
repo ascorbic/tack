@@ -29,6 +29,7 @@ const FRESHNESS_BATCH = 100;
 // GraphQL won't merge same-named fields of different types in one selection.
 const COMMON = `
 	id number title url updatedAt createdAt closedAt
+	milestone { title dueOn }
 	repository { nameWithOwner }
 	author { login avatarUrl }
 	labels(first: 10) { nodes { name color } }
@@ -51,6 +52,7 @@ fragment TackPull on PullRequest {${COMMON}
 	mergedAt
 	isDraft
 	mergeable
+	additions deletions changedFiles
 	reviewDecision
 	headRefOid
 	latestReviews(first: 10) { nodes { state author { login avatarUrl } } }
@@ -103,6 +105,7 @@ interface Common {
 	/** Absent from older fixtures. */
 	createdAt?: string;
 	closedAt?: string | null;
+	milestone?: { title: string; dueOn: string | null } | null;
 	repository: { nameWithOwner: string };
 	author: Actor | null;
 	labels: { nodes: { name: string; color: string }[] };
@@ -149,6 +152,9 @@ export interface GqlPull extends Common {
 	mergedAt?: string | null;
 	isDraft: boolean;
 	mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
+	additions?: number;
+	deletions?: number;
+	changedFiles?: number;
 	reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
 	headRefOid: string;
 	latestReviews: { nodes: ({ state: string; author: Actor | null } | null)[] };
@@ -391,6 +397,13 @@ function base(node: Common): Omit<Card, "kind" | "state" | "stateReason"> {
 		updatedAt: node.updatedAt,
 		...(node.createdAt ? { createdAt: node.createdAt } : {}),
 		...(node.closedAt !== undefined ? { closedAt: node.closedAt } : {}),
+		...(node.milestone !== undefined
+			? {
+					milestone: node.milestone
+						? { title: node.milestone.title, dueOn: node.milestone.dueOn ?? null }
+						: null,
+				}
+			: {}),
 		nodeId: node.id,
 	};
 }
@@ -416,6 +429,7 @@ export function normaliseGqlPull(node: GqlPull): Card {
 	const rollup = node.commits.nodes[0]?.commit.statusCheckRollup ?? null;
 	const pull: PullDetails = {
 		detail: "full",
+		...size(node),
 		head: node.headRefOid,
 		checks: rollup ? checks(rollup) : emptyChecks(),
 		review: node.reviewDecision
@@ -449,6 +463,19 @@ export function normaliseGqlPull(node: GqlPull): Card {
 		state,
 		stateReason: null,
 		pull,
+	};
+}
+
+/** A pull request's size, where it was asked for. */
+export function size(pull: {
+	additions?: number | null;
+	deletions?: number | null;
+	changedFiles?: number | null;
+}): Pick<PullDetails, "additions" | "deletions" | "changedFiles"> {
+	return {
+		...(typeof pull.additions === "number" ? { additions: pull.additions } : {}),
+		...(typeof pull.deletions === "number" ? { deletions: pull.deletions } : {}),
+		...(typeof pull.changedFiles === "number" ? { changedFiles: pull.changedFiles } : {}),
 	};
 }
 

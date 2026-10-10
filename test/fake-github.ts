@@ -88,6 +88,10 @@ export interface FakeItem {
 	mentions?: number[];
 	/** Logins who reacted 👍. */
 	thumbsUp?: string[];
+	/** Pull requests: their size. */
+	additions?: number;
+	deletions?: number;
+	changedFiles?: number;
 }
 
 /** A published release. */
@@ -1423,6 +1427,14 @@ export class FakeGitHub {
 			updatedAt: item.updatedAt,
 			createdAt: item.createdAt ?? item.updatedAt,
 			closedAt: item.state === "closed" || item.state === "merged" ? this.closedAt(item) : null,
+			milestone: item.milestone
+				? {
+						title: item.milestone,
+						dueOn:
+							this.repos.get(repo.id)?.milestones.find((m) => m.title === item.milestone)?.due_on ??
+							null,
+					}
+				: null,
 			repository: { nameWithOwner: repo.name, isPrivate: repo.private },
 			author: { login: "octocat", avatarUrl: "https://avatars.example/octocat" },
 			labels: { nodes: item.labels ?? [] },
@@ -1453,6 +1465,9 @@ export class FakeGitHub {
 			mergedAt: item.state === "merged" ? this.closedAt(item) : null,
 			isDraft: item.draft ?? false,
 			mergeable: item.mergeable ?? "MERGEABLE",
+			additions: item.additions ?? 0,
+			deletions: item.deletions ?? 0,
+			changedFiles: item.changedFiles ?? 0,
 			reviewDecision: item.reviewDecision ?? null,
 			headRefOid: item.head ?? "",
 			latestReviews: {

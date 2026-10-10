@@ -39,6 +39,11 @@ export interface Card {
 	/** Pull requests: when it was merged, or null if it hasn't been. */
 	mergedAt?: string | null;
 	/**
+	 * Its milestone, where the forge said: null for none. Absent means
+	 * unknown (older cached cards, fixtures), never "no milestone".
+	 */
+	milestone?: CardMilestone | null;
+	/**
 	 * The forge's global id for the item (a GraphQL node id on GitHub), for
 	 * batched refetches. Absent when the forge has none or it wasn't fetched.
 	 */
@@ -60,8 +65,18 @@ export interface Card {
 	visibility?: "public" | "private";
 }
 
+export interface CardMilestone {
+	title: string;
+	/** When it's due, ISO 8601, if it has a date. */
+	dueOn: string | null;
+}
+
 /** Pull request state beyond open/closed: CI, reviews, mergeability, links. */
 export interface PullDetails {
+	/** Lines added and removed, and files changed, where the forge said. */
+	additions?: number;
+	deletions?: number;
+	changedFiles?: number;
 	/**
 	 * How much the forge told us. `basic` details come from a cheaper source
 	 * (e.g. GitHub's REST API, without a token) and have no CI rollup, review

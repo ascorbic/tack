@@ -247,3 +247,48 @@ describe("👍 reactions, which dot votes count", () => {
 		expect(card.thumbsUp).toEqual({ count: 3 });
 	});
 });
+
+describe("When items were opened and closed, their milestone and size", () => {
+	it("come from GraphQL where asked for", () => {
+		const card = normaliseGqlPull(
+			pull({
+				pullState: "MERGED",
+				createdAt: "2026-09-01T00:00:00Z",
+				closedAt: "2026-09-20T00:00:00Z",
+				milestone: { title: "v1", dueOn: "2026-10-31T00:00:00Z" },
+				additions: 120,
+				deletions: 30,
+				changedFiles: 4,
+			}),
+		);
+		expect(card).toMatchObject({
+			createdAt: "2026-09-01T00:00:00Z",
+			closedAt: "2026-09-20T00:00:00Z",
+			milestone: { title: "v1", dueOn: "2026-10-31T00:00:00Z" },
+		});
+		expect(card.pull).toMatchObject({ additions: 120, deletions: 30, changedFiles: 4 });
+		// Answers without them (and cached cards) don't say: unknown, not "none".
+		const older = normaliseGqlPull(pull());
+		expect("milestone" in older || "closedAt" in older || "additions" in (older.pull ?? {})).toBe(
+			false,
+		);
+	});
+
+	it("come from REST and webhooks too", () => {
+		const card = normaliseIssue("acme/widgets", {
+			number: 5,
+			title: "t",
+			state: "closed",
+			html_url: "https://github.com/acme/widgets/issues/5",
+			updated_at: "2026-01-02T00:00:00Z",
+			created_at: "2025-12-01T00:00:00Z",
+			closed_at: "2026-01-02T00:00:00Z",
+			milestone: null,
+		});
+		expect(card).toMatchObject({
+			createdAt: "2025-12-01T00:00:00Z",
+			closedAt: "2026-01-02T00:00:00Z",
+			milestone: null,
+		});
+	});
+});
