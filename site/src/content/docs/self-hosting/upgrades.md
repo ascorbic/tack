@@ -33,4 +33,6 @@ The app's permissions and events are set from Tack's manifest **when the app is 
 2. Raise the permission, or subscribe to the event, and save. GitHub asks every installation to accept.
 3. On each account that installed the app: Settings → Applications → Installed GitHub Apps → "Tack (…)" → **Configure**, then **Review request** → **Accept new permissions**.
 
+For a new event (as when [comment commands](/automation/comment-commands/) needed **Issue comment**), tick it under **Subscribe to events** in the same place. Events don't need accepting on installations.
+
 Until the new permissions are accepted, writes that need them fail with "Tack isn't allowed to …". The full list Tack expects is in [What it asks for, and why](/self-hosting/github-app/#what-it-asks-for-and-why).

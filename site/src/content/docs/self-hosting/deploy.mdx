@@ -79,6 +79,8 @@ Until setup is complete, `/setup` is open to anyone who can reach your instance,
 | `GITHUB_WEBHOOK_SECRET` | No               | A second webhook secret, tried after the one the app was created with. For apps set up by hand, and for sending test webhooks locally                                                                           |
 | `GITHUB_TOKEN`          | No               | A GitHub token for reading public repositories without the app, so they're not limited to GitHub's anonymous rate limit. Never used for writes                                                                  |
 
+Settings that aren't secret are bindings in `cloudflare.config.ts`. There's one so far: `TACK_COMMAND_ALIAS`, short names the app also answers to in [comment commands](/automation/comment-commands/#aliases).
+
 ## Previews
 
 Workers Builds deploys a Preview for each branch other than `main`, each with its own URL and its own, empty Durable Objects. Previews get no secrets, so there's no sign-in or setup there ("Previews never get secrets, so boards there are guest-only"): boards work anonymously, cards are fetched without a token, and no webhooks reach them.

@@ -2,7 +2,7 @@
 title: Where cards come from
 description: How cards remember how they arrived, and what happens when they stop matching.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 Every card remembers how it arrived:
@@ -13,6 +13,7 @@ Every card remembers how it arrived:
 | Dragged out of a [widget](/widgets/overview/)                                          | A list           | "From the “Open bugs” list"                         |
 | Sorted out of an [inbox](/automation/inboxes/)                                         | A tray           | "From the “Triage” inbox"                           |
 | Placed by a [rule](/automation/rules/)                                                 | A spark          | "Placed by rule: Pull requests beside their issues" |
+| Asked for in a [comment on GitHub](/automation/comment-commands/)                      | An @             | "Added from GitHub by @kai", linking to the comment |
 
 Point at the glyph, or select the card, to read it.
 
@@ -20,7 +21,7 @@ Point at the glyph, or select the card, to read it.
 
 What happens when the item no longer matches depends on how the card arrived:
 
-- **Placed by a person, or from a widget**: nothing. A widget only ever copies.
+- **Placed by a person, from a widget, or asked for in a comment**: nothing. A widget only ever copies, and a comment counts as its author placing the card.
 - **From an inbox or a rule**: the card is **marked**, with a dashed edge and a band: "No longer matches the “Triage” inbox". It's never moved or removed.
 
 The band offers:

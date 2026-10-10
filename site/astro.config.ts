@@ -39,7 +39,7 @@ export default defineConfig({
 					items: [{ autogenerate: { directory: "writing-back" } }],
 				},
 				{ label: "Widgets", items: [{ autogenerate: { directory: "widgets" } }] },
-				{ label: "Inboxes and rules", items: [{ autogenerate: { directory: "automation" } }] },
+				{ label: "Automation", items: [{ autogenerate: { directory: "automation" } }] },
 				{ label: "Facilitation", items: [{ autogenerate: { directory: "facilitation" } }] },
 				{ label: "Templates", link: "/templates/" },
 				{ label: "Self-hosting", items: [{ autogenerate: { directory: "self-hosting" } }] },
