@@ -63,6 +63,13 @@ import { facilitation } from "./facilitation/store.ts";
 import { TimerPill } from "./facilitation/Timer.tsx";
 import { StartVoteDialog, TallyPanel, VoteBars, useVoteUI, voteUI } from "./facilitation/Votes.tsx";
 import { FollowIndicator, ViewPublisher, useFollow } from "./Follow.tsx";
+import { HistoryButton } from "./history/HistoryButton.tsx";
+import { HistoryCanvas } from "./history/HistoryCanvas.tsx";
+import { HistoryDock } from "./history/HistoryDock.tsx";
+import { HistoryPanel } from "./history/HistoryPanel.tsx";
+import type { HistorySource } from "./history/source.ts";
+import { useHistoryKeys, useRestored } from "./history/useBoardHistory.ts";
+import { useHistoryMode } from "./history/useHistory.ts";
 import { Guides, useSnapping } from "./Guides.tsx";
 import { BoardContext } from "./DocContext.ts";
 import { isOffBoardTarget } from "./keys.ts";
@@ -136,13 +143,18 @@ interface BoardProps extends BoardSource {
 	 * changes panel still shows what's staged, but there's no push.
 	 */
 	push?: PushClient | null;
+	/**
+	 * Where the board's history comes from (#47): the Worker's history routes,
+	 * or the playground's. Without it there's no History button.
+	 */
+	historySource?: HistorySource | null;
 }
 
 export function Board({
 	name,
 	title,
-	readOnly = false,
-	doc,
+	readOnly: viewOnly = false,
+	doc: liveDoc,
 	awareness,
 	synced,
 	user,
@@ -151,7 +163,12 @@ export function Board({
 	children,
 	services,
 	push = null,
+	historySource = null,
 }: BoardProps) {
+	// History (#47): while it's open the canvas shows the board as it was, view only.
+	const replay = useHistoryMode(liveDoc, historySource);
+	const doc = replay.view ?? liveDoc;
+	const readOnly = viewOnly || replay.state.open;
 	const shapeNodes = useShapeNodes(doc);
 	const flow = useReactFlow();
 	const presence = usePresence(awareness, user);
@@ -177,11 +194,12 @@ export function Board({
 		awareness,
 	});
 
-	// Undo and redo this person's own changes, never anyone else's.
-	const history = useMemo(() => new History(doc), [doc]);
+	// Undo and redo this person's own changes, never anyone else's. Always on
+	// the live board, so what's restored from history can be undone.
+	const history = useMemo(() => new History(liveDoc), [liveDoc]);
 	useEffect(() => () => history.destroy(), [history]);
 	const [toasts] = useState(() => new ToastStore());
-	useSilentToasts(doc, toasts);
+	useSilentToasts(liveDoc, toasts);
 	// Selection actions: staging changes for the forge (src/client/actions/).
 	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
 	const [actionRequests] = useState(() => new ActionRequests());
@@ -307,6 +325,63 @@ export function Board({
 			});
 		},
 		[flow],
+	);
+
+	// Restoring from history: back to the live board, with what came back selected.
+	useRestored(replay.controller, {
+		toasts,
+		undo,
+		select: (ids) => setSelected(new Set(ids)),
+		reveal: (ids) => {
+			follow.stop();
+			void flow.fitView({
+				nodes: ids.map((id) => ({ id })),
+				padding: 0.8,
+				// Never closer than you were: just enough to bring it into view.
+				maxZoom: flow.getZoom(),
+				duration: scaledDuration(520),
+			});
+		},
+	});
+	const toggleHistory = useCallback(() => {
+		const controller = replay.controller;
+		if (!controller) return;
+		if (controller.getSnapshot().open) return controller.close();
+		setRulesOpen(false);
+		// Opened with a section selected on its own: that section's history.
+		const [only] = selected.size === 1 ? [...selected] : [];
+		const section = only && nodes.find((node) => node.id === only)?.type === "section";
+		void controller.open({ section: section ? only : null });
+	}, [replay.controller, selected, nodes]);
+	useHistoryKeys(replay.controller, replay.state.open, toggleHistory);
+	/** Bring part of the board into view, unless it's already there (clear of the panel). */
+	const focusArea = useCallback(
+		(area: { x: number; y: number; w: number; h: number }) => {
+			const bounds = canvas.current?.getBoundingClientRect();
+			if (!bounds) return;
+			const { x, y, zoom } = flow.getViewport();
+			const panel = Math.min(384, bounds.width / 2);
+			const width = bounds.width - panel;
+			const visible = { x: -x / zoom, y: -y / zoom, w: width / zoom, h: bounds.height / zoom };
+			const inside =
+				area.x >= visible.x &&
+				area.y >= visible.y &&
+				area.x + area.w <= visible.x + visible.w &&
+				area.y + area.h <= visible.y + visible.h - 140 / zoom;
+			if (inside) return;
+			follow.stop();
+			const fit = Math.min(
+				zoom,
+				(width * 0.75) / Math.max(1, area.w),
+				((bounds.height - 160) * 0.75) / Math.max(1, area.h),
+			);
+			const next = Math.max(0.2, fit);
+			void flow.setCenter(area.x + area.w / 2 + panel / 2 / next, area.y + area.h / 2 + 50 / next, {
+				zoom: next,
+				duration: scaledDuration(520),
+			});
+		},
+		[flow, follow.stop],
 	);
 
 	// What widgets need from the board (#37, #38, #39).
@@ -489,6 +564,11 @@ export function Board({
 		onPanel: () => setRulesOpen(false),
 		board: name,
 	});
+	// History has the right of the canvas to itself while it's open.
+	const closeComments = comments.closePanel;
+	useEffect(() => {
+		if (replay.state.open) closeComments();
+	}, [replay.state.open, closeComments]);
 
 	// Tool shortcuts, ignored while typing.
 	useEffect(() => {
@@ -625,7 +705,10 @@ export function Board({
 								onFollow={follow.follow}
 								self={account}
 							/>
-							<SinceButton doc={doc} login={user.login} youId={comments.youId} />
+							<SinceButton doc={liveDoc} login={user.login} youId={comments.youId} />
+							{replay.controller && (
+								<HistoryButton open={replay.state.open} onToggle={toggleHistory} />
+							)}
 							<RulesButton
 								doc={doc}
 								open={rulesOpen}
@@ -649,6 +732,9 @@ export function Board({
 							ref={canvas}
 							className="canvas"
 							data-tool={tool}
+							data-history={
+								replay.state.open ? (replay.state.position === null ? "now" : "past") : undefined
+							}
 							onPointerMove={(event) => {
 								const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
 								presence.setCursor(at);
@@ -820,6 +906,16 @@ export function Board({
 									readOnly={readOnly}
 									voting={!readOnly && tool === "vote"}
 								/>
+								{replay.controller && replay.state.open && (
+									<HistoryCanvas
+										controller={replay.controller}
+										state={replay.state}
+										live={liveDoc}
+										selected={[...selected]}
+										readOnly={viewOnly}
+										sizeOf={boxSize}
+									/>
+								)}
 								<Cursors people={presence.people} />
 								<Emotes awareness={awareness} user={user} people={presence.people} />
 								<ViewPublisher awareness={awareness} />
@@ -900,7 +996,7 @@ export function Board({
 								/>
 							)}
 							<CursorChat awareness={awareness} user={user} />
-							{(!readOnly || comments.canComment) && (
+							{!replay.state.open && (!readOnly || comments.canComment) && (
 								<Toolbar
 									tool={tool}
 									onTool={setTool}
@@ -916,13 +1012,13 @@ export function Board({
 								/>
 							)}
 							<SincePanel
-								doc={doc}
+								doc={liveDoc}
 								login={user.login}
 								youId={comments.youId}
 								onJump={comments.jumpToShape}
 								onOpenThread={comments.jumpToThread}
 							/>
-							<CommentsPanel doc={doc} login={user.login} onJump={comments.jumpToThread} />
+							<CommentsPanel doc={liveDoc} login={user.login} onJump={comments.jumpToThread} />
 							{rulesOpen && (
 								<RulesPanel
 									doc={doc}
@@ -933,6 +1029,24 @@ export function Board({
 									onUndo={() => history.undo()}
 									toasts={toasts}
 								/>
+							)}
+							{replay.controller && replay.state.open && (
+								<>
+									<HistoryPanel
+										controller={replay.controller}
+										state={replay.state}
+										live={liveDoc}
+										readOnly={viewOnly}
+										sizeOf={boxSize}
+										onClose={() => replay.controller?.close()}
+										onFocus={focusArea}
+									/>
+									<HistoryDock
+										controller={replay.controller}
+										state={replay.state}
+										onClose={() => replay.controller?.close()}
+									/>
+								</>
 							)}
 							<RowGhost />
 							<Toasts store={toasts} />

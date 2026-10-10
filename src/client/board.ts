@@ -41,6 +41,12 @@ const FRESH_MS = 1500;
 const FRESH_BATCH = 5;
 const freshShapes = new Map<string, number>();
 
+/** Let shapes that arrive while their nodes aren't watched (restored from history) animate in too. */
+export function markFresh(ids: Iterable<string>): void {
+	const now = performance.now();
+	for (const id of ids) freshShapes.set(id, now);
+}
+
 export function isFresh(id: string): boolean {
 	const added = freshShapes.get(id);
 	return added !== undefined && performance.now() - added < FRESH_MS;

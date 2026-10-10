@@ -1,0 +1,1362 @@
+/* ---------------------------------------------------------------------------
+   History (#47): the top bar's button, the panel, the scrubber dock, the
+   canvas while it's replaying, the marks of who changed what, and the
+   restore bar
+   ------------------------------------------------------------------------ */
+
+/* The button ------------------------------------------------------------ */
+
+.topbar .history-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 10px 0 9px;
+}
+
+.topbar .history-button[aria-pressed="true"] {
+	border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.history-icon {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.history-button .history-icon {
+	color: var(--muted);
+	transition: color var(--t-base) var(--ease-out);
+}
+
+.history-button[aria-pressed="true"] .history-icon {
+	color: var(--accent);
+}
+
+/* The hands sweep back, the way time is about to go. */
+.history-icon-hands,
+.history-icon-arrow {
+	transform-origin: 8px 8px;
+	transform-box: view-box;
+}
+
+.history-button:hover .history-icon-hands {
+	animation: history-sweep var(--t-settle) var(--ease-spring);
+}
+
+.history-button[aria-pressed="true"] .history-icon-hands {
+	animation: history-sweep calc(900ms * var(--motion)) var(--ease-spring);
+}
+
+@keyframes history-sweep {
+	from {
+		rotate: 0deg;
+	}
+	to {
+		rotate: -360deg;
+	}
+}
+
+@media (max-width: 720px) {
+	.history-button-label {
+		display: none;
+	}
+}
+
+/* The canvas while history is open ------------------------------------------ */
+
+/* A frame says this isn't the live board; it warms to the accent when it's the past. */
+.canvas[data-history]::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: 8;
+	pointer-events: none;
+	box-shadow: inset 0 0 0 1px var(--line-strong);
+	transition: box-shadow var(--t-settle) var(--ease-out);
+}
+
+.canvas[data-history="past"]::after {
+	box-shadow:
+		inset 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent),
+		inset 0 0 90px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+/* Shapes glide to where they were, rather than jumping. */
+.canvas[data-history] .react-flow__node {
+	transition: transform var(--t-settle) var(--ease-settle);
+}
+
+.canvas[data-history] .react-flow__node.dragging {
+	transition: none;
+}
+
+/* What history doesn't show: other people's pointers, and the live timer and votes. */
+.canvas[data-history] :is(.cursors-layer, .cursor-chat-anchor, .facilitation-dock) {
+	visibility: hidden;
+}
+
+/* Marks: who changed what at the step shown --------------------------------- */
+
+.replay-marks {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.replay-mark {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 1500;
+	border-radius: 12px;
+	outline: calc(2px / var(--zoom, 1)) solid var(--mark);
+	outline-offset: calc(5px / var(--zoom, 1));
+	background: color-mix(in srgb, var(--mark) 5%, transparent);
+	animation: replay-mark var(--t-flash) var(--ease-out) both;
+	animation-delay: calc(min(var(--i), 12) * 24ms * var(--motion));
+}
+
+@keyframes replay-mark {
+	0% {
+		opacity: 0;
+		scale: 1.035;
+	}
+	14% {
+		opacity: 1;
+		scale: 1;
+		box-shadow: 0 0 0 calc(10px / var(--zoom, 1)) color-mix(in srgb, var(--mark) 22%, transparent);
+	}
+	100% {
+		opacity: 0.6;
+		box-shadow: 0 0 0 0 transparent;
+	}
+}
+
+.replay-mark[data-op="remove"] {
+	outline-style: dashed;
+	background: repeating-linear-gradient(
+		-45deg,
+		color-mix(in srgb, var(--mark) 9%, transparent) 0 6px,
+		transparent 6px 12px
+	);
+	animation-name: replay-ghost;
+}
+
+@keyframes replay-ghost {
+	0% {
+		opacity: 0;
+		scale: 1;
+	}
+	14% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0.5;
+		scale: 0.985;
+	}
+}
+
+/* Their name on a flag, the size it'd be at 100% whatever the zoom. */
+.replay-mark-flag {
+	position: absolute;
+	bottom: calc(100% + 7px / var(--zoom, 1));
+	left: calc(-5px / var(--zoom, 1));
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 2px 8px 2px 3px;
+	border-radius: 999px;
+	background: var(--mark);
+	color: #fff;
+	font-size: 11.5px;
+	font-weight: 620;
+	white-space: nowrap;
+	transform-origin: bottom left;
+	scale: calc(1 / var(--zoom, 1));
+	box-shadow: 0 2px 8px rgb(0 0 0 / 14%);
+	animation: replay-flag var(--t-settle) var(--ease-spring) both;
+}
+
+@keyframes replay-flag {
+	from {
+		opacity: 0;
+		translate: 0 6px;
+	}
+}
+
+.replay-mark-flag .history-avatar {
+	border: 1.5px solid rgb(255 255 255 / 70%);
+}
+
+.replay-mark-op {
+	opacity: 0.8;
+	font-weight: 500;
+}
+
+/* Restoring ----------------------------------------------------------------- */
+
+.history-restore-bar {
+	display: flex;
+	padding: 4px;
+	border-radius: 12px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(14px) saturate(1.3);
+	animation: history-pop var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes history-pop {
+	from {
+		opacity: 0;
+		translate: 0 6px;
+		scale: 0.94;
+	}
+}
+
+.history-restore-button {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	height: 32px;
+	padding: 0 12px 0 10px;
+	border: 0;
+	border-radius: 9px;
+	background: var(--accent);
+	color: var(--on-accent);
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	box-shadow:
+		0 1px 2px color-mix(in srgb, var(--accent) 30%, transparent),
+		inset 0 1px 0 rgb(255 255 255 / 18%);
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.history-restore-button:hover {
+	background: var(--accent-hover);
+}
+
+.history-restore-button:active {
+	transform: scale(0.96);
+}
+
+.history-restore-button svg,
+.history-bring-back svg,
+.history-panel svg,
+.history-dock svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.history-restore-button:hover svg {
+	animation: history-nudge var(--t-settle) var(--ease-spring);
+}
+
+@keyframes history-nudge {
+	40% {
+		translate: -2px 0;
+		rotate: -14deg;
+	}
+}
+
+.history-restore-count {
+	display: inline-grid;
+	place-items: center;
+	min-width: 18px;
+	height: 18px;
+	padding: 0 5px;
+	border-radius: 9px;
+	background: rgb(255 255 255 / 22%);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Avatars ------------------------------------------------------------------- */
+
+.history-avatar {
+	--size: 22px;
+	position: relative;
+	display: inline-grid;
+	flex: none;
+	place-items: center;
+	width: var(--size);
+	height: var(--size);
+	overflow: hidden;
+	border-radius: 50%;
+	background: var(--avatar);
+	color: #fff;
+	font-size: calc(var(--size) * 0.4);
+	font-weight: 680;
+	letter-spacing: 0.02em;
+	line-height: 1;
+}
+
+.history-avatar img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	opacity: 0;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.history-avatar img[data-loaded="true"] {
+	opacity: 1;
+}
+
+.history-avatar[data-system] {
+	background: var(--chip);
+	color: var(--ink-soft);
+	box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.history-avatar[data-system] svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.history-stack {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+}
+
+.history-stack > .history-avatar + .history-avatar {
+	margin-left: calc(var(--size) * -0.32);
+	box-shadow: 0 0 0 2px var(--chrome-strong);
+}
+
+.history-stack-more {
+	margin-left: 4px;
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The panel ------------------------------------------------------------------ */
+
+.history-panel {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	bottom: 150px;
+	z-index: 20;
+	width: min(372px, calc(100vw - 24px));
+	display: flex;
+	flex-direction: column;
+	border-radius: 16px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(16px) saturate(1.3);
+	color: var(--ink);
+	overflow: hidden;
+	animation: history-panel-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes history-panel-in {
+	from {
+		opacity: 0;
+		translate: 18px 0;
+		scale: 0.98;
+	}
+}
+
+.history-head {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 16px 14px 12px 16px;
+}
+
+.history-head-icon {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 30px;
+	height: 30px;
+	border-radius: 9px;
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.history-head-icon .history-icon-hands {
+	animation: history-sweep calc(1100ms * var(--motion)) var(--ease-spring) backwards;
+}
+
+.history-head h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 18px;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	line-height: 1.2;
+}
+
+.history-head p {
+	margin: 2px 0 0;
+	color: var(--muted);
+	font-size: 12.5px;
+	line-height: 1.4;
+	text-wrap: pretty;
+}
+
+.history-close {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 28px;
+	height: 28px;
+	margin-left: auto;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out);
+}
+
+.history-close:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.history-scope {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 0 14px 12px 16px;
+	border-bottom: 1px solid var(--line);
+	font-size: 12.5px;
+}
+
+.history-scope-switch label[data-disabled] {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.history-section-pick {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 10px;
+	height: 32px;
+	border-radius: 9px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	color: var(--muted);
+	animation: history-pop var(--t-settle) var(--ease-spring) backwards;
+}
+
+.history-section-pick select {
+	flex: 1;
+	min-width: 0;
+	height: 100%;
+	border: 0;
+	background: transparent;
+	color: var(--ink);
+	font: inherit;
+	font-weight: 560;
+	outline: none;
+	cursor: pointer;
+}
+
+.history-list {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 6px 8px 12px;
+	scroll-padding-top: 36px;
+}
+
+.history-group {
+	display: contents;
+}
+
+.history-day-head {
+	position: sticky;
+	top: -6px;
+	z-index: 1;
+	margin: 6px -8px 2px;
+	padding: 10px 16px 6px;
+	background: linear-gradient(var(--chrome-strong) 70%, transparent);
+	color: var(--muted);
+	font-family: var(--font-ui);
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.history-entry-row {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	border-radius: 12px;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.history-entry {
+	position: relative;
+	display: grid;
+	width: 100%;
+	min-width: 0;
+	grid-template-columns: auto 1fr auto;
+	align-items: start;
+	gap: 10px;
+	padding: 9px 10px;
+	border: 0;
+	border-radius: 12px;
+	background: transparent;
+	color: var(--ink);
+	font: inherit;
+	font-size: 13px;
+	line-height: 1.35;
+	text-align: left;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.history-entry > .history-stack,
+.history-entry > .history-origin-icon {
+	margin-top: 1px;
+}
+
+.history-entry-row:hover,
+.history-entry-now:hover,
+.history-entry-origin:hover {
+	background: var(--hover);
+}
+
+.history-entry-row:hover .history-entry {
+	background: transparent;
+}
+
+/* The entry being shown: an accent bar grows in from its middle. */
+.history-entry::before {
+	content: "";
+	position: absolute;
+	top: 10px;
+	bottom: 10px;
+	left: 0;
+	width: 3px;
+	border-radius: 2px;
+	background: var(--accent);
+	scale: 1 0;
+	transition: scale var(--t-base) var(--ease-spring);
+}
+
+.history-entry[aria-current="step"]::before {
+	scale: 1 1;
+}
+
+.history-entry-row[data-current],
+.history-entry[aria-current="step"]:is(.history-entry-now, .history-entry-origin) {
+	background: var(--accent-soft);
+}
+
+.history-entry-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: 1px;
+	text-wrap: pretty;
+}
+
+.history-entry-text strong {
+	font-weight: 640;
+}
+
+.history-entry-time {
+	align-self: start;
+	padding-top: 2px;
+	color: var(--muted);
+	font-size: 11.5px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.history-muted {
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.history-summarised {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.history-summarised::before {
+	content: "";
+	width: 10px;
+	height: 6px;
+	border-block: 1.5px solid currentColor;
+	opacity: 0.6;
+}
+
+.history-entry-now {
+	grid-template-columns: 22px 1fr;
+}
+
+.history-entry-now .history-live-dot {
+	justify-self: center;
+	margin-top: 5px;
+}
+
+.history-entry-now .history-entry-text {
+	flex-direction: row;
+	gap: 4px;
+	align-items: baseline;
+}
+
+.history-entry-origin {
+	grid-template-columns: 22px 1fr auto;
+}
+
+.history-origin-icon {
+	display: grid;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: var(--chip);
+	color: var(--ink-soft);
+}
+
+.history-bring-back {
+	display: inline-flex;
+	flex: none;
+	align-self: flex-start;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	margin: -4px 0 9px 42px;
+	padding: 0 10px 0 8px;
+	border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--accent);
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.history-bring-back:hover {
+	background: var(--accent-soft);
+}
+
+.history-bring-back:active {
+	transform: scale(0.95);
+}
+
+.history-bring-back[data-busy] svg {
+	animation: history-spin calc(700ms * var(--motion)) linear infinite;
+}
+
+.history-bring-back:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+@keyframes history-spin {
+	to {
+		rotate: -360deg;
+	}
+}
+
+.history-message {
+	margin: 12px 10px;
+	color: var(--muted);
+	font-size: 13px;
+	line-height: 1.45;
+	text-wrap: pretty;
+}
+
+.history-link {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.history-skeleton {
+	display: grid;
+	gap: 6px;
+	padding: 8px 10px;
+}
+
+.history-skeleton span {
+	height: 38px;
+	border-radius: 10px;
+	background: linear-gradient(
+		100deg,
+		var(--skeleton) 30%,
+		var(--skeleton-shine) 50%,
+		var(--skeleton) 70%
+	);
+	background-size: 300% 100%;
+	animation: history-shimmer calc(1400ms * var(--motion)) linear infinite;
+	animation-delay: calc(var(--i) * 90ms * var(--motion));
+}
+
+@keyframes history-shimmer {
+	from {
+		background-position: 100% 0;
+	}
+	to {
+		background-position: 0 0;
+	}
+}
+
+.history-foot {
+	display: flex;
+	align-items: flex-start;
+	gap: 7px;
+	padding: 10px 16px 12px;
+	border-top: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 11.5px;
+	line-height: 1.4;
+}
+
+.history-foot svg {
+	flex: none;
+	margin-top: 1.5px;
+}
+
+/* The live dot: now is still happening. */
+.history-live-dot {
+	position: relative;
+	display: inline-block;
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--pass);
+}
+
+.history-live-dot::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	background: var(--pass);
+	animation: history-live calc(1800ms * var(--motion)) var(--ease-out) infinite;
+}
+
+@keyframes history-live {
+	from {
+		opacity: 0.55;
+		scale: 1;
+	}
+	to {
+		opacity: 0;
+		scale: 2.6;
+	}
+}
+
+/* The scrubber dock ------------------------------------------------------------ */
+
+.history-dock {
+	position: absolute;
+	left: 50%;
+	bottom: 16px;
+	z-index: 25;
+	width: min(800px, calc(100vw - 32px));
+	padding: 10px 14px 10px;
+	border-radius: 18px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(16px) saturate(1.3);
+	color: var(--ink);
+	translate: -50% 0;
+	animation: history-dock-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes history-dock-in {
+	from {
+		opacity: 0;
+		translate: -50% 28px;
+		scale: 0.97;
+	}
+}
+
+.history-dock-controls {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	min-height: 40px;
+}
+
+.history-transport {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.history-dock button {
+	position: relative;
+	font: inherit;
+	cursor: pointer;
+}
+
+.history-dock button:disabled {
+	cursor: default;
+	opacity: 0.4;
+}
+
+.history-round {
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--ink-soft);
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.history-round:not(:disabled):hover {
+	background: var(--hover);
+}
+
+.history-round:not(:disabled):active {
+	transform: scale(0.9);
+}
+
+.history-filled {
+	fill: currentColor;
+}
+
+.history-play {
+	display: grid;
+	place-items: center;
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: var(--accent);
+	color: var(--on-accent);
+	box-shadow:
+		0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent),
+		inset 0 1px 0 rgb(255 255 255 / 20%);
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-settle) var(--ease-spring),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.history-play:not(:disabled):hover {
+	background: var(--accent-hover);
+	transform: scale(1.06);
+}
+
+.history-play:not(:disabled):active {
+	transform: scale(0.92);
+	transition-duration: var(--t-quick);
+}
+
+/* Play and pause trade places with a turn and a squash. */
+.history-dock .history-play svg path,
+.history-dock .history-play svg rect {
+	fill: currentColor;
+	stroke: none;
+}
+
+.history-play-glyph,
+.history-pause-glyph {
+	transform-origin: 8px 8px;
+	transform-box: view-box;
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		scale var(--t-settle) var(--ease-spring),
+		rotate var(--t-settle) var(--ease-spring);
+}
+
+.history-pause-glyph {
+	opacity: 0;
+	scale: 0.4;
+	rotate: -90deg;
+}
+
+svg[data-playing="true"] .history-play-glyph {
+	opacity: 0;
+	scale: 0.4;
+	rotate: 90deg;
+}
+
+svg[data-playing="true"] .history-pause-glyph {
+	opacity: 1;
+	scale: 1;
+	rotate: 0deg;
+}
+
+.history-speed {
+	min-width: 38px;
+	height: 26px;
+	margin-left: 4px;
+	padding: 0 8px;
+	border: 1px solid var(--line-strong);
+	border-radius: 13px;
+	background: var(--surface);
+	color: var(--ink-soft);
+	font-family: var(--font-mono) !important;
+	font-size: 12px !important;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.history-speed:hover {
+	background: var(--surface-muted);
+}
+
+.history-speed[data-bump] {
+	animation: history-bump var(--t-settle) var(--ease-spring);
+}
+
+@keyframes history-bump {
+	30% {
+		scale: 1.18;
+		color: var(--accent);
+	}
+}
+
+.history-when {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.2;
+}
+
+.history-when-main {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	font-family: var(--font-display);
+	font-size: 15px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	animation: history-tick var(--t-base) var(--ease-out);
+}
+
+@keyframes history-tick {
+	from {
+		opacity: 0.4;
+		translate: 0 3px;
+	}
+}
+
+.history-when-sub {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.history-seeking {
+	width: 10px;
+	height: 10px;
+	border: 1.5px solid var(--line-strong);
+	border-top-color: var(--accent);
+	border-radius: 50%;
+	animation: history-spin calc(700ms * var(--motion)) linear infinite reverse;
+}
+
+.history-dock-end {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: auto;
+}
+
+.history-now,
+.history-done {
+	height: 32px;
+	padding: 0 12px;
+	border-radius: 9px;
+	font-size: 13px;
+	font-weight: 600;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.history-now {
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	color: var(--ink);
+}
+
+.history-now:not(:disabled):hover {
+	background: var(--surface-muted);
+}
+
+.history-done {
+	border: 1px solid var(--accent);
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.history-done:hover {
+	background: var(--accent-hover);
+}
+
+.history-now:not(:disabled):active,
+.history-done:active {
+	transform: scale(0.96);
+}
+
+/* Tooltips for the dock's buttons. */
+.history-dock [data-tooltip]::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	bottom: calc(100% + 10px);
+	left: 50%;
+	padding: 5px 9px;
+	border-radius: 7px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-family: var(--font-ui);
+	font-size: 12px;
+	font-weight: 550;
+	white-space: nowrap;
+	opacity: 0;
+	transform: translate(-50%, 4px);
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.history-dock [data-tooltip]:not(:disabled):hover::after {
+	opacity: 1;
+	transform: translate(-50%, 0);
+	transition-delay: calc(400ms * var(--motion));
+}
+
+/* The track: day labels on top, a tick per step (as tall as it was busy,
+   in its author's colour), and a rail beneath, filled up to the playhead,
+   whose knob sits on it. */
+.history-track {
+	position: relative;
+	height: 58px;
+	margin: 6px 6px 0;
+	border-radius: 8px;
+	cursor: pointer;
+	touch-action: none;
+	outline: none;
+	user-select: none;
+}
+
+.history-track:focus-visible {
+	box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.history-track[data-dragging] {
+	cursor: grabbing;
+}
+
+.history-days {
+	position: absolute;
+	inset: 0 0 6px;
+	pointer-events: none;
+}
+
+.history-day {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	border-left: 1px dashed var(--line-strong);
+	padding-left: 5px;
+	color: var(--muted);
+	font-size: 10.5px;
+	font-weight: 650;
+	letter-spacing: 0.05em;
+	line-height: 1;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.history-day:first-child {
+	border-left-color: transparent;
+	padding-left: 0;
+}
+
+.history-ticks {
+	position: absolute;
+	inset: 16px 0 14px;
+}
+
+.history-tick {
+	position: absolute;
+	bottom: 0;
+	border-radius: 3px 3px 1px 1px;
+	background: var(--tick);
+	opacity: 0.3;
+	transform-origin: bottom;
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		scale var(--t-base) var(--ease-spring);
+	animation: history-grow var(--t-settle) var(--ease-spring) backwards;
+}
+
+.history-tick[data-past] {
+	opacity: 0.92;
+}
+
+@keyframes history-grow {
+	from {
+		scale: 1 0;
+	}
+}
+
+.history-track:hover .history-tick {
+	scale: 1 1.08;
+}
+
+.history-rail {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 6px;
+	height: 4px;
+	border-radius: 2px;
+	background: var(--well);
+	overflow: hidden;
+}
+
+.history-progress {
+	position: absolute;
+	inset: 0 auto 0 0;
+	border-radius: inherit;
+	background: color-mix(in srgb, var(--accent) 70%, transparent);
+	transition: width var(--t-base) var(--ease-out);
+}
+
+.history-track[data-dragging] .history-progress {
+	transition: none;
+}
+
+.history-dock[data-live] .history-progress {
+	background: color-mix(in srgb, var(--pass) 55%, transparent);
+}
+
+.history-track[data-loading] .history-rail {
+	background: linear-gradient(
+		100deg,
+		var(--skeleton) 30%,
+		var(--skeleton-shine) 50%,
+		var(--skeleton) 70%
+	);
+	background-size: 300% 100%;
+	animation: history-shimmer calc(1400ms * var(--motion)) linear infinite;
+}
+
+/* Now: the live end of the rail. */
+.history-now-mark {
+	position: absolute;
+	right: -4px;
+	bottom: 4px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--pass);
+	box-shadow: 0 0 0 2px var(--chrome-strong);
+}
+
+.history-ghost {
+	position: absolute;
+	top: 14px;
+	bottom: 4px;
+	width: 1px;
+	background: var(--ink-soft);
+	opacity: 0.35;
+	pointer-events: none;
+}
+
+.history-playhead {
+	position: absolute;
+	top: 14px;
+	bottom: 8px;
+	width: 2px;
+	margin-left: -1px;
+	border-radius: 1px;
+	background: var(--accent);
+	pointer-events: none;
+	transition: left var(--t-base) var(--ease-out);
+}
+
+.history-track[data-dragging] .history-playhead {
+	transition: none;
+}
+
+/* The knob, on the rail. */
+.history-playhead::before {
+	content: "";
+	position: absolute;
+	bottom: -6px;
+	left: 50%;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--accent);
+	box-shadow:
+		0 0 0 3px var(--chrome-strong),
+		0 2px 6px rgb(0 0 0 / 22%);
+	translate: -50% 0;
+	transition: scale var(--t-base) var(--ease-spring);
+}
+
+.history-track:hover .history-playhead::before,
+.history-track:focus-visible .history-playhead::before {
+	scale: 1.15;
+}
+
+.history-track[data-dragging] .history-playhead::before {
+	scale: 1.3;
+}
+
+.history-dock[data-live] .history-playhead,
+.history-dock[data-live] .history-playhead::before {
+	background: var(--pass);
+}
+
+/* While playing, the knob breathes. */
+.history-dock[data-playing] .history-playhead::before {
+	animation: history-breathe calc(1200ms * var(--motion)) var(--ease-out) infinite;
+}
+
+@keyframes history-breathe {
+	50% {
+		box-shadow:
+			0 0 0 3px var(--chrome-strong),
+			0 0 0 8px var(--accent-soft);
+	}
+}
+
+.history-tip {
+	position: absolute;
+	bottom: calc(100% + 12px);
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-width: 280px;
+	padding: 8px 10px;
+	border-radius: 10px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 12px;
+	line-height: 1.35;
+	pointer-events: none;
+	translate: -50% 0;
+	white-space: normal;
+	width: max-content;
+	box-shadow: var(--shadow-lifted);
+	animation: history-tip-in var(--t-quick) var(--ease-out);
+}
+
+.history-tip[data-edge="start"] {
+	translate: -12px 0;
+}
+
+.history-tip[data-edge="end"] {
+	translate: calc(-100% + 12px) 0;
+}
+
+@keyframes history-tip-in {
+	from {
+		opacity: 0;
+		margin-bottom: -4px;
+	}
+}
+
+.history-tip-head {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+}
+
+.history-tip .history-stack > .history-avatar + .history-avatar {
+	box-shadow: 0 0 0 2px var(--tooltip);
+}
+
+.history-tip-when {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.history-tip-what {
+	opacity: 0.85;
+	text-wrap: pretty;
+}
+
+/* Small screens: the dock takes the width, the panel the top half. */
+@media (max-width: 720px) {
+	.history-panel {
+		bottom: auto;
+		max-height: 46vh;
+	}
+
+	.history-dock {
+		bottom: 10px;
+		padding: 8px 10px;
+	}
+
+	.history-dock-controls {
+		flex-wrap: wrap;
+		gap: 8px 10px;
+	}
+
+	.history-now {
+		display: none;
+	}
+}

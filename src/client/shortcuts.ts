@@ -378,6 +378,14 @@ export const SHORTCUTS: Shortcut[] = [
 		group: "View",
 		combos: [{ code: "Digit0", shift: true }],
 	},
+	// Handled by history/useBoardHistory.ts, as are Space, ← and → while it's open.
+	{
+		id: "history",
+		label: "History: replay the board",
+		group: "View",
+		combos: [{ code: "KeyH", mod: true, alt: true, shift: true }],
+		keywords: "timeline replay version past scrub restore bring back deleted",
+	},
 	{
 		id: "pan",
 		label: "Pan",

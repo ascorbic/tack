@@ -1055,3 +1055,39 @@ function list(parts: readonly string[]): string {
 export function removedBy(step: Pick<StepMeta, "changes">): string[] {
 	return step.changes.filter((change) => change.op === "remove").map((change) => change.id);
 }
+
+/** Steps that read as one entry in a list: the same people, close together. */
+export interface StepGroup {
+	/** The steps, oldest first. */
+	steps: StepMeta[];
+	/** All of them as one step (with the last one's id), for describing. */
+	merged: StepMeta;
+}
+
+/** Group neighbouring steps by the same people within `gap` of each other. The origin stands alone. */
+export function groupSteps(steps: readonly StepMeta[], gap = 10 * MINUTE): StepGroup[] {
+	const runs: StepMeta[][] = [];
+	for (const step of steps) {
+		const run = runs.at(-1);
+		const last = run?.at(-1);
+		if (
+			run &&
+			last &&
+			!last.origin &&
+			!step.origin &&
+			step.actors.join() === last.actors.join() &&
+			step.at - last.until <= gap
+		) {
+			run.push(step);
+		} else {
+			runs.push([step]);
+		}
+	}
+	return runs.map((run) => ({
+		steps: run,
+		merged:
+			run.length === 1
+				? run[0]!
+				: mergeMetas(run, Math.max(...run.map((s) => s.span)), Number.POSITIVE_INFINITY),
+	}));
+}

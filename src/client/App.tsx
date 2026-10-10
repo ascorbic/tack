@@ -16,6 +16,7 @@ import { commentStore } from "./comments/store.ts";
 import { sinceStore } from "./since/store.ts";
 import { useLiveBoard } from "./connection.ts";
 import { Fps } from "./Fps.tsx";
+import { liveHistory } from "./history/source.ts";
 import { localUser } from "./presence.ts";
 
 const params = new URLSearchParams(location.search);
@@ -39,6 +40,7 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 	const [guest] = useState(localUser);
 	const user = useMemo(() => (me.viewer ? personUser(me.viewer) : guest), [me.viewer, guest]);
 	const push = useMemo(() => pushApi(id), [id]);
+	const history = useMemo(() => liveHistory(id), [id]);
 
 	// Development only: stage changes from the console, e.g. to try a push
 	// against the fake forge before there's UI for every kind.
@@ -79,6 +81,7 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 				readOnly={readOnly}
 				user={user}
 				push={push}
+				historySource={history}
 				account={(label) => <AccountMenu me={me} user={user} label={label} />}
 				actions={
 					<>
