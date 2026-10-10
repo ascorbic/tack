@@ -135,7 +135,19 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 				doc &&
 				!readOnly &&
 				HANDLES.map((handle) => (
-					<ResizeGrip key={handle} id={id} handle={handle} doc={doc} shape={shape} ui={ui} />
+					<ResizeGrip
+						key={handle}
+						id={id}
+						handle={handle}
+						start={() => ({
+							x: shape.x,
+							y: shape.y,
+							w: shape.w ?? SECTION_DEFAULT.w,
+							h: shape.h ?? SECTION_DEFAULT.h,
+						})}
+						ui={ui}
+						onCommit={(rect) => transactLocal(doc, () => resizeSection(doc, id, rect, ui.sizeOf))}
+					/>
 				))}
 		</div>
 	);
@@ -242,19 +254,31 @@ function SectionColors({
 	);
 }
 
-/** One of a selected section's eight resize handles. */
-function ResizeGrip({
+export const RESIZE_HANDLES = HANDLES;
+
+/**
+ * One of a selected box's eight resize handles (sections, widgets). The
+ * resize shows to everyone while it's in progress, snaps to other shapes,
+ * and is committed once, when it ends.
+ */
+export function ResizeGrip({
 	id,
 	handle,
-	doc,
-	shape,
+	start: startRect,
+	min,
 	ui,
+	onCommit,
+	className = "section-resize",
 }: {
 	id: string;
 	handle: ResizeHandle;
-	doc: Y.Doc;
-	shape: ShapeNode["data"]["shape"];
+	/** The box as it is now, when the resize starts. */
+	start: () => Rect;
+	/** The smallest it can be; a section's minimum, unless given. */
+	min?: { w: number; h: number };
 	ui: SectionUI;
+	onCommit: (rect: Rect) => void;
+	className?: string;
 }) {
 	const flow = useReactFlow();
 	// A resize in progress, abandoned if the handle goes away mid-gesture
@@ -268,17 +292,12 @@ function ResizeGrip({
 		cancel.current?.();
 		const target = event.currentTarget as HTMLElement;
 		target.setPointerCapture(event.pointerId);
-		const start: Rect = {
-			x: shape.x,
-			y: shape.y,
-			w: shape.w ?? SECTION_DEFAULT.w,
-			h: shape.h ?? SECTION_DEFAULT.h,
-		};
+		const start: Rect = startRect();
 		const origin = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
 		let rect = start;
 		const onMove = (move: PointerEvent) => {
 			const at = flow.screenToFlowPosition({ x: move.clientX, y: move.clientY });
-			const raw = resizeRect(start, handle, { x: at.x - origin.x, y: at.y - origin.y });
+			const raw = resizeRect(start, handle, { x: at.x - origin.x, y: at.y - origin.y }, min);
 			rect = ui.snapResize(id, raw, handle);
 			ui.setResize(id, rect);
 		};
@@ -289,9 +308,7 @@ function ResizeGrip({
 			window.removeEventListener("keydown", onKey, true);
 			cancel.current = null;
 			ui.snapResize(id, rect, null);
-			if (commit && rect !== start) {
-				transactLocal(doc, () => resizeSection(doc, id, rect, ui.sizeOf));
-			}
+			if (commit && rect !== start) onCommit(rect);
 			ui.setResize(id, null);
 		};
 		const onUp = () => finish(true);
@@ -309,7 +326,7 @@ function ResizeGrip({
 	};
 	return (
 		<span
-			className="section-resize nodrag nopan"
+			className={`${className} nodrag nopan`}
 			data-handle={handle}
 			aria-hidden="true"
 			onPointerDown={onPointerDown}
