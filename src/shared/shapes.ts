@@ -87,6 +87,10 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // concurrent edits, e.g. one person deletes a section while another drops a
 // sticky into it. Readers must tolerate that, and `repair.ts` fixes it up on
 // the server.
+//
+// Comments (#51) aren't in the document: they live in the board object's
+// SQLite storage, pinned to a shape by its id (see comments.ts), as does
+// what "since you were here" (#46) remembers about edits and visits.
 
 export type ShapeType =
 	| "card"
