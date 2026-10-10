@@ -529,6 +529,35 @@
 	border-width: 1.5px;
 }
 
+.display-dot-count {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	height: 16px;
+	padding: 0 5px 0 4px;
+	border-radius: 999px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-family: var(--font-mono);
+	font-size: 10px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.display-dot-count::before {
+	content: "";
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--dot);
+}
+
+.display-dot-count[data-mine]::before {
+	box-shadow:
+		0 0 0 1.5px var(--surface),
+		0 0 0 2.5px var(--dot);
+}
+
 .display-marks[data-compact] .stamp {
 	height: 18px;
 	padding: 0 4px;
@@ -1030,16 +1059,66 @@
 
 /* Gallery ---------------------------------------------------------------------- */
 
+.display-gallery-rows {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+	gap: 18px 32px;
+}
+
 .display-gallery-row {
 	position: relative;
-	width: 420px;
+	width: min(100%, 440px);
 	height: 36px;
+}
+
+.display-gallery-minis {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 24px 16px;
 }
 
 .display-gallery-mini {
 	position: relative;
 	width: 140px;
 	height: 82px;
+}
+
+.display-gallery-zoom {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+	gap: 32px;
+}
+
+/* Drawn at board size, then shrunk, as a board zoomed out would. */
+.display-gallery-zoomed {
+	display: grid;
+	gap: 2px;
+	width: 440px;
+	padding: 8px;
+	border-radius: 13px;
+	background: var(--section-green-fill);
+	border: 1.5px solid var(--section-green-edge);
+	zoom: 0.6;
+}
+
+.display-gallery-zoomed[data-tier="far"] {
+	zoom: 0.4;
+}
+
+.display-gallery-minis-small {
+	display: flex;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.display-gallery-switch {
+	display: flex;
+	padding: 8px 0;
+}
+
+.display-gallery-preview {
+	width: max-content;
+	animation: none;
 }
 
 /* Staged changes on rows and mini cards ------------------------------------------ */

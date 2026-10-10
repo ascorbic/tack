@@ -10,7 +10,7 @@ import {
 } from "react";
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
-import { type DotVote, voteFor } from "../../shared/dotvotes.ts";
+import { type DotVote, dottersOn, voteFor } from "../../shared/dotvotes.ts";
 import type { StampCount, Stamper } from "../../shared/facilitation.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
@@ -75,24 +75,39 @@ function DisplayItem({ kind, ...props }: NodeProps<ShapeNode> & { kind: "row" | 
 	const shape = props.data.shape;
 	const tier = useZoomTier();
 	const [enter] = useState(() => isFresh(props.id));
-	const common = { id: props.id, shape, kind, selected: !!props.selected, tier, enter };
-	switch (shape.type) {
-		case "card":
-			return <CardItem {...common} />;
-		case "sticky":
-			return <StickyItem {...common} />;
-		default:
-			return <PlainItem {...common} />;
-	}
+	return (
+		<DisplayItemView
+			id={props.id}
+			shape={shape}
+			kind={kind}
+			selected={!!props.selected}
+			tier={tier}
+			enter={enter}
+		/>
+	);
 }
 
-interface ItemProps {
+export interface ItemProps {
 	id: string;
 	shape: ShapeProps;
 	kind: "row" | "mini";
 	selected: boolean;
 	tier: "full" | "compact" | "far";
 	enter: boolean;
+	/** For the gallery: a silent sticky's side, without a pretend server. */
+	silentAs?: "face-down" | "mine";
+}
+
+/** A row or mini card, without any board behaviour around it (the gallery uses it too). */
+export function DisplayItemView(props: ItemProps) {
+	switch (props.shape.type) {
+		case "card":
+			return <CardItem {...props} />;
+		case "sticky":
+			return <StickyItem {...props} />;
+		default:
+			return <PlainItem {...props} />;
+	}
 }
 
 /** An item's number as people say it, e.g. `#412`. */
@@ -218,15 +233,23 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 	);
 });
 
-const StickyItem = memo(function StickyItem({ id, shape, kind, selected, tier, enter }: ItemProps) {
+const StickyItem = memo(function StickyItem({
+	id,
+	shape,
+	kind,
+	selected,
+	tier,
+	enter,
+	silentAs,
+}: ItemProps) {
 	const doc = useContext(DocContext);
 	const [startEditing] = useState(() => takeFocus(id));
 	// Silent mode, as on a sticky: yours show your own text, others' lie face down.
 	const session = silentOf(shape);
 	const texts = useSilentTexts();
-	const mine = session !== null && texts.has(id);
-	const faceDown = session !== null && !mine;
-	const value = (mine ? texts.get(id) : shape.text) ?? "";
+	const mine = silentAs ? silentAs === "mine" : session !== null && texts.has(id);
+	const faceDown = silentAs ? silentAs === "face-down" : session !== null && !mine;
+	const value = (mine && !silentAs ? texts.get(id) : shape.text) ?? "";
 	const latest = useRef(value);
 	latest.current = value;
 	const flip = useFlip(session);
@@ -384,13 +407,37 @@ function DisplayMarks({ id, compact = false }: { id: string; compact?: boolean }
 	const { doc, me } = marks;
 	return (
 		<span className="display-marks nodrag" data-compact={compact || undefined}>
-			{vote && me && <VoteDots vote={vote} shape={id} me={me} />}
+			{vote &&
+				me &&
+				(compact ? (
+					<DotCount vote={vote} id={id} me={me} />
+				) : (
+					<VoteDots vote={vote} shape={id} me={me} />
+				))}
 			{counts && (
 				<StampRow
-					counts={compact ? counts.slice(0, 2) : counts.slice(0, 3)}
+					counts={compact ? counts.slice(0, 1) : counts.slice(0, 3)}
 					onToggle={readOnly || !doc || !me ? undefined : (emoji) => stampShape(doc, id, emoji, me)}
 				/>
 			)}
+		</span>
+	);
+}
+
+/** A mini card's dots, counted: yours alone while the vote hides the rest. */
+function DotCount({ vote, id, me }: { vote: DotVote; id: string; me: Stamper }) {
+	const mine = me.login ? `@${me.login.toLowerCase()}` : `~${me.name}`;
+	const dotters = dottersOn(vote, id).filter((d) => !vote.hidden || d.key === mine);
+	const total = dotters.reduce((n, d) => n + d.dots, 0);
+	if (total === 0) return null;
+	return (
+		<span
+			className="display-dot-count"
+			data-mine={dotters.some((d) => d.key === mine) || undefined}
+			aria-label={`${total} ${total === 1 ? "dot" : "dots"}`}
+			style={{ "--dot": dotters[0]?.color || "var(--accent)" } as React.CSSProperties}
+		>
+			{total}
 		</span>
 	);
 }
