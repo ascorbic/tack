@@ -404,14 +404,18 @@ function Liveness({ state, repo }: { state: "lazy" | "upgraded"; repo: string })
 			<span className="liveness-dot" aria-hidden="true" />
 			Not live
 			<span className="liveness-tip nodrag nopan" role="tooltip">
-				<strong>Updates while the board is open</strong>
+				<strong>Read-only: Tack can’t push here</strong>
 				<span>
-					The Tack app isn’t installed on <span className="mono">{repo}</span>, so changes show up
-					within a minute or so, and Tack can’t make changes there.
+					The Tack app isn’t installed on <span className="mono">{repo}</span>, so staged changes
+					can’t be pushed to it, and updates from GitHub take a minute or so to show up.
 				</span>
 				<a className="liveness-install nodrag" href={installUrl()}>
-					Install the app for live updates →
+					Install the app →
 				</a>
+				<span className="liveness-who">
+					It takes an owner of <span className="mono">{repo.split("/")[0]}</span>: GitHub asks one
+					if that isn’t you.
+				</span>
 			</span>
 		</span>
 	);

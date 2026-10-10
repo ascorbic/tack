@@ -167,6 +167,19 @@
 	background: var(--hover);
 }
 
+/* Theme: set once, so it lives here rather than in the top bar. */
+.account-theme {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	height: 40px;
+	padding: 0 4px 0 10px;
+	color: var(--ink);
+	font-size: 13px;
+	font-weight: 520;
+}
+
 .topbar .account-item:active {
 	transform: none;
 }
@@ -845,4 +858,206 @@
 
 .auth-gallery-editor {
 	width: min(620px, 100%);
+}
+
+/* Where the app is installed ------------------------------------------------ */
+
+.installs-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.installs .icon {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.installs-refresh,
+.installs-retry {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.installs-refresh:hover,
+.installs-retry:hover {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.installs-filter {
+	width: 100%;
+	margin: 4px 0 10px;
+}
+
+.installs-list {
+	display: grid;
+	gap: 10px;
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.install {
+	padding: 12px 14px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--surface-muted);
+	animation: alert-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i, 0) * 50ms * var(--motion));
+}
+
+.install[data-tone="warn"] {
+	border-color: color-mix(in srgb, var(--pending) 45%, var(--line));
+	background: color-mix(in srgb, var(--pending-bg) 55%, var(--surface));
+}
+
+.install[data-tone="off"] {
+	opacity: 0.8;
+}
+
+.install-skeleton {
+	min-height: 64px;
+	background: linear-gradient(90deg, var(--skeleton), var(--skeleton-shine), var(--skeleton));
+	background-size: 200% 100%;
+	animation: shimmer 1.4s linear infinite;
+}
+
+.install-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 10px;
+}
+
+.install-account {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 8px;
+	background: var(--ink-soft);
+	color: var(--surface);
+	font-family: var(--font-display);
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.install-who {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 120px;
+	line-height: 1.3;
+}
+
+.install-who strong {
+	font-size: 14px;
+	font-weight: 650;
+}
+
+.install-who span {
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.install-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 24px;
+	padding: 0 9px 0 7px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 620;
+	white-space: nowrap;
+}
+
+.install-status[data-tone="ok"] {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.install-status[data-tone="warn"] {
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+}
+
+.install-status[data-tone="off"] {
+	background: var(--chip);
+	color: var(--muted);
+}
+
+.install-status .icon {
+	animation: pop-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc((var(--i, 0) * 50ms + 260ms) * var(--motion));
+}
+
+.install-settings {
+	color: var(--accent);
+	font-size: 13px;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.install-settings:hover {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.install-detail {
+	margin: 8px 0 0;
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	line-height: 1.45;
+}
+
+.install-repos {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+	margin: 10px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.install-repos li {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 8px;
+	border: 1px solid var(--line);
+	border-radius: 7px;
+	background: var(--surface);
+	font-family: var(--font-mono);
+	font-size: 12px;
+}
+
+.install-repos .install-more {
+	border-style: dashed;
+	color: var(--muted);
+	font-family: var(--font-ui);
+}
+
+.installs-none {
+	margin: 10px 0 0;
+	color: var(--ink-soft);
+	font-size: 14px;
+}
+
+.installs-none a {
+	color: var(--accent);
+	font-weight: 600;
 }

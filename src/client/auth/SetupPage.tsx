@@ -2,12 +2,14 @@ import { type FormEvent, useEffect, useState } from "react";
 import {
 	type AccessSettings,
 	type AccessUpdateResponse,
+	type InstallationSummary,
 	type Person,
 	type SetupInfo,
 	manifestFormAction,
 } from "../../shared/auth.ts";
 import { Avatar } from "../People.tsx";
 import { AuthPage } from "./AccessGate.tsx";
+import { Installations } from "./Installations.tsx";
 import "./auth.css";
 import { GitHubMark } from "./GitHubMark.tsx";
 import { personUser, signInHref } from "./me.ts";
@@ -46,14 +48,23 @@ export default function SetupPage() {
 }
 
 /** The setup page for a given state; the gallery renders this directly. */
-export function SetupView({ info, params }: { info: SetupInfo; params: URLSearchParams }) {
+export function SetupView({
+	info,
+	params,
+	loadInstallations,
+}: {
+	info: SetupInfo;
+	params: URLSearchParams;
+	/** Where the app is installed (the gallery fakes it). */
+	loadInstallations?: () => Promise<InstallationSummary[]>;
+}) {
 	switch (info.status) {
 		case "unavailable":
 			return <NeedsSecret />;
 		case "unconfigured":
 			return <CreateApp info={info} error={params.get("error")} />;
 		case "configured":
-			return <Configured info={info} params={params} />;
+			return <Configured info={info} params={params} loadInstallations={loadInstallations} />;
 	}
 }
 
@@ -194,9 +205,11 @@ function CreateApp({
 function Configured({
 	info,
 	params,
+	loadInstallations,
 }: {
 	info: Extract<SetupInfo, { status: "configured" }>;
 	params: URLSearchParams;
+	loadInstallations?: () => Promise<InstallationSummary[]>;
 }) {
 	const installed = params.get("installed");
 	return (
@@ -235,6 +248,8 @@ function Configured({
 					App settings
 				</a>
 			</div>
+
+			{info.admin && <Installations installUrl={info.app.installUrl} load={loadInstallations} />}
 
 			<h2>Who can use this instance</h2>
 			{!info.viewer && (

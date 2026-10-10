@@ -15,6 +15,7 @@ import type {
 	AccessSettings,
 	AccessUpdateRequest,
 	AccessUpdateResponse,
+	InstallationSummary,
 } from "../shared/auth.ts";
 import { getServerByName } from "partyserver";
 import type { Board } from "./board.ts";
@@ -31,6 +32,11 @@ const REFRESH_MARGIN = 5 * 60_000;
 const NOT_INSTALLED_TTL = 10 * 60_000;
 /** How long the person who created the app has to sign in and claim admin. */
 const CLAIM_TTL = DAY;
+
+/** Someone who's signed in here, and whether they may use the instance. */
+export interface KnownPerson extends Viewer {
+	allowed: boolean;
+}
 
 export interface SessionInfo {
 	viewer: Viewer;
@@ -71,6 +77,19 @@ export interface InstallationPayload {
 	repositories_added?: { full_name: string }[];
 	repositories_removed?: { full_name: string }[];
 }
+
+/** An installation as `GET /app/installations` describes it. */
+interface GitHubInstallation {
+	id: number;
+	account?: { login: string; type?: string } | null;
+	repository_selection?: string;
+	suspended_at?: string | null;
+	html_url?: string;
+	permissions?: Record<string, string>;
+}
+
+/** Pages of 100 repositories listed per installation on the setup page. */
+const INSTALLATION_PAGES = 3;
 
 interface UserRow extends Record<string, SqlStorageValue> {
 	id: number;
@@ -562,6 +581,74 @@ export class Instance extends DurableObject<Env> {
 		}
 	}
 
+	/**
+	 * Every installation of the app, as GitHub has it now, with the
+	 * repositories each covers (the first few hundred) and whether it may
+	 * write: for the setup page, so an admin can check before a session
+	 * that every repository they'll plan with is live and can be pushed to.
+	 * Remembers the repositories it sees, as an installation event would.
+	 */
+	async installations(): Promise<InstallationSummary[]> {
+		const jwt = await this.appJwt();
+		if (!jwt) return [];
+		const found = await ghJson<GitHubInstallation[]>("/app/installations?per_page=100", {
+			auth: `Bearer ${jwt}`,
+		});
+		return Promise.all(
+			found.map(async (installation): Promise<InstallationSummary> => {
+				this.upsertInstallation(installation);
+				const suspended = Boolean(installation.suspended_at);
+				this.sql.exec(
+					"UPDATE installations SET suspended = ? WHERE id = ?",
+					suspended ? 1 : 0,
+					installation.id,
+				);
+				const permissions = installation.permissions ?? {};
+				const summary: InstallationSummary = {
+					id: installation.id,
+					account: installation.account?.login ?? "",
+					accountType: installation.account?.type === "Organization" ? "Organization" : "User",
+					selection: installation.repository_selection === "all" ? "all" : "selected",
+					suspended,
+					writable:
+						!installation.permissions ||
+						(permissions.issues === "write" && permissions.pull_requests === "write"),
+					settingsUrl: installation.html_url ?? null,
+					repositories: [],
+					more: 0,
+				};
+				if (suspended) return summary;
+				try {
+					const { token } = await this.installationToken(installation.id);
+					for (let page = 1; page <= INSTALLATION_PAGES; page++) {
+						const { total_count, repositories } = await ghJson<{
+							total_count: number;
+							repositories: { full_name: string; private?: boolean }[];
+						}>(`/installation/repositories?per_page=100&page=${page}`, {
+							auth: `Bearer ${token}`,
+						});
+						summary.repositories.push(
+							...repositories.map((repo) => ({
+								name: repo.full_name,
+								private: Boolean(repo.private),
+							})),
+						);
+						this.mapRepos(
+							repositories.map((repo) => repo.full_name),
+							installation.id,
+						);
+						summary.more = Math.max(0, total_count - summary.repositories.length);
+						if (repositories.length < 100) break;
+					}
+				} catch (error) {
+					log.warn("github.installation.failed", { installation: installation.id, error });
+				}
+				summary.repositories.sort((a, b) => a.name.localeCompare(b.name));
+				return summary;
+			}),
+		);
+	}
+
 	// ---------------------------------------------------------------------
 	// Users and sessions
 
@@ -708,6 +795,65 @@ export class Instance extends DurableObject<Env> {
 	knownUser(userId: number): { login: string; allowed: boolean } | null {
 		const row = this.userRow(userId);
 		return row ? { login: row.login, allowed: this.sessionInfo(row).allowed } : null;
+	}
+
+	/**
+	 * People who've signed in here, for inviting them to boards: those with
+	 * these logins, or whose login (or a word of whose name) starts with `q`,
+	 * logins first, then most recently signed in. Whether each may use the
+	 * instance says whether an invite will let them in.
+	 */
+	people(query: { q?: string; logins?: string[] }, limit = 8): KnownPerson[] {
+		let rows: UserRow[];
+		if (query.logins) {
+			const logins = [...new Set(query.logins.map((login) => login.toLowerCase()))].slice(0, 100);
+			if (logins.length === 0) return [];
+			rows = this.sql
+				.exec<UserRow>(
+					`SELECT id, login, name, avatar_url, admin, orgs FROM users
+					WHERE lower(login) IN (${logins.map(() => "?").join(", ")})
+					ORDER BY signed_in_at DESC`,
+					...logins,
+				)
+				.toArray();
+		} else {
+			const q = (query.q ?? "").trim().replace(/^@/, "").toLowerCase();
+			if (!q) return [];
+			rows = this.sql
+				.exec<UserRow>(
+					`SELECT id, login, name, avatar_url, admin, orgs FROM users
+					WHERE instr(lower(login), ?) = 1 OR instr(' ' || lower(coalesce(name, '')), ' ' || ?) > 0
+					ORDER BY instr(lower(login), ?) = 1 DESC, signed_in_at DESC LIMIT ?`,
+					q,
+					q,
+					q,
+					limit,
+				)
+				.toArray();
+		}
+		const configured = this.isConfigured();
+		// One per login (accounts can be renamed into a login someone had):
+		// whoever signed in most recently.
+		const seen = new Set<string>();
+		return rows
+			.filter((row) => {
+				const login = row.login.toLowerCase();
+				return !seen.has(login) && Boolean(seen.add(login));
+			})
+			.map((row) => ({
+				...toViewer(row),
+				allowed: !configured || this.sessionInfo(row).allowed,
+			}));
+	}
+
+	/**
+	 * Whether someone who's never signed in will be let in when they do:
+	 * true if they're on the allowlist by login (or before setup), null when
+	 * only their organisations could say, which is checked at sign-in.
+	 */
+	loginAllowed(login: string): true | null {
+		if (!this.isConfigured()) return true;
+		return this.accessList().users.includes(login.toLowerCase()) ? true : null;
 	}
 
 	/** Whether a user may use the instance right now. */

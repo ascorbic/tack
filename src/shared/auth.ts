@@ -62,6 +62,36 @@ export type SetupInfo =
 			access: AccessSettings | null;
 	  };
 
+/**
+ * Where the GitHub App is installed, for the setup page
+ * (`GET /api/setup/installations`, admins only): so nobody finds out
+ * mid-session that a repository's cards can't be pushed.
+ */
+export interface InstallationSummary {
+	id: number;
+	account: string;
+	accountType: "User" | "Organization";
+	/** Every repository the account has (now and later), or the ones chosen. */
+	selection: "all" | "selected";
+	/** Suspended by the account: no updates, no writes. */
+	suspended: boolean;
+	/**
+	 * Whether it may write issues and pull requests: the account accepted
+	 * the permissions Tack asks for. Without that its cards update live
+	 * but can't be pushed to.
+	 */
+	writable: boolean;
+	/** Where the account manages it on GitHub. */
+	settingsUrl: string | null;
+	repositories: { name: string; private: boolean }[];
+	/** How many more it covers than are listed. */
+	more: number;
+}
+
+export interface InstallationList {
+	installations: InstallationSummary[];
+}
+
 /** `PUT /api/setup/access` */
 export interface AccessUpdateRequest {
 	users: string[];

@@ -1,5 +1,11 @@
 import { useState } from "react";
-import type { AccessUpdateResponse, Me, Person, SetupInfo } from "../../shared/auth.ts";
+import type {
+	AccessUpdateResponse,
+	InstallationSummary,
+	Me,
+	Person,
+	SetupInfo,
+} from "../../shared/auth.ts";
 import { NotAllowedPage, SignInPage } from "../auth/AccessGate.tsx";
 import { AccountMenu, SignInButton } from "../auth/AccountMenu.tsx";
 import { personUser } from "../auth/me.ts";
@@ -46,7 +52,63 @@ const ACCESS = {
 	admins: [OCTOCAT, PRIYA],
 };
 
-const SETUPS: { label: string; info: SetupInfo; params?: string }[] = [
+const APP = {
+	name: "Tack (tack.example.com)",
+	slug: "tack-example",
+	htmlUrl: "https://github.com/apps/tack-example",
+	installUrl: "https://github.com/apps/tack-example/installations/new",
+};
+
+const INSTALLATIONS: InstallationSummary[] = [
+	{
+		id: 1,
+		account: "emdash-cms",
+		accountType: "Organization",
+		selection: "selected",
+		suspended: false,
+		writable: true,
+		settingsUrl: "https://github.com/organizations/emdash-cms/settings/installations/1",
+		repositories: [
+			{ name: "emdash-cms/docs", private: false },
+			{ name: "emdash-cms/emdash", private: false },
+			{ name: "emdash-cms/roadmap", private: true },
+		],
+		more: 0,
+	},
+	{
+		id: 2,
+		account: "lovell",
+		accountType: "User",
+		selection: "selected",
+		suspended: false,
+		writable: false,
+		settingsUrl: "https://github.com/settings/installations/2",
+		repositories: [{ name: "lovell/sharp", private: false }],
+		more: 0,
+	},
+	{
+		id: 3,
+		account: "acme",
+		accountType: "Organization",
+		selection: "all",
+		suspended: true,
+		writable: true,
+		settingsUrl: null,
+		repositories: [],
+		more: 0,
+	},
+];
+
+const installed = () => Promise.resolve(INSTALLATIONS);
+const nowhere = () => Promise.resolve([]);
+const unreachable = () => Promise.reject(new Error("GitHub is down"));
+
+const SETUPS: {
+	label: string;
+	info: SetupInfo;
+	params?: string;
+	installations?: () => Promise<InstallationSummary[]>;
+}[] = [
 	{ label: "No TACK_SECRET", info: { status: "unavailable" } },
 	{ label: "Fresh instance", info: { status: "unconfigured", state: "demo", manifest: MANIFEST } },
 	{
@@ -57,14 +119,32 @@ const SETUPS: { label: string; info: SetupInfo; params?: string }[] = [
 	{
 		label: "Just created",
 		params: "created=1",
+		installations: nowhere,
 		info: {
 			status: "configured",
-			app: {
-				name: "Tack (tack.example.com)",
-				slug: "tack-example",
-				htmlUrl: "https://github.com/apps/tack-example",
-				installUrl: "https://github.com/apps/tack-example/installations/new",
-			},
+			app: APP,
+			viewer: OCTOCAT,
+			admin: true,
+			access: { users: [], orgs: [], admins: [OCTOCAT] },
+		},
+	},
+	{
+		label: "Installed: one read-only, one suspended",
+		installations: installed,
+		info: {
+			status: "configured",
+			app: APP,
+			viewer: OCTOCAT,
+			admin: true,
+			access: { users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] },
+		},
+	},
+	{
+		label: "Installed, GitHub unreachable",
+		installations: unreachable,
+		info: {
+			status: "configured",
+			app: APP,
 			viewer: OCTOCAT,
 			admin: true,
 			access: { users: [], orgs: [], admins: [OCTOCAT] },
@@ -177,9 +257,13 @@ export default function AuthGallery() {
 			<section>
 				<h2>Setup</h2>
 				<div className="gallery-grid auth-gallery-pages">
-					{SETUPS.map(({ label, info, params }) => (
+					{SETUPS.map(({ label, info, params, installations }) => (
 						<Frame key={label} label={label} round={round}>
-							<SetupView info={info} params={new URLSearchParams(params)} />
+							<SetupView
+								info={info}
+								params={new URLSearchParams(params)}
+								loadInstallations={installations}
+							/>
 						</Frame>
 					))}
 				</div>

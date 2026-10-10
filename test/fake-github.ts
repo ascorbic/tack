@@ -211,7 +211,16 @@ export class FakeGitHub {
 	/** Org login → member logins. */
 	readonly orgMembers = new Map<string, Set<string>>();
 	/** Installation id → account and repositories (`owner/name`). */
-	readonly installations = new Map<number, { account: string; repos: string[] }>();
+	readonly installations = new Map<
+		number,
+		{
+			account: string;
+			repos: string[];
+			/** What the account granted; the full set Tack asks for by default. */
+			permissions?: Record<string, string>;
+			suspended?: boolean;
+		}
+	>();
 	/** Private repos' issues, by `owner/name#number`. */
 	readonly issues = new Map<string, { title: string }>();
 
@@ -231,6 +240,14 @@ export class FakeGitHub {
 	private names = new Map<string, number>();
 	private items = new Map<string, FakeItem>();
 
+	/** Everyone on GitHub, by lowercase login (`GET /users/:login`): people signed in, and `addUser`. */
+	private accounts = new Map<string, FakeUser & { type: "User" | "Organization" }>();
+
+	/** Someone (or an organisation) on GitHub, whether or not they ever sign in. */
+	addUser(user: FakeUser, type: "User" | "Organization" = "User"): void {
+		this.accounts.set(user.login.toLowerCase(), { ...user, type });
+	}
+
 	private grants = new Map<string, Grant>();
 	private userTokens = new Map<string, UserToken>();
 	private refreshTokens = new Map<string, FakeUser>();
@@ -241,6 +258,7 @@ export class FakeGitHub {
 	 * return the callback URL GitHub would send `user` back to.
 	 */
 	authorize(authorizeUrl: string, user: FakeUser): string {
+		this.addUser(user);
 		const url = new URL(authorizeUrl);
 		if (url.origin !== "https://github.com" || url.pathname !== "/login/oauth/authorize") {
 			throw new Error(`Not an authorize URL: ${authorizeUrl}`);
@@ -337,6 +355,7 @@ export class FakeGitHub {
 
 	/** A user token for someone, without the OAuth flow, for calling the API directly. */
 	userTokenFor(user: FakeUser): string {
+		this.addUser(user);
 		const access = token("ghu");
 		this.userTokens.set(access, { user, expiresAt: this.now() + this.userTokenTtl * 1000 });
 		return access;
@@ -525,8 +544,17 @@ export class FakeGitHub {
 	readonly personalTokens = new Set<string>();
 
 	/** Install the app on repositories, as GitHub would before sending its webhook. */
-	install(id: number, account: string, repos: string[]): void {
-		this.installations.set(id, { account, repos: repos.map((repo) => repo.toLowerCase()) });
+	install(
+		id: number,
+		account: string,
+		repos: string[],
+		options: { permissions?: Record<string, string>; suspended?: boolean } = {},
+	): void {
+		this.installations.set(id, {
+			account,
+			repos: repos.map((repo) => repo.toLowerCase()),
+			...options,
+		});
 	}
 
 	/** Rename or transfer: the old name keeps redirecting, as on GitHub. */
@@ -595,6 +623,11 @@ export class FakeGitHub {
 			return user ? json(user) : json({ message: "Bad credentials" }, 401);
 		}
 
+		if ((match = /^\/users\/([^/]+)$/.exec(path))) {
+			const account = this.accounts.get(decodeURIComponent(match[1] ?? "").toLowerCase());
+			return account ? json(account) : undefined;
+		}
+
 		if ((match = /^\/orgs\/([^/]+)\/(members|public_members)\/([^/]+)$/.exec(path))) {
 			const [, org = "", kind, login = ""] = match;
 			const member = this.orgMembers.get(org)?.has(login) ?? false;
@@ -627,6 +660,25 @@ export class FakeGitHub {
 			);
 		}
 
+		if (path === "/app/installations" && request.method === "GET") {
+			this.verifyJwt(auth);
+			return json(
+				[...this.installations].map(([id, installation]) => ({
+					id,
+					account: { login: installation.account, type: "Organization" },
+					repository_selection: "selected",
+					suspended_at: installation.suspended ? "2026-10-01T00:00:00Z" : null,
+					html_url: `https://github.com/organizations/${installation.account}/settings/installations/${id}`,
+					permissions: installation.permissions ?? {
+						issues: "write",
+						pull_requests: "write",
+						contents: "write",
+						metadata: "read",
+					},
+				})),
+			);
+		}
+
 		if ((match = /^\/app\/installations\/(\d+)$/.exec(path))) {
 			this.verifyJwt(auth);
 			const id = Number(match[1]);
@@ -645,7 +697,10 @@ export class FakeGitHub {
 			if (!installation) return json({ message: "Bad credentials" }, 401);
 			return json({
 				total_count: installation.repos.length,
-				repositories: installation.repos.map((full_name) => ({ full_name })),
+				repositories: installation.repos.map((full_name) => ({
+					full_name,
+					private: this.repoByName(full_name)?.private ?? false,
+				})),
 			});
 		}
 

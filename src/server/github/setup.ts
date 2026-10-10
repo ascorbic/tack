@@ -2,6 +2,7 @@
 //
 //   GET /api/setup            the setup page's state (and a manifest, before setup)
 //   PUT /api/setup/access     admins: replace the allowlist and admins
+//   GET /api/setup/installations  admins: where the app is installed, and if it can write
 //   GET /setup/callback       GitHub sends the new app's code here
 //   GET /setup/installed      GitHub sends people here after installing the app
 //   GET /setup/install        off to GitHub to install the app (from a card that
@@ -10,7 +11,7 @@
 // The `/setup` page itself is client-side.
 
 import * as v from "valibot";
-import type { SetupInfo } from "../../shared/auth.ts";
+import type { InstallationList, SetupInfo } from "../../shared/auth.ts";
 import { clearCookie, readCookie, serializeCookie } from "../auth/cookies.ts";
 import { randomToken, sign, unsign } from "../auth/crypto.ts";
 import { isCrossSite, json, redirect, safeReturnTo } from "../auth/http.ts";
@@ -34,6 +35,8 @@ export async function handleSetup(request: Request, env: Env): Promise<Response 
 			return setupInfo(request, env);
 		case "PUT /api/setup/access":
 			return updateAccess(request, env);
+		case "GET /api/setup/installations":
+			return installations(request, env);
 		case "GET /setup/callback":
 			return setupCallback(request, env, url);
 		case "GET /setup/installed":
@@ -95,6 +98,28 @@ async function setupInfo(request: Request, env: Env): Promise<Response> {
 		admin,
 		access: admin ? await instance(env).accessSettings() : null,
 	} satisfies SetupInfo);
+}
+
+/**
+ * `GET /api/setup/installations`, admins only (repository names can be
+ * private): where the app is installed, each repository on it, and whether
+ * it can write, straight from GitHub.
+ */
+async function installations(request: Request, env: Env): Promise<Response> {
+	if (!env.TACK_SECRET) return json({ error: "not_found" }, { status: 404 });
+	const { session } = await lookupRequest(request, env);
+	if (!session?.admin) {
+		log.warn("access.denied", { path: "/api/setup/installations", login: session?.viewer.login });
+		return json({ error: "forbidden" }, { status: 403 });
+	}
+	try {
+		return json({
+			installations: await instance(env).installations(),
+		} satisfies InstallationList);
+	} catch (error) {
+		log.error("github.installation.failed", { error });
+		return json({ error: "github_unavailable" }, { status: 502 });
+	}
 }
 
 async function updateAccess(request: Request, env: Env): Promise<Response> {
