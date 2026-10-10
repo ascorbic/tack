@@ -23,9 +23,9 @@ Each tile shows a sketch of the board, its visibility, when it was last edited (
 
 ## Making a board
 
-Choose **New board**. Anyone allowed on the instance can make boards. A new board:
+Choose **New board**, then a [template](/templates/) or a **Blank board**. Anyone allowed on the instance can make boards. A new board:
 
-- is called "Untitled board", with the title ready to type over
+- is called after its template and today (or "Untitled board"), with the title ready to type over
 - is owned by you
 - is open to **Anyone on this Tack**, who **Can edit** (change this in **Share**)
 
