@@ -32,9 +32,12 @@ Copies are always cards placed by you: they don't carry where the original came 
 
 ## Zooming and panning
 
+Opening a board shows all of it, clear of the toolbar and minimap. Come back to a board in the same browser and it opens where you left it, as long as there's still something there.
+
 - Scroll, or hold <kbd>Space</kbd> and drag, or use the hand tool (<kbd>H</kbd>), to pan.
 - <kbd>⌘</kbd> <kbd>+</kbd> and <kbd>⌘</kbd> <kbd>-</kbd> zoom. <kbd>⇧</kbd> <kbd>1</kbd> fits everything, <kbd>⇧</kbd> <kbd>2</kbd> fits the selection, and <kbd>⇧</kbd> <kbd>0</kbd> goes to 100%.
-- The minimap in the corner shows the whole board, and steps aside when you reach for something under it.
+- The zoom level shows between the zoom buttons in the bottom left. Click it for a menu of the zoom shortcuts.
+- The minimap in the corner shows the whole board, and steps aside when you reach for something under it. It appears once there's something on the board, and the zoom menu turns it off (or on again) in this browser.
 
 ## Who's here
 

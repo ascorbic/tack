@@ -1,5 +1,5 @@
 import { MiniMap, type MiniMapProps, useStore } from "@xyflow/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ShapeNode } from "./board.ts";
 
 // The board's minimap, which gets out of the way (#71). It sits over the
@@ -154,4 +154,29 @@ export function BoardMinimap(props: MiniMapProps<ShapeNode>) {
 			className={[props.className, dodging ? "minimap-dodging" : ""].filter(Boolean).join(" ")}
 		/>
 	);
+}
+
+const MINIMAP_KEY = "tack:minimap";
+
+/**
+ * Whether this person wants the minimap, remembered in this browser (the
+ * zoom menu switches it). On unless they've turned it off.
+ */
+export function useMinimapPreference(): [boolean, (on: boolean) => void] {
+	const [on, setOn] = useState(() => {
+		try {
+			return localStorage.getItem(MINIMAP_KEY) !== "off";
+		} catch {
+			return true;
+		}
+	});
+	const set = useCallback((next: boolean) => {
+		setOn(next);
+		try {
+			localStorage.setItem(MINIMAP_KEY, next ? "on" : "off");
+		} catch {
+			// Not remembered, then.
+		}
+	}, []);
+	return [on, set];
 }

@@ -592,6 +592,103 @@ button.primary:hover {
 	border-bottom-color: var(--line);
 }
 
+/* The zoom controls (ZoomControls.tsx): the level sits between in and out,
+   and opens a menu beside the controls, so they can't clip it. */
+.react-flow__controls.zoom-controls {
+	overflow: visible;
+}
+
+.zoom-controls > .react-flow__controls-button:first-child {
+	border-radius: 11px 11px 0 0;
+}
+
+.zoom-controls > .shortcuts-button {
+	border-bottom: 0;
+	border-radius: 0 0 11px 11px;
+}
+
+.zoom-controls > .zoom-level {
+	font-size: 10px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: -0.02em;
+	color: var(--ink-soft);
+}
+
+.zoom-controls > .zoom-level[aria-expanded="true"] {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.zoom-menu {
+	position: absolute;
+	left: calc(100% + 8px);
+	bottom: 0;
+	display: grid;
+	min-width: 216px;
+	padding: 5px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--chrome-strong);
+	backdrop-filter: blur(14px) saturate(1.4);
+	box-shadow: var(--shadow-lifted);
+	transform-origin: 0 100%;
+	animation: zoom-menu-in var(--t-base) var(--ease-spring);
+}
+
+@keyframes zoom-menu-in {
+	from {
+		opacity: 0;
+		transform: scale(0.94) translateX(-4px);
+	}
+}
+
+.zoom-menu > button {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 7px 10px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink);
+	font: inherit;
+	font-size: 13px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.zoom-menu > button:hover:not(:disabled),
+.zoom-menu > button:focus-visible {
+	background: var(--hover);
+	outline: none;
+}
+
+.zoom-menu > button:disabled {
+	color: var(--muted);
+	cursor: default;
+}
+
+.zoom-menu kbd {
+	font-family: var(--font-ui);
+	font-size: 12px;
+	color: var(--muted);
+}
+
+.zoom-menu-check {
+	width: 1em;
+	color: var(--accent);
+	font-weight: 650;
+	text-align: center;
+}
+
+.zoom-menu-divider {
+	height: 1px;
+	margin: 4px 6px;
+	background: var(--line);
+}
+
 /* ---------------------------------------------------------------------------
    Cards
    ------------------------------------------------------------------------ */

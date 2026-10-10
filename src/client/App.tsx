@@ -34,16 +34,7 @@ export function App() {
 	return <HomeRoute />;
 }
 
-function LiveBoard({
-	me,
-	id,
-	title,
-	readOnly,
-	actions,
-	overlay,
-	events,
-	justCreated,
-}: BoardPageProps) {
+function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardPageProps) {
 	const source = useLiveBoard(id, events);
 	// Signed in: your GitHub identity. Otherwise a remembered guest name.
 	const [guest] = useState(localUser);
@@ -88,7 +79,9 @@ function LiveBoard({
 				name={id}
 				title={title}
 				readOnly={readOnly}
-				fitOnLoad={justCreated}
+				// Everyone opening a board sees all of it, or where they left it.
+				fitOnLoad
+				rememberView={id}
 				user={user}
 				push={push}
 				historySource={history}

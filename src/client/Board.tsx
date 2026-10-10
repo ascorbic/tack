@@ -1,8 +1,6 @@
 import {
 	Background,
 	BackgroundVariant,
-	ControlButton,
-	Controls,
 	type OnNodesChange,
 	ReactFlow,
 	SelectionMode,
@@ -85,9 +83,11 @@ import { useHistoryKeys, useRestored } from "./history/useBoardHistory.ts";
 import { useHistoryMode } from "./history/useHistory.ts";
 import { Guides, useSnapping } from "./Guides.tsx";
 import { BoardContext } from "./DocContext.ts";
+import { fitBoxes, saveViewport, savedViewport, shapeBoxes } from "./fitting.ts";
 import { isOffBoardTarget } from "./keys.ts";
-import { BoardMinimap } from "./Minimap.tsx";
+import { BoardMinimap, useMinimapPreference } from "./Minimap.tsx";
 import { nodeTypes } from "./nodes.tsx";
+import { ZoomControls } from "./ZoomControls.tsx";
 import { People } from "./People.tsx";
 import { type User, usePresence } from "./presence.ts";
 import { SectionTool, ZoomVariable, sectionNodeTypes } from "./sections.tsx";
@@ -170,6 +170,11 @@ interface BoardProps extends BoardSource {
 	historySource?: HistorySource | null;
 	/** Show everything on the board once it's loaded, as a board just made from a template does. */
 	fitOnLoad?: boolean;
+	/**
+	 * Remember where you leave the board, in this browser, under this key, and
+	 * open there next time (as long as something's still there to see).
+	 */
+	rememberView?: string;
 }
 
 export function Board({
@@ -187,6 +192,7 @@ export function Board({
 	push = null,
 	historySource = null,
 	fitOnLoad = false,
+	rememberView,
 }: BoardProps) {
 	// History (#47): while it's open the canvas shows the board as it was, view only.
 	const replay = useHistoryMode(liveDoc, historySource);
@@ -196,19 +202,47 @@ export function Board({
 	const flow = useReactFlow();
 	const presence = usePresence(awareness, user);
 	const follow = useFollow(awareness, presence.people);
-	// A board just made from a template opens showing all of it, once its
-	// shapes have been measured.
+	// Opening a board: where you left it, if you've been here and there's
+	// still something to see there; otherwise (with `fitOnLoad`) all of it,
+	// clear of the dock and minimap, once its shapes have been measured.
 	const fitted = useRef(false);
-	const shapeCount = shapeNodes.length;
+	const fitTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+	useEffect(() => () => clearTimeout(fitTimer.current), []);
+	const canvas = useRef<HTMLElement>(null);
 	useEffect(() => {
-		if (!fitOnLoad || fitted.current || !synced || shapeCount === 0) return;
+		if (fitted.current || !synced) return;
+		// An empty board stays where it is: the first sticky mustn't move the view.
+		if (shapeNodes.length === 0) {
+			fitted.current = true;
+			return;
+		}
+		const saved = rememberView ? savedViewport(rememberView) : null;
+		const bounds = canvas.current?.getBoundingClientRect();
+		if (saved && bounds) {
+			const view = {
+				x: -saved.x / saved.zoom,
+				y: -saved.y / saved.zoom,
+				w: bounds.width / saved.zoom,
+				h: bounds.height / saved.zoom,
+			};
+			const boxes = shapeBoxes(shapeNodes, (id) => measuredRef.current.get(id));
+			if (boxes.some((box) => intersects(view, box))) {
+				fitted.current = true;
+				void flow.setViewport(saved);
+				return;
+			}
+		}
 		fitted.current = true;
-		const timer = setTimeout(
-			() => void flow.fitView({ padding: 0.08, maxZoom: 1, duration: scaledDuration(700) }),
-			120,
-		);
-		return () => clearTimeout(timer);
-	}, [fitOnLoad, synced, shapeCount, flow]);
+		if (!fitOnLoad) return;
+		// Kept past later renders: more shapes arriving mustn't cancel it.
+		fitTimer.current = setTimeout(() => {
+			const viewport = fitBoxes(
+				canvas.current,
+				shapeBoxes(shapeNodesRef.current, (id) => measuredRef.current.get(id), boxSizeRef.current),
+			);
+			if (viewport) void flow.setViewport(viewport, { duration: scaledDuration(700) });
+		}, 120);
+	}, [fitOnLoad, rememberView, synced, shapeNodes, flow]);
 	// Spotlight: someone bringing everyone to their view (#50).
 	const spotlight = useSpotlightFollow(awareness, presence.people, follow);
 	usePublishStatus(awareness);
@@ -221,6 +255,11 @@ export function Board({
 	// Free-form sizes, as boxes for structural edits (see shared/structure.ts):
 	// never a row's, since a row's document position is where it'd be as a card.
 	const boxSize = useSizeOf(measured);
+	// For the first fit, which waits a moment for shapes to be measured.
+	const boxSizeRef = useRef(boxSize);
+	boxSizeRef.current = boxSize;
+	const shapeNodesRef = useRef(shapeNodes);
+	shapeNodesRef.current = shapeNodes;
 	// Sections: contents following a dragged section, resizes in progress,
 	// and where a dragged shape would land.
 	const structure = useCanvasStructure({
@@ -263,8 +302,8 @@ export function Board({
 	// Selection actions: staging changes for the forge (src/client/actions/).
 	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
 	const [actionRequests] = useState(() => new ActionRequests());
-	const canvas = useRef<HTMLElement>(null);
 	const [sheetOpen, setSheetOpen] = useState(false);
+	const [minimapOn, setMinimapOn] = useMinimapPreference();
 	const undo = useCallback(() => void history.undo(), [history]);
 	const focusShapes = useCallback(
 		(ids: string[]) => {
@@ -1089,6 +1128,9 @@ export function Board({
 									onNodesChange={onNodesChange}
 									onPaneClick={onPaneClick}
 									onMoveStart={follow.onMoveStart}
+									onMoveEnd={(_event, viewport) => {
+										if (rememberView && fitted.current) saveViewport(rememberView, viewport);
+									}}
 									proOptions={{ hideAttribution: true }}
 									onlyRenderVisibleElements
 									selectionOnDrag={tool === "select"}
@@ -1157,22 +1199,17 @@ export function Board({
 									}}
 								>
 									<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-									<Controls
-										showInteractive={false}
-										onZoomIn={follow.stop}
-										onZoomOut={follow.stop}
-										onFitView={follow.stop}
-									>
-										<ControlButton
-											onClick={() => setSheetOpen(true)}
-											title="Keyboard shortcuts (?)"
-											aria-label="Keyboard shortcuts"
-											className="shortcuts-button"
-										>
-											?
-										</ControlButton>
-									</Controls>
-									<BoardMinimap pannable zoomable nodeClassName={minimapClass} />
+									<ZoomControls
+										onCommand={commands.run}
+										onShortcuts={() => setSheetOpen(true)}
+										hasSelection={selected.size > 0}
+										minimap={shapeNodes.length > 0 ? minimapOn : null}
+										onMinimap={setMinimapOn}
+										onNavigate={follow.stop}
+									/>
+									{minimapOn && shapeNodes.length > 0 && (
+										<BoardMinimap pannable zoomable nodeClassName={minimapClass} />
+									)}
 									<ZoomVariable />
 									<ConnectorLayer
 										doc={doc}

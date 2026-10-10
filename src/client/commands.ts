@@ -16,6 +16,7 @@ import {
 import { RUN_COLUMNS } from "../shared/addCards.ts";
 import { PLACE_GAP, PLACED_CARD } from "../shared/placement.ts";
 import { cardStore } from "./cardStore.ts";
+import { fitBoxes, shapeBoxes } from "./fitting.ts";
 import { isOffBoardTarget } from "./keys.ts";
 import { scaledDuration } from "./motion.ts";
 import {
@@ -497,18 +498,26 @@ export function useCanvasCommands(options: CommandsOptions) {
 				case "zoomTo100":
 					void flow.zoomTo(1, zoomOptions);
 					return true;
-				case "zoomToFit":
-					void flow.fitView({ ...zoomOptions, padding: 0.15 });
-					return true;
-				case "zoomToSelection":
-					if (selected.size === 0) return false;
-					void flow.fitView({
-						...zoomOptions,
-						padding: 0.3,
-						maxZoom: 1.5,
-						nodes: [...selected].map((nodeId) => ({ id: nodeId })),
+				case "zoomToFit": {
+					// Everything, shapes off screen too, clear of the dock and the minimap.
+					const { canvas, sizeOf, boxSize } = latest.current;
+					const viewport = fitBoxes(canvas.current, shapeBoxes(nodes, sizeOf, boxSize), {
+						maxZoom: 2,
 					});
+					if (viewport) void flow.setViewport(viewport, zoomOptions);
 					return true;
+				}
+				case "zoomToSelection": {
+					if (selected.size === 0) return false;
+					const { canvas, sizeOf, boxSize } = latest.current;
+					const chosen = nodes.filter((node) => selected.has(node.id));
+					const viewport = fitBoxes(canvas.current, shapeBoxes(chosen, sizeOf, boxSize), {
+						maxZoom: 1.5,
+						gap: 96,
+					});
+					if (viewport) void flow.setViewport(viewport, zoomOptions);
+					return true;
+				}
 				case "shortcuts":
 					toggleShortcuts();
 					return true;

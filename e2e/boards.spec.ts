@@ -1,5 +1,5 @@
 import type { Browser, Page } from "@playwright/test";
-import { expect, test } from "./fixtures.ts";
+import { expect, settleCanvas, test } from "./fixtures.ts";
 
 // Boards end to end against the dev server: create one from the home page,
 // rename it, share it, and open it as a viewer and signed out. The dev
@@ -165,4 +165,110 @@ test("the card tool searches the forge for the board's repositories", async ({ p
 	await field.press("ArrowDown");
 	await field.press("Enter");
 	await expect.poll(async () => (await cardKeys()).length).toBe(2);
+});
+
+test("opening a board shows all of it, clear of the dock, and coming back is where you left it", async ({
+	page,
+	browser,
+}) => {
+	// Two people, and two reloads.
+	test.setTimeout(90_000);
+	await signInAs(page, OWNER, `/?board=e2e-fit-${run}`);
+	await expect(page.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	// Spread out, wider than the screen: most of it starts off screen.
+	const stickies = Array.from({ length: 6 }, (_, i) => ({
+		id: `s${i}`,
+		props: { type: "sticky", x: (i % 3) * 1400, y: Math.floor(i / 3) * 900, text: `Far ${i}` },
+	}));
+	await page.evaluate(
+		(payload) => {
+			const data = new DataTransfer();
+			data.setData("application/x-tack+json", JSON.stringify(payload));
+			window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data }));
+		},
+		{ tack: 1, shapes: stickies },
+	);
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					(window as unknown as { tackBoard: { doc: import("yjs").Doc } }).tackBoard.doc.getMap(
+						"shapes",
+					).size,
+			),
+		)
+		.toBe(6);
+	const url = page.url();
+
+	// Someone else opening it (no view of theirs remembered) sees every note.
+	const other = await newPage(browser, OWNER);
+	await other.goto(url);
+	await expect(other.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	const notes = other.locator(".react-flow__node");
+	await expect(notes).toHaveCount(6);
+	await settleCanvas(other);
+	const dock = await other.getByRole("toolbar", { name: "Tools" }).boundingBox();
+	const minimap = await other.locator(".react-flow__minimap").boundingBox();
+	for (const note of await notes.all()) {
+		const box = (await note.boundingBox())!;
+		expect(box.x).toBeGreaterThanOrEqual(0);
+		expect(box.y).toBeGreaterThanOrEqual(0);
+		expect(box.y + box.height).toBeLessThanOrEqual(dock!.y);
+		expect(box.x + box.width).toBeLessThanOrEqual(minimap!.x);
+	}
+
+	// The zoom level shows, and its menu has the zoom shortcuts.
+	const level = other.getByRole("button", { name: /^Zoom: \d+%$/ });
+	await expect(level).not.toHaveAccessibleName("Zoom: 100%");
+	await level.click();
+	const menu = other.getByRole("menu", { name: "Zoom" });
+	await expect(menu.getByRole("menuitem", { name: /Zoom to selection/ })).toBeDisabled();
+	await menu.getByRole("menuitem", { name: /Zoom to 100%/ }).click();
+	await expect(menu).toBeHidden();
+	await expect(other.getByRole("button", { name: "Zoom: 100%" })).toBeVisible();
+	await settleCanvas(other);
+	const viewport = () =>
+		other
+			.locator(".react-flow__viewport")
+			.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform))
+			.then(({ a, e, f }) => ({ zoom: a, x: e, y: f }));
+	const left = await viewport();
+
+	// Coming back opens where you left it.
+	await other.reload();
+	await expect(other.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	await settleCanvas(other);
+	await expect(other.getByRole("button", { name: "Zoom: 100%" })).toBeVisible();
+	const back = await viewport();
+	expect(back.zoom).toBeCloseTo(left.zoom, 3);
+	expect(back.x).toBeCloseTo(left.x, 0);
+	expect(back.y).toBeCloseTo(left.y, 0);
+
+	// The minimap can be put away, and stays away.
+	await other.getByRole("button", { name: "Zoom: 100%" }).click();
+	await other.getByRole("menuitemcheckbox", { name: "Minimap" }).click();
+	await expect(other.locator(".react-flow__minimap")).toHaveCount(0);
+	await other.reload();
+	await expect(other.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	await expect(other.locator(".react-flow__minimap")).toHaveCount(0);
+	await other.context().close();
+});
+
+test("an empty board has no minimap, and the first sticky doesn't move the view", async ({
+	page,
+}) => {
+	await signInAs(page, OWNER, `/?board=e2e-empty-${run}`);
+	await expect(page.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	await expect(page.getByRole("button", { name: "Zoom: 100%" })).toBeVisible();
+	await expect(page.locator(".react-flow__minimap")).toHaveCount(0);
+	const before = await page.locator(".react-flow__viewport").evaluate((el) => el.style.transform);
+	await page.keyboard.press("s");
+	await page.locator(".react-flow__pane").click({ position: { x: 300, y: 200 } });
+	await page.keyboard.type("First");
+	await page.keyboard.press("Escape");
+	await expect(page.locator(".react-flow__minimap")).toBeVisible();
+	await page.waitForTimeout(400);
+	expect(await page.locator(".react-flow__viewport").evaluate((el) => el.style.transform)).toBe(
+		before,
+	);
 });
