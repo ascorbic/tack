@@ -59,6 +59,9 @@ export class World {
 	 * watches on the repositories their queries read, among other things.
 	 */
 	async at(time: number): Promise<void> {
+		if (this.mf && time < this.now()) {
+			throw new Error(`Time only moves forward: it's already ${this.iso()}, not ${this.iso(time)}`);
+		}
 		this.offset = await setClock(this.mf, time);
 		for (const board of this.ticking) await board.runWidgets();
 	}
