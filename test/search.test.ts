@@ -110,6 +110,10 @@ describe("matchSearch on dates, milestones and reviews", () => {
 		expect(m("created:*..2026-07-31")).toBe("no");
 		expect(m("closed:>=2026-09-01")).toBe("yes");
 		expect(m("closed:>=2026-09-01", card())).toBe("no");
+		const merged = card({ kind: "pull", state: "merged", mergedAt: "2026-09-20T10:00:00Z" });
+		expect(m("merged:2026-09-01..2026-09-30", merged)).toBe("yes");
+		expect(m("merged:>2026-09-20", merged)).toBe("no");
+		expect(m("merged:>2026-01-01", dated)).toBe("no");
 		expect(m("created:>2026-01-01", card())).toBe("unknown");
 		expect(m("updated:<soon")).toBe("unknown");
 	});

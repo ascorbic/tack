@@ -1,7 +1,6 @@
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { itemKey } from "../../shared/refs.ts";
-import { type SearchTerm, parseSearch } from "../../shared/search.ts";
 import { addShape, nextZ } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
 import { addWidget } from "../../shared/widgetRegistry.ts";
@@ -13,9 +12,9 @@ import { LABELS, fixture } from "./fixtures.ts";
 // dependency map (#43): when its items were opened, closed and merged, the
 // pull requests merged since its latest release, and what blocks what
 // (a chain to the 5.0 launch, a closed blocker, and a cycle). The simulated
-// server (`widgets.ts`) answers `related` and `release` queries from here,
-// and reads date qualifiers in searches (`created:2026-09-01..2026-09-30`)
-// with `matchDates`.
+// server (`widgets.ts`) answers `related` and `release` queries from here;
+// searches, date qualifiers and all (`created:2026-09-01..2026-09-30`), go
+// through the shared matcher, as on the fake forges.
 
 const REPO = "acme/imagekit";
 const DAY = 86_400_000;
@@ -185,40 +184,6 @@ export function relatedOf(
 			return card ? [card] : [];
 		}),
 	};
-}
-
-const DATE_KEYS = new Set(["created", "closed", "merged", "updated"]);
-
-/**
- * Date qualifiers, which the shared matcher can't evaluate: the search
- * without them, and a test for whether a card's dates fall in their ranges.
- */
-export function matchDates(q: string): { rest: string; test: (card: Card) => boolean } {
-	const terms = parseSearch(q).terms;
-	const dated = terms.filter((term) => term.key !== null && DATE_KEYS.has(term.key));
-	const rest = terms
-		.filter((term) => !dated.includes(term))
-		.map((term) => term.raw)
-		.join(" ");
-	return { rest, test: (card) => dated.every((term) => inRange(card, term)) };
-}
-
-function inRange(card: Card, term: SearchTerm): boolean {
-	const at =
-		term.key === "created"
-			? card.createdAt
-			: term.key === "closed"
-				? card.closedAt
-				: term.key === "merged"
-					? card.mergedAt
-					: card.updatedAt;
-	const t = at ? Date.parse(at) : Number.NaN;
-	const match = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(term.value);
-	const result =
-		Number.isFinite(t) && match
-			? t >= Date.parse(`${match[1]}T00:00:00Z`) && t < Date.parse(`${match[2]}T00:00:00Z`) + DAY
-			: false;
-	return term.negated ? !result : result;
 }
 
 /** A board with a timeline, a release draft, and a dependency map of a launch section. */

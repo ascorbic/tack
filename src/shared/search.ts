@@ -248,6 +248,9 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 		case "closed":
 			if (open) return "no";
 			return compareDate(card.closedAt ?? undefined, term.value);
+		case "merged":
+			if (card.state !== "merged") return "no";
+			return compareDate(card.mergedAt ?? card.closedAt ?? undefined, term.value);
 		case "reason": {
 			if (open) return "no";
 			const reason = lower(card.stateReason ?? "completed").replace(/_/g, " ");
