@@ -17,9 +17,9 @@ The home page lists the boards you can open, in tabs:
 | **On this Tack**   | Boards anyone on the instance may open without an invitation, and public boards |
 | **Archived**       | Archived boards you own or were invited to                                      |
 
-Tabs only show once they have boards in them. Once you can see seven or more boards, a **Find a board** box filters them by title.
+**My boards** is always there; the other tabs show once they have boards in them. Once you can see seven or more boards, a **Find a board** box filters them by title.
 
-Each tile shows a sketch of the board, its visibility, when it was last edited (or opened, or archived) and up to three of its members. The **…** menu on a tile has **Rename**, **Copy link**, and for the board's owner **Archive** (or **Restore**).
+Each tile shows a sketch of the board, its visibility, when it was last edited (or opened, or archived) and up to three of its members. For people who can edit the board, the **…** menu on its tile has **Rename** and **Copy link**, and for the owner **Archive** (or **Restore**).
 
 ## Making a board
 

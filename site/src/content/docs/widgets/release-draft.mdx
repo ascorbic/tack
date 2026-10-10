@@ -46,6 +46,6 @@ The header says which release it's since ("since v5.3.0 · 23 d ago", or "No rel
 
 - The bump is **major** if anything is labelled breaking (or `semver-major`, or `major`), **minor** for features, and **patch** otherwise. Before 1.0, a breaking change bumps the minor version.
 - **Preview notes** shows the notes as Markdown, and **Copy notes** copies them: a "What's changed" heading, a section for each group with "- Title (#123) by @author", the contributors ("Thanks to @a, @b and @c.", leaving out bots), and a full changelog link comparing the tags.
-- It reads the first 50 merged pull requests since the release.
+- It reads up to 50 pull requests merged since the release, the most recently updated first.
 
 Rows drag out onto the board as cards.

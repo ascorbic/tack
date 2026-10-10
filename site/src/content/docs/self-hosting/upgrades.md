@@ -29,7 +29,7 @@ Tack doesn't yet version its board format or migrate old boards: that's planned,
 
 The app's permissions and events are set from Tack's manifest **when the app is created**. A new version of Tack that needs more (as when decision records needed **Contents: Read and write**) can't change an existing app: you change it on GitHub.
 
-1. On GitHub, open the app's settings: Settings → Developer settings → GitHub Apps → "Tack (…)" → **Permissions & events** (for an organisation's app, under the organisation's settings). **App settings** on `/setup` links there.
+1. On GitHub, open the app's settings: Settings → Developer settings → GitHub Apps → "Tack (…)" → **Permissions & events** (for an organisation's app, under the organisation's settings). **App settings** on `/setup` opens the app's page on GitHub, a click away.
 2. Raise the permission, or subscribe to the event, and save. GitHub asks every installation to accept.
 3. On each account that installed the app: Settings → Applications → Installed GitHub Apps → "Tack (…)" → **Configure**, then **Review request** → **Accept new permissions**.
 

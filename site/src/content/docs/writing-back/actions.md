@@ -66,7 +66,7 @@ Pull requests close without a reason, and merged pull requests can't be closed o
 
 Select a connector between two issues and choose **Blocked by** in its toolbar (<kbd>⌥</kbd> <kbd>B</kbd>). The arrow points from the blocker to what it blocks: "#377 will be marked as blocked by #412". **Swap** turns it round.
 
-Both ends need to be issues (or stickies already staged as issues: "Make it an issue first, then link it"). Pull requests can't block or be blocked.
+Both ends need to be issues (or stickies already staged as issues: "Make “…” an issue first, then link it"). Pull requests can't block or be blocked.
 
 ## From widgets
 

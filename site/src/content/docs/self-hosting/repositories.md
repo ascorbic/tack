@@ -7,13 +7,13 @@ sidebar:
 
 A board can hold items from any repository. What Tack can do with a repository depends on whether the instance's GitHub App is installed on it:
 
-|                                 | App not installed                                                            | App installed       |
-| ------------------------------- | ---------------------------------------------------------------------------- | ------------------- |
-| Which repositories              | Public only                                                                  | Public and private  |
-| Updates                         | Checked about once a minute while a board has them open, marked **Not live** | Live, from webhooks |
-| CI and reviews on pull requests | Not shown                                                                    | Shown               |
-| Writes                          | None: actions are disabled, with an "install the app" prompt                 | Staged and pushed   |
-| Rules and webhook refreshes     | No                                                                           | Yes                 |
+|                                 | App not installed                                                                  | App installed       |
+| ------------------------------- | ---------------------------------------------------------------------------------- | ------------------- |
+| Which repositories              | Public only                                                                        | Public and private  |
+| Updates                         | Checked every one to five minutes while a board has them open, marked **Not live** | Live, from webhooks |
+| CI and reviews on pull requests | Not shown                                                                          | Shown               |
+| Writes                          | None: actions are disabled, with an "install the app" prompt                       | Staged and pushed   |
+| Rules and webhook refreshes     | No                                                                                 | Yes                 |
 
 This is because of how GitHub Apps work: people's sign-ins through the app only reach repositories where it's installed, plus public data.
 

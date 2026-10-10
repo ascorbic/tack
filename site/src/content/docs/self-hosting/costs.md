@@ -35,4 +35,4 @@ No KV, R2, D1 or Queues.
 
 ## GitHub
 
-GitHub Apps are free. What matters on GitHub is **rate limits**: card fetches are batched (50 items per GraphQL request), conditional polls cost nothing when nothing's changed, searches are budgeted per board, and pushes are spaced a second apart and wait out any rate limit GitHub reports. Searches and fetches run with each viewer's own token, so they count against that person's limits, not one shared one.
+GitHub Apps are free. What matters on GitHub is **rate limits**: card fetches are batched (50 items per GraphQL request), conditional polls cost nothing when nothing's changed, searches are budgeted per board, and pushes are spaced a second apart and wait out any rate limit GitHub reports. Widget and inbox searches run with each signed-in viewer's own token, so they count against that person's limits. Card fetches for repositories with the app use its installation token, shared by everyone on the instance, and checks on repositories without it borrow a watching viewer's token, or `GITHUB_TOKEN`.

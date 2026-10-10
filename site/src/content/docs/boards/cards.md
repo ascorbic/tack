@@ -45,7 +45,7 @@ When a card changes on GitHub while you're looking, it pulses and the changed pa
 How fresh a card is depends on whether the [GitHub App](/self-hosting/github-app/) is installed on its repository:
 
 - **Installed**: the card is live. GitHub sends Tack a webhook when the item changes, and the card updates within seconds.
-- **Not installed** (public repositories only): the card shows **Not live**. Tack checks the repository about once a minute while someone has the board open: "The Tack app isn't installed on owner/repo, so changes show up within a minute or so, and Tack can't make changes there." The tooltip links to **Install the app for live updates**.
+- **Not installed** (public repositories only): the card shows **Not live**. Tack checks the repository every minute or so while someone has the board open (every five minutes when nobody watching is signed in): "The Tack app isn't installed on owner/repo, so changes show up within a minute or so, and Tack can't make changes there." The tooltip links to **Install the app for live updates**.
 
 Checks and reviews need the app too: without it, a pull request card says "Checks and reviews need the GitHub App".
 
@@ -63,15 +63,15 @@ Other cards that can't load say why: "You don't have access to this repository."
 
 Select one card and press <kbd>⌥</kbd> <kbd>E</kbd> (or **Related** in the bar under it). Tack asks GitHub, as you, what's related to the item, and offers each group with a switch:
 
-| Group                                             | Placed                 |
-| ------------------------------------------------- | ---------------------- |
-| Parent                                            | Above                  |
-| Closes (for a pull request: the issues it closes) | Above                  |
-| Sub-issues                                        | Below, in rows of four |
-| Blocked by                                        | To the left            |
-| Blocking                                          | To the right           |
-| Linked pull requests                              | Above and to the side  |
+| Group                                             | Placed                             |
+| ------------------------------------------------- | ---------------------------------- |
+| Parent                                            | Above                              |
+| Closes (for a pull request: the issues it closes) | Above                              |
+| Sub-issues                                        | Below, in rows of four             |
+| Blocked by                                        | To the left                        |
+| Blocking                                          | To the right                       |
+| Linked pull requests                              | To the right, above what it blocks |
 
-A little compass shows where each group will go. **Lay out** (<kbd>Enter</kbd>) adds the cards, each group sliding to the nearest clear space, and draws connectors: hierarchy as elbows from parent to child, blocking in red from blocker to blocked, and pull requests dashed purple (labelled "closes" when they close the issue). Items already on the board are connected where they are, and nothing is connected twice.
+A little compass shows where each group will go. **Lay out** (<kbd>Enter</kbd>) adds the cards, each group sliding to the nearest clear space, and draws connectors: parent to child for the hierarchy, blocking in red from blocker to blocked, and pull requests dashed purple (labelled "closes" when they close the issue). Items already on the board are connected where they are, and nothing is connected twice.
 
 Expanding doesn't stage anything for GitHub, so it works on any repository Tack can read, and the whole expansion is one undo step. Anything from a repository you can't read is left out entirely.

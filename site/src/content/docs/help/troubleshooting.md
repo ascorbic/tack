@@ -36,7 +36,7 @@ sidebar:
 ## Cards
 
 **A card says "Not live"**
-: The app isn't installed on its repository. It still updates, about once a minute while the board's open. Install the app for live updates, CI and reviews. See [Repositories](/self-hosting/repositories/).
+: The app isn't installed on its repository. It still updates, every one to five minutes while the board's open. Install the app for live updates, CI and reviews. See [Repositories](/self-hosting/repositories/).
 
 **A card shows "Private", with nothing else**
 : It's in a private repository you can't read on GitHub. If you've just been given access, choose **Got access? Check again**.

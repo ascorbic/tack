@@ -17,7 +17,7 @@ With cards or stickies selected, a bar under the selection offers the [actions t
 
 - Drag to move. Shapes snap to each other's edges and centres, with guides. Hold <kbd>⌘</kbd> (<kbd>Ctrl</kbd>) while dragging to move without snapping.
 - Arrow keys nudge by a pixel, and <kbd>Shift</kbd> with an arrow by 10.
-- With two or more shapes selected, a toolbar aligns them (left, centres, right, top, middle, bottom), distributes them evenly, or tidies them into a grid (**Tidy up**, <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>T</kbd>).
+- With two or more shapes selected, a toolbar aligns them (left, centres, right, top, middle, bottom), distributes them evenly (three or more), or tidies them into a grid (**Tidy up**, <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>T</kbd>).
 
 Other people see your drags live, in your colour.
 
@@ -25,7 +25,7 @@ Other people see your drags live, in your colour.
 
 - <kbd>⌘</kbd> <kbd>C</kbd>, <kbd>⌘</kbd> <kbd>X</kbd> and <kbd>⌘</kbd> <kbd>V</kbd> copy, cut and paste, between boards too. Copying a section copies what's in it, and connectors between copied shapes come along. Pasted into another app, a copy is plain text: stickies' text, cards' links, decisions' titles.
 - <kbd>⌘</kbd> <kbd>D</kbd> duplicates. Move the copy and duplicate again, and the next copy repeats the offset.
-- <kbd>⌫</kbd> or <kbd>Delete</kbd> deletes. Deleting several shapes, a decision, or anything with writing on it shows an undo toast.
+- <kbd>⌫</kbd> or <kbd>Delete</kbd> deletes. Deleting more than three shapes, a decision, or anything with writing on it shows an undo toast.
 - <kbd>⌘</kbd> <kbd>Z</kbd> undoes and <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd> redoes. **Undo only ever undoes your own changes**, never anyone else's, and brings what changed back into view.
 
 Copies are always cards placed by you: they don't carry where the original came from, silent mode, or a decision's write-back.

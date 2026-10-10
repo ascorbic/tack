@@ -15,7 +15,7 @@ No. Tack is self-hosted only for now: [deploy your own](/self-hosting/deploy/) o
 
 ## Can I use it with repositories I don't own?
 
-Yes, for public repositories: paste any public issue or pull request, with no setup. Cards from repositories without the app aren't live (they update about once a minute while the board's open), and Tack can't write there. To write to a repository, the app needs to be installed on it, and you need write access.
+Yes, for public repositories: paste any public issue or pull request, with no setup. Cards from repositories without the app aren't live (they update every one to five minutes while the board's open), and Tack can't write there. To write to a repository, the app needs to be installed on it, and you need write access.
 
 ## Can people outside my organisation see my board?
 
