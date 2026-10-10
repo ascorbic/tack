@@ -31,7 +31,7 @@ The push sheet says roughly how many people each repository's changes will notif
 
 ## Does Tack store copies of our issues?
 
-It caches what each card shows, so boards load quickly, and refreshes it from GitHub. It never keeps its own version of an issue's state: GitHub is always the source of truth. What it does store is the board itself: layout, stickies, comments, votes, decisions and the push history.
+It caches what each card shows, so boards load quickly, and refreshes it from GitHub. It never keeps its own version of an issue's state: GitHub is always the source of truth. What it does store is the board itself: layout, stickies, comments, votes, decisions, its history and the push history.
 
 ## Which GitHub things can be cards?
 

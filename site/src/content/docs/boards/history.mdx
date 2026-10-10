@@ -1,0 +1,60 @@
+---
+title: History
+description: Scrub back through a board, see who changed what, and bring back what was removed.
+sidebar:
+  order: 8
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+Every board keeps its history. Scrub back through it to see how the board got here, play it like a video, and bring back anything that was removed.
+
+<Screenshot
+	name="history"
+	alt="A retro board shown as it was yesterday, with removed stickies as dashed ghosts. The History panel lists who changed what, day by day, with Bring back 3 on an entry that removed stickies, and the scrubber at the bottom has a tick for each change in its author's colour."
+/>
+
+## Opening history
+
+Choose **History** in the top bar, or press <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>H</kbd> (<kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>H</kbd> on Windows and Linux). With a section selected on its own, it opens on that section's history.
+
+While history is open, the board shows the past, and it's view only. Everyone else carries on with the live board. **Back to now** returns to the present, and **Done** (or <kbd>Esc</kbd>) closes history.
+
+## The scrubber
+
+The scrubber takes the tool dock's place at the bottom of the board. Its track has a tick for each change, in the colour of whoever made it and as tall as it was busy, with the days marked and now at the right end. Drag along it, or:
+
+| To                          | Use                        |
+| --------------------------- | -------------------------- |
+| Play and pause              | <kbd>Space</kbd>           |
+| Back a step, forward a step | <kbd>←</kbd>, <kbd>→</kbd> |
+| Speed                       | 1×, 2×, 4× or 8×           |
+
+As you go, the board changes from step to step, and what changed is outlined in the colour of whoever changed it, with their name. Shapes removed at that step show as dashed ghosts.
+
+## The history panel
+
+The panel lists what happened, newest first, under day headings: "Kai Andersen added a sticky and moved a sticky". Someone's changes close together are one entry. Click an entry to go to it.
+
+Choose **Whole board** or **A section** to see one section's history, which filters the scrubber too.
+
+## Bringing things back
+
+An entry that removed something has **Bring back**: it puts what was removed back on the live board, where it was.
+
+Or select shapes on the board while it shows the past:
+
+- **Bring back**, for shapes that are gone now: back where they were, as your own edit.
+- **Restore a copy**, if any of them are still on the board: as they were then, beside what's there now.
+
+Restoring is an ordinary edit to the live board, made by you, and one undo step: <kbd>⌘</kbd> <kbd>Z</kbd> takes it back. It never rewrites history. People with view access can look through history, but not bring anything back.
+
+## What's kept
+
+- **Who**: every change is credited to whoever made it, or to Tack for pushes, rules, silent mode's reveal and the timer.
+- **How finely**: the last hour is kept as it happened. Older history is kept in coarser steps ("Summarised"): every five minutes for a day, hourly for a week, daily for three months, and weekly after that.
+- **How much**: each board keeps a bounded amount of history (8 MB). Past that, the oldest goes: "Older history was let go, to keep the board light".
+- **Cards** show their GitHub details as they are now, not as they were then.
+- **Silent mode**: hidden stickies' text is never in the board before the reveal, so it's never in its history either.
+
+Anyone who can open the board can read its history, as they can the board itself.

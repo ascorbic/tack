@@ -30,7 +30,7 @@ No KV, R2, D1 or Queues.
 - **Webhooks**, for repositories with the app: each delivery wakes its repository's object, which tells the boards that have its items.
 - **Widgets and inboxes**: searches while someone's looking, on a schedule from every minute (inboxes) to every 15 minutes, and after webhooks. Results are cached, and each board limits itself to 20 searches and 60 other reads a minute per person.
 - **Pushes**: one write a second, run from the board object's alarm.
-- **Storage**: each board's document (saved in chunks), its comments, push history and change log, and backlink snapshots (each up to 1.5 MB, up to 1000 per board). Repository objects cache their cards.
+- **Storage**: each board's document (saved in chunks), its comments, push history, change log and [history](/boards/history/) (up to 8 MB), and backlink snapshots (each up to 1.5 MB, up to 1000 per board). Repository objects cache their cards.
 - **Logs**: one line per event; busy instances log a lot of `webhook.` and `repo.` events.
 
 ## GitHub
