@@ -11,6 +11,14 @@ import {
 	size,
 	staleItemsGraphQL,
 } from "./github-graphql.ts";
+import {
+	type IssueCommentPayload,
+	appCommandNames,
+	reactGitHub,
+	readIssueComment,
+	replyGitHub,
+	unreactGitHub,
+} from "./github-commands.ts";
 import { relatedGitHub, releaseGitHub } from "./github-related.ts";
 import { searchGitHub } from "./github-search.ts";
 import {
@@ -479,6 +487,11 @@ export const github: ForgeAdapter = {
 	// Widgets (M3): see github-search.ts.
 	search: (query, env, auth) => searchGitHub(query, env, auth),
 
+	// Answering comment commands (#58): see github-commands.ts.
+	react: reactGitHub,
+	unreact: unreactGitHub,
+	reply: replyGitHub,
+
 	async receiveWebhook(request, env) {
 		const body = await request.text();
 		const verified = await verifyWebhook(env, body, request.headers.get("x-hub-signature-256"));
@@ -498,6 +511,31 @@ export const github: ForgeAdapter = {
 			return reply({ status: "ignored", reason: "no repository" }, 202);
 		}
 		const repo = repoIdentity(payload.repository);
+
+		// Comments only matter when they're commands for the app (#58). They
+		// carry no card: the item's comment count arrives with its next fetch.
+		if (event === "issue_comment") {
+			const reading = readIssueComment(
+				repo,
+				payload as IssueCommentPayload,
+				await appCommandNames(env),
+			);
+			if (reading.type === "ignored") {
+				return reply({ status: "ignored", reason: reading.reason }, 202);
+			}
+			return {
+				type: "delivery",
+				delivery: {
+					id: request.headers.get("x-github-delivery") ?? crypto.randomUUID(),
+					event,
+					action: payload.action ?? null,
+					repo,
+					payload: "",
+					cards: [],
+					command: { ...reading.command, origin: new URL(request.url).origin },
+				},
+			};
+		}
 
 		const cards: Card[] = [];
 		const mentions: Record<string, ItemMention[]> = {};

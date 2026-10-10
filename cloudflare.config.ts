@@ -31,6 +31,10 @@ export default defineConfig(({ isPreview, mode }) => ({
 			Repo: bindings.durableObject({ worker: "tack", exportName: "Repo" }),
 			Instance: bindings.durableObject({ worker: "tack", exportName: "Instance" }),
 			Directory: bindings.durableObject({ worker: "tack", exportName: "Directory" }),
+			// Short names the app also answers to in comment commands (#58),
+			// besides its GitHub App slug: `@tack add to roadmap`. Comma-separated;
+			// empty for the slug alone.
+			TACK_COMMAND_ALIAS: bindings.text("tack"),
 			...(isPreview
 				? {}
 				: {

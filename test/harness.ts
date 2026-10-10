@@ -42,6 +42,8 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 				GITHUB_WEBHOOK_SECRET: "test-secret",
 				GITHUB_TOKEN: "",
 				TACK_SECRET,
+				// As in cloudflare.config.ts.
+				TACK_COMMAND_ALIAS: "tack",
 				...(options.devAuth ? { TACK_DEV_AUTH: "1" } : {}),
 				...options.bindings,
 			},

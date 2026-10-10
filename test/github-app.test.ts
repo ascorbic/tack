@@ -119,6 +119,7 @@ describe("setup", () => {
 		expect(info.manifest.default_events).toEqual(
 			expect.arrayContaining([
 				"issues",
+				"issue_comment",
 				"pull_request",
 				"pull_request_review",
 				"check_run",

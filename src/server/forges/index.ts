@@ -6,6 +6,8 @@ import type { ForgeAdapter } from "./types.ts";
 export type {
 	ApplyOptions,
 	ApplyResult,
+	CommandReaction,
+	CommentCommand,
 	Delivery,
 	FetchRef,
 	ForgeAdapter,
@@ -13,6 +15,7 @@ export type {
 	MissingReason,
 	PollResult,
 	ReadAuth,
+	ReplyResult,
 	RepoIdentity,
 	WebhookResult,
 	WriteAuth,

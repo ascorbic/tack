@@ -1,4 +1,5 @@
 import type { Card, MissingCard } from "../../shared/cards.ts";
+import type { Command } from "../../shared/commands.ts";
 import type { Operation, OperationKind, PushAs } from "../../shared/changes.ts";
 import type { ItemMention } from "../../shared/mentions.ts";
 import type { RepoMeta } from "../../shared/push.ts";
@@ -78,7 +79,34 @@ export interface Delivery {
 	 * Rules use it to place pull requests beside what they close (#44).
 	 */
 	mentions?: Record<string, ItemMention[]>;
+	/**
+	 * A comment on one of the repository's items that's a command for the
+	 * app (#58): `@tack add to roadmap`. The `Repo` runs it once per comment
+	 * (see src/server/commands.ts).
+	 */
+	command?: CommentCommand;
 }
+
+/** A command someone left in a comment on an item, for the app (#58). */
+export interface CommentCommand {
+	command: Command;
+	/** The comment: its forge id (for reactions) and its URL. */
+	comment: { id: string; url: string };
+	/** Who wrote it, on the forge. On GitHub the id is the GitHub user id, as Tack's users are. */
+	author: { id: number; login: string };
+	item: { key: string; ref: string; kind: "issue" | "pull" };
+	/** It was edited into a command (rather than written as one). */
+	edited: boolean;
+	/** This instance's address, for links in replies. */
+	origin: string;
+}
+
+/** Reactions the app leaves on a command: looking, done, and couldn't. */
+export type CommandReaction = "eyes" | "rocket" | "confused";
+
+export type ReplyResult =
+	| { ok: true; url: string }
+	| { ok: false; error: string; retryable: boolean };
 
 export type WebhookResult =
 	| { type: "delivery"; delivery: Delivery }
@@ -245,4 +273,27 @@ export interface ForgeAdapter {
 
 	/** File names in a directory on the default branch (for numbering ADRs). */
 	listDirectory?(repo: RepoIdentity, path: string, env: Env, auth?: ReadAuth): Promise<string[]>;
+
+	// Answering comment commands (#58), as the app.
+
+	/** React to a comment. Returns the reaction's id (to take it back), or null if it can't. */
+	react?(
+		repo: RepoIdentity,
+		comment: string,
+		reaction: CommandReaction,
+		env: Env,
+	): Promise<string | null>;
+	/** Take back a reaction `react` left. */
+	unreact?(repo: RepoIdentity, comment: string, reaction: string, env: Env): Promise<void>;
+	/**
+	 * Comment on an item (`#12`). With `retryOf` (when an earlier attempt
+	 * was made), first look for the reply that attempt may have left.
+	 */
+	reply?(
+		repo: RepoIdentity,
+		item: string,
+		body: string,
+		env: Env,
+		options?: { retryOf?: number },
+	): Promise<ReplyResult>;
 }
