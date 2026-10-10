@@ -183,9 +183,7 @@ test("zoomed out, each reads as one big number", async ({ page }) => {
 		await page.waitForTimeout(250);
 	}
 	await expect(page.locator(".widget[data-compact]")).toHaveCount(4);
-	await expect(widget(page, "Waiting on your review").locator(".kind-far-number")).toHaveText(
-		"6",
-	);
+	await expect(widget(page, "Waiting on your review").locator(".kind-far-number")).toHaveText("6");
 	await expect(widget(page, "Quiet for 30 days+").locator(".kind-far-number")).toHaveText("8");
 	await expect(widget(page, "5.0").locator(".milestone-far")).toContainText("10 of 16 done");
 });
