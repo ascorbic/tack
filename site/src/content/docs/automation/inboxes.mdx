@@ -1,0 +1,50 @@
+---
+title: Inbox frames
+description: A section that collects new matches for a search, for people to sort.
+sidebar:
+  order: 1
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+An inbox is a section bound to a search. New matches wait in a tray beside it, marked new, until someone sorts them onto the board or dismisses them. Automation never rearranges the board: people do the sorting.
+
+<Screenshot
+	name="inbox"
+	alt="A Triage section with cards sorted into it, and its tray beside it listing new matches for a search, with a card marked No longer matches and Keep and Remove buttons."
+/>
+
+## Making an inbox
+
+Select a section on its own and choose **Make inbox** in its header. Write a search, as on GitHub, such as `repo:owner/name is:issue is:open no:label`, or start from one of:
+
+- **Untriaged issues**: `is:issue is:open no:label`
+- **New bugs**: `is:issue is:open label:bug`
+- **Good first issues**: `is:open label:"good first issue"`
+- **Open pull requests**: `is:pr is:open`
+
+As you type, it counts the matches ("**14** matches now"), searching as you. **Start collecting** turns the section into an inbox. To change the search later, choose **Edit query** in the tray; **Stop collecting** turns it back into a plain section.
+
+Any GitHub search works: see [Search syntax](/widgets/search-syntax/).
+
+## The tray
+
+The tray sits at the section's right edge and moves with it. It shows how many are new, how many match in all, and the search. Its title badge in the section counts what's new; click it, or **Fold the tray away**, to fold it into a pill.
+
+The tray lists matches that aren't on the board anywhere and haven't been dismissed, newest first. Ones that arrive while you're watching slide in, marked **New**.
+
+To sort an item:
+
+- **Drag it out** onto the board, anywhere (into another section, say).
+- **Click it** (or press <kbd>Enter</kbd>) to put it in the first free spot in the inbox section.
+- **Dismiss** it with × (or <kbd>Delete</kbd>): "Dismissed #412 from Triage", with **Undo**. Dismissed items are listed at the bottom of the tray, where **Bring back** returns them.
+
+Cards sorted out of an inbox remember where they came from (see [Where cards come from](/automation/provenance/)).
+
+People with view access can see the tray and refresh it, but not sort or dismiss.
+
+## Whose search
+
+Like a widget, an inbox searches **as whoever's looking**, with their own GitHub account, so two people may see different trays. People who aren't signed in only see public items.
+
+It refreshes every minute while someone's looking, when GitHub says a repository it searches has changed, and on **Check for new matches**.

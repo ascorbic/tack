@@ -1,0 +1,46 @@
+---
+title: Rules
+description: Automation that places cards on the board when something happens on GitHub.
+sidebar:
+  order: 2
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+A rule watches what GitHub tells the board, and places cards when something matches. Rules only ever add cards: they never move or remove what people placed.
+
+<Screenshot
+	name="rules"
+	alt="The rules panel beside a board: two rules, one placing pull requests beside the issues they mention and one adding new bugs to a section, each with a switch to pause it."
+/>
+
+Choose **Rules** in the top bar ("Rules: automation that places cards"). The badge counts the rules that are on.
+
+## The two kinds
+
+**Linked pull requests**: "When a pull request mentions a card on this board, place it beside that card." Tick **Only pull requests that close the card (“Fixes #12”)** to only place pull requests that say they close it.
+
+- Mentions are `#12`, `owner/repo#12` or a link to the issue, in the pull request's title or description (not in code blocks).
+- Closing means a keyword before the mention: close, closes, closed, fix, fixes, fixed, resolve, resolves or resolved.
+- The pull request lands in free space beside the first card it mentions, to the right if there's room.
+
+**Matching items**: "When an item matching this search appears, add it to “Section”." Write a search and choose a section.
+
+- The item goes in the first free spot inside the section, or below it if the section is full.
+- Rules check the search themselves, so they understand a subset of GitHub's search: see [Search syntax](/widgets/search-syntax/#rules). A rule needs a `repo:owner/name`.
+
+Start from **Pull requests beside their issues** or **New matches into a section** if the board has no rules yet, or choose **New rule**. The composer says what the rule will do as you write it, or what's wrong.
+
+## What rules will and won't do
+
+- Rules run when **GitHub sends the board a webhook**, so they only see repositories with the [GitHub App installed](/self-hosting/repositories/).
+- They run with the app's access, and only place items from **repositories already on the board** (with at least one card).
+- They never place an item that's already on the board, and **each rule places an item at most once**, even if someone removes it afterwards.
+- Cards a rule places can't be undone, since nobody placed them; remove them like any card.
+- Cards a rule placed remember it, and are marked if they stop matching. See [Where cards come from](/automation/provenance/).
+
+## Pausing and activity
+
+Each rule has a switch to pause it, says how many cards it's placed and when, and can be deleted (with Undo).
+
+**Recent activity** lists what rules did, newest first: "Placed #431 beside #412", "Added #440 to “Bugs”", "Couldn't find room for #441". Click one to find the card. When a rule places a card while you're on the board, a toast says so, with **Show**.
