@@ -20,7 +20,7 @@ import {
 	changeRepo,
 	indexChanges,
 	isPending,
-	missingDependencies,
+	missingDependencyMessage,
 	repoName,
 	summarize,
 } from "../changes/describe.ts";
@@ -162,13 +162,8 @@ export class SimulatedPush implements PushClient {
 				message: "The app isn’t installed on these repositories.",
 			};
 		}
-		if (missingDependencies(ids, index).length > 0) {
-			return {
-				ok: false,
-				reason: "missing_dependency",
-				message: "A change depends on an issue that isn’t in this push.",
-			};
-		}
+		const missing = missingDependencyMessage(ids, index);
+		if (missing) return { ok: false, reason: "missing_dependency", message: missing };
 		const pushId = crypto.randomUUID();
 		void this.run(pushId, chosen.filter(isPending), as);
 		return { ok: true, pushId };

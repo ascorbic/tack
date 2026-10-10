@@ -24,6 +24,7 @@ import {
 	indexChanges,
 	isPushable,
 	missingDependencies,
+	missingDependencyMessage,
 	peopleCount,
 	pushEta,
 	repoName,
@@ -190,6 +191,10 @@ describe("dependencies", () => {
 		expect([...withDependencies([labels], index)].sort()).toEqual([create, labels].sort());
 		expect(missingDependencies([sub], index)).toEqual([create]);
 		expect(missingDependencies([sub, create], index)).toEqual([]);
+		expect(missingDependencyMessage([sub], index)).toBe(
+			"“Make “Better errors” a sub-issue of #1” needs “Create issue “Better errors””, which isn’t in this push.",
+		);
+		expect(missingDependencyMessage([sub, create], index)).toBeNull();
 	});
 
 	it("takes the changes about a new issue along when leaving it out", () => {

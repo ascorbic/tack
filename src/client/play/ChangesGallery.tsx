@@ -317,13 +317,13 @@ type SheetSample = {
 	as?: PushAs;
 };
 
-function refused(reason: string, repos?: string[]): PushState {
+function refused(reason: string, repos?: string[], message = ""): PushState {
 	const ids = everyKind().map((c) => c.id);
 	return {
 		phase: "refused",
 		ids,
 		as: "user",
-		refusal: { ok: false, reason, repos, message: "" } as Extract<
+		refusal: { ok: false, reason, repos, message } as Extract<
 			PushState,
 			{ phase: "refused" }
 		>["refusal"],
@@ -393,7 +393,11 @@ function sheetSamples(): SheetSample[] {
 		{
 			label: "Refused: missing dependency",
 			changes: someStaged(),
-			state: refused("missing_dependency"),
+			state: refused(
+				"missing_dependency",
+				undefined,
+				"“Make “Write the migration guide” a sub-issue of new issue “Docs for 5.0”” needs “Create issue “Docs for 5.0” in acme/imagekit”, which isn’t in this push.",
+			),
 		},
 		{ label: "Refused: someone else is pushing", changes: someStaged(), state: refused("busy") },
 		{ label: "Refused: offline", changes: someStaged(), state: refused("offline") },

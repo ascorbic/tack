@@ -275,6 +275,27 @@ export function missingDependencies(ids: Iterable<string>, index: ChangeIndex): 
 	return [...withDependencies(chosen, index)].filter((id) => !chosen.has(id));
 }
 
+/**
+ * Why a push of `ids` would be refused for a missing dependency, naming the
+ * change and the issue it needs (as the server does), or null if it wouldn't.
+ */
+export function missingDependencyMessage(ids: Iterable<string>, index: ChangeIndex): string | null {
+	const chosen = new Set(ids);
+	const missing = new Set(missingDependencies(chosen, index));
+	if (missing.size === 0) return null;
+	for (const id of withDependencies(chosen, index)) {
+		const change = index.get(id);
+		if (!change || missing.has(id)) continue;
+		const needed = pendingDependencies(change.op)
+			.map((dep) => index.get(dep))
+			.find((dep) => dep && missing.has(dep.id));
+		if (needed) {
+			return `“${summarize(change.op, index)}” needs “${summarize(needed.op, index)}”, which isn’t in this push.`;
+		}
+	}
+	return null;
+}
+
 /** A row in a list of changes: one change, or a batch staged by one action. */
 export type ChangeRow =
 	| { kind: "change"; change: PendingChange }
