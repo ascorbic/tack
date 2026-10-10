@@ -179,7 +179,14 @@ export function midPush(): PendingChange[] {
 					status === "applied" || status === "sent"
 						? { key: key(`#${530 + i}`), url: `https://fake.tack/acme/imagekit/issues/${530 + i}` }
 						: undefined,
-				error: status === "failed" ? "Resource not accessible by integration" : undefined,
+				error:
+					status === "failed"
+						? "Tack's GitHub App doesn't have permission to assign people in acme/imagekit. An owner of the repository may need to accept the app's new permissions."
+						: undefined,
+				errorDetail:
+					status === "failed"
+						? "GitHub said (403): Resource not accessible by integration"
+						: undefined,
 			};
 		});
 }

@@ -174,7 +174,8 @@ describe("apply", () => {
 			child: { key: `${KEY}#14` },
 		});
 		expect(result).toMatchObject({ ok: false, retryable: false });
-		expect(!result.ok && result.error).toContain("Issue already has a parent");
+		expect(!result.ok && result.error).toContain("it's already a sub-issue of another issue");
+		expect(!result.ok && result.detail).toContain("Issue already has a parent");
 	});
 
 	it("marks an issue as blocked by another, only once", async () => {
@@ -360,7 +361,38 @@ describe("failures", () => {
 		expect(await apply(op)).toMatchObject({
 			ok: false,
 			retryable: false,
-			error: expect.stringContaining("Tack isn't allowed to add labels to acme/widgets#12"),
+			error: expect.stringContaining("GitHub didn't let you add labels to acme/widgets#12"),
+		});
+	});
+
+	it("says what GitHub's refusals mean, keeping its own words as the detail", async () => {
+		github.failWrites({ status: 403, message: "Resource not accessible by integration" });
+		expect(await apply(op)).toMatchObject({
+			error:
+				"GitHub didn't let you add labels to acme/widgets#12. Check you can write to the repository and that Tack's app has access to it, or push as Tack's bot.",
+			detail: "GitHub said (403): Resource not accessible by integration",
+		});
+		auth = { ...auth, as: "app" };
+		github.failWrites({ status: 403, message: "Resource not accessible by integration" });
+		expect(await apply(op)).toEqual({
+			ok: false,
+			retryable: false,
+			error:
+				"Tack's GitHub App doesn't have permission to add labels to acme/widgets#12. An owner of the repository may need to accept the app's new permissions, or give it access to this repository, in GitHub's settings.",
+			detail: "GitHub said (403): Resource not accessible by integration",
+		});
+		github.failWrites({ status: 422, message: "Validation Failed: could not be assigned" });
+		expect(await apply(op)).toMatchObject({
+			error: expect.stringContaining("someone can't be assigned there"),
+		});
+		github.failWrites({ status: 410, message: "Issues are disabled for this repo" });
+		expect(await apply(op)).toMatchObject({
+			error: "Couldn't add labels to acme/widgets#12: issues are turned off in this repository.",
+		});
+		github.failWrites({ status: 429, headers: { "retry-after": "40" }, message: "slow down" });
+		expect(await apply(op)).toMatchObject({
+			retryable: true,
+			error: expect.stringMatching(/^GitHub is rate limiting Tack until \d\d:\d\d UTC/),
 		});
 	});
 

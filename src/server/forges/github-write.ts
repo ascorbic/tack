@@ -13,7 +13,7 @@
 // (issues, comments, pull requests, discussions) look for what an earlier,
 // unanswered attempt made before making it again (`ApplyOptions.retryOf`).
 
-import type { Operation, Target } from "../../shared/changes.ts";
+import type { Operation, PushAs, Target } from "../../shared/changes.ts";
 import type { Label, Milestone, RepoMeta } from "../../shared/push.ts";
 import { itemKey, parseKey } from "../../shared/refs.ts";
 import { isInstalled, repoToken } from "../github/tokens.ts";
@@ -31,14 +31,30 @@ const RETRY_SLACK_MS = 60_000;
 
 type Failure = Extract<ApplyResult, { ok: false }>;
 
+/** A refusal from GitHub, kept so it can be explained for whoever pushed. */
+type Refusal = { status: number; message: string; what: string };
+
 class WriteFailure extends Error {
-	constructor(readonly failure: Failure) {
+	constructor(
+		readonly failure: Failure,
+		readonly refusal?: Refusal,
+	) {
 		super(failure.error);
 	}
 }
 
-function fail(error: string, retryable = false): never {
-	throw new WriteFailure({ ok: false, error, retryable });
+/** Throw what an error response says, keeping the refusal behind it. */
+async function refused(response: Response, what: string): Promise<never> {
+	const message = await messageOf(response.clone());
+	throw new WriteFailure(await failureFrom(response, what), {
+		status: response.status,
+		message,
+		what,
+	});
+}
+
+function fail(error: string, retryable = false, detail?: string): never {
+	throw new WriteFailure({ ok: false, error, retryable, ...(detail ? { detail } : {}) });
 }
 
 function headers(token: string | null, json = false): HeadersInit {
@@ -94,11 +110,44 @@ async function rest<T>(
 		return (text ? JSON.parse(text) : null) as T;
 	}
 	if (response.status === 404 && options.allow404) return null as T;
-	throw new WriteFailure(await failureFrom(response, what));
+	return refused(response, what);
 }
 
-/** Turn an error response into something a person can act on. */
+/**
+ * "GitHub is rate limiting Tack until 14:05 UTC": when, without a timestamp
+ * nobody reads.
+ */
+function rateLimited(retryAt: number): string {
+	return `GitHub is rate limiting Tack until ${new Date(retryAt).toISOString().slice(11, 16)} UTC, so it'll try again then.`;
+}
+
+/**
+ * Turn an error response into something a person can act on: what went
+ * wrong in plain words, and what to do about it. GitHub's own words, which
+ * are written for developers ("Resource not accessible by integration"),
+ * go in `detail`.
+ */
 export async function failureFrom(response: Response, what: string): Promise<Failure> {
+	const message = await messageOf(response);
+	const status = response.status;
+	const detail = `GitHub said (${status})${message ? `: ${message}` : ""}`;
+	const retryAt = rateLimitedUntil(response, message);
+	if (retryAt !== null) {
+		return { ok: false, error: rateLimited(retryAt), retryable: true, retryAt, detail };
+	}
+	if (status >= 500) {
+		return {
+			ok: false,
+			error: `GitHub had a problem on its side and couldn't ${what}. Tack will try again.`,
+			retryable: true,
+			detail,
+		};
+	}
+	return { ok: false, error: explain(status, message, what), retryable: false, detail };
+}
+
+/** What an error response says: its message and any errors under it. */
+async function messageOf(response: Response): Promise<string> {
 	const body = await response
 		.json<{ message?: string; errors?: ({ message?: string; code?: string } | string)[] }>()
 		.catch(() => null);
@@ -106,35 +155,45 @@ export async function failureFrom(response: Response, what: string): Promise<Fai
 		.map((e) => (typeof e === "string" ? e : (e.message ?? e.code ?? "")))
 		.filter(Boolean)
 		.join("; ");
-	const message = [body?.message, details].filter(Boolean).join(": ");
-	const status = response.status;
-	const retryAt = rateLimitedUntil(response, message);
-	if (retryAt !== null) {
-		return {
-			ok: false,
-			error: `GitHub's rate limit: Tack will try again at ${new Date(retryAt).toISOString()}.`,
-			retryable: true,
-			retryAt,
-		};
+	return [body?.message, details].filter(Boolean).join(": ");
+}
+
+/**
+ * GitHub's refusals, in plain words, with what to do. `as` is who was
+ * writing: a refusal means something different for a person than for the app.
+ */
+export function explain(status: number, message: string, what: string, as: PushAs = "app"): string {
+	if (status === 401)
+		return "GitHub didn't accept your sign-in any more. Sign in again, then retry.";
+	if (status === 403) {
+		if (as === "user") {
+			return `GitHub didn't let you ${what}. Check you can write to the repository and that Tack's app has access to it, or push as Tack's bot.`;
+		}
+		return /not accessible by integration/i.test(message)
+			? `Tack's GitHub App doesn't have permission to ${what}. An owner of the repository may need to accept the app's new permissions, or give it access to this repository, in GitHub's settings.`
+			: `GitHub didn't let Tack ${what}. Check that Tack's app can write to the repository.`;
 	}
-	if (status >= 500) {
-		return {
-			ok: false,
-			error: `GitHub had a problem (${status}) and couldn't ${what}.`,
-			retryable: true,
-		};
+	if (status === 404) return `Couldn't ${what}: it's been deleted or moved, or Tack can't see it.`;
+	if (status === 410) return `Couldn't ${what}: issues are turned off in this repository.`;
+	if (status === 422) {
+		if (/assignee|could not be assigned/i.test(message)) {
+			return `Couldn't ${what}: someone can't be assigned there. People need access to the repository to be assigned.`;
+		}
+		if (/milestone/i.test(message)) {
+			return `Couldn't ${what}: that milestone is closed or gone. Pick another, then retry.`;
+		}
+		if (/label/i.test(message)) {
+			return `Couldn't ${what}: GitHub wouldn't take one of the labels. Check it still exists.`;
+		}
+		if (/already has a parent/i.test(message)) {
+			return `Couldn't ${what}: it's already a sub-issue of another issue. Take it off that one on GitHub first.`;
+		}
+		if (/already exists|already (been )?(added|taken)/i.test(message)) {
+			return `Couldn't ${what}: it's already there.`;
+		}
+		return `Couldn't ${what}: GitHub said something in it isn't valid.`;
 	}
-	const reason =
-		status === 401
-			? "GitHub didn't accept the sign-in. Sign in again and retry."
-			: status === 403
-				? `Tack isn't allowed to ${what}${message ? ` (${message})` : ""}. Check the app's permissions on the repository.`
-				: status === 404
-					? `Couldn't ${what}: it doesn't exist, or Tack can't see it.`
-					: status === 410
-						? `Couldn't ${what}: issues are turned off in this repository.`
-						: `Couldn't ${what}${message ? `: ${message}` : ` (${status})`}.`;
-	return { ok: false, error: reason, retryable: false };
+	return `Couldn't ${what} (GitHub answered ${status}).`;
 }
 
 /** When a rate limit lifts, if this response is one. */
@@ -167,21 +226,29 @@ async function graphql<T>(
 		method: "POST",
 		body: { query, variables, operationName },
 	});
-	if (!response.ok) throw new WriteFailure(await failureFrom(response, what));
+	if (!response.ok) return refused(response, what);
 	const body = await response.json<{ data?: T | null; errors?: GraphQLError[] }>();
 	const errors = body.errors ?? [];
 	if (errors.some((error) => error.type === "RATE_LIMITED")) {
 		const retryAt = rateLimitedUntil(response, "rate limit") ?? Date.now() + SECONDARY_WAIT_MS;
-		throw new WriteFailure({
-			ok: false,
-			error: `GitHub's rate limit: Tack will try again at ${new Date(retryAt).toISOString()}.`,
-			retryable: true,
-			retryAt,
-		});
+		throw new WriteFailure({ ok: false, error: rateLimited(retryAt), retryable: true, retryAt });
 	}
 	if (errors.length > 0 || !body.data) {
 		const message = errors.map((error) => error.message ?? error.type).join("; ");
-		fail(`Couldn't ${what}${message ? `: ${message}` : ""}.`);
+		const status = errors.some((error) => error.type === "FORBIDDEN")
+			? 403
+			: errors.some((error) => error.type === "NOT_FOUND")
+				? 404
+				: null;
+		throw new WriteFailure(
+			{
+				ok: false,
+				error: status ? explain(status, message, what) : `Couldn't ${what}.`,
+				retryable: false,
+				...(message ? { detail: `GitHub said: ${message}` } : {}),
+			},
+			status ? { status, message, what } : undefined,
+		);
 	}
 	return body.data;
 }
@@ -286,7 +353,17 @@ export async function applyGitHub(
 	try {
 		return await applyOrFail(op, repo, auth.token, options);
 	} catch (error) {
-		if (error instanceof WriteFailure) return error.failure;
+		if (error instanceof WriteFailure) {
+			const refusal = error.refusal;
+			// A refusal reads differently when you were writing as yourself.
+			if (refusal?.status === 403 && auth.as === "user" && !error.failure.retryable) {
+				return {
+					...error.failure,
+					error: explain(refusal.status, refusal.message, refusal.what, auth.as),
+				};
+			}
+			return error.failure;
+		}
 		return {
 			ok: false,
 			error: `Something went wrong writing to GitHub: ${error instanceof Error ? error.message : String(error)}`,

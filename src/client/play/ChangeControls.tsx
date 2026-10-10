@@ -138,10 +138,13 @@ export function ChangeControls({
 			const change = pick(listChanges(sim.doc).filter((c) => c.status === "staged"));
 			if (change) {
 				const repo = change.op.kind === "issue.create" ? change.op.repo : IMAGEKIT;
+				const name = repoKeyOf(repo).replace(/^[^/]+\//, "");
 				failChange(
 					sim.doc,
 					change.id,
-					`Resource not accessible by integration (${repoKeyOf(repo).replace(/^[^/]+\//, "")})`,
+					`Tack's GitHub App doesn't have permission to write to ${name}. An owner of the repository may need to accept the app's new permissions.`,
+					undefined,
+					"GitHub said (403): Resource not accessible by integration",
 				);
 			}
 		},

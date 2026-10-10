@@ -435,12 +435,14 @@ export function failChange(
 	id: string,
 	error: string,
 	by: Stager = PEOPLE.kai as Stager,
+	detail?: string,
 ): void {
 	const change = changesMap(doc).get(id);
 	if (!change) return;
 	doc.transact(() => {
 		change.set("status", "failed");
 		change.set("error", error);
+		if (detail) change.set("errorDetail", detail);
 		change.set("pushId", "earlier-push");
 		change.set("pushedBy", by);
 		change.set("pushedAs", "user");

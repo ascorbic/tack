@@ -625,9 +625,30 @@ describe("rate limits and retries", () => {
 		await stage("comment", { kind: "item.comment", target: { key: ISSUE }, body: "Still here" });
 		await push(mf, board, alice, ["label", "comment"]);
 		expect(await until(client, "label", "failed")).toMatchObject({
-			error: expect.stringMatching(/^Gave up after 8 tries\. GitHub had a problem \(500\)/),
+			error: expect.stringMatching(/^Gave up after 8 tries\. GitHub had a problem on its side/),
+			errorDetail: expect.stringContaining("GitHub said (500)"),
 		});
 		await until(client, "comment", "applied");
+	});
+
+	it("says what a refusal means, keeping GitHub's words as the detail, in the board and its history", async () => {
+		const { github, mf, alice, board, client, stage } = await setup();
+		github.failWrites({
+			status: 403,
+			match: "/labels",
+			message: "Resource not accessible by integration",
+		});
+		await stage("label", { kind: "item.labels", target: { key: ISSUE }, add: ["bug"] });
+		await push(mf, board, alice, ["label"], "app");
+		const failed = await until(client, "label", "failed");
+		expect(failed.error).toMatch(/^Tack's GitHub App doesn't have permission to add labels/);
+		expect(failed.errorDetail).toBe("GitHub said (403): Resource not accessible by integration");
+		const history = (await (
+			await api(mf, `/api/boards/${board}/pushes`, alice)
+		).json()) as AuditEntry[];
+		expect(history[0]?.changes[0]?.detail).toBe(
+			"GitHub said (403): Resource not accessible by integration",
+		);
 	});
 });
 

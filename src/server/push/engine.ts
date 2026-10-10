@@ -154,6 +154,7 @@ type ItemRow = {
 	result_key: string | null;
 	result_url: string | null;
 	error: string | null;
+	error_detail: string | null;
 	updated_at: number;
 };
 
@@ -199,12 +200,21 @@ export class PushEngine {
 				result_key TEXT,
 				result_url TEXT,
 				error TEXT,
+				error_detail TEXT,
 				updated_at INTEGER NOT NULL,
 				PRIMARY KEY (push_id, change_id)
 			);
 			CREATE INDEX IF NOT EXISTS push_changes_change ON push_changes (change_id);
 			CREATE INDEX IF NOT EXISTS push_changes_state ON push_changes (state);
 		`);
+		// Boards from before failures kept what the forge said.
+		const columns = this.host.sql
+			.exec<{ name: string }>("PRAGMA table_info(push_changes)")
+			.toArray()
+			.map((column) => column.name);
+		if (!columns.includes("error_detail")) {
+			this.host.sql.exec("ALTER TABLE push_changes ADD COLUMN error_detail TEXT");
+		}
 		this.heal();
 		await this.armAlarm();
 	}
@@ -397,6 +407,7 @@ export class PushEngine {
 				change.set("updatedAt", updatedAt);
 				if (item.error) change.set("error", item.error);
 				else if (change.has("error")) change.delete("error");
+				if (change.has("errorDetail")) change.delete("errorDetail");
 				// A create that already happened keeps its result, so it isn't made again.
 				const kind = item.op?.kind ?? "";
 				if (change.has("result") && !(CREATES.has(kind) && this.previousResult(item.change.id))) {
@@ -604,6 +615,7 @@ export class PushEngine {
 				result.retryable && row.attempts >= MAX_ATTEMPTS
 					? `Gave up after ${row.attempts} tries. ${result.error}`
 					: result.error,
+				result.detail,
 			);
 			return "done";
 		}
@@ -639,7 +651,7 @@ export class PushEngine {
 		const now = Date.now();
 		this.host.sql.exec(
 			`UPDATE push_changes SET state = ?, applied_op = ?, watch_key = ?, sent_at = ?,
-				result_key = ?, result_url = ?, error = NULL, retry_at = NULL, updated_at = ?
+				result_key = ?, result_url = ?, error = NULL, error_detail = NULL, retry_at = NULL, updated_at = ?
 			WHERE push_id = ? AND change_id = ?`,
 			state,
 			JSON.stringify(op),
@@ -658,6 +670,7 @@ export class PushEngine {
 				...(result.url ? { url: result.url } : {}),
 			},
 			error: undefined,
+			errorDetail: undefined,
 		});
 		const written = [operationRepo(op), result.key ? repoKeyOf(result.key) : null];
 		this.host.wrote?.([...new Set(written.filter((repo): repo is string => repo !== null))]);
@@ -676,21 +689,23 @@ export class PushEngine {
 		}
 	}
 
-	private fail(push: PushRow | string, row: ItemRow, error: string): void {
+	private fail(push: PushRow | string, row: ItemRow, error: string, detail?: string): void {
 		const pushId = typeof push === "string" ? push : push.id;
 		this.host.sql.exec(
-			"UPDATE push_changes SET state = 'failed', error = ?, retry_at = NULL, updated_at = ? WHERE push_id = ? AND change_id = ?",
+			"UPDATE push_changes SET state = 'failed', error = ?, error_detail = ?, retry_at = NULL, updated_at = ? WHERE push_id = ? AND change_id = ?",
 			error,
+			detail ?? null,
 			Date.now(),
 			row.push_id,
 			row.change_id,
 		);
-		this.updateChange(row.change_id, { status: "failed", error });
+		this.updateChange(row.change_id, { status: "failed", error, errorDetail: detail });
 		this.logger(pushId).warn("push.change.failed", {
 			change: row.change_id,
 			kind: row.kind,
 			attempts: row.attempts,
 			error,
+			detail,
 		});
 	}
 
@@ -955,6 +970,7 @@ export class PushEngine {
 				status: row.state === "applied" || row.state === "failed" ? row.state : "sent",
 				...(row.result_url ? { url: row.result_url } : {}),
 				...(row.error ? { error: row.error } : {}),
+				...(row.error_detail ? { detail: row.error_detail } : {}),
 			})),
 		}));
 	}
@@ -1097,6 +1113,7 @@ export class PushEngine {
 						status,
 						pushId: row.push_id,
 						...(row.error ? { error: row.error } : {}),
+						...(row.error_detail ? { errorDetail: row.error_detail } : {}),
 						...(row.result_key || row.result_url
 							? {
 									result: {

@@ -159,6 +159,11 @@ export type ApplyResult =
 			retryable: boolean;
 			/** When to try again, for rate limits (ms since the epoch). */
 			retryAt?: number;
+			/**
+			 * What the forge itself said, when `error` puts it in other words:
+			 * shown behind "Details", for whoever needs to look it up.
+			 */
+			detail?: string;
 	  };
 
 /** How to apply: context the adapter needs to keep retries from writing twice. */
