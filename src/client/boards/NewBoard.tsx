@@ -248,7 +248,11 @@ function TemplateTile({
 		>
 			<span className="template-thumb">
 				<BoardThumbnail thumbnail={template.thumbnail} />
-				{template.featured && <span className="template-badge">Featured</span>}
+				{template.featured && (
+					<span className="template-badge" aria-hidden="true">
+						Featured
+					</span>
+				)}
 			</span>
 			<span className="template-tile-body">
 				<span className="template-tile-title">{template.title}</span>

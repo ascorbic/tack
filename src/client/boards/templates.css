@@ -655,11 +655,11 @@
    Saving a board as a template, from the board's menu
    ------------------------------------------------------------------------ */
 
-.board-menu {
+.board-actions-menu {
 	position: relative;
 }
 
-.board-menu-button {
+.board-actions-menu-button {
 	display: grid;
 	width: 28px;
 	height: 28px;
@@ -675,13 +675,13 @@
 		color var(--t-quick) var(--ease-out);
 }
 
-.board-menu-button:hover,
-.board-menu-button[aria-expanded="true"] {
+.board-actions-menu-button:hover,
+.board-actions-menu-button[aria-expanded="true"] {
 	background: var(--hover);
 	color: var(--ink);
 }
 
-.board-menu-list {
+.board-actions-menu-list {
 	position: absolute;
 	top: calc(100% + 8px);
 	left: 0;
@@ -698,7 +698,7 @@
 	animation: tpl-menu-in var(--t-settle) var(--ease-spring) backwards;
 }
 
-.board-menu-list button {
+.board-actions-menu-list button {
 	display: flex;
 	align-items: center;
 	gap: 9px;
@@ -713,8 +713,8 @@
 	cursor: pointer;
 }
 
-.board-menu-list button:hover,
-.board-menu-list button:focus-visible {
+.board-actions-menu-list button:hover,
+.board-actions-menu-list button:focus-visible {
 	background: var(--hover);
 	outline: none;
 }

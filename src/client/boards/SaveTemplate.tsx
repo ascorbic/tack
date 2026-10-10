@@ -38,10 +38,10 @@ export function BoardMenu({ board }: { board: BoardInfo }) {
 	}, [open]);
 
 	return (
-		<div className="board-menu" ref={root}>
+		<div className="board-actions-menu" ref={root}>
 			<button
 				type="button"
-				className="board-menu-button"
+				className="board-actions-menu-button"
 				aria-label="Board menu"
 				aria-haspopup="menu"
 				aria-expanded={open}
@@ -50,7 +50,7 @@ export function BoardMenu({ board }: { board: BoardInfo }) {
 				<MoreIcon />
 			</button>
 			{open && (
-				<div className="board-menu-list" role="menu">
+				<div className="board-actions-menu-list" role="menu">
 					<button
 						type="button"
 						role="menuitem"
