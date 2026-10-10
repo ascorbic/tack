@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { type Card, type MissingCard, isMissing } from "../shared/cards.ts";
+import { forgeName } from "../shared/refs.ts";
 import { cardStore } from "./cardStore.ts";
 import { type Entrance, entranceStyle } from "./entering.ts";
 import {
@@ -184,6 +185,26 @@ function LiveCard({
 	const repoName = card.repo.split("/").at(-1);
 	const checks = card.pull?.checks;
 	const liveness = useLiveness(card.live);
+	// The title is a link, but a plain click on a card that isn't selected
+	// yet selects it (people click cards to pick them up, drag and vote):
+	// it opens on a click once selected, or a ⌘/Ctrl-click, as in FigJam.
+	// The end of a drag that started on the title isn't a click either.
+	const press = useRef<{ selected: boolean; x: number; y: number } | null>(null);
+	const titleLink = {
+		onPointerDown: (event: React.PointerEvent) => {
+			press.current = { selected: !!selected, x: event.clientX, y: event.clientY };
+		},
+		onClick: (event: React.MouseEvent) => {
+			const p = press.current;
+			const moved = p ? Math.hypot(event.clientX - p.x, event.clientY - p.y) > 4 : false;
+			// From the keyboard (no pointer, `detail` 0), it's a link like any other.
+			const opens =
+				event.detail === 0 ||
+				(!moved && (event.metaKey || event.ctrlKey || (!!p?.selected && !event.shiftKey)));
+			if (!opens) event.preventDefault();
+		},
+	};
+	const openLabel = `Open on ${forgeName(card.host)}`;
 
 	if (compact) {
 		return (
@@ -200,7 +221,9 @@ function LiveCard({
 				<span className="state-icon" key={`s${state.key}`} data-pop={state.on}>
 					<StateIcon card={card} size={28} />
 				</span>
-				<span className="compact-title">{card.title}</span>
+				<span className="compact-title">
+					<span className="compact-number">{card.item}</span> {card.title}
+				</span>
 				{checks && checks.state !== "none" && <CiBar checks={checks} />}
 			</article>
 		);
@@ -229,8 +252,30 @@ function LiveCard({
 				<span className="chip state" key={`c${state.key}`} data-pop={state.on}>
 					{stateLabel(card)}
 				</span>
+				{card.url && (
+					<a
+						className="card-open nodrag"
+						href={card.url}
+						target="_blank"
+						rel="noreferrer"
+						draggable={false}
+						aria-label={openLabel}
+						title={openLabel}
+					>
+						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+							<path d="M4.5 2.5h5v5M9.5 2.5 3 9" />
+						</svg>
+					</a>
+				)}
 			</div>
-			<a className="card-title" href={card.url} target="_blank" rel="noreferrer" draggable={false}>
+			<a
+				className="card-title"
+				href={card.url}
+				target="_blank"
+				rel="noreferrer"
+				draggable={false}
+				{...titleLink}
+			>
 				<span key={title.key} data-flash={title.on}>
 					{card.title}
 				</span>

@@ -21,7 +21,10 @@ import {
 } from "react";
 import { readVotes } from "../shared/dotvotes.ts";
 import type { StampEmoji } from "../shared/facilitation.ts";
-import { itemKey, parseRef } from "../shared/refs.ts";
+import { type CardRun, addCardsInRun, cardsOnBoard, searchScopeOf } from "../shared/addCards.ts";
+import { intersects } from "../shared/geometry.ts";
+import { parseKey } from "../shared/refs.ts";
+import { boxOf } from "../shared/sections.ts";
 import {
 	type DisplayKind,
 	type Position,
@@ -29,7 +32,6 @@ import {
 	type ShapeNode,
 	type StickyColor,
 	addActionItemAt,
-	addCard,
 	addDecisionAt,
 	addSticky,
 	addText,
@@ -94,6 +96,7 @@ import { ShapeToolbar, styledShapes } from "./ShapeToolbar.tsx";
 import { ShortcutSheet } from "./Shortcuts.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 import { Toasts, ToastStore } from "./Toasts.tsx";
+import type { AddOutcome } from "./cardInput.ts";
 import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar, VIEW_TOOLS } from "./Toolbar.tsx";
 import { History } from "./undo.ts";
 import { usePublishStatus } from "./useActivity.ts";
@@ -101,7 +104,7 @@ import { InboxLayer } from "./inbox/InboxTray.tsx";
 import { scaledDuration } from "./motion.ts";
 import { RulesButton, RulesPanel } from "./rules/RulesPanel.tsx";
 import { boardRepos } from "../shared/actions.ts";
-import { transactLocal } from "../shared/shapes.ts";
+import { readShape, shapesMap, transactLocal } from "../shared/shapes.ts";
 import { placeInSections } from "../shared/structure.ts";
 import { addWidget, widgetDefinition } from "../shared/widgetRegistry.ts";
 import { cardStore } from "./cardStore.ts";
@@ -286,6 +289,16 @@ export function Board({
 	});
 	// Shift-dragging a marquee adds to the selection instead of replacing it.
 	const marqueeBase = useRef<Set<string> | null>(null);
+	// Shapes drawing attention to themselves for a moment (see `pulse`).
+	const [pulsing, setPulsing] = useState<ReadonlySet<string>>(() => new Set());
+	const pulseTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+	const pulse = useCallback((ids: string[]) => {
+		clearTimeout(pulseTimer.current);
+		setPulsing(new Set());
+		requestAnimationFrame(() => setPulsing(new Set(ids)));
+		pulseTimer.current = setTimeout(() => setPulsing(new Set()), scaledDuration(1600));
+	}, []);
+	useEffect(() => () => clearTimeout(pulseTimer.current), []);
 
 	// Cards dragged over a list, and dropped on one to match it (#39).
 	const matching = useDropToMatch(shapeNodes, sizeOf);
@@ -330,6 +343,8 @@ export function Board({
 						: matching.returning.has(base.id)
 							? "snap-back"
 							: undefined;
+				// "It's already here": a card someone tried to add again.
+				if (pulsing.has(base.id)) className = `${className ?? ""} pulse`.trim();
 
 				// In a list or grid: drawn in its slot, at its slot's size (#72).
 				let kind: DisplayKind | undefined;
@@ -417,7 +432,16 @@ export function Board({
 				styleKeys.set(base.id, styleKey);
 				return out;
 			}),
-		[shapeNodes, selected, measured, structure, matching.returning, display, presence.overrides],
+		[
+			shapeNodes,
+			selected,
+			measured,
+			structure,
+			matching.returning,
+			display,
+			presence.overrides,
+			pulsing,
+		],
 	);
 
 	// A dragged section's contents move with it, so they're never snapped to.
@@ -604,6 +628,11 @@ export function Board({
 			),
 		[presence.onPositionChanges],
 	);
+	// Pasted links add cards as the card tool does (defined below, with what it needs).
+	const addCardsRef = useRef<(keys: string[], options: { at: Position }) => AddOutcome>(() => ({
+		added: [],
+		existing: [],
+	}));
 	const commands = useCanvasCommands({
 		doc,
 		board: name,
@@ -637,6 +666,7 @@ export function Board({
 		},
 		inList: (id) => displayRef.current.slots.has(id),
 		drawnAt: (id) => displayRef.current.slots.get(id)?.rect,
+		addCards: (keys, options) => addCardsRef.current(keys, options),
 	});
 
 	const onNodesChange: OnNodesChange<ShapeNode> = useCallback(
@@ -863,12 +893,108 @@ export function Board({
 		setTool("select");
 	};
 
-	const onAddCard = (input: string) => {
-		const ref = parseRef(input);
-		if (!ref) return false;
-		addCard(doc, itemKey(ref), centre());
-		return true;
-	};
+	// Cards added by reference or search (the card tool, pasted links): in
+	// free space, a run of them in rows beside the last, and never a second
+	// card for an item that's already here unless that's asked for.
+	const cardRun = useRef<{ run: CardRun; last: string | null } | null>(null);
+	useEffect(() => {
+		if (tool !== "card") cardRun.current = null;
+	}, [tool]);
+	const addCards = useCallback(
+		(
+			keys: string[],
+			options: { at?: Position; copies?: boolean; notify?: boolean } = {},
+		): AddOutcome => {
+			if (readOnly || keys.length === 0) return { added: [], existing: [] };
+			const shapes = shapesMap(doc);
+			const boxFor = (id: string) => {
+				const shape = shapes.get(id);
+				return shape ? boxOf(id, readShape(shape), boxSize) : null;
+			};
+			const bounds = canvas.current?.getBoundingClientRect();
+			const { x, y, zoom } = flow.getViewport();
+			const view = {
+				x: -x / zoom,
+				y: -y / zoom,
+				w: (bounds?.width ?? window.innerWidth) / zoom,
+				h: (bounds?.height ?? window.innerHeight) / zoom,
+			};
+			// Carry on from the last card added, while it's still here and in view.
+			const previous = cardRun.current;
+			const last = previous?.last ? boxFor(previous.last) : null;
+			const run =
+				!options.at && previous && last && intersects(last, view)
+					? previous.run
+					: { origin: options.at ?? centre(), count: 0 };
+			const result = transactLocal(doc, () =>
+				addCardsInRun(doc, keys, run, { sizeOf: boxSize, copies: options.copies }),
+			);
+			const ids = result.added.map((entry) => entry.id);
+			cardRun.current = { run: result.run, last: ids.at(-1) ?? previous?.last ?? null };
+			if (ids.length > 0) {
+				setSelected(new Set(ids));
+				// Slid out of sight to find room: bring it into view.
+				const box = boxFor(ids.at(-1) as string);
+				const inside =
+					box &&
+					box.x >= view.x &&
+					box.y >= view.y &&
+					box.x + box.w <= view.x + view.w &&
+					box.y + box.h <= view.y + view.h - 120 / zoom;
+				if (box && !inside) {
+					follow.stop();
+					void flow.setCenter(box.x + box.w / 2, box.y + box.h / 2, {
+						zoom,
+						duration: scaledDuration(420),
+					});
+				}
+			}
+			const existing = result.existing;
+			const outcome: AddOutcome = {
+				added: result.added.map((entry) => entry.key),
+				existing: existing.map((entry) => entry.key),
+			};
+			if (existing.length === 0) return outcome;
+			// Show where they are, and offer a copy rather than making one.
+			pulse(existing.map((entry) => entry.id));
+			const [first] = existing;
+			if (ids.length === 0 && first && existing.length === 1) reveal(first.id);
+			outcome.notice =
+				ids.length > 0
+					? `Added ${ids.length === 1 ? "1 card" : `${ids.length} cards`}; ${existing.length} ${existing.length === 1 ? "was" : "were"} already on the board`
+					: existing.length === 1 && first
+						? `${shortRef(first.key)} is already on the board`
+						: `All ${existing.length} are already on the board`;
+			if (options.notify !== false) {
+				toasts.show({
+					message: outcome.notice,
+					action: {
+						label: existing.length === 1 ? "Add another copy" : "Add copies",
+						run: () => addCards(outcome.existing, { copies: true }),
+					},
+				});
+			}
+			return outcome;
+		},
+		[doc, readOnly, boxSize, flow, centre, follow.stop, pulse, reveal, toasts],
+	);
+	addCardsRef.current = addCards;
+	const onBoard = useCallback((key: string) => cardsOnBoard(doc).has(key.toLowerCase()), [doc]);
+	// Where the card tool searches: read while it's open, and again as cards arrive.
+	const cardShapes = tool === "card" ? shapeNodes : null;
+	const cardScope = useMemo(
+		() => (cardShapes ? searchScopeOf(doc) : { host: "", repos: [] }),
+		[doc, cardShapes],
+	);
+	const searchItems = useMemo(
+		() =>
+			writeServices.searchItems
+				? (host: string, q: string) =>
+						writeServices.searchItems?.(host, q) ??
+						Promise.resolve({ kind: "error", reason: "unsupported", message: "" } as const)
+				: undefined,
+		[writeServices],
+	);
 
 	// Select: drag the canvas to marquee-select; scroll or space-drag to pan.
 	// Hand: drag to pan, and shapes can't be picked up. Section and connector:
@@ -1225,7 +1351,10 @@ export function Board({
 									onTool={setTool}
 									stickyColor={stickyColor}
 									onStickyColor={setStickyColor}
-									onAddCard={onAddCard}
+									onAddCards={(keys, copies) => addCards(keys, { copies, notify: false })}
+									cardScope={cardScope}
+									searchItems={searchItems}
+									onBoard={onBoard}
 									onAddWidget={addWidgetAt}
 									suggestedRepo={suggestedRepo}
 									stamp={stamp}
@@ -1296,4 +1425,10 @@ function minimapClass(node: ShapeNode): string {
 	if (type === "action")
 		return `minimap-action${node.data.shape.done ? " minimap-action-done" : ""}`;
 	return `minimap-${type}`;
+}
+
+/** An item as people say it: `emdash#412`. */
+function shortRef(key: string): string {
+	const ref = parseKey(key);
+	return ref ? `${ref.repo.split("/").pop()}${ref.item}` : key;
 }

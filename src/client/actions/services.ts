@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { BoardInfo, CarryResponse } from "../../shared/boards.ts";
 import type { Stager } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
-import type { QueryError, RelatedResult } from "../../shared/widgets.ts";
+import type { QueryError, RelatedResult, SearchResult } from "../../shared/widgets.ts";
 import { canEdit } from "../../shared/boards.ts";
 import { boardsApi } from "../boards/api.ts";
 import { repoApi } from "../changes/api.ts";
@@ -25,6 +25,11 @@ export interface WriteServices {
 	uploadSnapshot(png: Blob): Promise<string>;
 	/** What's related to an item, as this viewer may see it (Expand related). Never throws. */
 	related(key: string): Promise<RelatedResult | QueryError>;
+	/**
+	 * Issues and pull requests matching a search on a forge (`host`), as
+	 * this viewer may see them, for the card tool. Never throws.
+	 */
+	searchItems?(host: string, q: string): Promise<SearchResult | QueryError>;
 	/** Boards action items can be carried over to: ones you can edit, most recent first (#52). */
 	carryTargets?(): Promise<BoardInfo[] | null>;
 	/** Carry this board's open action items (or just `shapes`) over to another. Never throws. */
@@ -87,6 +92,19 @@ export function liveServices(boardId: string): WriteServices {
 				);
 				const body = (await response.json().catch(() => null)) as RelatedResult | QueryError | null;
 				if (body?.kind === "related" || body?.kind === "error") return body;
+				return { kind: "error", reason: "error", message: "Something went wrong. Try again?" };
+			} catch {
+				return { kind: "error", reason: "error", message: "Couldn’t reach the server." };
+			}
+		},
+		async searchItems(host, q) {
+			try {
+				const response = await fetch(
+					`/api/boards/${encodeURIComponent(boardId)}/search?host=${encodeURIComponent(host)}&q=${encodeURIComponent(q)}`,
+					{ headers: { accept: "application/json" } },
+				);
+				const body = (await response.json().catch(() => null)) as SearchResult | QueryError | null;
+				if (body?.kind === "search" || body?.kind === "error") return body;
 				return { kind: "error", reason: "error", message: "Something went wrong. Try again?" };
 			} catch {
 				return { kind: "error", reason: "error", message: "Couldn’t reach the server." };

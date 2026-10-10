@@ -349,12 +349,24 @@ function verdict(card: Card, term: SearchTerm, context: MatchContext): Verdict {
  */
 export function matchSearch(card: Card, parsed: ParsedSearch, context: MatchContext = {}): Verdict {
 	let unknown = false;
+	// Several `repo:` qualifiers search each of them, as on GitHub: any one will do.
+	let repos: Verdict | null = null;
 	for (const term of parsed.terms) {
 		const result = verdict(card, term, context);
+		if (term.key === "repo" && !term.negated) {
+			repos =
+				repos === "yes" || result === "yes"
+					? "yes"
+					: repos === "unknown" || result === "unknown"
+						? "unknown"
+						: "no";
+			continue;
+		}
 		if (result === "no") return "no";
 		if (result === "unknown") unknown = true;
 	}
-	return unknown ? "unknown" : "yes";
+	if (repos === "no") return "no";
+	return unknown || repos === "unknown" ? "unknown" : "yes";
 }
 
 // --- Local readings: rules and inbox frames (#40, #44) ----------------------------

@@ -32,6 +32,20 @@ describe("parseRef", () => {
 		});
 	});
 
+	it("takes URLs as people copy them: www, http, anchors, and the test forge's", () => {
+		const unpic = { forge: "github", host: "github.com", repo: "ascorbic/unpic", item: "#42" };
+		expect(parseRef("https://www.github.com/ascorbic/unpic/issues/42")).toEqual(unpic);
+		expect(parseRef("http://github.com/ascorbic/unpic/pull/42")).toEqual(unpic);
+		expect(parseRef("github.com/ascorbic/unpic/issues/42#issuecomment-1")).toEqual(unpic);
+		const fake = { forge: "fake", host: "fake.tack", repo: "stress/cards", item: "#3" };
+		expect(parseRef("https://fake.tack/stress/cards/issues/3")).toEqual(fake);
+		// The test forge's own cards link like this.
+		expect(parseRef("https://fake.tack/stress/cards/3")).toEqual(fake);
+		// On GitHub a bare number is some other page.
+		expect(parseRef("https://github.com/ascorbic/unpic/3")).toBeNull();
+		expect(parseRef("https://github.com/ascorbic/unpic/discussions/3")).toBeNull();
+	});
+
 	it("rejects unknown hosts and junk", () => {
 		expect(parseRef("https://example.com/a/b/issues/1")).toBeNull();
 		expect(parseKey("gitlab.example.com/group/sub/project!12")).toBeNull();

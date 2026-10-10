@@ -9,23 +9,25 @@ A card is a live view of a GitHub issue or pull request. Tack never keeps its ow
 
 ## Adding cards
 
-- **Paste** a link onto the board (<kbd>⌘</kbd> <kbd>V</kbd>, or <kbd>Ctrl</kbd> <kbd>V</kbd>). Several links, one per line, make several cards (up to 50), laid out in a grid of up to four columns around the pointer.
-- **The card tool** (<kbd>C</kbd>): type `owner/repo#123` or paste a URL, then **Add**. The card lands in the middle of the view.
+- **The card tool** (<kbd>C</kbd>): type a few words to search the board's repositories (the ones its cards, inboxes and widgets are from, busiest first), or start with `owner/repo` to search that one. Results show as you type: <kbd>↑</kbd> <kbd>↓</kbd> to choose, <kbd>Enter</kbd> to add, <kbd>⌘</kbd> <kbd>Enter</kbd> to add every result that isn't on the board yet. It also takes a link, `owner/repo#123`, or just `#123` for the board's busiest repository. The tool stays open, so you can add several in a row; <kbd>Esc</kbd> closes it.
+- **Paste** a link onto the board (<kbd>⌘</kbd> <kbd>V</kbd>, or <kbd>Ctrl</kbd> <kbd>V</kbd>). Several links, one per line, make several cards (up to 50), in rows of four from the pointer.
 - From a **list widget**: drag a row onto the board. See [List](/widgets/list/).
 - From an **inbox**: drag or click an item out of its tray. See [Inbox frames](/automation/inboxes/).
 - **Expand related** (<kbd>⌥</kbd> <kbd>E</kbd>) lays out an issue's parent, sub-issues, dependencies and linked pull requests around it. See below.
 
+New cards never land on anything: each goes in the nearest free space, beside the last one you added while it's in view, and the view follows if it has to. An item that's already on the board isn't added again: Tack shows you where it is ("emdash#412 is already on the board") and offers **Add another copy**, for when you do want two.
+
 Tack understands:
 
-- issue and pull request URLs on github.com: `https://github.com/owner/repo/issues/12` and `https://github.com/owner/repo/pull/34` (anything after the number, like `/files`, is fine)
+- issue and pull request URLs on github.com: `https://github.com/owner/repo/issues/12` and `https://github.com/owner/repo/pull/34` (anything after the number, like `/files`, is fine, and so are `www.` and `http://`)
 - the short form `owner/repo#12`
 
-Discussions, releases, milestones, commits and code links aren't cards. Pasting text that isn't only links makes a sticky instead.
+Discussions, releases, milestones, commits and code links aren't cards. Pasting text that isn't only links makes a sticky instead, and a single link Tack can't show as a card says so: "Added as a sticky".
 
 ## What a card shows
 
 - **The head**: an icon for the kind and state, the repository's name and number (`imagekit #412`), and the state: **Open**, **Closed**, **Merged**, **Draft** or **Not planned**.
-- **The title**, which opens the item on GitHub.
+- **The title**. Clicking a card selects it, as with any shape; clicking the title of a card that's already selected opens the item on GitHub, and so does <kbd>⌘</kbd>-clicking it (<kbd>Ctrl</kbd> on Windows and Linux). The **↗** beside the state opens it straight away.
 - Up to four **labels**, in their colours.
 - **The foot**: up to three assignees, the comment count, the reaction count, where the card came from (see [Where cards come from](/automation/provenance/)), and whether it's live.
 
@@ -36,7 +38,7 @@ Pull requests also show:
 - **Conflicts**, when the branch has conflicts to resolve
 - **Linked issues**: "Closes #412 …"
 
-When the board is zoomed out a long way, cards shrink to their state, title and CI bar, so a board of hundreds of cards stays readable.
+When the board is zoomed out a long way, cards shrink to their state, number, title and CI bar, so a board of hundreds of cards stays readable.
 
 When a card changes on GitHub while you're looking, it pulses and the changed parts flash.
 

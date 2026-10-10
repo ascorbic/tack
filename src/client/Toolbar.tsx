@@ -1,6 +1,8 @@
-import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import type { DragEvent } from "react";
 import { STAMPS, type StampEmoji } from "../shared/facilitation.ts";
 import { STICKY_COLORS, type StickyColor } from "./board.ts";
+import { type AddOutcome, CardPicker, type CardScope } from "./CardPicker.tsx";
+import type { QueryError, SearchResult } from "../shared/widgets.ts";
 import { GavelPaths } from "./decisions/icons.tsx";
 import { ListPaths } from "./widgets/icons.tsx";
 import { type AddWidget, WidgetPicker } from "./widgets/WidgetPicker.tsx";
@@ -49,8 +51,14 @@ interface ToolbarProps {
 	onTool: (tool: Tool) => void;
 	stickyColor: StickyColor;
 	onStickyColor: (color: StickyColor) => void;
-	/** Returns false if the reference couldn't be parsed. */
-	onAddCard: (input: string) => boolean;
+	/** Add cards for these items (the card tool). */
+	onAddCards: (keys: string[], copies?: boolean) => AddOutcome;
+	/** Where the card tool searches: the board's repositories. */
+	cardScope: CardScope;
+	/** Searching for items to add; without it the card tool only takes references. */
+	searchItems?: (host: string, q: string) => Promise<SearchResult | QueryError>;
+	/** Whether an item already has a card on the board. */
+	onBoard: (key: string) => boolean;
 	/** Add a widget from the picker (#37). */
 	onAddWidget?: AddWidget;
 	/** The board's busiest repository, for ready-made lists: `owner/name`. */
@@ -70,7 +78,10 @@ export function Toolbar({
 	onTool,
 	stickyColor,
 	onStickyColor,
-	onAddCard,
+	onAddCards,
+	cardScope,
+	searchItems,
+	onBoard,
 	onAddWidget,
 	suggestedRepo = null,
 	stamp,
@@ -115,7 +126,15 @@ export function Toolbar({
 					<span className="toolbar-hint">Click anywhere to start typing</span>
 				</div>
 			)}
-			{tool === "card" && <CardOptions onAddCard={onAddCard} onDone={() => onTool("select")} />}
+			{tool === "card" && (
+				<CardPicker
+					scope={cardScope}
+					search={searchItems}
+					onBoard={onBoard}
+					onAdd={onAddCards}
+					onDone={() => onTool("select")}
+				/>
+			)}
 			{tool === "section" && (
 				<ToolHint>Drag out a section around things, or click to place one</ToolHint>
 			)}
@@ -322,51 +341,5 @@ function StickyOptions({
 			))}
 			<span className="toolbar-hint">Click the board, or drag a sticky out</span>
 		</div>
-	);
-}
-
-function CardOptions({
-	onAddCard,
-	onDone,
-}: {
-	onAddCard: (input: string) => boolean;
-	onDone: () => void;
-}) {
-	const [value, setValue] = useState("");
-	const [invalid, setInvalid] = useState(false);
-	const input = useRef<HTMLInputElement>(null);
-	useEffect(() => input.current?.focus(), []);
-
-	const submit = (event: FormEvent) => {
-		event.preventDefault();
-		if (onAddCard(value)) {
-			setValue("");
-			onDone();
-		} else {
-			setInvalid(true);
-		}
-	};
-
-	return (
-		<form className="toolbar-options card-options" onSubmit={submit}>
-			<label htmlFor="card-ref" className="visually-hidden">
-				Issue or pull request
-			</label>
-			<input
-				id="card-ref"
-				ref={input}
-				value={value}
-				aria-invalid={invalid}
-				placeholder="owner/repo#123 or paste a URL"
-				onChange={(event) => {
-					setValue(event.target.value);
-					setInvalid(false);
-				}}
-				onKeyDown={(event) => event.key === "Escape" && onDone()}
-			/>
-			<button type="submit" className="primary">
-				Add
-			</button>
-		</form>
 	);
 }

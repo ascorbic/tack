@@ -733,10 +733,57 @@ button.primary:hover {
 	user-select: none;
 }
 
-a.card-title:hover {
+/* The title only opens once its card is selected (or with ⌘), so it only
+   looks like a link then. */
+a.card-title {
+	cursor: inherit;
+}
+
+.card[data-selected="true"] a.card-title {
+	cursor: pointer;
+}
+
+.card[data-selected="true"] a.card-title:hover {
 	text-decoration: underline;
 	text-decoration-color: var(--line-strong);
 	text-underline-offset: 3px;
+}
+
+/* ↗ beside the state: open the item on the forge, in one click. */
+.card-open {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 20px;
+	height: 20px;
+	margin: -2px -4px -2px 2px;
+	border-radius: 6px;
+	color: var(--muted);
+	opacity: 0;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out);
+}
+
+.card-open svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.card:hover .card-open,
+.card[data-selected="true"] .card-open,
+.card-open:focus-visible {
+	opacity: 1;
+}
+
+.card-open:hover {
+	background: var(--hover);
+	color: var(--ink);
 }
 
 .labels {
@@ -817,6 +864,14 @@ a.card-title:hover {
 	border-radius: 16px;
 	border-width: 2px;
 	border-color: color-mix(in srgb, var(--state) 22%, var(--line));
+}
+
+/* Zoomed out, the number stays: it's how people say which one ("move #412"). */
+.compact-number {
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-weight: 560;
+	letter-spacing: -0.03em;
 }
 
 .compact-title {
@@ -2239,6 +2294,159 @@ a.card-title:hover {
 	outline: none;
 	border-color: var(--accent);
 	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* The card tool: results above the field, found as you type. */
+.card-picker {
+	flex-direction: column;
+	align-items: stretch;
+	gap: 6px;
+	width: min(460px, calc(100vw - 32px));
+	padding: 6px;
+}
+
+.card-picker .card-options {
+	display: flex;
+	gap: 6px;
+}
+
+.card-picker .card-options input {
+	flex: 1;
+	width: auto;
+	min-width: 0;
+}
+
+.card-results {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	max-height: min(360px, 45vh);
+	margin: 0;
+	padding: 0;
+	overflow-y: auto;
+	list-style: none;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.card-results[data-loading] {
+	opacity: 0.55;
+}
+
+.card-result {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 34px;
+	padding: 6px 8px;
+	border-radius: 8px;
+	font-size: 13px;
+	cursor: pointer;
+	animation: row-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.card-result[aria-selected="true"] {
+	background: var(--accent-soft);
+}
+
+.card-result .state-icon {
+	flex: none;
+	color: var(--muted);
+}
+
+.card-result[data-state="open"] .state-icon {
+	color: var(--open);
+}
+
+.card-result:is([data-state="merged"], [data-state="closed"]) .state-icon {
+	color: var(--merged);
+}
+
+.card-result-dot {
+	width: 8px;
+	height: 8px;
+	margin: 3px;
+	border-radius: 50%;
+	background: var(--line-strong);
+}
+
+.card-result-number {
+	flex: none;
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-size: 12px;
+}
+
+.card-result-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ink);
+	font-weight: 520;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.card-result-repo {
+	flex: none;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.card-result-badge {
+	flex: none;
+	padding: 2px 7px;
+	border-radius: 999px;
+	background: var(--chip);
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 560;
+}
+
+.card-result-badge[data-added] {
+	background: var(--open-bg);
+	color: var(--open);
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.card-status {
+	margin: 0;
+	padding: 0 8px;
+	color: var(--ink-soft);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.card-status-action {
+	margin-left: 8px;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.card-status-action:hover {
+	text-decoration: underline;
+}
+
+.card-status[data-tone="quiet"] {
+	color: var(--muted);
+}
+
+.card-status[data-tone="error"] {
+	color: var(--danger);
+}
+
+/* A shape saying "I'm already here", when something tried to add it again. */
+.react-flow__node.pulse::after {
+	content: "";
+	position: absolute;
+	inset: -2px;
+	border-radius: 14px;
+	pointer-events: none;
+	animation: ripple calc(800ms * var(--motion)) var(--ease-out) 2;
 }
 
 .card-options input[aria-invalid="true"] {

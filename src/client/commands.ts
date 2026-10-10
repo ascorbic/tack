@@ -9,11 +9,12 @@ import {
 	type Position,
 	type ShapeNode,
 	type StickyColor,
-	addCard,
 	addSticky,
 	deleteShapes,
 	setStickyText,
 } from "./board.ts";
+import { RUN_COLUMNS } from "../shared/addCards.ts";
+import { PLACE_GAP, PLACED_CARD } from "../shared/placement.ts";
 import { cardStore } from "./cardStore.ts";
 import { isOffBoardTarget } from "./keys.ts";
 import { scaledDuration } from "./motion.ts";
@@ -88,6 +89,11 @@ interface CommandsOptions {
 	inList?: (id: string) => boolean;
 	/** Where a shape is drawn, if not at its document position (a row in a list). */
 	drawnAt?: (id: string) => { x: number; y: number } | undefined;
+	/**
+	 * Add cards for pasted links, starting at `at` (the first's top left):
+	 * in free space, and saying so for any already on the board.
+	 */
+	addCards?: (keys: string[], options: { at: Position }) => { added: string[] };
 }
 
 /** Commands that change the document, which view-only boards ignore. */
@@ -303,25 +309,34 @@ export function useCanvasCommands(options: CommandsOptions) {
 			const paste = interpretText(text);
 			if (!paste) return false;
 			const at = pointerOrCentre();
-			const { user, stickyColor } = latest.current;
-			const ids = transactLocal(doc, () => {
-				if (paste.kind === "cards") {
-					const columns = Math.min(paste.keys.length, 4);
-					return paste.keys.map((key, i) =>
-						addCard(doc, key, {
-							x: Math.round(at.x - (columns * 290) / 2 + (i % columns) * 290 + 20),
-							y: Math.round(at.y - 60 + Math.floor(i / columns) * 230),
-						}),
-					);
-				}
+			const { user, stickyColor, addCards, toasts } = latest.current;
+			if (paste.kind === "cards") {
+				if (!addCards) return false;
+				// Centred under the pointer, then in rows (see shared/addCards.ts).
+				const columns = Math.min(paste.keys.length, RUN_COLUMNS);
+				addCards(paste.keys, {
+					at: {
+						x: Math.round(at.x - (columns * (PLACED_CARD.w + PLACE_GAP) - PLACE_GAP) / 2),
+						y: Math.round(at.y - PLACED_CARD.h / 2),
+					},
+				});
+				return true;
+			}
+			const id = transactLocal(doc, () => {
 				const id = addSticky(doc, at, {
 					color: stickyColor,
 					author: { name: user.name, color: user.color },
 				});
 				setStickyText(doc, id, paste.text);
-				return [id];
+				return id;
 			});
-			latest.current.setSelected(new Set(ids));
+			latest.current.setSelected(new Set([id]));
+			// A link that isn't to an issue or pull request still lands, as a note.
+			if (isLink(paste.text)) {
+				toasts.show({
+					message: "Added as a sticky: Tack makes cards from issue and pull request links",
+				});
+			}
 			return true;
 		},
 		[doc, pointerOrCentre],
@@ -670,6 +685,11 @@ export function useCanvasCommands(options: CommandsOptions) {
 	onRemoveRef.current = onRemove;
 
 	return useMemo(() => ({ run, onRemove, settle }), [run, onRemove, settle]);
+}
+
+/** A single web address, and nothing else. */
+function isLink(text: string): boolean {
+	return /^(https?:\/\/|www\.)\S+$/i.test(text.trim());
 }
 
 function hasWords(text: unknown): boolean {

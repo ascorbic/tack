@@ -104,7 +104,13 @@ export function parseKey(key: string): ItemRef | null {
 	return forge ? { forge, host, repo, item } : null;
 }
 
-const GITHUB_URL_RE = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(?:issues|pull)\/(\d+)/i;
+/**
+ * An item's page on a forge we know: `https://github.com/o/r/issues/1` or
+ * `/pull/1/files`, with or without `www.` or TLS, and the test forge's own
+ * shape (`https://fake.tack/o/r/1`) as well as GitHub's, so it demos the same.
+ */
+const URL_RE =
+	/^(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+)\/([\w.-]+\/[\w.-]+)\/(?:(?:issues|pulls?)\/)?(\d+)(?:[/?#].*)?$/i;
 const SHORT_RE = /^([\w.-]+\/[\w.-]+)#(\d+)$/;
 
 /**
@@ -114,8 +120,13 @@ const SHORT_RE = /^([\w.-]+\/[\w.-]+)#(\d+)$/;
 export function parseRef(input: string): ItemRef | null {
 	const text = input.trim();
 
-	const url = GITHUB_URL_RE.exec(text);
-	if (url) return { forge: "github", host: "github.com", repo: url[1] ?? "", item: `#${url[2]}` };
+	const url = URL_RE.exec(text);
+	const urlHost = url?.[1]?.toLowerCase() ?? "";
+	const urlForge = forgeForHost(urlHost);
+	// GitHub's pages for an item always say which kind: a bare number is a repository's subpath.
+	if (url && urlForge && (urlForge !== "github" || /\/(issues|pulls?)\/\d/i.test(text))) {
+		return { forge: urlForge, host: urlHost, repo: url[2] ?? "", item: `#${url[3]}` };
+	}
 
 	const short = SHORT_RE.exec(text);
 	if (short) {

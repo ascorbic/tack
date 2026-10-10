@@ -9,7 +9,15 @@ import { type ConnectorEnd, addShape, nextZ, readShape, shapesMap } from "../../
 import { addConnector, addSection } from "../../shared/structure.ts";
 import type { WriteServices } from "../actions/services.ts";
 import { cardStore } from "../cardStore.ts";
-import { ACCESS_GALLERY, LABELS, fixture } from "./fixtures.ts";
+import { matchSearch, parseSearch } from "../../shared/search.ts";
+import {
+	ACCESS_GALLERY,
+	GALLERY_CARDS,
+	LABELS,
+	PLANNING_CARDS,
+	PULL_GALLERY,
+	fixture,
+} from "./fixtures.ts";
 import { playRelated } from "./related.ts";
 
 // Writing back (M2) in the playground: a board to try the selection actions
@@ -76,6 +84,30 @@ export function playServices(): WriteServices {
 			return url;
 		},
 		related: playRelated,
+		// The card tool's search, over the playground's own cards.
+		async searchItems(host, q) {
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			if (/\[fail\]/.test(q)) {
+				return {
+					kind: "error",
+					reason: "error",
+					message: "The test forge couldn’t search just now.",
+				};
+			}
+			const parsed = parseSearch(q);
+			const seen = new Set<string>();
+			const items = [
+				...PLANNING_CARDS,
+				...CARDS,
+				...GALLERY_CARDS.map((entry) => entry.card),
+				...PULL_GALLERY.map((entry) => entry.card),
+			].filter((card) => {
+				if (seen.has(card.key) || card.host !== host) return false;
+				seen.add(card.key);
+				return matchSearch(card, parsed) === "yes";
+			});
+			return { kind: "search", total: items.length, items: items.slice(0, 10) };
+		},
 		// Carry over goes to pretend boards (#52).
 		async carryTargets() {
 			await new Promise((resolve) => setTimeout(resolve, 300));

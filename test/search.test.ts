@@ -88,6 +88,17 @@ describe("matchSearch", () => {
 		expect(matchSearch(c, parseSearch("comments:>2 sort:updated-desc"))).toBe("yes");
 		expect(matchSearch(c, parseSearch("label:bug,docs"))).toBe("yes");
 	});
+
+	it("searches every repository named, as GitHub does with several repo: qualifiers", () => {
+		const c = card();
+		expect(matchSearch(c, parseSearch("repo:acme/gears repo:acme/widgets is:open"))).toBe("yes");
+		expect(matchSearch(c, parseSearch("repo:acme/gears repo:acme/cogs"))).toBe("no");
+		expect(matchSearch(c, parseSearch("repo:acme/gears repo:acme/widgets is:closed"))).toBe("no");
+		expect(matchSearch(c, parseSearch("repo:acme/gears repo:acme/widgets gyroscope"))).toBe(
+			"unknown",
+		);
+		expect(matchSearch(c, parseSearch("repo:acme/widgets -repo:acme/widgets"))).toBe("no");
+	});
 });
 
 describe("matchSearch on dates, milestones and reviews", () => {

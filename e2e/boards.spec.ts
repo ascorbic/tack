@@ -135,3 +135,34 @@ test("unknown boards say so", async ({ page }) => {
 	await signInAs(page, OWNER, "/b/no-such-board/whatever");
 	await expect(page.getByRole("heading", { name: "This board isn’t here" })).toBeVisible();
 });
+
+test("the card tool searches the forge for the board's repositories", async ({ page }) => {
+	await signInAs(page, OWNER, `/?board=e2e-cards-${run}`);
+	await expect(page.getByRole("toolbar", { name: "Tools" })).toBeVisible();
+	const cardKeys = () =>
+		page.evaluate(() => {
+			const { doc } = (window as unknown as { tackBoard: { doc: import("yjs").Doc } }).tackBoard;
+			return [...doc.getMap<import("yjs").Map<unknown>>("shapes").values()]
+				.filter((shape) => shape.get("type") === "card")
+				.map((shape) => String(shape.get("ref")))
+				.sort();
+		});
+
+	await page.locator(".react-flow__pane").click({ position: { x: 400, y: 300 } });
+	await page.keyboard.press("c");
+	const field = page.getByRole("combobox", { name: "Issue or pull request" });
+	await field.fill("https://fake.tack/stress/cards/issues/3");
+	await field.press("Enter");
+	await expect.poll(cardKeys).toEqual(["fake.tack/stress/cards#3"]);
+
+	// Now the board has a repository, words search it, through the Worker.
+	await field.fill("synthetic");
+	const options = page
+		.getByRole("listbox", { name: "Issues and pull requests" })
+		.getByRole("option");
+	await expect(options).toHaveCount(10);
+	await expect(options.filter({ hasText: "#3" }).first()).toBeVisible();
+	await field.press("ArrowDown");
+	await field.press("Enter");
+	await expect.poll(async () => (await cardKeys()).length).toBe(2);
+});
