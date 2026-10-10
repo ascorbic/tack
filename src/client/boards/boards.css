@@ -1292,3 +1292,37 @@ a.brand {
 		max-width: 46vw;
 	}
 }
+
+.thumb-widget {
+	fill: var(--surface);
+}
+
+.thumb-widget-head {
+	fill: var(--accent);
+	opacity: 0.55;
+}
+
+.thumb-check {
+	fill: none;
+	stroke: var(--line-strong);
+	stroke-width: 1.2;
+	vector-effect: non-scaling-stroke;
+}
+
+.thumb-check[data-done] {
+	fill: var(--open);
+	stroke: none;
+}
+
+/* Template previews lay themselves out, frames first, then what's in them. */
+.board-thumb-sketch[data-animate] .thumb-shape {
+	animation: thumb-shape-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i, 0) * 28ms * var(--motion));
+}
+
+@keyframes thumb-shape-in {
+	from {
+		opacity: 0;
+		transform: scale(0.82) translateY(6px);
+	}
+}

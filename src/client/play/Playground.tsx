@@ -509,6 +509,7 @@ export default function Playground() {
 				readOnly={viewOnly}
 				push={push}
 				historySource={boardHistory}
+				fitOnLoad={scenario.startsWith("template-") || scenario === "actions"}
 			>
 				<PenProbe doc={sim.doc} mode={pen} onStats={setPenStats} />
 				<aside className="play-panel" aria-label="Playground controls" data-chrome>

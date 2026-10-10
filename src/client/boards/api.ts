@@ -21,7 +21,7 @@ export type ApiResult<T> =
 /** The server's errors, plus not being able to reach it at all. */
 export type ApiError = BoardError | "offline";
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
+export async function call<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
 	try {
 		const response = await fetch(path, {
 			...init,
@@ -42,7 +42,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<ApiResult<
 	}
 }
 
-const send = (method: string, body?: unknown): RequestInit => ({
+export const send = (method: string, body?: unknown): RequestInit => ({
 	method,
 	body: body === undefined ? undefined : JSON.stringify(body),
 });

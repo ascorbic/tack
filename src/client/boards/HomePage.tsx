@@ -9,6 +9,8 @@ import { localUser, type User } from "../presence.ts";
 import { ThemeToggle } from "../ThemeToggle.tsx";
 import { NotificationsButton } from "../comments/Notifications.tsx";
 import { boardsApi } from "./api.ts";
+import { type NewBoardRequest, NewBoardDialog } from "./NewBoard.tsx";
+import { templateLibrary, templatesApi } from "./templates.ts";
 import { BoardTile, type TileActions, type TileTime } from "./BoardTile.tsx";
 import { PlusIcon, SearchIcon } from "./icons.tsx";
 import "./boards.css";
@@ -60,14 +62,44 @@ export function HomeRoute() {
 		[load],
 	);
 
-	const create = async () => {
+	// New boards start in the template picker (#53), which the saved
+	// templates are fetched for as soon as the page knows you can make one.
+	// `/?template=id` (say, from "Make a board from it") opens the picker on it.
+	const [initialTemplate] = useState(
+		() => new URLSearchParams(location.search).get("template") ?? undefined,
+	);
+	const [picking, setPicking] = useState(initialTemplate !== undefined);
+	const [createError, setCreateError] = useState<string | null>(null);
+	useEffect(() => {
+		if (list?.canCreate) void templateLibrary.load();
+	}, [list?.canCreate]);
+	const yours = useMemo(() => {
+		if (!list) return [];
+		const seen = new Set<string>();
+		return [...list.recent, ...list.mine, ...list.shared].filter(
+			(board) => !seen.has(board.id) && seen.add(board.id),
+		);
+	}, [list]);
+
+	const create = async (request: NewBoardRequest) => {
 		setCreating(true);
-		const result = await boardsApi.create();
+		setCreateError(null);
+		const result = await boardsApi.create({
+			...(request.title ? { title: request.title } : {}),
+			...(request.template ? { template: request.template, repos: request.repos } : {}),
+			...(request.carryFrom ? { carryFrom: request.carryFrom } : {}),
+		});
 		if (result.ok) {
 			location.assign(`${boardPath(result.value)}?new=1`);
 		} else {
 			setCreating(false);
-			setFailed(true);
+			setCreateError(
+				result.error === "not_found"
+					? "That template’s gone: someone deleted it. Pick another?"
+					: result.error === "offline"
+						? "Couldn’t reach Tack just now. Try again?"
+						: "Couldn’t make the board. Try again?",
+			);
 		}
 	};
 
@@ -80,14 +112,33 @@ export function HomeRoute() {
 		return me.viewer ? <NotAllowedPage me={me} /> : <SignInPage me={me} />;
 	}
 	return (
-		<HomeView
-			me={me}
-			list={list}
-			failed={failed}
-			creating={creating}
-			onCreate={() => void create()}
-			actions={actions}
-		/>
+		<>
+			<HomeView
+				me={me}
+				list={list}
+				failed={failed}
+				creating={creating}
+				onCreate={() => setPicking(true)}
+				actions={actions}
+			/>
+			<NewBoardDialog
+				open={picking}
+				onClose={() => {
+					setPicking(false);
+					setCreateError(null);
+				}}
+				boards={yours}
+				initial={initialTemplate}
+				creating={creating}
+				error={createError}
+				onCreate={(request) => void create(request)}
+				onDelete={async (template) => {
+					const result = await templatesApi.remove(template.id);
+					if (result.ok || result.error === "not_found") templateLibrary.removed(template.id);
+					return result.ok || result.error === "not_found";
+				}}
+			/>
+		</>
 	);
 }
 

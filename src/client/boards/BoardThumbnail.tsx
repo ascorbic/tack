@@ -18,20 +18,37 @@ const CARD_STATE: Record<string, string> = {
  */
 export const BoardThumbnail = memo(function BoardThumbnail({
 	thumbnail,
+	animate = false,
 }: {
 	thumbnail: Thumbnail | null;
+	/** Lay the sketch out shape by shape, frames first (template previews). */
+	animate?: boolean;
 }) {
 	if (!thumbnail || thumbnail.shapes.length === 0) return <EmptyThumbnail />;
 	const pad = Math.max(thumbnail.width, thumbnail.height) * PADDING;
 	return (
 		<svg
 			className="board-thumb-sketch"
+			data-animate={animate || undefined}
 			viewBox={`${-pad} ${-pad} ${thumbnail.width + pad * 2} ${thumbnail.height + pad * 2}`}
 			preserveAspectRatio="xMidYMid meet"
 			aria-hidden="true"
 		>
 			{thumbnail.shapes.map((shape, i) => (
-				<Shape key={i} shape={shape} />
+				<g
+					key={i}
+					className="thumb-shape"
+					style={
+						animate
+							? ({
+									"--i": Math.min(i, 24),
+									transformOrigin: `${shape[1] + shape[3] / 2}px ${shape[2] + shape[4] / 2}px`,
+								} as React.CSSProperties)
+							: undefined
+					}
+				>
+					<Shape shape={shape} />
+				</g>
 			))}
 		</svg>
 	);
@@ -116,6 +133,79 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 							rx={gap * 0.28}
 						/>
 					))}
+				</g>
+			);
+		}
+		case "widget": {
+			// A panel: a header bar, then rows (or a line, for a timeline).
+			const head = Math.min(height * 0.16, width * 0.12);
+			const inset = Math.min(width, height) * 0.07;
+			const rows =
+				tone === "timeline" ? 0 : Math.max(2, Math.min(7, Math.floor(height / (head * 1.4)) - 1));
+			return (
+				<g>
+					<rect
+						className="thumb-card thumb-widget"
+						x={x}
+						y={y}
+						width={width}
+						height={height}
+						rx={r}
+					/>
+					<rect
+						className="thumb-widget-head"
+						x={x + inset}
+						y={y + inset}
+						width={width * 0.42}
+						height={head * 0.5}
+						rx={head * 0.25}
+					/>
+					{tone === "timeline" ? (
+						<rect
+							className="thumb-line"
+							x={x + inset}
+							y={y + height * 0.62}
+							width={width - inset * 2}
+							height={Math.max(2, head * 0.18)}
+							rx={head * 0.09}
+						/>
+					) : (
+						Array.from({ length: rows }, (_, i) => (
+							<rect
+								key={i}
+								className="thumb-line"
+								x={x + inset}
+								y={y + inset * 2 + head * (0.9 + i * 1.3)}
+								width={(width - inset * 2) * (i % 3 === 2 ? 0.6 : 0.9)}
+								height={head * 0.34}
+								rx={head * 0.17}
+							/>
+						))
+					)}
+				</g>
+			);
+		}
+		case "action": {
+			// A row with a checkbox.
+			const box = height * 0.28;
+			return (
+				<g>
+					<rect className="thumb-card" x={x} y={y} width={width} height={height} rx={r * 1.4} />
+					<circle
+						className="thumb-check"
+						data-done={tone === "done" || undefined}
+						cx={x + box * 1.1}
+						cy={y + box * 1.1}
+						r={box / 2}
+					/>
+					<rect
+						className="thumb-line"
+						x={x + box * 2}
+						y={y + box * 0.85}
+						width={width * 0.6}
+						height={box * 0.5}
+						rx={box * 0.25}
+					/>
 				</g>
 			);
 		}

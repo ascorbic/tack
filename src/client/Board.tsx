@@ -165,6 +165,8 @@ interface BoardProps extends BoardSource {
 	 * or the playground's. Without it there's no History button.
 	 */
 	historySource?: HistorySource | null;
+	/** Show everything on the board once it's loaded, as a board just made from a template does. */
+	fitOnLoad?: boolean;
 }
 
 export function Board({
@@ -181,6 +183,7 @@ export function Board({
 	services,
 	push = null,
 	historySource = null,
+	fitOnLoad = false,
 }: BoardProps) {
 	// History (#47): while it's open the canvas shows the board as it was, view only.
 	const replay = useHistoryMode(liveDoc, historySource);
@@ -190,6 +193,19 @@ export function Board({
 	const flow = useReactFlow();
 	const presence = usePresence(awareness, user);
 	const follow = useFollow(awareness, presence.people);
+	// A board just made from a template opens showing all of it, once its
+	// shapes have been measured.
+	const fitted = useRef(false);
+	const shapeCount = shapeNodes.length;
+	useEffect(() => {
+		if (!fitOnLoad || fitted.current || !synced || shapeCount === 0) return;
+		fitted.current = true;
+		const timer = setTimeout(
+			() => void flow.fitView({ padding: 0.08, maxZoom: 1, duration: scaledDuration(700) }),
+			120,
+		);
+		return () => clearTimeout(timer);
+	}, [fitOnLoad, synced, shapeCount, flow]);
 	// Spotlight: someone bringing everyone to their view (#50).
 	const spotlight = useSpotlightFollow(awareness, presence.people, follow);
 	usePublishStatus(awareness);

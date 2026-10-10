@@ -8,6 +8,7 @@ import { useLinger } from "../useLinger.ts";
 import { type ApiError, boardsApi, boardUrlFor } from "./api.ts";
 import { BoardTitle } from "./BoardTitle.tsx";
 import { ArchiveIcon, EyeIcon, ShareIcon, VisibilityIcon } from "./icons.tsx";
+import { BoardMenu } from "./SaveTemplate.tsx";
 import { ShareDialog } from "./ShareDialog.tsx";
 import type { ShareActions } from "./SharePanel.tsx";
 import "./boards.css";
@@ -25,6 +26,8 @@ export interface BoardPageProps {
 	/** Drawn over the canvas: the archived notice, and role-change toasts. */
 	overlay: ReactNode;
 	events: LiveBoardEvents;
+	/** Just made (`?new=1`): a board from a template opens showing all of it. */
+	justCreated: boolean;
 }
 
 type Load =
@@ -205,17 +208,21 @@ function LoadedBoard({
 		me,
 		id: board.id,
 		title: (
-			<BoardTitle
-				title={board.title}
-				editable={editable}
-				onRename={rename}
-				startEditing={justCreated}
-			/>
+			<>
+				<BoardTitle
+					title={board.title}
+					editable={editable}
+					onRename={rename}
+					startEditing={justCreated}
+				/>
+				{editable && (me.viewer || me.signIn !== "ready") && <BoardMenu board={board} />}
+			</>
 		),
 		readOnly: !editable,
 		actions,
 		overlay,
 		events,
+		justCreated,
 	});
 }
 
