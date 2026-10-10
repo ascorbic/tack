@@ -212,8 +212,8 @@ test("the gallery shows every widget state", async ({ page }) => {
 	]) {
 		await expect(page.getByText(text).first()).toBeVisible();
 	}
-	await expect(page.locator(".widget[data-stale]")).toHaveCount(1);
-	await expect(page.locator(".widget-config")).toHaveCount(7);
+	await expect(page.locator(".widget-list[data-stale]")).toHaveCount(1);
+	await expect(page.locator("section:not([data-kind]) .widget-config")).toHaveCount(7);
 	await page.getByRole("button", { name: "Simulate an update" }).click();
 	await expect(
 		page.locator('[data-state="live-update"] .widget-row[data-motion="enter"]'),
