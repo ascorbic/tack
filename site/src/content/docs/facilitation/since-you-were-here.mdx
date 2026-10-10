@@ -1,0 +1,36 @@
+---
+title: Since you were here
+description: What changed on the board, on GitHub and in comments while you were away.
+sidebar:
+  order: 5
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+Come back to a board after a while, and Tack shows what happened since your last visit.
+
+<Screenshot
+	name="since"
+	alt="The Since you were here panel after three days away: edits by two people, issues closed and merged and CI failing on GitHub, a push, and a comment mentioning you; rings mark the changed shapes."
+/>
+
+## The digest
+
+When there's something new, a **New** button appears in the top bar, and the panel opens by itself once: "Since you were here", "Away 3 days, since Saturday 12:00". It has:
+
+- **On the board**: who did what, most active first: "Kai added 4 stickies and a section, moved 2 cards". Expand someone to see each change, and click one to go to it. Edits by rules and pushes are listed too.
+- **On GitHub**: what happened to cards on the board: closed, merged, reopened, new comments, CI failing or passing, approved, changes requested. Only for repositories you can read.
+- **Pushed**: other people's pushes, with how many changes, and any that failed.
+- **Comments**: new threads and replies, and how many mention you.
+
+## Highlights
+
+Changed shapes on the board get a soft ring: **New**, **Changed**, **Moved** or **Closed**, with who did it. A ring fades once the shape has been on screen for a moment. The stepper at the bottom of the panel (**Previous change**, **Next change**) takes you to each change, the ones you haven't seen first.
+
+**Mark all as seen** starts the next digest from now, on your other tabs too.
+
+## Visits
+
+A visit ends when you've been away for 15 minutes, so reloading or a quick break doesn't reset what you haven't seen. When you're signed in, your own edits are never in your digest. On your first visit, there's nothing to show.
+
+If you're not signed in, your browser remembers when you were last here, for this board.

@@ -1,0 +1,51 @@
+---
+title: Dot voting
+description: Dot votes on a section or the whole board, live or open for days, counting 👍 on GitHub.
+sidebar:
+  order: 3
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+Everyone gets a few dots to put on what matters most. A vote can last a few minutes in a session, or stay open for days.
+
+<Screenshot
+	name="vote"
+	alt="A vote on Next quarter: the bar at the top shows dots left and closes in 2 days; stickies and cards in the section carry coloured dots."
+/>
+
+## Starting a vote
+
+- **On a section**: select it on its own and choose **Vote** in its header. The vote covers everything in it, however deeply nested.
+- **On the whole board**: Facilitate → **Vote on the board…**
+
+Then choose:
+
+| Setting                          | Choices                                                          |
+| -------------------------------- | ---------------------------------------------------------------- |
+| **Dots each**                    | 1 to 20 (3 to start with)                                        |
+| **Closes**                       | When it's closed, In an hour, Tomorrow, In 3 days, In a week     |
+| **Hide results until it closes** | Everyone sees only their own dots, "so nobody follows the crowd" |
+| **Count 👍 on GitHub as votes**  | Each 👍 reaction on a card's issue or pull request counts once   |
+
+**Start voting**. Only people who can edit the board can start votes, and vote.
+
+Hiding results is a courtesy, not a secret: the dots are part of the board.
+
+## Voting
+
+The vote's bar at the top of the board shows how many dots you have left and when it closes. Choose **Place dots**, then click stickies, cards, text or decisions to put dots on them. You can put several on one thing. Click one of your dots to take it back.
+
+A shape's dots go to the closest vote around it: a section's vote if it's in one, otherwise the board's.
+
+If a vote closes within a day and you still have dots, Tack reminds you once: "Voting closes in 3h: you have 2 dots left".
+
+## Results
+
+**Results** ranks everything by its dots (ties share a rank), with who voted and, when 👍 count, how many reactions. Click a row to find it on the board.
+
+With 👍 counting, each reaction on GitHub is a vote, but someone who reacted and also put dots on the card here is only counted once, by their dots. GitHub doesn't send webhooks for reactions, so new ones arrive the next time the card is fetched.
+
+## Closing
+
+A vote closes when someone chooses **Close vote**, or when its time runs out. Anyone who can edit the board can close it, **Reopen…** it (until closed, or for an hour, a day, three days or a week), or **Delete vote**. Choose ✕ on a closed vote's bar to put it away, in your browser.
