@@ -15,6 +15,7 @@ import { silentOf } from "../shared/silent.ts";
 import { isFresh, type ShapeNode, setStickyText, takeFocus } from "./board.ts";
 import { DocContext } from "./DocContext.ts";
 import { facilitation, useSilentTexts } from "./facilitation/store.ts";
+import { scaledDuration } from "./motion.ts";
 import { initials } from "./People.tsx";
 import { STICKY_FONT_SIZES } from "./textFit.ts";
 import { useEditing } from "./useEditing.ts";
@@ -209,6 +210,8 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 
 /** How long the reveal's wave takes to cross a section, before motion scaling. */
 const WAVE_MS = 700;
+/** How long one sticky takes to turn over; keep in step with `.sticky[data-flip]`. */
+const FLIP_MS = 760;
 
 /**
  * When a face-down sticky is revealed, it turns over: each a little after
@@ -237,6 +240,12 @@ function useRevealFlip(
 		}
 		setFlip((current) => ({ n: (current?.n ?? 0) + 1, delay }));
 	}, [session, doc, shape.parent, shape.x, shape.y]);
+	// Once it's turned over, it's an ordinary sticky again.
+	useEffect(() => {
+		if (!flip) return;
+		const timer = setTimeout(() => setFlip(null), scaledDuration(flip.delay + FLIP_MS) + 100);
+		return () => clearTimeout(timer);
+	}, [flip]);
 	return flip;
 }
 

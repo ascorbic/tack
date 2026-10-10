@@ -108,6 +108,23 @@ describe("pasteShapes", () => {
 		expect(arrow?.get("to")).toEqual({ shape: "elsewhere" });
 	});
 
+	it("leaves silent mode with the original", () => {
+		const doc = new Y.Doc();
+		addShape(doc, "s", { type: "section", x: 0, y: 0, w: 400, h: 300, z: "a0" });
+		addShape(doc, "hidden", { type: "sticky", x: 10, y: 10, z: "a1", parent: "s", silent: "x" });
+		shapesMap(doc)
+			.get("s")
+			?.set("silent", { id: "x", by: { name: "P", color: "" }, at: "" });
+		const payload = roundTrip(copyShapes(doc, ["s", "hidden"])) as ClipboardPayload;
+		const ids = pasteShapes(doc, payload, { x: 600, y: 0 });
+		for (const id of ids)
+			expect(
+				shapesMap(doc)
+					.get(id ?? "")
+					?.has("silent"),
+			).toBe(false);
+	});
+
 	it("round-trips nested Yjs types", () => {
 		const doc = new Y.Doc();
 		addShape(doc, "t", { type: "text" as never, x: 0, y: 0, z: "a0" });

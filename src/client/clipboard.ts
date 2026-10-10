@@ -176,6 +176,10 @@ export function payloadBounds(payload: ClipboardPayload): Rect | null {
 const UNCOPIED: Record<string, readonly string[]> = {
 	decision: DECISION_UNCOPIED,
 	card: CARD_UNCOPIED,
+	// Silent mode belongs to the original: a copied section isn't silent, and
+	// a copy of a face-down sticky (which has no text here) is a fresh one.
+	section: ["silent"],
+	sticky: ["silent"],
 };
 
 /**
