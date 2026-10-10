@@ -76,7 +76,7 @@ import { ShapeToolbar, styledShapes } from "./ShapeToolbar.tsx";
 import { ShortcutSheet } from "./Shortcuts.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 import { Toasts, ToastStore } from "./Toasts.tsx";
-import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar } from "./Toolbar.tsx";
+import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar, VIEW_TOOLS } from "./Toolbar.tsx";
 import { History } from "./undo.ts";
 import { usePublishStatus } from "./useActivity.ts";
 import { InboxLayer } from "./inbox/InboxTray.tsx";
@@ -92,6 +92,11 @@ import { RowGhost } from "./widgets/RowDrag.tsx";
 import { linkStore } from "./widgets/store.ts";
 import { useDropToMatch } from "./widgets/useDropToMatch.ts";
 import { WIDGET_DRAG_TYPE } from "./widgets/WidgetPicker.tsx";
+import { useCommentsOnBoard } from "./comments/useCommentsOnBoard.ts";
+import { CommentLayer } from "./comments/CommentLayer.tsx";
+import { CommentsButton, CommentsPanel } from "./comments/CommentsPanel.tsx";
+import { HighlightLayer } from "./since/Highlights.tsx";
+import { SinceButton, SincePanel } from "./since/SincePanel.tsx";
 
 // Every shape shows the changes staged about it.
 const NODE_TYPES = Object.fromEntries(
@@ -475,6 +480,16 @@ export function Board({
 	// Where the pointer is in flow space, only tracked while placing a sticky.
 	const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
 
+	// Comments (#51) and "since you were here" (#46).
+	const comments = useCommentsOnBoard({
+		user,
+		nodes,
+		sizeOf: boxSize,
+		toasts,
+		onPanel: () => setRulesOpen(false),
+		board: name,
+	});
+
 	// Tool shortcuts, ignored while typing.
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -482,8 +497,8 @@ export function Board({
 			if (isOffBoardTarget(event.target)) return;
 			if (event.key === "Escape") setTool("select");
 			const next = TOOL_KEYS[event.key.toLowerCase()];
-			// View only: just the select and hand tools, no sections (F) or connectors (X).
-			if (next && readOnly && next !== "select" && next !== "hand") return;
+			// View only: just the select and hand tools, and comments, no sections (F) or connectors (X).
+			if (next && readOnly && !VIEW_TOOLS.has(next)) return;
 			if (next) {
 				event.preventDefault();
 				setTool(next);
@@ -576,12 +591,14 @@ export function Board({
 	// Select: drag the canvas to marquee-select; scroll or space-drag to pan.
 	// Hand: drag to pan, and shapes can't be picked up. Section and connector:
 	// drag to draw, so shapes can't be picked up either.
+	// Comment: click anything to comment on it, so nothing can be picked up either.
 	const shapesInteractive =
 		tool !== "hand" &&
 		tool !== "section" &&
 		tool !== "connector" &&
 		tool !== "stamp" &&
-		tool !== "vote";
+		tool !== "vote" &&
+		tool !== "comment";
 	return (
 		<ChangesContext value={changesUI}>
 			<BoardContext
@@ -608,14 +625,19 @@ export function Board({
 								onFollow={follow.follow}
 								self={account}
 							/>
+							<SinceButton doc={doc} login={user.login} youId={comments.youId} />
 							<RulesButton
 								doc={doc}
 								open={rulesOpen}
-								onToggle={() => setRulesOpen((open) => !open)}
+								onToggle={() => {
+									setRulesOpen((open) => !open);
+									comments.closePanel();
+								}}
 								toasts={toasts}
 								onReveal={reveal}
 							/>
 							<FacilitateMenu doc={doc} awareness={awareness} user={user} readOnly={readOnly} />
+							<CommentsButton />
 							<ThemeToggle />
 							<span className="status" data-synced={synced}>
 								{synced ? "Synced" : "Connecting…"}
@@ -771,6 +793,14 @@ export function Board({
 									sizeOf={boxSize}
 									onPlaced={(id) => setSelected(new Set([id]))}
 								/>
+								<HighlightLayer doc={doc} nodes={nodes} sizeOf={boxSize} />
+								<CommentLayer
+									nodes={nodes}
+									sizeOf={boxSize}
+									placing={tool === "comment"}
+									user={user}
+									toasts={toasts}
+								/>
 								<Guides store={snapping.guides} />
 								{!readOnly && (
 									<SelectionTools
@@ -861,7 +891,7 @@ export function Board({
 								/>
 							)}
 							<CursorChat awareness={awareness} user={user} />
-							{!readOnly && (
+							{(!readOnly || comments.canComment) && (
 								<Toolbar
 									tool={tool}
 									onTool={setTool}
@@ -872,8 +902,18 @@ export function Board({
 									suggestedRepo={suggestedRepo}
 									stamp={stamp}
 									onStamp={setStamp}
+									viewOnly={readOnly}
+									commenting={comments.canComment}
 								/>
 							)}
+							<SincePanel
+								doc={doc}
+								login={user.login}
+								youId={comments.youId}
+								onJump={comments.jumpToShape}
+								onOpenThread={comments.jumpToThread}
+							/>
+							<CommentsPanel doc={doc} login={user.login} onJump={comments.jumpToThread} />
 							{rulesOpen && (
 								<RulesPanel
 									doc={doc}

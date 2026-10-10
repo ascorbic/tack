@@ -157,7 +157,8 @@ export class RemotePerson {
 	/** The part of the board they're looking at, as their window would. */
 	view: View = { x: -80, y: -60, width: 1440, height: 860 };
 	status: Status = "active";
-	private origin = Symbol("remote");
+	/** The origin of their updates to the board, as a provider's would be. */
+	readonly origin = Symbol("remote");
 	private followTimer = 0;
 	private cleanups: (() => void)[] = [];
 

@@ -11,6 +11,7 @@ import { pushApi } from "./changes/api.ts";
 import { stagerFor } from "./changes/context.ts";
 import { type BoardPageProps, BoardRoute, LegacyRedirect } from "./boards/BoardPage.tsx";
 import { HomeRoute } from "./boards/HomePage.tsx";
+import { NotificationsButton } from "./comments/Notifications.tsx";
 import { useLiveBoard } from "./connection.ts";
 import { Fps } from "./Fps.tsx";
 import { localUser } from "./presence.ts";
@@ -78,6 +79,7 @@ function LiveBoard({ me, id, title, readOnly, actions, overlay, events }: BoardP
 				actions={
 					<>
 						{actions}
+						{me.viewer && <NotificationsButton boardId={id} />}
 						<SignInButton me={me} />
 					</>
 				}

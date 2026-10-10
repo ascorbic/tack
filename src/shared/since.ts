@@ -7,6 +7,8 @@
 // log keeps one row per shape and kind of change (the latest), card history
 // a few rows per card, and the digest caps how many edits it lists.
 
+import type * as Y from "yjs";
+import type { Card } from "./cards.ts";
 import type { CommentThread } from "./comments.ts";
 import { isVisible, liveMessages } from "./comments.ts";
 
@@ -88,6 +90,58 @@ export function isSinceRequest(value: unknown): value is SinceRequest {
 	return type === "since-request" || type === "since-seen";
 }
 
+// --- Edits ----------------------------------------------------------------------
+
+/** Keys whose change is a move; `z` alone (bringing to front) isn't worth telling anyone. */
+const MOVE_KEYS = new Set(["x", "y", "parent"]);
+const IGNORED_KEYS = new Set(["z"]);
+
+export interface ShapeChange {
+	shape: string;
+	kind: EditKind;
+}
+
+/**
+ * What a transaction did to shapes, from `observeDeep` events on the shapes
+ * map: added, removed, moved (only position or section changed) or changed
+ * (anything else, nested maps like votes included). `moved` lists shapes
+ * whose position changed, moved or not.
+ */
+export function shapeChanges(
+	events: Y.YEvent<Y.AbstractType<unknown>>[],
+	shapes: Y.Map<Y.Map<unknown>>,
+): { changes: ShapeChange[]; moved: string[] } {
+	const changes: ShapeChange[] = [];
+	const moved = new Set<string>();
+	for (const event of events) {
+		if (event.target === shapes) {
+			for (const [shape, change] of event.changes.keys) {
+				const kind =
+					change.action === "delete" ? "removed" : change.action === "add" ? "added" : "changed";
+				changes.push({ shape, kind });
+			}
+			continue;
+		}
+		const shape = event.path[0];
+		if (typeof shape !== "string") continue;
+		// A nested map (votes, dismissals) changed: the shape changed.
+		if (event.path.length > 1) {
+			changes.push({ shape, kind: "changed" });
+			continue;
+		}
+		const keys = [...event.changes.keys.keys()].filter((key) => !IGNORED_KEYS.has(key));
+		if (keys.length === 0) continue;
+		if (keys.some((key) => key === "x" || key === "y")) moved.add(shape);
+		changes.push({ shape, kind: keys.every((key) => MOVE_KEYS.has(key)) ? "moved" : "changed" });
+	}
+	return { changes, moved: [...moved] };
+}
+
+/** Whether a change is worth telling anyone: a connector's ends following shapes isn't. */
+export function isNews(type: string, kind: EditKind): boolean {
+	return !(type === "connector" && kind === "moved");
+}
+
 // --- Card history -------------------------------------------------------------
 
 /** What the board remembers of a card over time: just enough to say what changed. */
@@ -98,6 +152,15 @@ export interface CardSnapshot {
 	ci: string;
 	/** Review decision, or "". */
 	review: string;
+}
+
+export function snapshotOf(card: Card): CardSnapshot {
+	return {
+		state: card.state,
+		comments: card.comments,
+		ci: card.pull?.checks?.state ?? "",
+		review: card.pull?.review ?? "",
+	};
 }
 
 export function sameSnapshot(a: CardSnapshot, b: CardSnapshot): boolean {

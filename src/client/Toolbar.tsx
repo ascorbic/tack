@@ -18,7 +18,8 @@ export type Tool =
 	/** Stamping shapes (#50). */
 	| "stamp"
 	/** Placing dot votes on shapes (#48), from a vote's bar. */
-	| "vote";
+	| "vote"
+	| "comment";
 
 export const TOOL_KEYS: Record<string, Tool> = {
 	v: "select",
@@ -31,7 +32,11 @@ export const TOOL_KEYS: Record<string, Tool> = {
 	d: "decision",
 	w: "widget",
 	m: "stamp",
+	b: "comment",
 };
+
+/** Tools for people who can look and comment, but not edit. */
+export const VIEW_TOOLS: ReadonlySet<Tool> = new Set(["select", "hand", "comment"]);
 
 /** The MIME type for dragging a new sticky off the toolbar onto the canvas. */
 export const STICKY_DRAG_TYPE = "application/x-tack-sticky";
@@ -49,7 +54,13 @@ interface ToolbarProps {
 	suggestedRepo?: string | null;
 	stamp: StampEmoji;
 	onStamp: (stamp: StampEmoji) => void;
+	/** View only: just selecting, the hand, and comments. */
+	viewOnly?: boolean;
+	/** Whether there's a comment tool: you can comment here. */
+	commenting?: boolean;
 }
+
+const CommentPaths = () => <path d="M4 16.5V10a6 6 0 1 1 6 6Z" />;
 
 export function Toolbar({
 	tool,
@@ -61,7 +72,31 @@ export function Toolbar({
 	suggestedRepo = null,
 	stamp,
 	onStamp,
+	viewOnly = false,
+	commenting = true,
 }: ToolbarProps) {
+	const commentHint = tool === "comment" && (
+		<ToolHint>Click anything to comment on it, or anywhere on the board</ToolHint>
+	);
+	if (viewOnly) {
+		return (
+			<div className="toolbar-dock">
+				{commentHint}
+				<div className="toolbar" role="toolbar" aria-label="Tools">
+					<ToolButton tool="select" active={tool} onTool={onTool} label="Select" shortcut="V">
+						<path d="M5 3.5l12 7-5.5 1.6L9 17.5z" />
+					</ToolButton>
+					<ToolButton tool="hand" active={tool} onTool={onTool} label="Hand" shortcut="H">
+						<path d="M7 11V5.5a1.5 1.5 0 0 1 3 0V10m0-.5V4a1.5 1.5 0 0 1 3 0v6m0-4.5a1.5 1.5 0 0 1 3 0V12a6 6 0 0 1-6 6h-.6a5 5 0 0 1-3.9-1.9L3.3 13a1.5 1.5 0 0 1 2.3-1.9L7 12.5" />
+					</ToolButton>
+					<span className="toolbar-divider" aria-hidden="true" />
+					<ToolButton tool="comment" active={tool} onTool={onTool} label="Comment" shortcut="B">
+						<CommentPaths />
+					</ToolButton>
+				</div>
+			</div>
+		);
+	}
 	return (
 		<div className="toolbar-dock">
 			{tool === "stamp" && <StampOptions stamp={stamp} onStamp={onStamp} />}
@@ -70,6 +105,7 @@ export function Toolbar({
 					Click shapes to put your dots on them; click one of yours to take it back
 				</ToolHint>
 			)}
+			{commentHint}
 			{tool === "sticky" && <StickyOptions color={stickyColor} onColor={onStickyColor} />}
 			{tool === "text" && (
 				<div className="toolbar-options">
@@ -145,6 +181,11 @@ export function Toolbar({
 						{stamp}
 					</span>
 				</button>
+				{commenting && (
+					<ToolButton tool="comment" active={tool} onTool={onTool} label="Comment" shortcut="B">
+						<CommentPaths />
+					</ToolButton>
+				)}
 			</div>
 		</div>
 	);

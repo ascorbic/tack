@@ -13,6 +13,7 @@ import {
 import { type NewConnector, addConnector, addSection } from "../../shared/structure.ts";
 import { addCard } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
+import { seedCommentsRetro } from "./asyncScenarios.ts";
 import { seedInbox, seedRules } from "./automationScenarios.ts";
 import { seedDecisions } from "./decisions.ts";
 import type { SimulatedFacilitator } from "./facilitation.ts";
@@ -563,6 +564,18 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"A review queue (yours, and a team's), a milestone's progress and risks, and a stale finder whose quick actions stage changes. Zoom out to read them from afar.",
 		seed: seedTracking,
+	},
+	comments: {
+		name: "Comments",
+		description:
+			"A retro with threads on cards, stickies, a section and the board, one resolved and one mentioning you. Press B to comment; open the Comments panel for the rest.",
+		seed: seedCommentsRetro,
+	},
+	since: {
+		name: "Since you were here",
+		description:
+			"You've been away three days: people added, moved and edited things, GitHub closed and merged cards, someone pushed and mentioned you. Highlights fade once you've looked.",
+		seed: seedCommentsRetro,
 	},
 	empty: {
 		name: "Empty",

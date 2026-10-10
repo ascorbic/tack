@@ -25,6 +25,8 @@ import {
 import { AutomationPlay } from "./AutomationPlay.tsx";
 import { SimulatedFacilitator } from "./facilitation.ts";
 import { FacilitationPlay } from "./FacilitationPlay.tsx";
+import { AsyncPlay } from "./AsyncPlay.tsx";
+import { NotificationsButton } from "../comments/Notifications.tsx";
 import { fixture, LABELS } from "./fixtures.ts";
 import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
@@ -478,10 +480,12 @@ export default function Playground() {
 		return () => clearInterval(timer);
 	});
 
+	const boardName = `Playground · ${SCENARIOS[scenario]?.name ?? scenario}`;
 	return (
 		<ReactFlowProvider key={scenario}>
 			<Board
-				name={`Playground · ${SCENARIOS[scenario]?.name ?? scenario}`}
+				name={boardName}
+				actions={signedIn && <NotificationsButton boardId={boardName} />}
 				user={user}
 				doc={sim.doc}
 				awareness={sim.awareness}
@@ -715,6 +719,16 @@ export default function Playground() {
 					/>
 
 					<AutomationPlay doc={sim.doc} />
+
+					<AsyncPlay
+						sim={sim}
+						scenario={scenario}
+						board={boardName}
+						user={user}
+						signedIn={signedIn}
+						viewOnly={viewOnly}
+						someone={someone}
+					/>
 
 					<div className="play-section">
 						<h2 className="play-label">Checks and reviews</h2>

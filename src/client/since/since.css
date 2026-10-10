@@ -1,0 +1,628 @@
+/* ---------------------------------------------------------------------------
+   Since you were here (#46): the digest panel, its top bar button, and the
+   highlights on the canvas.
+   ------------------------------------------------------------------------ */
+
+.since-panel,
+.since-layer {
+	--since-new: var(--open);
+	--since-changed: var(--pending);
+	--since-moved: var(--accent);
+	--since-closed: var(--merged);
+}
+
+/* The top bar's button ------------------------------------------------------ */
+
+.topbar .since-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 10px 0 9px;
+	border-color: color-mix(in srgb, var(--open) 40%, var(--line-strong));
+	color: var(--open);
+	animation: since-button-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.topbar .since-button[aria-pressed="true"] {
+	background: var(--open-bg);
+}
+
+@keyframes since-button-in {
+	from {
+		opacity: 0;
+		scale: 0.8;
+	}
+}
+
+.since-button-count {
+	display: inline-grid;
+	place-items: center;
+	min-width: 18px;
+	height: 18px;
+	padding: 0 5px;
+	border-radius: 9px;
+	background: var(--open);
+	color: var(--on-status);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The panel ---------------------------------------------------------------- */
+
+.since-panel {
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	z-index: 20;
+	width: min(372px, calc(100vw - 24px));
+	max-height: calc(100% - 120px);
+	display: flex;
+	flex-direction: column;
+	border-radius: 18px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(16px) saturate(1.3);
+	color: var(--ink);
+	overflow: hidden;
+	transform-origin: 24px 24px;
+	animation: since-panel-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes since-panel-in {
+	from {
+		opacity: 0;
+		scale: 0.92;
+		translate: -10px -6px;
+	}
+}
+
+.since-head {
+	display: flex;
+	align-items: flex-start;
+	gap: 11px;
+	padding: 16px 12px 12px 16px;
+	background: linear-gradient(
+		180deg,
+		color-mix(in srgb, var(--open-bg) 70%, transparent),
+		transparent
+	);
+}
+
+.since-head > div {
+	flex: 1;
+	min-width: 0;
+}
+
+.since-head-icon {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 32px;
+	height: 32px;
+	border-radius: 10px;
+	background: var(--open-bg);
+	color: var(--open);
+	animation: since-wave calc(1400ms * var(--motion)) var(--ease-spring) calc(200ms * var(--motion));
+}
+
+@keyframes since-wave {
+	20% {
+		rotate: -14deg;
+	}
+	45% {
+		rotate: 10deg;
+	}
+	70% {
+		rotate: -4deg;
+	}
+}
+
+.since-head h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 19px;
+	font-weight: 750;
+	letter-spacing: -0.025em;
+	line-height: 1.15;
+}
+
+.since-head p {
+	margin: 3px 0 0;
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.since-close {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.since-close:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.since-body {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 2px 8px 10px;
+}
+
+.since-section + .since-section {
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--line);
+}
+
+.since-section h3 {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	margin: 6px 8px 4px;
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.since-mentions {
+	margin-left: auto;
+	padding: 1px 7px;
+	border-radius: 9px;
+	background: var(--highlight);
+	color: var(--ink);
+	font-size: 11px;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+.since-section ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.since-section > ul > li {
+	animation: since-row-in var(--t-settle) var(--ease-settle) backwards;
+	animation-delay: calc((120ms + var(--i, 0) * 40ms) * var(--motion));
+}
+
+@keyframes since-row-in {
+	from {
+		opacity: 0;
+		translate: -6px 4px;
+	}
+}
+
+.since-section li > button,
+.since-pushes > li {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 8px;
+	border: 0;
+	border-radius: 10px;
+	background: transparent;
+	color: inherit;
+	font-size: 13px;
+	line-height: 1.4;
+	text-align: left;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		translate var(--t-base) var(--ease-spring);
+}
+
+.since-pushes > li {
+	cursor: default;
+}
+
+.since-section li > button:hover:not(:disabled) {
+	background: var(--hover);
+}
+
+.since-section li > button:active:not(:disabled) {
+	translate: 1px 0;
+}
+
+.since-section li > button:disabled {
+	cursor: default;
+	opacity: 0.7;
+}
+
+.since-section .avatar {
+	width: 26px;
+	height: 26px;
+	font-size: 10px;
+}
+
+.since-line-main {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.since-line-main strong {
+	font-weight: 650;
+}
+
+.since-section time {
+	flex: none;
+	color: var(--muted);
+	font-size: 11.5px;
+	font-variant-numeric: tabular-nums;
+}
+
+.since-dot {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--open);
+}
+
+.since-person .comment-icon {
+	color: var(--muted);
+	transition: rotate var(--t-base) var(--ease-spring);
+}
+
+li[data-open] > .since-person .comment-icon {
+	rotate: 90deg;
+}
+
+.since-edits {
+	margin: 0 0 4px 36px !important;
+	padding: 2px 0 !important;
+	border-left: 2px solid var(--line);
+}
+
+.since-edits li button {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 5px 8px;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: inherit;
+	font-size: 12.5px;
+	text-align: left;
+	cursor: pointer;
+	animation: since-row-in var(--t-base) var(--ease-settle) backwards;
+}
+
+.since-edits li button:hover {
+	background: var(--hover);
+}
+
+.since-kind {
+	flex: none;
+	min-width: 52px;
+	padding: 1px 6px;
+	border-radius: 6px;
+	font-size: 10.5px;
+	font-weight: 700;
+	text-align: center;
+	color: var(--since-moved);
+	background: color-mix(in srgb, var(--since-moved) 14%, transparent);
+}
+
+.since-kind[data-kind="added"] {
+	color: var(--since-new);
+	background: color-mix(in srgb, var(--since-new) 14%, transparent);
+}
+
+.since-kind[data-kind="changed"] {
+	color: var(--pending-ink);
+	background: color-mix(in srgb, var(--since-changed) 18%, transparent);
+}
+
+.since-target {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--ink-soft);
+}
+
+.since-glyph {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 26px;
+	height: 26px;
+	border-radius: 8px;
+	background: var(--chip);
+	color: var(--ink-soft);
+}
+
+.since-glyph svg {
+	fill: currentColor;
+}
+
+.since-glyph[data-kind="push"] svg {
+	fill: none;
+}
+
+.since-glyph[data-kind="merged"] {
+	background: var(--merged-bg);
+	color: var(--merged);
+}
+
+.since-glyph[data-kind="closed"] {
+	background: var(--closed-bg);
+	color: var(--closed);
+}
+
+.since-glyph[data-kind="reopened"],
+.since-glyph[data-kind="ci_passing"],
+.since-glyph[data-kind="approved"] {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.since-glyph[data-kind="ci_failing"],
+.since-glyph[data-kind="changes_requested"] {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.since-glyph[data-kind="push"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.since-glyph-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: currentColor;
+}
+
+.since-activity {
+	font-weight: 600;
+}
+
+.since-activity[data-kind="merged"] {
+	color: var(--merged);
+}
+
+.since-activity[data-kind="ci_failing"],
+.since-activity[data-kind="changes_requested"] {
+	color: var(--fail-ink);
+}
+
+.since-activity[data-kind="ci_passing"],
+.since-activity[data-kind="approved"],
+.since-activity[data-kind="reopened"] {
+	color: var(--open);
+}
+
+.since-card-title,
+.since-summaries,
+.since-quote {
+	color: var(--muted);
+	font-size: 12.5px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.since-quote {
+	color: var(--ink-soft);
+}
+
+.since-you {
+	color: var(--pending-ink);
+	font-weight: 600;
+}
+
+.since-failed {
+	color: var(--fail-ink);
+}
+
+.since-more {
+	margin: 2px 8px 0;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.since-empty {
+	padding: 22px 12px 18px;
+	text-align: center;
+}
+
+.since-empty strong {
+	font-family: var(--font-display);
+	font-size: 15px;
+}
+
+.since-empty p {
+	margin: 4px 0 0;
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.since-foot {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 12px 12px;
+	border-top: 1px solid var(--line);
+}
+
+.since-stepper {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	color: var(--muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.since-stepper button {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--ink);
+	cursor: pointer;
+	transition: scale var(--t-base) var(--ease-spring);
+}
+
+.since-stepper button:active {
+	scale: 0.9;
+}
+
+.since-stepper span {
+	min-width: 84px;
+	text-align: center;
+}
+
+.since-seen {
+	margin-left: auto;
+	height: 32px;
+	padding: 0 14px;
+	border: 0;
+	border-radius: 9px;
+	background: var(--ink);
+	color: var(--surface);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		scale var(--t-base) var(--ease-spring),
+		background var(--t-quick) var(--ease-out);
+}
+
+.since-seen:hover {
+	background: var(--ink-soft);
+}
+
+.since-seen:active {
+	scale: 0.96;
+}
+
+/* Highlights on the canvas ---------------------------------------------------------- */
+
+.since-layer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	pointer-events: none;
+	z-index: 2500;
+}
+
+.since-ring {
+	--ring: var(--since-moved);
+	position: absolute;
+	left: 0;
+	top: 0;
+	border-radius: 14px;
+	pointer-events: none;
+	box-shadow:
+		0 0 0 calc(3px * var(--inv-zoom, 1)) color-mix(in srgb, var(--ring) 85%, transparent),
+		0 0 0 calc(10px * var(--inv-zoom, 1)) color-mix(in srgb, var(--ring) 14%, transparent);
+	animation:
+		since-ring-in var(--t-settle) var(--ease-spring) backwards,
+		since-ring-glow calc(2600ms * var(--motion)) var(--ease-out) calc(600ms * var(--motion)) 2;
+	animation-delay: calc(var(--i, 0) * 50ms * var(--motion)), calc(600ms * var(--motion));
+	transition:
+		opacity calc(900ms * var(--motion)) var(--ease-out),
+		scale calc(900ms * var(--motion)) var(--ease-out);
+}
+
+.since-ring[data-kind="new"] {
+	--ring: var(--since-new);
+}
+
+.since-ring[data-kind="changed"] {
+	--ring: var(--since-changed);
+}
+
+.since-ring[data-kind="closed"] {
+	--ring: var(--since-closed);
+}
+
+/* Moved shapes get a dashed edge: they're where they are now, not new. */
+.since-ring[data-kind="moved"] {
+	box-shadow: 0 0 0 calc(10px * var(--inv-zoom, 1)) color-mix(in srgb, var(--ring) 10%, transparent);
+	outline: calc(2px * var(--inv-zoom, 1)) dashed color-mix(in srgb, var(--ring) 80%, transparent);
+	outline-offset: calc(3px * var(--inv-zoom, 1));
+}
+
+.since-ring[data-fading] {
+	opacity: 0;
+	scale: 1.03;
+}
+
+@keyframes since-ring-in {
+	from {
+		opacity: 0;
+		scale: 1.08;
+	}
+}
+
+@keyframes since-ring-glow {
+	50% {
+		box-shadow:
+			0 0 0 calc(3px * var(--inv-zoom, 1)) var(--ring),
+			0 0 0 calc(16px * var(--inv-zoom, 1)) color-mix(in srgb, var(--ring) 8%, transparent);
+	}
+}
+
+.since-label {
+	position: absolute;
+	left: 0;
+	bottom: 100%;
+	transform-origin: 0 100%;
+	scale: var(--unzoom, 1);
+	translate: 0 calc(-8px * var(--unzoom, 1));
+	padding: 2px 8px;
+	border-radius: 7px;
+	background: var(--ring);
+	color: var(--on-status);
+	font-size: 11.5px;
+	font-weight: 700;
+	letter-spacing: 0.01em;
+	white-space: nowrap;
+	box-shadow: var(--shadow-hover);
+}
+
+.since-label-by {
+	font-weight: 550;
+	opacity: 0.9;
+}
+
+/* Amber needs dark text, in either theme. */
+.since-ring[data-kind="changed"] .since-label {
+	color: #2b2100;
+}
+
+.since-replies {
+	color: var(--muted);
+}

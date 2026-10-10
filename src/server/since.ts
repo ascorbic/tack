@@ -27,7 +27,10 @@ import {
 	MAX_DIGEST_EDITS,
 	VISIT_GAP_MS,
 	cardActivity,
+	isNews,
 	sameSnapshot,
+	shapeChanges,
+	snapshotOf,
 } from "../shared/since.ts";
 import { shapesMap } from "../shared/shapes.ts";
 
@@ -35,9 +38,6 @@ import { shapesMap } from "../shared/shapes.ts";
 const REMOVED_TTL_MS = 90 * 24 * 60 * 60_000;
 /** Snapshots kept per card. */
 const CARD_HISTORY = 12;
-/** Keys whose change is a move; `z` alone (bringing to front) isn't worth telling anyone. */
-const MOVE_KEYS = new Set(["x", "y", "parent"]);
-const IGNORED_KEYS = new Set(["z"]);
 
 export interface ChangeLogDeps {
 	sql: SqlStorage;
@@ -87,34 +87,18 @@ export class ChangeLog {
 	private observe(events: Y.YEvent<Y.AbstractType<unknown>>[], transaction: Y.Transaction): void {
 		const shapes = shapesMap(this.deps.doc);
 		const by = this.deps.actorOf(transaction.origin);
-		const moved = new Set<string>();
 		const now = Date.now();
-		for (const event of events) {
-			if (event.target === shapes) {
-				for (const [id, change] of event.changes.keys) {
-					if (change.action === "delete") {
-						if (by) this.note(id, "removed", now, by);
-						this.types.delete(id);
-						this.deps.onRemoved?.(id);
-					} else {
-						this.types.set(id, typeOf(shapes.get(id)));
-						if (by) this.note(id, change.action === "add" ? "added" : "changed", now, by);
-					}
-				}
+		const { changes, moved } = shapeChanges(events, shapes);
+		for (const { shape, kind } of changes) {
+			if (kind === "removed") {
+				if (by) this.note(shape, kind, now, by);
+				this.types.delete(shape);
+				this.deps.onRemoved?.(shape);
 				continue;
 			}
-			const id = event.path[0];
-			if (typeof id !== "string") continue;
-			// A nested map (votes, dismissals) changed: the shape changed.
-			if (event.path.length > 1) {
-				if (by) this.note(id, "changed", now, by);
-				continue;
-			}
-			const keys = [...event.changes.keys.keys()].filter((key) => !IGNORED_KEYS.has(key));
-			if (keys.length === 0) continue;
-			const isMove = keys.every((key) => MOVE_KEYS.has(key));
-			if (keys.some((key) => key === "x" || key === "y")) moved.add(id);
-			if (by) this.note(id, isMove ? "moved" : "changed", now, by);
+			if (kind === "added" || !this.types.has(shape))
+				this.types.set(shape, typeOf(shapes.get(shape)));
+			if (by) this.note(shape, kind, now, by);
 		}
 		for (const id of moved) {
 			const shape = shapes.get(id);
@@ -126,8 +110,7 @@ export class ChangeLog {
 
 	private note(shape: string, kind: EditKind, at: number, by: Actor): void {
 		const type = this.types.get(shape) ?? "shape";
-		// A connector's ends following shapes isn't news; its own edits are.
-		if (type === "connector" && kind === "moved") return;
+		if (!isNews(type, kind)) return;
 		this.pending.set(`${shape}\u0000${kind}`, { shape, kind, type, at, by });
 	}
 
@@ -197,15 +180,6 @@ export class ChangeLog {
 function typeOf(shape: Y.Map<unknown> | undefined): string {
 	const type = shape?.get("type");
 	return typeof type === "string" ? type : "shape";
-}
-
-export function snapshotOf(card: Card): CardSnapshot {
-	return {
-		state: card.state,
-		comments: card.comments,
-		ci: card.pull?.checks?.state ?? "",
-		review: card.pull?.review ?? "",
-	};
 }
 
 export class CardHistory {
