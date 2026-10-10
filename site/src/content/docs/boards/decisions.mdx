@@ -1,0 +1,44 @@
+---
+title: Decisions
+description: Propose a decision, vote, decide, and write it back to GitHub.
+sidebar:
+  order: 6
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+A decision is a shape for something the team is settling: proposed, voted on, decided, and eventually superseded. Once decided, it can be written back to GitHub as an architecture decision record (ADR) or a Discussion post.
+
+<Screenshot
+	name="decisions"
+	alt="Decisions on a board: one proposed with votes, two decided, one superseded by another, and one written back as ADR 0003 with its pull request open."
+/>
+
+## Proposing
+
+Press <kbd>D</kbd> and click to place one. Type the title ("What did you decide?"), press <kbd>Enter</kbd> for the body ("The decision, and why"), and <kbd>Esc</kbd> or <kbd>⌘</kbd> <kbd>Enter</kbd> to finish.
+
+Connect it to the issues it settles: every card at the other end of a connector touching the decision is one of its **linked items**, listed on it.
+
+## Voting
+
+While a decision is **Proposed**, anyone who can edit the board can vote **Agree** or **Disagree**. Each person has one vote: click the other option to change it, or the same one again to take it back. Voters' initials show beside the counts.
+
+## Deciding and superseding
+
+Choose **Decide** to mark it decided, with who decided it and when. The **Decision options** menu has the rest:
+
+- **Mark decided**, or **Reopen as proposed**
+- **Supersede with a new decision**, which adds a new decision beside it, connected by a "supersedes" connector
+- **Superseded by**, to point it at another decision already on the board
+
+A superseded decision says what superseded it, and links to it.
+
+## Writing it back
+
+Once a decision is decided, choose **Write back**. It can become:
+
+- **An ADR pull request**: a new record in `docs/decisions/` on its own branch, for review. When the pull request merges, the decision shows **Merged**, with no one touching the board.
+- **A Discussion post**, announcing it for comment.
+
+Either way it's staged with the board's other changes, and nothing is written until someone pushes. See [Decision records](/writing-back/decision-records/).

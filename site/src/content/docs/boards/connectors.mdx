@@ -1,0 +1,44 @@
+---
+title: Connectors
+description: Arrows between shapes, with labels and styles, and what they can become.
+sidebar:
+  order: 5
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+<Screenshot
+	name="connectors"
+	alt="Cards and stickies joined by connectors: curved, elbow and straight, one labelled blocks, one dashed, one in orange labelled see, and one with a loose end."
+/>
+
+## Drawing connectors
+
+- Press <kbd>X</kbd>, then drag from anything (a shape, or empty board) to anything else.
+- Or, with the select tool, hover a shape: dots appear on its sides. Drag one out to connect from that side.
+
+An end dropped near a shape's outline pins to that point. An end dropped on a shape without pinning floats around its outline, always aiming at the other end. Either end can sit loose on the board.
+
+To re-attach an end, select the connector and drag the handle at that end onto another shape, or onto empty board.
+
+When a shape is deleted, its connectors keep a loose end where it was. A connector whose shapes are both deleted goes too.
+
+## Labels and style
+
+Select a connector and press <kbd>Enter</kbd>, double-click the line, or just start typing to label it. The label sits at the middle.
+
+The toolbar above a selected connector has:
+
+- the route: **Curved**, **Elbow** or **Straight**
+- **Arrowheads**: at the end, at both ends, or none
+- **Dashed**
+- colours: ink, red, orange, green, blue and purple
+- **Label** and **Delete**
+
+New connectors use the last style you picked.
+
+## Blocked-by
+
+A connector between two issues can become a GitHub dependency. Select it and choose **Blocked by** (<kbd>⌥</kbd> <kbd>B</kbd>): the arrow points from the blocker to what it blocks. See [Built-in actions](/writing-back/actions/#blocked-by).
+
+Connectors Tack draws itself (from [Expand related](/boards/cards/#expand-related), a [dependency map](/widgets/dependency-map/) or a pushed parent issue) are ordinary connectors you can restyle or delete.
