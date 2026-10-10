@@ -1,4 +1,5 @@
 import * as Y from "yjs";
+import { forgeName } from "./refs.ts";
 import { type ShapeProps, addShape, nextZ, shapesMap } from "./shapes.ts";
 import type { Provenance } from "./widgets.ts";
 
@@ -12,6 +13,7 @@ import type { Provenance } from "./widgets.ts";
 // | list   | dragged out of a list widget                 | nothing: it's a copy    |
 // | inbox  | landed in (and sorted out of) an inbox frame | marked "no longer       |
 // | rule   | placed by a rule                             | matches", never removed |
+// | comment| someone mentioned the app on GitHub (#58)    | nothing: it's theirs    |
 //
 // Manual is the default and is never written: a card without `provenance`
 // was placed by hand (as every card from before M3 was). Read it with
@@ -31,18 +33,20 @@ import type { Provenance } from "./widgets.ts";
 export type { Provenance };
 
 const MANUAL: Provenance = { via: "manual" };
+/** A forge login, as the cards a comment brought name who asked. */
+const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 
 /** How a card arrived. Anything missing or malformed reads as manual. */
 export function provenanceOf(shape: Pick<ShapeProps, "provenance"> | undefined): Provenance {
 	const value = shape?.provenance as unknown;
 	if (typeof value !== "object" || value === null) return MANUAL;
-	const { via, source } = value as { via?: unknown; source?: unknown };
-	if (
-		(via === "list" || via === "inbox" || via === "rule") &&
-		typeof source === "string" &&
-		source
-	) {
-		return { via, source };
+	const { via, source, by } = value as { via?: unknown; source?: unknown; by?: unknown };
+	if (typeof source !== "string" || !source) return MANUAL;
+	if (via === "list" || via === "inbox" || via === "rule") return { via, source };
+	if (via === "comment") {
+		// Only links to the forge's own pages: the card's foot links to it.
+		if (!source.startsWith("https://")) return MANUAL;
+		return typeof by === "string" && LOGIN.test(by) ? { via, source, by } : { via, source };
 	}
 	return MANUAL;
 }
@@ -157,13 +161,16 @@ export function keepCard(doc: Y.Doc, id: string): void {
 
 /**
  * The name of what brought a card: a list widget's title, an inbox
- * section's title, or a rule's name. Null when it has none or is gone.
+ * section's title, a rule's name, or the login of whoever asked for it in a
+ * comment. Null when it has none or is gone.
  *
  * Rules are looked for in the document's `rules` map, by id, as a Y.Map or
  * plain object with a `name` (or `title`).
  */
 export function provenanceSourceName(doc: Y.Doc, provenance: Provenance): string | null {
 	if (provenance.via === "manual") return null;
+	// Who asked for it, from the forge: nothing in the document names them.
+	if (provenance.via === "comment") return provenance.by ?? null;
 	if (provenance.via === "rule") {
 		return nameIn(doc.getMap<unknown>("rules").get(provenance.source), ["name", "title"]);
 	}
@@ -220,5 +227,21 @@ export function describeProvenance(
 				label: name ? `Placed by rule: ${name}` : "Placed by a rule",
 				unmatched: quoted ? `No longer matches the rule ${quoted}` : "No longer matches its rule",
 			};
+		case "comment": {
+			const forge = forgeName(hostOf(provenance.source));
+			return {
+				label: name ? `Added from ${forge} by @${name}` : `Added from a comment on ${forge}`,
+				// Never marked: it's as if they'd placed it.
+				unmatched: "",
+			};
+		}
+	}
+}
+
+function hostOf(url: string): string {
+	try {
+		return new URL(url).hostname;
+	} catch {
+		return "";
 	}
 }

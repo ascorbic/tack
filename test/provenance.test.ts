@@ -137,6 +137,37 @@ describe("provenance", () => {
 		expect(text("other")?.label).toBe("From an inbox");
 	});
 
+	it("names who asked for a card in a comment, and never marks it", () => {
+		const doc = board();
+		const source = "https://github.com/acme/app/issues/6#issuecomment-9";
+		addCardShape(
+			doc,
+			"asked",
+			{ ref: KEY(6), x: 0, y: 0 },
+			{ via: "comment", source, by: "alice" },
+		);
+		const provenance = provenanceOf(shape(doc, "asked"));
+		expect(provenance).toEqual({ via: "comment", source, by: "alice" });
+		expect(describeProvenance(provenance, provenanceSourceName(doc, provenance))?.label).toBe(
+			"Added from GitHub by @alice",
+		);
+		expect(describeProvenance({ via: "comment", source }, null)?.label).toBe(
+			"Added from a comment on GitHub",
+		);
+		expect(whenUnmatched(provenance)).toBe("keep");
+		expect(updateMatches(doc, source, () => false).marked).toEqual([]);
+		// Only links, and only logins.
+		for (const junk of [
+			{ via: "comment", source: "javascript:alert(1)" },
+			{ via: "comment", source: "" },
+		]) {
+			expect(provenanceOf({ provenance: junk as Provenance })).toEqual({ via: "manual" });
+		}
+		expect(
+			provenanceOf({ provenance: { via: "comment", source, by: "<b>" } as Provenance }),
+		).toEqual({ via: "comment", source });
+	});
+
 	it("stays with the original when a card is copied", () => {
 		const doc = board();
 		updateMatches(doc, "triage", () => false);

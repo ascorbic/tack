@@ -14,8 +14,9 @@ import { transactLocal } from "./undo.ts";
 import "./provenance.css";
 
 // How a card arrived, shown on the card (#41): nothing for cards people
-// placed; a small glyph for ones a list, an inbox or a rule brought, which
-// opens out into a label when you point at it; and, for a card that no
+// placed; a small glyph for ones a list, an inbox, a rule or a comment on
+// the forge brought, which opens out into a label when you point at it (a
+// comment's opens the comment, too); and, for a card that no
 // longer matches its inbox or rule, a band along its foot that says so,
 // with the choice to keep it or remove it. Nothing is ever removed for you.
 
@@ -24,6 +25,8 @@ export interface CardOrigin {
 	via: Exclude<Provenance["via"], "manual">;
 	/** "From the “Triage” inbox". */
 	label: string;
+	/** Where to read more: the comment that asked for a card from a forge (#58). */
+	href?: string;
 }
 
 /** A card that no longer matches what brought it, and what can be done about it. */
@@ -62,7 +65,11 @@ export function useCardProvenance(
 	if (!text || provenance.via === "manual") return { origin: null, unmatched: null };
 	const since = unmatchedSince(shape);
 	return {
-		origin: { via: provenance.via, label: text.label },
+		origin: {
+			via: provenance.via,
+			label: text.label,
+			...(provenance.via === "comment" ? { href: provenance.source } : {}),
+		},
 		unmatched:
 			since && doc
 				? {
@@ -95,6 +102,12 @@ export function ProvenanceIcon({ via }: { via: CardOrigin["via"] }) {
 					<circle cx="3.5" cy="11.5" r="0.9" className="fill" />
 					<path d="M6.5 4.5h7M6.5 8h7M6.5 11.5h5" />
 				</>
+			) : via === "comment" ? (
+				// An @: someone mentioned the app in a comment on the forge.
+				<>
+					<circle cx="8" cy="8" r="2.4" />
+					<path d="M10.4 8v.9a1.8 1.8 0 0 0 3.6 0V8a6 6 0 1 0-2.4 4.8" />
+				</>
 			) : (
 				// A spark: placed by a rule.
 				<path d="M8 2.5v3M8 10.5v3M2.5 8h3M10.5 8h3M4.2 4.2l1.8 1.8M10 10l1.8 1.8M11.8 4.2 10 6M6 10l-1.8 1.8" />
@@ -105,6 +118,26 @@ export function ProvenanceIcon({ via }: { via: CardOrigin["via"] }) {
 
 /** The glyph in a card's foot, opening into its label on hover or focus. */
 export function ProvenanceBadge({ origin }: { origin: CardOrigin }) {
+	if (origin.href) {
+		// A link to the comment that asked for it, opening in a new tab. It
+		// mustn't pick the card up.
+		return (
+			<a
+				className="provenance nodrag"
+				data-via={origin.via}
+				href={origin.href}
+				target="_blank"
+				rel="noreferrer"
+				aria-label={origin.label}
+				onPointerDown={(event) => event.stopPropagation()}
+			>
+				<ProvenanceIcon via={origin.via} />
+				<span className="provenance-label" aria-hidden="true">
+					<span>{origin.label}</span>
+				</span>
+			</a>
+		);
+	}
 	return (
 		<span
 			className="provenance"

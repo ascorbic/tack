@@ -187,4 +187,10 @@ export type Provenance =
 	/** Sorted out of an inbox frame (`source` is the section's id). */
 	| { via: "inbox"; source: string }
 	/** Placed by a rule (`source` is the rule's id). */
-	| { via: "rule"; source: string };
+	| { via: "rule"; source: string }
+	/**
+	 * Added by someone mentioning the app in a comment on the item (#58):
+	 * `source` is the comment's URL, `by` the commenter's login. It's theirs,
+	 * as if they'd placed it, so it's never marked as no longer matching.
+	 */
+	| { via: "comment"; source: string; by?: string };

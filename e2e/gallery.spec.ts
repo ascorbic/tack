@@ -47,10 +47,15 @@ test("every provenance state renders", async ({ page }) => {
 	const section = page
 		.locator("section")
 		.filter({ has: page.getByRole("heading", { name: "Provenance", exact: true }) });
-	await expect(section.locator("figure")).toHaveCount(5);
-	for (const via of ["inbox", "list", "rule"]) {
+	await expect(section.locator("figure")).toHaveCount(6);
+	for (const via of ["inbox", "list", "rule", "comment"]) {
 		await expect(section.locator(`.provenance[data-via=${via}]`).first()).toBeVisible();
 	}
+	// A comment's glyph links to the comment that asked for the card.
+	await expect(section.getByRole("link", { name: "Added from GitHub by @priya" })).toHaveAttribute(
+		"href",
+		/#issuecomment-1$/,
+	);
 	await expect(section.getByRole("note", { name: "From the “Triage” inbox" })).toHaveCount(2);
 	await expect(section.locator(".card[data-unmatched=true]")).toHaveCount(2);
 	// Only boards you can edit offer to keep or remove.

@@ -453,8 +453,9 @@ function Sections({
 			<section>
 				<h2>Provenance</h2>
 				<p className="gallery-note">
-					What brought a card, when it wasn’t a person: point at the glyph to read it. A card that
-					no longer matches its inbox or rule says so, and offers to keep or remove it.
+					What brought a card, when nobody placed it on the board by hand: point at the glyph to
+					read it (a comment’s links to the comment). A card that no longer matches its inbox or
+					rule says so, and offers to keep or remove it.
 				</p>
 				<div className="gallery-grid">
 					{PROVENANCE_GALLERY.map(({ label, card, origin, unmatched }) => (

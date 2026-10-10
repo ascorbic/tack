@@ -92,6 +92,24 @@
 	rotate: 45deg;
 }
 
+/* A comment's @ links to the comment: it spins round once as it opens, and
+   its label reads as a link while you point at it. */
+a.provenance {
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.provenance[data-via="comment"]:hover .provenance-icon,
+.provenance[data-via="comment"]:focus-visible .provenance-icon {
+	rotate: -360deg;
+}
+
+a.provenance:hover .provenance-label > span {
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+	text-underline-offset: 2px;
+}
+
 /* No longer matches: the card's edge goes dashed, as if it's come loose,
    and a band along its foot says so, offering to keep or remove it. */
 .card[data-unmatched="true"] {

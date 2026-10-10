@@ -247,6 +247,15 @@ export const PROVENANCE_GALLERY: {
 		origin: { via: "rule", label: "Placed by rule: PRs beside their issues" },
 	},
 	{
+		label: "Added from a comment on GitHub",
+		card: card(444),
+		origin: {
+			via: "comment",
+			label: "Added from GitHub by @priya",
+			href: "https://github.com/acme/widgets/issues/444#issuecomment-1",
+		},
+	},
+	{
 		label: "No longer matches: keep or remove",
 		card: card(451),
 		origin: { via: "inbox", label: "From the “Triage” inbox" },
