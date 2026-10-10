@@ -483,7 +483,10 @@ describe("dependency maps on GitHub", () => {
 			const message = await latest(client, widget, (m) => m.results[name]?.kind === "related");
 			return (message.results[name] as RelatedResult).blockedBy.sort();
 		};
-		expect(await blockers(owner)).toEqual(["github.com/acme/secret#5", "github.com/acme/widgets#2"]);
+		expect(await blockers(owner)).toEqual([
+			"github.com/acme/secret#5",
+			"github.com/acme/widgets#2",
+		]);
 		expect(await blockers(anonymous)).toEqual(["github.com/acme/widgets#2"]);
 		expect(JSON.stringify(anonymous.messages)).not.toContain("acme/secret");
 	});

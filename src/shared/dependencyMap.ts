@@ -84,7 +84,7 @@ export const dependencyWidget: WidgetDefinition<DependencyConfig> = {
 		section: "",
 		limit: DEPENDENCY_LIMITS.default,
 	},
-	size: { w: 640, h: 420 },
+	size: { w: 780, h: 440 },
 	queries(config, context: QueryContext): Record<string, WidgetQuery> {
 		if (config.source === "section") {
 			return config.section ? relatedQueries(context.cardsIn(config.section), config.limit) : {};
@@ -115,7 +115,11 @@ export const dependencyWidget: WidgetDefinition<DependencyConfig> = {
 	refresh: 600,
 };
 
-/** The items a map is about, in the order it found them. */
+/**
+ * The items a map is about, in the order it found them: a search's results,
+ * or a section's cards (in reading order, as `QueryContext.cardsIn` gives
+ * them), else whatever it asked about.
+ */
 export function dependencyMembers(
 	config: Pick<DependencyConfig, "source" | "limit">,
 	results: Record<string, QueryResult | QueryError>,
@@ -127,13 +131,12 @@ export function dependencyMembers(
 			? items.items.slice(0, config.limit).map((card) => card.key)
 			: [];
 	}
-	const asked = new Set(
-		Object.keys(results)
-			.filter((name) => name.startsWith("related:"))
-			.map((name) => name.slice("related:".length)),
-	);
-	const ordered = inSection.filter((key) => asked.has(key));
-	return [...ordered, ...[...asked].filter((key) => !ordered.includes(key)).sort()];
+	// What's in the section is what's asked about (some may still be on the way).
+	if (inSection.length > 0) return [...new Set(inSection)].slice(0, config.limit);
+	return Object.keys(results)
+		.filter((name) => name.startsWith("related:"))
+		.map((name) => name.slice("related:".length))
+		.sort();
 }
 
 // --- The graph ------------------------------------------------------------------------
@@ -275,7 +278,7 @@ export interface LayoutSize {
 	gap: { x: number; y: number };
 }
 
-export const MAP_SIZE: LayoutSize = { node: { w: 168, h: 44 }, gap: { x: 56, y: 14 } };
+export const MAP_SIZE: LayoutSize = { node: { w: 160, h: 44 }, gap: { x: 50, y: 14 } };
 
 /** Strongly connected groups (Tarjan), each a list of keys; singletons included. */
 export function stronglyConnected(keys: string[], edges: DependencyEdge[]): string[][] {
@@ -512,6 +515,13 @@ export function edgePath(from: Point, to: Point, node: { w: number; h: number })
 	if (b.x > a.x) {
 		const bend = Math.max(24, (b.x - a.x) / 2);
 		return `M${a.x} ${a.y} C${a.x + bend} ${a.y} ${b.x - bend} ${b.y} ${b.x} ${b.y}`;
+	}
+	if (Math.abs(from.x - to.x) < 1) {
+		// The same layer (a cycle): a bow out to the left, side to side.
+		const s = { x: from.x, y: from.y + node.h / 2 };
+		const e = { x: to.x, y: to.y + node.h / 2 };
+		const bow = 22 + Math.min(40, Math.abs(e.y - s.y) / 4);
+		return `M${s.x} ${s.y} C${s.x - bow} ${s.y} ${e.x - bow} ${e.y} ${e.x} ${e.y}`;
 	}
 	// Backwards: leave from the top of the blocker, arrive at the top of the blocked.
 	const top = Math.min(from.y, to.y) - 26;

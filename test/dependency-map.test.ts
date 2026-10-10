@@ -96,8 +96,17 @@ describe("dependency map queries", () => {
 			),
 		).toEqual({});
 		expect(
-			dependencyMembers({ source: "section", limit: 20 }, queries as never, [key(3), key(1)]),
-		).toEqual([key(3), key(1), key(2)]);
+			dependencyMembers({ source: "section", limit: 2 }, queries as never, [
+				key(3),
+				key(1),
+				key(2),
+			]),
+		).toEqual([key(3), key(1)]);
+		expect(dependencyMembers({ source: "section", limit: 20 }, queries as never)).toEqual([
+			key(1),
+			key(2),
+			key(3),
+		]);
 	});
 });
 
@@ -204,6 +213,8 @@ describe("dependency layouts", () => {
 		const node = { w: 100, h: 40 };
 		expect(edgePath({ x: 0, y: 0 }, { x: 200, y: 0 }, node)).toBe("M100 20 C150 20 150 20 200 20");
 		expect(edgePath({ x: 200, y: 50 }, { x: 0, y: 0 }, node)).toBe("M250 50 C250 -26 50 -26 50 0");
+		// Within a layer: a bow out to the left.
+		expect(edgePath({ x: 0, y: 0 }, { x: 0, y: 80 }, node)).toBe("M0 20 C-42 20 -42 100 0 100");
 	});
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
 	eventTime,
+	timelineDensity,
 	layoutTimeline,
 	timelineRange,
 	timelineSearch,
@@ -145,5 +146,25 @@ describe("timeline layout", () => {
 		const year = timelineTicks(Date.UTC(2026, 0, 15), Date.UTC(2027, 0, 15), 900);
 		expect(year[0]?.label).toBe("Feb");
 		expect(year.at(-1)).toMatchObject({ label: "2027", major: true });
+	});
+});
+
+describe("timeline density", () => {
+	it("counts items a day, or a week when days would be too thin", () => {
+		const from = Date.UTC(2026, 8, 28); // a Monday
+		const to = from + 14 * DAY;
+		const items = [
+			{ key: "a", t: from + 2 * 3_600_000 },
+			{ key: "b", t: from + 5 * 3_600_000 },
+			{ key: "c", t: from + 3 * DAY },
+			{ key: "z", t: to + DAY },
+		];
+		expect(timelineDensity(items, { from, to, width: 1400 })).toEqual([
+			{ t: from, x: 0, w: 100, count: 2, share: 1 },
+			{ t: from + 3 * DAY, x: 300, w: 100, count: 1, share: 0.5 },
+		]);
+		expect(timelineDensity(items, { from, to, width: 70 })).toEqual([
+			{ t: from, x: 0, w: 35, count: 3, share: 1 },
+		]);
 	});
 });

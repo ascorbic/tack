@@ -358,3 +358,52 @@ export function layoutTimeline(items: TimelineItem[], options: LayoutOptions): T
 		outside: items.length - inside.length,
 	};
 }
+
+export interface DensityBar {
+	/** The day (or week) it counts, from. */
+	t: number;
+	/** Left edge and width, in pixels. */
+	x: number;
+	w: number;
+	count: number;
+	/** `count` against the busiest bar, 0 to 1. */
+	share: number;
+}
+
+/**
+ * How busy each day (or week, when days would be too thin to see) was: bars
+ * behind the markers, so the rhythm of a range reads at a glance, and from
+ * far away.
+ */
+export function timelineDensity(
+	items: TimelineItem[],
+	{ from, to, width }: Pick<LayoutOptions, "from" | "to" | "width">,
+): DensityBar[] {
+	const span = Math.max(1, to - from);
+	const perDay = (DAY / span) * width;
+	const step = perDay >= 7 ? DAY : 7 * DAY;
+	const start =
+		step === DAY
+			? startOfDay(from)
+			: startOfDay(from) - ((new Date(startOfDay(from)).getUTCDay() + 6) % 7) * DAY;
+	const counts = new Map<number, number>();
+	for (const item of items) {
+		if (item.t < from || item.t >= to) continue;
+		const bucket = start + Math.floor((item.t - start) / step) * step;
+		counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+	}
+	const most = Math.max(1, ...counts.values());
+	return [...counts]
+		.sort(([a], [b]) => a - b)
+		.map(([t, count]) => {
+			const left = Math.max(from, t);
+			const right = Math.min(to, t + step);
+			return {
+				t,
+				x: ((left - from) / span) * width,
+				w: ((right - left) / span) * width,
+				count,
+				share: count / most,
+			};
+		});
+}
