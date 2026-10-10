@@ -69,6 +69,29 @@ interface Change {
 	id: string;
 	status: string;
 	op: { kind: string; body?: string; [key: string]: unknown };
+	result?: { key?: string };
+}
+
+interface Shape {
+	id: string;
+	type: string;
+	ref?: string;
+	x: number;
+	y: number;
+	w?: number;
+	from?: { shape?: string };
+	to?: { shape?: string };
+}
+
+/** The board's shapes, from the dev-only `tackBoard` hook. */
+function shapes(page: Page): Promise<Shape[]> {
+	return page.evaluate(() => {
+		const doc = (window as unknown as { tackBoard: { doc: import("yjs").Doc } }).tackBoard.doc;
+		return [...doc.getMap("shapes")].map(([id, shape]) => ({
+			id,
+			...((shape as import("yjs").Map<unknown>).toJSON() as Omit<Shape, "id">),
+		}));
+	});
 }
 
 /** The board's changes, from the dev-only `tackBoard` hook. */
@@ -206,24 +229,49 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 	// Push it all through the push sheet.
 	await pushAll(page, 11);
 	expect((await changes(page)).every((change) => change.status === "applied")).toBe(true);
-	// Every sticky is now its issue's card, and the decision shows its pull request.
+	// Every sticky is now its issue's card, the parent issue has a card above
+	// its section, joined to it, and the decision shows its pull request.
+	// (Fit the board to see it all: only what's on screen is drawn.)
+	await page.keyboard.press("Shift+Digit1");
+	await settleCanvas(page);
 	await expect(page.locator(".react-flow__node-sticky")).toHaveCount(0);
-	await expect(cards(page)).toHaveCount(5);
+	await expect(cards(page)).toHaveCount(6);
 	await expect(decision.locator(".decision-record")).toContainText("ADR 0001");
+	const resizing = (await changes(page)).find(
+		(change) => change.op.kind === "issue.create" && change.op.title === "Resizing",
+	);
+	const board = await shapes(page);
+	const section = board.find((shape) => shape.type === "section")!;
+	const parentCard = board.find((shape) => shape.ref && shape.ref === resizing?.result?.key)!;
+	expect(parentCard).toBeTruthy();
+	expect(parentCard.y).toBeLessThan(section.y);
+	expect(parentCard.x + 126).toBe(section.x + (section.w ?? 0) / 2);
+	expect(
+		board.some(
+			(shape) =>
+				shape.type === "connector" &&
+				shape.from?.shape === parentCard.id &&
+				shape.to?.shape === section.id,
+		),
+	).toBe(true);
+	await expect(page.locator(`.react-flow__node[data-id="${parentCard.id}"] .card`)).toBeVisible();
 
-	// Backlinks on every card, with a snapshot of the board.
+	// Backlinks on every card, the parent's included, with a snapshot of the board.
 	await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
 	await select(page, await cards(page).all());
 	await page.keyboard.press("Alt+KeyK");
 	const backlinks = page.getByRole("dialog", { name: "Comment with a link to this board" });
 	await expect(backlinks.locator(".backlink-snapshot img")).toBeVisible({ timeout: 15_000 });
-	await backlinks.getByRole("button", { name: "Stage 5 comments" }).click();
+	await backlinks.getByRole("button", { name: "Stage 6 comments" }).click();
 	await expect(backlinks).toHaveCount(0);
-	await pushAll(page, 5);
+	await pushAll(page, 6);
 
 	// Each comment links the board and shows a snapshot the server serves publicly.
 	const comments = (await changes(page)).filter((change) => change.op.kind === "item.comment");
-	expect(comments).toHaveLength(5);
+	expect(comments).toHaveLength(6);
+	expect(comments.map((change) => (change.op.target as { key: string }).key)).toContain(
+		resizing?.result?.key,
+	);
 	const urls = new Set(
 		comments.map(
 			(change) =>
@@ -246,10 +294,10 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 		.click();
 	const history = await page.request.get(`/api/boards/${boardId}/pushes`);
 	const log = (await history.json()) as { changes: { status: string }[] }[];
-	expect(log.map((entry) => entry.changes.length)).toEqual([5, 11]);
+	expect(log.map((entry) => entry.changes.length)).toEqual([6, 11]);
 	expect(log.flatMap((entry) => entry.changes).every((c) => c.status === "applied")).toBe(true);
 	const sheet = page.locator(".push-dialog");
 	await expect(sheet.getByRole("heading", { name: "Push history" })).toBeVisible();
-	await expect(sheet).toContainText("You pushed 5 changes");
+	await expect(sheet).toContainText("You pushed 6 changes");
 	await expect(sheet).toContainText("You pushed 11 changes");
 });

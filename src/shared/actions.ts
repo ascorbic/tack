@@ -1,5 +1,6 @@
 import type * as Y from "yjs";
 import {
+	type ChangeEffect,
 	type ChangeStatus,
 	type CloseReason,
 	type Operation,
@@ -140,6 +141,12 @@ export interface ParentInput {
 	body?: string;
 	/** Shapes the parent stands for, e.g. the section, for highlighting. */
 	shapes?: string[];
+	/**
+	 * Where its card goes once it's made: above these shapes (a section), or
+	 * above the shapes that become its sub-issues (`"children"`), connected
+	 * to them. Without it, the parent gets no card on the board.
+	 */
+	near?: string[] | "children";
 }
 
 export interface ParentResult extends StageResult {
@@ -179,6 +186,7 @@ export function stageParentIssue(
 		result.parent = parentId;
 		result.staged.push(parentId);
 		const seen = new Set<string>();
+		const subIssues: string[] = [];
 		for (const child of children) {
 			let target: Target;
 			if ("card" in child) {
@@ -219,7 +227,13 @@ export function stageParentIssue(
 					},
 				),
 			);
+			subIssues.push(child.shape);
 			result.children++;
+		}
+		const near = parent.near === "children" ? subIssues : parent.near;
+		if (near?.length) {
+			const effect: ChangeEffect = { kind: "place", near };
+			changesMap(doc).get(parentId)?.set("effect", effect);
 		}
 	});
 	return result;

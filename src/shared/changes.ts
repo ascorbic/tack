@@ -103,10 +103,14 @@ export interface Stager {
  *   into a card for the created item, in place
  * - `connect`: no change to the shapes; the connector between them now
  *   stands for the written relationship (styling only)
+ * - `place`: add a card for the created item above these shapes (the
+ *   section a parent issue was made from, or what became its sub-issues),
+ *   connected to each of them, parent to child (`placeCard` in place.ts)
  */
 export type ChangeEffect =
 	| { kind: "replace"; shapes: string[] }
-	| { kind: "connect"; shape: string };
+	| { kind: "connect"; shape: string }
+	| { kind: "place"; near: string[] };
 
 export interface PendingChange {
 	id: string;

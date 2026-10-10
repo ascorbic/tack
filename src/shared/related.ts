@@ -69,12 +69,15 @@ export function relatedGroups(result: RelatedResult): Record<RelatedGroup, strin
 
 export const CARD_WIDTH = 252;
 
+/** What sizing a card needs: a whole card, or what's known before it's fetched. */
+export type CardSizing = Pick<Card, "title" | "labels"> & Partial<Pick<Card, "pull">>;
+
 /**
  * About how tall a card will render, before it has: a head, two lines of
  * title and a foot, plus labels and a pull request's status where it has
  * them. Generous, so neighbours don't touch once it's measured.
  */
-export function estimateCardHeight(card: Card | MissingCard | undefined): number {
+export function estimateCardHeight(card: CardSizing | MissingCard | undefined): number {
 	if (!card || "missing" in card) return 124;
 	// Measured against the gallery's cards, and a little generous.
 	const lines = Math.min(4, Math.max(1, Math.ceil(card.title.length / 26)));
@@ -167,7 +170,7 @@ export interface ExpandInput {
 	/** Whether two shapes are already joined by a connector, either way round. */
 	connected?: (a: string, b: string) => boolean;
 	/** Card data for sizing new cards. */
-	cards?: ReadonlyMap<string, Card | MissingCard>;
+	cards?: ReadonlyMap<string, CardSizing | MissingCard>;
 }
 
 /** How a group's connectors look. Arrows run from blocker to blocked, parent to child. */

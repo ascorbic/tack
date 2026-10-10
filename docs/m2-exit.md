@@ -24,17 +24,17 @@ The M2 exit (#36) is one planning session that produces issues, labels, a merged
 Stage everything (nothing reaches GitHub yet):
 
 6. Select the two loose stickies, then **Make 2 issues** (⌥I). The test repository is chosen; **Stage 2 issues**.
-7. Click the section's title, then **Parent issue** (⌥⇧I). The title is "Resizing"; **Stage with 2 sub-issues**.
+7. Click the section's title, then **Parent issue** (⌥⇧I). The title is "Resizing"; **Stage with 2 sub-issues**. A dashed card hovers above the section, where the parent's card will land.
 8. Click the connector, then **Blocked by** (⌥B). It reads "Cache the manifest will be marked as blocked by Faster cold starts"; **Stage**.
 9. Select the seed card: **Labels** (⌥L), add `bug`, **Stage**; **Milestone** (⌥M), `v1`; **Assign** (⌥P), yourself.
 10. On the decision, **Decide**, then **Write back**. Keep "ADR pull request", check the path is `docs/decisions/0002-store-boards-as-yjs-documents.md` (one more than the highest record in the repository), type a line of Consequences, and **Stage write-back**.
 
 Push:
 
-11. **Changes** → **Review and push 12**. Check the previews (issue bodies, the ADR's file, and who'll be notified), keep **Push as: You**, and **Push 12 changes**. Wait for "All 12 changes are on GitHub". The four stickies become their issues' cards in place, the connector joins two of them, and the decision shows its pull request, "ADR 0002", as Open.
+11. **Changes** → **Review and push 12**. Check the previews (issue bodies, the ADR's file, and who'll be notified), keep **Push as: You**, and **Push 12 changes**. Wait for "All 12 changes are on GitHub". The four stickies become their issues' cards in place, "Resizing" gets a card of its own above its section, connected to it, the connector joins two of them, and the decision shows its pull request, "ADR 0002", as Open.
 12. Select the four new cards: **Labels**, add `performance`, **Stage**.
-13. Select all five cards (the seed and the four new ones), then **Comment with a link to this board** (⌥K). Wait for the snapshot preview, then **Stage 5 comments**.
-14. **Changes** → **Review and push 9** → **Push 9 changes**, and wait for them all to land.
+13. Select all six cards (the seed, the parent and the four new ones), then **Comment with a link to this board** (⌥K). Wait for the snapshot preview, then **Stage 6 comments**.
+14. **Changes** → **Review and push 10** → **Push 10 changes**, and wait for them all to land.
 15. On GitHub, merge the ADR pull request. Within a few seconds the decision's record shows **Merged**, with no one touching the board.
 16. **Changes** → **History**: both pushes, by you, every change applied, each linking to what it wrote.
 
@@ -45,7 +45,7 @@ Push:
 - **Sub-issues**: "Resizing" lists "Wobble on resize" and "Snap back after a drag" as sub-issues, and each shows "Resizing" as its parent.
 - **Blocked-by**: "Cache the manifest" shows it's blocked by "Faster cold starts" under Relationships, and "Faster cold starts" that it's blocking.
 - **The ADR**: a pull request "ADR 0002: Store boards as Yjs documents" from `tack/adr-0002-store-boards-as-yjs-documents`, with one commit adding exactly `docs/decisions/0002-store-boards-as-yjs-documents.md`. The record starts `# 2. Store boards as Yjs documents`, its Status is "Accepted on" the day you decided it, with the votes, and its Links list the seed issue and the board. It's merged, and the file is on the default branch.
-- **Backlinks**: each of the five issues has one comment: "This is on **M2 exit…** in Tack.", linking to the board, with the snapshot image **rendering** (not a broken image: GitHub fetches it through its image proxy from the instance's `/snapshots/….png`). Clicking the image opens the board.
+- **Backlinks**: each of the six issues has one comment: "This is on **M2 exit…** in Tack.", linking to the board, with the snapshot image **rendering** (not a broken image: GitHub fetches it through its image proxy from the instance's `/snapshots/….png`). Clicking the image opens the board.
 - **Attribution**: the issues, comments and pull request are yours, with the app's name beside them ("via Tack (…)"), not by the app's bot.
 - **Nothing twice**: no duplicate issues, comments or links anywhere. Reloading the board brings nothing back to the staged list.
 
@@ -57,10 +57,6 @@ Push:
 - A change says "Waiting for GitHub" for two minutes, then fails with "GitHub accepted this, but … didn't show it": webhooks aren't arriving. Check the app's Advanced → Recent deliveries.
 - A broken image in a comment: the instance's `/snapshots/` URL isn't reachable from the internet.
 - The server's side of it: filter Workers Logs on `event` starting with `push.` (see AGENTS.md, Observability).
-
-## Known gap
-
-The parent issue a section becomes isn't placed on the board as a card (only stickies are replaced by theirs), so from the UI it can't be backlinked without pasting its link onto the board by hand. The automated test backlinks it by key. Note in the results whether that hurt.
 
 ## Results
 

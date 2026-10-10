@@ -25,6 +25,7 @@ import {
 	summarize,
 } from "../changes/describe.ts";
 import { linkWrittenDecisions } from "../../shared/decisions.ts";
+import { placeCard } from "../../shared/place.ts";
 import { scaledDuration } from "../motion.ts";
 import { avatar } from "./ci.ts";
 import { fakeMeta } from "./writes.ts";
@@ -331,6 +332,10 @@ export class SimulatedPush implements PushClient {
 				});
 				cardStore.set({ ...card, key });
 				if (change.effect?.kind === "replace") this.replace(change.effect.shapes, key);
+				if (change.effect?.kind === "place") {
+					const { near } = change.effect;
+					this.doc.transact(() => placeCard(this.doc, key, near, { card }), SERVER_ORIGIN);
+				}
 				break;
 			}
 			case "item.labels":

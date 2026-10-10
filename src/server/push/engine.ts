@@ -41,6 +41,7 @@ import { confirmationKey, reflects } from "../../shared/confirm.ts";
 import type { AuditEntry, PushResponse } from "../../shared/push.ts";
 import { parseKey, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
 import { linkWrittenDecisions } from "../../shared/decisions.ts";
+import { placeCard } from "../../shared/place.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import {
 	type ApplyResult,
@@ -813,6 +814,10 @@ export class PushEngine {
 		// even with no one on the board.
 		if (row?.kind === "pr.create") linkWrittenDecisions(this.host.doc);
 		const effect = row?.effect ? (JSON.parse(row.effect) as ChangeEffect) : null;
+		if (row && effect?.kind === "place" && row.result_key) {
+			this.place(pushId, row, effect.near, row.result_key);
+			return;
+		}
 		if (!row || effect?.kind !== "replace" || !row.result_key) return;
 		const { doc } = this.host;
 		const shapes = shapesMap(doc);
@@ -851,6 +856,55 @@ export class PushEngine {
 			change: changeId,
 			kind: "replace",
 			shapes: replaced.length,
+		});
+	}
+
+	/**
+	 * `place`: a card for the created item above the shapes it was made from
+	 * (a section that becomes a parent issue), connected to them, so it's on
+	 * the board to follow, triage and backlink. The change then highlights
+	 * the card too.
+	 */
+	private place(pushId: string, row: ItemRow, near: string[], key: string): void {
+		const { doc } = this.host;
+		const op = JSON.parse(row.op) as Operation;
+		const card =
+			op.kind === "issue.create"
+				? { title: op.title, labels: (op.labels ?? []).map((name) => ({ name, color: "" })) }
+				: undefined;
+		// Stickies that became cards first (their creates confirmed sooner) are
+		// their cards now.
+		const shapes = shapesMap(doc);
+		const replaced = new Map<string, string>();
+		if (near.some((id) => !shapes.has(id))) {
+			const rows = this.host.sql
+				.exec<Pick<ItemRow, "effect" | "result_key">>(
+					"SELECT effect, result_key FROM push_changes WHERE effect IS NOT NULL AND result_key IS NOT NULL",
+				)
+				.toArray();
+			for (const { effect, result_key } of rows) {
+				const parsed = JSON.parse(effect ?? "null") as ChangeEffect | null;
+				if (parsed?.kind !== "replace") continue;
+				const card = [...shapes].find(([, s]) => s.get("ref") === result_key)?.[0];
+				if (card) for (const id of parsed.shapes) replaced.set(id, card);
+			}
+		}
+		const targets = near.map((id) => (shapes.has(id) ? id : (replaced.get(id) ?? id)));
+		let placed: ReturnType<typeof placeCard> = null;
+		doc.transact(() => {
+			placed = placeCard(doc, key, targets, { card });
+			const change = changesMap(doc).get(row.change_id);
+			const shapes = change?.get("shapes");
+			if (placed && change && Array.isArray(shapes) && !shapes.includes(placed.card)) {
+				change.set("shapes", [...(shapes as string[]), placed.card]);
+			}
+		}, PUSH_ORIGIN);
+		const result = placed as ReturnType<typeof placeCard>;
+		this.logger(pushId).info("push.effect", {
+			change: row.change_id,
+			kind: "place",
+			placed: result ? (result.added ? "added" : "existing") : "nowhere",
+			connectors: result?.connectors.length ?? 0,
 		});
 	}
 

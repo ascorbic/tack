@@ -231,7 +231,7 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 	expect(loose.staged).toHaveLength(2);
 	const parent = stageParentIssue(
 		doc,
-		{ repo: REPO, title: sectionTitle(doc, "section"), shapes: ["section"] },
+		{ repo: REPO, title: sectionTitle(doc, "section"), shapes: ["section"], near: ["section"] },
 		[
 			{ shape: "s1", sticky: "Wobble on resize\nHappens in Safari when the window narrows" },
 			{ shape: "s2", sticky: "Snap back after a drag" },
@@ -378,11 +378,29 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 	expect(github.filesOn(WIDGETS, "main")?.has(adrPath)).toBe(false);
 
 	// The board caught up: every sticky is now its issue's card, in place,
-	// the connector joins the cards, and the decision follows its pull request.
+	// the parent issue has a card above its section, joined to it, the
+	// connector joins the cards, and the decision follows its pull request.
 	const keyOf = (n: number) => `${REPO}#${n}`;
 	await eventually(() => ["s1", "s2", "l1", "l2"].every((s) => !shapesMap(doc).has(s)));
+	await eventually(() =>
+		[...shapesMap(doc).values()].some((s) => s.get("ref") === keyOf(resizing.number)),
+	);
 	const shapes = shapeProps(client);
 	const cardFor = (n: number) => [...shapes].find(([, s]) => s.ref === keyOf(n));
+	const [parentCard, parentShape] = cardFor(resizing.number)!;
+	expect(parentShape.type).toBe("card");
+	expect(parentShape.parent ?? null).toBeNull();
+	// Centred over the 800-wide section, and clear of it.
+	expect(parentShape.x + 252 / 2).toBe(400);
+	expect(parentShape.y + 124).toBeLessThan(0);
+	expect([...shapes.values()]).toContainEqual(
+		expect.objectContaining({
+			type: "connector",
+			from: expect.objectContaining({ shape: parentCard }),
+			to: expect.objectContaining({ shape: "section" }),
+		}),
+	);
+	expect(changes(client).get(parent.parent!)?.shapes).toEqual(["section", parentCard]);
 	expect(cardFor(wobble.number)?.[1]).toMatchObject({ x: 40, y: 60, parent: "section" });
 	expect(cardFor(snap.number)?.[1]).toMatchObject({ x: 400, y: 60, parent: "section" });
 	expect(cardFor(cold.number)?.[1]).toMatchObject({ x: 0, y: 500 });
@@ -428,8 +446,14 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 	expect(image.headers.get("content-type")).toBe("image/png");
 	await image.arrayBuffer();
 	const body = backlinkBody({ boardUrl, boardTitle: "Planning", snapshotUrl });
-	// Every issue: each card on the board, and the parent the section became.
-	const linked = [12, resizing.number, ...newIssues.map((issue) => issue.number)];
+	// Every issue: each card on the board, the parent the section became
+	// included, read off the board rather than typed in.
+	const linked = [...shapeProps(client).values()].flatMap((shape) =>
+		shape.type === "card" && shape.ref ? [Number(shape.ref.slice(shape.ref.indexOf("#") + 1))] : [],
+	);
+	expect(new Set(linked)).toEqual(
+		new Set([12, resizing.number, ...newIssues.map((issue) => issue.number)]),
+	);
 	const backlinks = stageComments(
 		doc,
 		linked.map((n) => ({ key: keyOf(n), body })),

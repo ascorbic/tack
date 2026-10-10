@@ -196,6 +196,31 @@ describe("parent issues", () => {
 		expect(link).toMatchObject({ child: { pending: staged } });
 	});
 
+	it("places the parent's card above the section, or above its sub-issues", () => {
+		const { doc } = board();
+		const section = stageParentIssue(
+			doc,
+			{ repo: REPO, title: "Now", shapes: ["section"], near: ["section"] },
+			[{ shape: "s1", sticky: "Docs" }],
+			PRIYA,
+		);
+		const placed = (id: string | null) => listChanges(doc).find((c) => c.id === id)?.effect;
+		expect(placed(section.parent)).toEqual({ kind: "place", near: ["section"] });
+
+		const cluster = stageParentIssue(
+			doc,
+			{ repo: REPO, title: "Later", shapes: ["c1", "c2", "s2"], near: "children" },
+			[
+				{ shape: "c1", card: { key: `${REPO}#412`, kind: "issue" } },
+				{ shape: "c2", card: { key: `${REPO}#418`, kind: "pull" } },
+				{ shape: "s2", sticky: "Benchmarks" },
+			],
+			PRIYA,
+		);
+		// Only what became a sub-issue: the pull request is left out.
+		expect(placed(cluster.parent)).toEqual({ kind: "place", near: ["c1", "s2"] });
+	});
+
 	it("needs a title", () => {
 		const { doc } = board();
 		const result = stageParentIssue(doc, { repo: REPO, title: "  " }, [], PRIYA);

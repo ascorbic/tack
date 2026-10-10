@@ -736,7 +736,13 @@ function ParentPanel({
 			onStage={(repo, title) => {
 				const result = stageParentIssue(
 					doc,
-					{ repo, title, shapes: section ? [section.id] : selected.map((n) => n.id) },
+					{
+						repo,
+						title,
+						shapes: section ? [section.id] : selected.map((n) => n.id),
+						// Its card goes above the section, or above its sub-issues.
+						near: section ? [section.id] : "children",
+					},
 					items.map((i) => i.input),
 					stagerFor(user),
 				);
