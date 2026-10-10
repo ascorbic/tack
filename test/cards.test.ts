@@ -70,6 +70,29 @@ describe("GitHub normalisation", () => {
 		expect(normaliseIssue("a/b", { ...base, state: "closed" }, true).state).toBe("closed");
 	});
 
+	it("keeps when items were opened, closed and merged, where GitHub says", () => {
+		expect(
+			normaliseIssue(
+				"a/b",
+				{
+					...base,
+					state: "closed",
+					created_at: "2025-12-01T00:00:00Z",
+					closed_at: "2025-12-20T00:00:00Z",
+					pull_request: { merged_at: "2025-12-20T00:00:00Z" },
+				},
+				true,
+			),
+		).toMatchObject({
+			createdAt: "2025-12-01T00:00:00Z",
+			closedAt: "2025-12-20T00:00:00Z",
+			mergedAt: "2025-12-20T00:00:00Z",
+		});
+		const issue = normaliseIssue("a/b", { ...base, state: "open", closed_at: null });
+		expect(issue.closedAt).toBeNull();
+		expect("createdAt" in issue || "mergedAt" in issue).toBe(false);
+	});
+
 	it("produces canonical keys and treats issues-endpoint PRs as pulls", () => {
 		const card = normaliseIssue("A/B", {
 			...base,

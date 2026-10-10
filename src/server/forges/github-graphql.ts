@@ -28,7 +28,7 @@ const FRESHNESS_BATCH = 100;
 // Issue and PullRequest `state` are different enums, so they're aliased:
 // GraphQL won't merge same-named fields of different types in one selection.
 const COMMON = `
-	id number title url updatedAt
+	id number title url updatedAt createdAt closedAt
 	repository { nameWithOwner }
 	author { login avatarUrl }
 	labels(first: 10) { nodes { name color } }
@@ -47,6 +47,7 @@ fragment TackIssue on Issue {${COMMON}
 }
 fragment TackPull on PullRequest {${COMMON}
 	pullState: state
+	mergedAt
 	isDraft
 	mergeable
 	reviewDecision
@@ -98,6 +99,9 @@ interface Common {
 	title: string;
 	url: string;
 	updatedAt: string;
+	/** Absent from older fixtures. */
+	createdAt?: string;
+	closedAt?: string | null;
 	repository: { nameWithOwner: string };
 	author: Actor | null;
 	labels: { nodes: { name: string; color: string }[] };
@@ -139,6 +143,7 @@ interface Rollup {
 export interface GqlPull extends Common {
 	__typename: "PullRequest";
 	pullState: "OPEN" | "CLOSED" | "MERGED";
+	mergedAt?: string | null;
 	isDraft: boolean;
 	mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
 	reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
@@ -371,6 +376,8 @@ function base(node: Common): Omit<Card, "kind" | "state" | "stateReason"> {
 		reactions: node.reactions.totalCount,
 		url: node.url,
 		updatedAt: node.updatedAt,
+		...(node.createdAt ? { createdAt: node.createdAt } : {}),
+		...(node.closedAt !== undefined ? { closedAt: node.closedAt } : {}),
 		nodeId: node.id,
 	};
 }
@@ -422,7 +429,14 @@ export function normaliseGqlPull(node: GqlPull): Card {
 			];
 		}),
 	};
-	return { ...base(node), kind: "pull", state, stateReason: null, pull };
+	return {
+		...base(node),
+		...(node.mergedAt !== undefined ? { mergedAt: node.mergedAt } : {}),
+		kind: "pull",
+		state,
+		stateReason: null,
+		pull,
+	};
 }
 
 function mergeable(value: GqlPull["mergeable"]): PullDetails["mergeable"] {

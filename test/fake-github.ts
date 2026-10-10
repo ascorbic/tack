@@ -1406,6 +1406,11 @@ export class FakeGitHub {
 		};
 	}
 
+	/** When a closed item was closed (or a pull request merged): `mergedAt`, else `updatedAt`. */
+	private closedAt(item: FakeItem): string {
+		return (item.state === "merged" ? item.mergedAt : undefined) ?? item.updatedAt;
+	}
+
 	private gqlItem(repo: Pick<FakeRepo, "id" | "name" | "private">, item: FakeItem) {
 		const common = {
 			__typename: item.kind === "pull" ? "PullRequest" : "Issue",
@@ -1414,6 +1419,8 @@ export class FakeGitHub {
 			title: item.title,
 			url: `https://github.com/${repo.name}/${item.kind === "pull" ? "pull" : "issues"}/${item.number}`,
 			updatedAt: item.updatedAt,
+			createdAt: item.createdAt ?? item.updatedAt,
+			closedAt: item.state === "closed" || item.state === "merged" ? this.closedAt(item) : null,
 			repository: { nameWithOwner: repo.name, isPrivate: repo.private },
 			author: { login: "octocat", avatarUrl: "https://avatars.example/octocat" },
 			labels: { nodes: item.labels ?? [] },
@@ -1437,6 +1444,7 @@ export class FakeGitHub {
 		return {
 			...common,
 			pullState: item.state === "merged" ? "MERGED" : item.state === "closed" ? "CLOSED" : "OPEN",
+			mergedAt: item.state === "merged" ? this.closedAt(item) : null,
 			isDraft: item.draft ?? false,
 			mergeable: item.mergeable ?? "MERGEABLE",
 			reviewDecision: item.reviewDecision ?? null,
@@ -1470,6 +1478,7 @@ export class FakeGitHub {
 			state: item.state === "open" || !item.state ? "open" : "closed",
 			state_reason: item.state === "closed" ? (item.stateReason ?? "completed") : null,
 			created_at: item.createdAt ?? item.updatedAt,
+			closed_at: item.state === "closed" || item.state === "merged" ? this.closedAt(item) : null,
 			milestone: item.milestone ? { title: item.milestone } : null,
 			html_url: `https://github.com/${repo.name}/${item.kind === "pull" ? "pull" : "issues"}/${item.number}`,
 			repository_url: `https://api.github.com/repos/${repo.name}`,
@@ -1483,7 +1492,7 @@ export class FakeGitHub {
 			})),
 			user: null,
 			...(item.kind === "pull"
-				? { pull_request: { merged_at: item.state === "merged" ? item.updatedAt : null } }
+				? { pull_request: { merged_at: item.state === "merged" ? this.closedAt(item) : null } }
 				: {}),
 		};
 	}

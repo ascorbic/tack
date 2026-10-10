@@ -26,6 +26,12 @@ export interface Card {
 	reactions: number;
 	url: string;
 	updatedAt: string;
+	/** When it was opened, ISO 8601, where the forge said (absent in older caches and fixtures). */
+	createdAt?: string;
+	/** When it was last closed (merged, for pull requests), or null while open. */
+	closedAt?: string | null;
+	/** Pull requests: when it was merged, or null if it hasn't been. */
+	mergedAt?: string | null;
 	/**
 	 * The forge's global id for the item (a GraphQL node id on GitHub), for
 	 * batched refetches. Absent when the forge has none or it wasn't fetched.

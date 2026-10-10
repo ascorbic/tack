@@ -39,6 +39,8 @@ export interface GitHubIssueLike {
 	html_url: string;
 	repository_url?: string;
 	updated_at: string;
+	created_at?: string;
+	closed_at?: string | null;
 	node_id?: string;
 	comments?: number;
 	labels?: ({ name?: string; color?: string } | string)[];
@@ -111,6 +113,7 @@ export function normaliseIssue(
 	isPull = Boolean(issue.pull_request),
 ): Card {
 	const merged = Boolean(issue.merged || issue.merged_at || issue.pull_request?.merged_at);
+	const mergedAt = issue.merged_at ?? issue.pull_request?.merged_at;
 	let state: CardState = issue.state;
 	if (isPull && merged) state = "merged";
 	else if (isPull && issue.state === "open" && issue.draft) state = "draft";
@@ -141,6 +144,9 @@ export function normaliseIssue(
 		reactions: issue.reactions?.total_count ?? 0,
 		url: issue.html_url,
 		updatedAt: issue.updated_at,
+		...(issue.created_at ? { createdAt: issue.created_at } : {}),
+		...(issue.closed_at !== undefined ? { closedAt: issue.closed_at } : {}),
+		...(isPull && mergedAt !== undefined ? { mergedAt } : {}),
 		...(issue.node_id ? { nodeId: issue.node_id } : {}),
 		...(isPull ? { pull: basicPullDetails(issue) } : {}),
 	};

@@ -32,6 +32,25 @@ function pull(overrides: Partial<GqlPull> = {}): GqlPull {
 }
 
 describe("GitHub pull requests over GraphQL", () => {
+	it("keeps when they were opened, closed and merged", () => {
+		const card = normaliseGqlPull(
+			pull({
+				pullState: "MERGED",
+				createdAt: "2026-09-01T00:00:00Z",
+				closedAt: "2026-09-03T00:00:00Z",
+				mergedAt: "2026-09-03T00:00:00Z",
+			}),
+		);
+		expect(card).toMatchObject({
+			state: "merged",
+			createdAt: "2026-09-01T00:00:00Z",
+			closedAt: "2026-09-03T00:00:00Z",
+			mergedAt: "2026-09-03T00:00:00Z",
+		});
+		// Older payloads without them read as before.
+		expect("createdAt" in normaliseGqlPull(pull())).toBe(false);
+	});
+
 	it("rolls up check runs and commit statuses", () => {
 		const card = normaliseGqlPull(
 			pull({
