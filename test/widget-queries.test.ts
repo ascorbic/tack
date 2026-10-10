@@ -288,6 +288,9 @@ describe("widget queries", () => {
 		const first = await latest(owner, widget);
 		expect(titles(first)).toContain(SECRET_TITLE);
 
+		// With no throttling, another refresh may land before the limit does,
+		// so what's kept is whatever was fetched last before it.
+		const limitedFrom = Date.now();
 		github.failSearches({
 			status: 403,
 			headers: {
@@ -302,7 +305,8 @@ describe("widget queries", () => {
 		// The last good results stand, from when they were fetched: they go stale.
 		const kept = await latest(owner, widget);
 		expect(titles(kept)).toContain(SECRET_TITLE);
-		expect(kept.at).toBe(first.at);
+		expect(Date.parse(kept.at)).toBeGreaterThanOrEqual(Date.parse(first.at));
+		expect(Date.parse(kept.at)).toBeLessThanOrEqual(limitedFrom);
 
 		// Until GitHub says to try again, nobody searches with that token, and
 		// someone new is told when it'll be.
