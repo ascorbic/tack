@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { IssueEdit } from "../../shared/actions.ts";
 import type { PendingChange, PushAs, Target } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
+import { IssueExtrasPicker } from "../actions/IssuePanels.tsx";
+import { SUBMIT_HINT } from "../actions/Popover.tsx";
 import type { User } from "../presence.ts";
 import { labelColor } from "./api.ts";
-import { type ChangeIndex, changeRepo } from "./describe.ts";
+import { type ChangeIndex, changeRepo, isPending } from "./describe.ts";
 import { BotIcon, BranchIcon, ChevronIcon, FileIcon, KindIcon } from "./icons.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { LabelChip, StagerAvatar, TargetRef } from "./parts.tsx";
@@ -19,39 +22,30 @@ export interface PreviewProps {
 	/** Who it'll be written as, for comments and new threads. */
 	as: PushAs;
 	user: User;
+	/**
+	 * Correct a new issue in review: its title, description, labels,
+	 * milestone and assignees. Absent where it can't be changed.
+	 */
+	onEdit?: (edit: IssueEdit) => boolean;
 }
 
-export function ChangePreview({ change, index, meta, as, user }: PreviewProps) {
+export function ChangePreview({ change, index, meta, as, user, onEdit }: PreviewProps) {
 	const { op } = change;
 	const repo = changeRepo(change, index) ?? "";
 	const info = meta(repo);
 	const color = (name: string) => labelColor(info, name);
 	switch (op.kind) {
 		case "issue.create":
-			return (
-				<div className="preview preview-thread">
+			return onEdit && isPending(change) ? (
+				<EditableIssue change={change} repo={repo} meta={info} onEdit={onEdit} />
+			) : (
+				<div className="preview preview-thread" data-compact={!op.body || undefined}>
 					<div className="preview-thread-title">
 						<KindIcon op={op} size={15} />
 						<span>{op.title}</span>
 					</div>
-					{op.body ? (
-						<Body source={op.body} />
-					) : (
-						<p className="preview-empty-body">No description.</p>
-					)}
-					{(op.labels?.length || op.assignees?.length || op.milestone) && (
-						<div className="preview-facts">
-							{op.labels?.map((name) => (
-								<LabelChip key={name} name={name} color={color(name)} />
-							))}
-							{op.assignees?.map((login) => (
-								<span key={login} className="preview-fact">
-									@{login}
-								</span>
-							))}
-							{op.milestone && <Milestone title={op.milestone} />}
-						</div>
-					)}
+					{op.body && <Body source={op.body} />}
+					<IssueFacts change={change} color={color} />
 				</div>
 			);
 		case "discussion.create":
@@ -173,6 +167,212 @@ export function ChangePreview({ change, index, meta, as, user }: PreviewProps) {
 				</div>
 			);
 	}
+}
+
+/** A new issue's labels, assignees and milestone, as GitHub will show them. */
+function IssueFacts({ change, color }: { change: PendingChange; color: (name: string) => string }) {
+	const { op } = change;
+	if (op.kind !== "issue.create") return null;
+	if (!op.labels?.length && !op.assignees?.length && !op.milestone) return null;
+	return (
+		<div className="preview-facts">
+			{op.labels?.map((name) => (
+				<LabelChip key={name} name={name} color={color(name)} />
+			))}
+			{op.assignees?.map((login) => (
+				<span key={login} className="preview-fact">
+					@{login}
+				</span>
+			))}
+			{op.milestone && <Milestone title={op.milestone} />}
+		</div>
+	);
+}
+
+type Editing = "title" | "body" | "extras" | null;
+
+/**
+ * A new issue in review that can still be corrected: click its title to
+ * reword it, its description to write one, and its labels, milestone and
+ * assignees to change them. Words made from a sticky are written back to
+ * the sticky. Enter (or ⌘↵ in the description) saves, Escape doesn't.
+ */
+function EditableIssue({
+	change,
+	repo,
+	meta,
+	onEdit,
+}: {
+	change: PendingChange;
+	repo: string;
+	meta: RepoMeta | undefined;
+	onEdit: (edit: IssueEdit) => boolean;
+}) {
+	const [editing, setEditing] = useState<Editing>(null);
+	if (change.op.kind !== "issue.create") return null;
+	const { op } = change;
+	const color = (name: string) => labelColor(meta, name);
+	const fromSticky = change.effect?.kind === "replace";
+	const writesBack = fromSticky ? " (and its sticky)" : "";
+	return (
+		<div
+			className="preview preview-thread preview-editable"
+			data-compact={(!op.body && editing !== "body") || undefined}
+			data-editing={editing ?? undefined}
+		>
+			{editing === "title" ? (
+				<TextEdit
+					key="title"
+					label="Title"
+					initial={op.title}
+					onSave={(title) => onEdit({ title })}
+					onDone={() => setEditing(null)}
+				/>
+			) : (
+				<button
+					type="button"
+					className="preview-thread-title preview-edit-target"
+					title={`Edit the title${writesBack}`}
+					onClick={() => setEditing("title")}
+				>
+					<KindIcon op={op} size={15} />
+					<span>{op.title}</span>
+					<EditGlyph />
+				</button>
+			)}
+			{editing === "body" ? (
+				<TextEdit
+					key="body"
+					label="Description"
+					initial={op.body ?? ""}
+					multiline
+					onSave={(body) => onEdit({ body })}
+					onDone={() => setEditing(null)}
+				/>
+			) : op.body ? (
+				<div className="preview-edit-body">
+					<Body source={op.body} />
+					<button
+						type="button"
+						className="preview-edit-link"
+						title={`Edit the description${writesBack}`}
+						onClick={() => setEditing("body")}
+					>
+						Edit description
+					</button>
+				</div>
+			) : null}
+			<div className="preview-edit-row">
+				{!op.body && editing !== "body" && (
+					<button type="button" className="preview-edit-link" onClick={() => setEditing("body")}>
+						Add a description
+					</button>
+				)}
+				{editing !== "extras" && meta && (
+					<button
+						type="button"
+						className="preview-edit-facts"
+						title="Change labels, milestone and assignees"
+						onClick={() => setEditing("extras")}
+					>
+						<IssueFacts change={change} color={color} />
+						<span className="preview-edit-link">
+							{op.labels?.length || op.milestone || op.assignees?.length
+								? "Change"
+								: "Labels, milestone, assignees"}
+						</span>
+					</button>
+				)}
+				{!meta && <IssueFacts change={change} color={color} />}
+			</div>
+			{editing === "extras" && meta && (
+				<div className="preview-edit-extras">
+					<IssueExtrasPicker
+						repo={repo}
+						meta={meta}
+						value={{ labels: op.labels, milestone: op.milestone, assignees: op.assignees }}
+						onChange={(value) => onEdit(value)}
+					/>
+					<button type="button" className="preview-edit-done" onClick={() => setEditing(null)}>
+						Done
+					</button>
+				</div>
+			)}
+		</div>
+	);
+}
+
+function EditGlyph() {
+	return (
+		<svg
+			className="icon preview-edit-glyph"
+			width="13"
+			height="13"
+			viewBox="0 0 16 16"
+			aria-hidden="true"
+		>
+			<path d="M10.5 2.5l3 3L6 13H3v-3z" />
+		</svg>
+	);
+}
+
+/** A title or description being corrected in place. */
+function TextEdit({
+	label,
+	initial,
+	multiline = false,
+	onSave,
+	onDone,
+}: {
+	label: string;
+	initial: string;
+	multiline?: boolean;
+	onSave: (value: string) => boolean;
+	onDone: () => void;
+}) {
+	const [value, setValue] = useState(initial);
+	const [invalid, setInvalid] = useState(false);
+	const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+	useEffect(() => {
+		field.current?.focus();
+		field.current?.select();
+	}, []);
+	const save = () => {
+		if (value === initial) return onDone();
+		if (onSave(value)) onDone();
+		else setInvalid(true);
+	};
+	const props = {
+		ref: field,
+		className: "preview-edit-field",
+		"aria-label": label,
+		"aria-invalid": invalid || undefined,
+		value,
+		onChange: (event: React.ChangeEvent<HTMLInputElement & HTMLTextAreaElement>) => {
+			setValue(event.target.value);
+			setInvalid(false);
+		},
+		onBlur: save,
+		onKeyDown: (event: React.KeyboardEvent) => {
+			// The sheet's own ⌘↵ pushes: here it saves.
+			event.stopPropagation();
+			if (event.key === "Escape") {
+				event.preventDefault();
+				onDone();
+			} else if (event.key === "Enter" && (!multiline || event.metaKey || event.ctrlKey)) {
+				event.preventDefault();
+				save();
+			}
+		},
+	};
+	return multiline ? (
+		<div className="preview-edit-area">
+			<textarea {...props} rows={Math.min(10, Math.max(3, value.split("\n").length + 1))} />
+			<span className="preview-edit-hint">{SUBMIT_HINT} to save · Esc to cancel</span>
+		</div>
+	) : (
+		<input {...props} />
+	);
 }
 
 function Target({ target, index }: { target: Target; index: ChangeIndex }) {

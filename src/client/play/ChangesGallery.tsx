@@ -427,7 +427,7 @@ function sheetSamples(): SheetSample[] {
 }
 
 function SheetFrame({ sample }: { sample: SheetSample }) {
-	const [changes] = useState(sample.changes);
+	const [changes, setChanges] = useState(sample.changes);
 	const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(
 		() => new Set(sample.changes.filter((c) => LEFT_OUT.has(c.id)).map((c) => c.id)),
 	);
@@ -460,6 +460,28 @@ function SheetFrame({ sample }: { sample: SheetSample }) {
 							return next;
 						})
 					}
+					onEdit={(id, edit) => {
+						setChanges((current) =>
+							current.map((c) =>
+								c.id === id && c.op.kind === "issue.create"
+									? {
+											...c,
+											op: {
+												...c.op,
+												...edit,
+												labels: edit.labels ? [...edit.labels] : c.op.labels,
+												assignees: edit.assignees ? [...edit.assignees] : c.op.assignees,
+												milestone:
+													edit.milestone === undefined
+														? c.op.milestone
+														: (edit.milestone ?? undefined),
+											},
+										}
+									: c,
+							),
+						);
+						return true;
+					}}
 					onPush={() => {}}
 					onRetry={() => {}}
 					onResolve={() => {}}

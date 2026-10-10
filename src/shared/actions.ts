@@ -11,14 +11,16 @@ import {
 	type Target,
 	changesMap,
 	listChanges,
+	readChange,
 	stageChange,
+	stickySource,
 	unstageChanges,
 } from "./changes.ts";
 import { readConnector } from "./connectors.ts";
 import { readingOrder } from "./display.ts";
 import type { RepoMeta } from "./push.ts";
 import { forgeForHost, repoKeyOf } from "./refs.ts";
-import { TITLE_MAX, issueFromText } from "./issueText.ts";
+import { TITLE_MAX, issueFromText, textFromIssue } from "./issueText.ts";
 import { readShape, shapesMap, transactLocal } from "./shapes.ts";
 
 // Built-in actions (#32): what the selection actions stage. Pure document
@@ -143,6 +145,50 @@ function inReadingOrder<T extends { id: string }>(doc: Y.Doc, items: readonly T[
 	});
 	const rank = new Map(readingOrder(at).map((id, i) => [id, i]));
 	return [...items].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+}
+
+/** A correction to a staged new issue, made in review. */
+export interface IssueEdit {
+	title?: string;
+	body?: string;
+	labels?: readonly string[];
+	milestone?: string | null;
+	assignees?: readonly string[];
+}
+
+/**
+ * Correct a staged new issue: its title and body, labels, milestone and
+ * assignees. One made from a sticky has its words written back to the
+ * sticky, which is where they come from (`followSticky`), so the board and
+ * the issue never disagree. One undo step. False if it can't be edited
+ * (it's on its way, or the title would be empty).
+ */
+export function editStagedIssue(doc: Y.Doc, id: string, edit: IssueEdit): boolean {
+	const raw = changesMap(doc).get(id);
+	if (!raw) return false;
+	const change = readChange(raw, doc);
+	if (change.op.kind !== "issue.create") return false;
+	if (change.status !== "staged" && change.status !== "failed") return false;
+	const op = change.op;
+	const words = edit.title !== undefined || edit.body !== undefined;
+	const title = (edit.title ?? op.title).replace(/\s+/g, " ").trim().slice(0, TITLE_MAX);
+	if (!title) return false;
+	const body = (edit.body ?? op.body ?? "").trim();
+	const sticky = stickySource(change);
+	const text = textFromIssue({ title, body });
+	// Read back the way the sticky will be, so it doesn't count as drifting.
+	const issue = (sticky ? issueFromText(text) : null) ?? { title, ...(body ? { body } : {}) };
+	const { body: _body, labels: _l, milestone: _m, assignees: _a, ...rest } = op;
+	const extras = extrasOf({
+		labels: edit.labels ?? op.labels,
+		milestone: edit.milestone === undefined ? op.milestone : edit.milestone,
+		assignees: edit.assignees ?? op.assignees,
+	});
+	transactLocal(doc, () => {
+		if (words && sticky) shapesMap(doc).get(sticky)?.set("text", text);
+		raw.set("op", { ...rest, ...issue, ...extras });
+	});
+	return true;
 }
 
 // Parent issues --------------------------------------------------------------

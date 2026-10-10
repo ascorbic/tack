@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { type IssueEdit, editStagedIssue } from "../../shared/actions.ts";
 import type { PendingChange, PushAs } from "../../shared/changes.ts";
 import type { AuditEntry, RepoMeta } from "../../shared/push.ts";
 import { forgeName, forgeNameOf, sentenceCase } from "../../shared/refs.ts";
@@ -73,6 +74,8 @@ export interface PushSheetViewProps {
 	/** What this person has left out of this push: theirs alone, not the board's. */
 	leftOut: ReadonlySet<string>;
 	onToggle: (ids: string[], included: boolean) => void;
+	/** Correct a staged new issue in review (see `editStagedIssue`). */
+	onEdit?: (id: string, edit: IssueEdit) => boolean;
 	onPush: () => void;
 	onRetry: (ids: string[]) => void;
 	onResolve: (action: FailureAction) => void;
@@ -260,6 +263,7 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 					canPush={ui.client !== null}
 					leftOut={leftOut}
 					onToggle={(ids, on) => ui.session.setIncluded(ids, on, index)}
+					onEdit={(id, edit) => editStagedIssue(ui.doc, id, edit)}
 					onPush={push}
 					onRetry={(ids) => void ui.session.push(ids, as, index)}
 					onResolve={resolve}
@@ -341,6 +345,7 @@ function ReviewView({
 	canPush,
 	leftOut,
 	onToggle,
+	onEdit,
 	onPush,
 	onResolve,
 	onClose,
@@ -470,6 +475,9 @@ function ReviewView({
 															meta={meta}
 															as={as}
 															user={user}
+															onEdit={
+																onEdit && !readOnly ? (edit) => onEdit(change.id, edit) : undefined
+															}
 														/>
 														<div className="push-change-foot">
 															<StagedBy change={change} you={user.login} />

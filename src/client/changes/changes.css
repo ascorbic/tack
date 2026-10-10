@@ -1861,6 +1861,195 @@
 	font-style: italic;
 }
 
+/* A title-only issue reads as one line, not a card with an empty middle. */
+.preview-thread[data-compact] .preview-facts {
+	margin-top: 6px;
+}
+
+/* A new issue that can still be corrected in review. */
+.preview .preview-edit-target {
+	position: relative;
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-size: 16px;
+	font-weight: 650;
+	width: calc(100% + 12px);
+	margin: -3px -6px;
+	padding: 3px 6px;
+	border: 0;
+	border-radius: 7px;
+	background: none;
+	text-align: left;
+	cursor: text;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.preview .preview-edit-target:hover,
+.preview .preview-edit-target:focus-visible {
+	background: var(--hover);
+}
+
+.preview-edit-glyph {
+	margin-left: auto;
+	color: var(--muted);
+	opacity: 0;
+	transform: translateX(-3px);
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring);
+}
+
+.preview-thread-title .preview-edit-glyph {
+	color: var(--muted);
+}
+
+.preview-edit-target:hover .preview-edit-glyph,
+.preview-edit-target:focus-visible .preview-edit-glyph {
+	opacity: 1;
+	transform: none;
+}
+
+.preview-edit-field {
+	width: 100%;
+	margin: -3px 0;
+	padding: 5px 8px;
+	border: 1px solid var(--accent);
+	border-radius: 8px;
+	outline: 3px solid var(--accent-soft);
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	animation: edit-in var(--t-base) var(--ease-spring);
+}
+
+input.preview-edit-field {
+	font-family: var(--font-display);
+	font-size: 16px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+textarea.preview-edit-field {
+	margin-top: 8px;
+	font-size: 13.5px;
+	line-height: 1.5;
+	resize: vertical;
+}
+
+.preview-edit-field[aria-invalid] {
+	border-color: var(--fail);
+	outline-color: color-mix(in srgb, var(--fail) 18%, transparent);
+	animation: edit-shake var(--t-base) var(--ease-out);
+}
+
+@keyframes edit-in {
+	from {
+		outline-color: transparent;
+	}
+}
+
+@keyframes edit-shake {
+	25% {
+		transform: translateX(-3px);
+	}
+	75% {
+		transform: translateX(3px);
+	}
+}
+
+.preview-edit-hint {
+	display: block;
+	margin-top: 4px;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.preview-edit-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 12px;
+	margin-top: 8px;
+}
+
+.preview-edit-row:empty {
+	display: none;
+}
+
+.preview-edit-row .preview-facts {
+	margin: 0;
+}
+
+.preview .preview-edit-link {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12px;
+	font-weight: 560;
+	cursor: pointer;
+	transition: color var(--t-quick) var(--ease-out);
+}
+
+.preview .preview-edit-link:hover,
+.preview .preview-edit-facts:hover .preview-edit-link {
+	color: var(--accent);
+}
+
+.preview-edit-body .preview-edit-link {
+	margin-top: 4px;
+}
+
+.preview .preview-edit-facts {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 10px;
+	margin: -3px -6px;
+	padding: 3px 6px;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	text-align: left;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.preview .preview-edit-facts:hover {
+	background: var(--hover);
+}
+
+.preview-edit-extras {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 8px;
+	animation: batch-open var(--t-settle) var(--ease-spring);
+}
+
+.preview-edit-extras .issue-extras {
+	flex: 1 1 260px;
+	margin-top: 8px;
+}
+
+.preview .preview-edit-done {
+	height: 28px;
+	margin-top: 8px;
+	padding: 0 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--ink);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.preview .preview-edit-done:hover {
+	background: var(--hover);
+}
+
 .preview-facts {
 	display: flex;
 	flex-wrap: wrap;

@@ -4,6 +4,7 @@ import {
 	blockEnds,
 	boardRepos,
 	canWrite,
+	editStagedIssue,
 	issueFromText,
 	parseRepoInput,
 	pendingIssueFor,
@@ -214,6 +215,51 @@ describe("in the order people read the board", () => {
 	});
 });
 
+describe("correcting a staged issue in review", () => {
+	it("writes a sticky's words back to it, and the rest to the change, as one undo step", () => {
+		const { doc, add } = board();
+		add("s1", sticky("Benchmarks in CI\nOn every PR"));
+		const history = new History(doc);
+		histories.push(history);
+		const [id] = stageStickyIssues(
+			doc,
+			[{ id: "s1", text: "Benchmarks in CI\nOn every PR" }],
+			REPO,
+			PRIYA,
+		).staged;
+		expect(editStagedIssue(doc, id!, { title: "Benchmarks on every PR" })).toBe(true);
+		expect(shapesMap(doc).get("s1")?.get("text")).toBe("Benchmarks on every PR\nOn every PR");
+		expect(editStagedIssue(doc, id!, { labels: ["perf"], milestone: "5.0" })).toBe(true);
+		const [change] = listChanges(doc);
+		expect(change?.op).toEqual({
+			kind: "issue.create",
+			repo: REPO,
+			title: "Benchmarks on every PR",
+			body: "On every PR",
+			labels: ["perf"],
+			milestone: "5.0",
+		});
+		// Corrected in review, so not "edited since staged".
+		expect(change?.drift).toBeUndefined();
+		// A title can't be emptied.
+		expect(editStagedIssue(doc, id!, { title: "  " })).toBe(false);
+
+		history.undo();
+		history.undo();
+		expect(shapesMap(doc).get("s1")?.get("text")).toBe("Benchmarks in CI\nOn every PR");
+		expect(ops(doc)[0]).toMatchObject({ title: "Benchmarks in CI" });
+	});
+
+	it("edits a parent issue's own words, and leaves pushed changes alone", () => {
+		const { doc } = board();
+		const result = stageParentIssue(doc, { repo: REPO, title: "Docs" }, [], PRIYA);
+		expect(editStagedIssue(doc, result.parent!, { body: "Everything for 5.0" })).toBe(true);
+		expect(ops(doc)[0]).toMatchObject({ title: "Docs", body: "Everything for 5.0" });
+		changesMap(doc).get(result.parent!)?.set("status", "sending");
+		expect(editStagedIssue(doc, result.parent!, { title: "Later" })).toBe(false);
+	});
+});
+
 describe("deleting what changes were made from", () => {
 	it("unstages a sticky's issue and what refers to it, in the same undo step", () => {
 		const { doc, add } = board();
@@ -249,7 +295,10 @@ describe("deleting what changes were made from", () => {
 				.sort(),
 		).toEqual(["issue.create", "item.blockedBy"]);
 
-		const kinds = () => ops(doc).map((op) => op.kind).sort();
+		const kinds = () =>
+			ops(doc)
+				.map((op) => op.kind)
+				.sort();
 		transactLocal(doc, () => removeShapes(doc, ["s1"]));
 		expect(kinds()).toEqual(["issue.create", "item.milestone"]);
 		expect(ops(doc).find((op) => op.kind === "issue.create")).toMatchObject({

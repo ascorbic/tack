@@ -1,3 +1,4 @@
+import { issueFromText } from "../../shared/issueText.ts";
 import { useState } from "react";
 import { type Operation, listChanges, stageChange, unstageChanges } from "../../shared/changes.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
@@ -77,11 +78,11 @@ export function ChangeControls({
 		}
 	};
 
+	// As the Make issues action reads a sticky, so the issue follows it.
 	const newIssue = (text: string): Operation => ({
 		kind: "issue.create",
 		repo: IMAGEKIT,
-		title: text.split("\n")[0]?.slice(0, 120) ?? text,
-		body: `From the planning board.\n\n> ${text.replace(/\n/g, " ")}`,
+		...(issueFromText(text) ?? { title: text }),
 		labels: pick(LABEL_SETS),
 	});
 
