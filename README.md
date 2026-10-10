@@ -32,13 +32,15 @@ pnpm check    # format, lint, and type check
 pnpm fix      # same, but auto-fix
 pnpm build    # production build
 pnpm run deploy   # build and deploy via cf (`pnpm deploy` is a different, built-in pnpm command)
+pnpm --filter site dev     # the docs site (site/, Astro Starlight)
+pnpm --filter site build   # build the docs, failing on broken links
 ```
 
 ## Self-hosting
 
-Tack runs as one Worker on your Cloudflare account, with a GitHub App you own.
+Tack runs as one Worker on your Cloudflare account, with a GitHub App you own. The docs site (`site/`) has the full guide; in short:
 
-1. **Deploy** the Worker: `pnpm deploy` (or connect the repo to Workers Builds).
+1. **Deploy** the Worker: `pnpm run deploy` (or connect the repo to Workers Builds).
 2. **Set `TACK_SECRET`**, a long random value (e.g. `openssl rand -base64 32`). It signs session cookies and encrypts the GitHub App's credentials, so keep it safe and don't change it. Set it with `cf workers secrets update TACK_SECRET`, or in the dashboard under Workers → tack → Settings → Variables and secrets.
 3. **Visit `/setup`** on your instance and click **Create GitHub App**. GitHub fills in the permissions, events, webhook and callback URLs from a manifest; you confirm, and you're sent back to sign in. Whoever completes setup becomes the instance's first admin.
 4. **Install the app** on the repositories you plan with (`/setup` links to it). Public repos work without it; installing makes cards live and private repos visible.
