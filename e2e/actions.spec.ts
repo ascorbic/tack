@@ -238,3 +238,30 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await expect(related.getByText("Everything’s here and connected.")).toBeVisible();
 	await expect(related.getByText("rate limit is used up")).toBeVisible();
 });
+
+test("a merged pull request can still be triaged, but not closed, and needs no app", async ({
+	page,
+}) => {
+	// Turn "Document every provider’s options" (#431) into a merged pull request.
+	await page.evaluate(() => {
+		type Store = { get(key: string): { kind: string } | undefined; set(card: unknown): void };
+		const w = window as unknown as {
+			tackCards: Store;
+			tackPlayground: { doc: import("yjs").Doc };
+		};
+		for (const shape of w.tackPlayground.doc.getMap("shapes").values()) {
+			const ref = (shape as import("yjs").Map<unknown>).get("ref");
+			if (typeof ref !== "string" || !ref.endsWith("#431")) continue;
+			const card = w.tackCards.get(ref);
+			if (card) w.tackCards.set({ ...card, kind: "pull", state: "merged" });
+		}
+	});
+	await select(page, "Document every provider");
+	await expect(bar(page).getByRole("link", { name: "Install the app" })).toHaveCount(0);
+	await expect(bar(page).getByRole("button", { name: "Labels" })).toBeEnabled();
+	await expect(bar(page).getByRole("button", { name: "Close or reopen" })).toBeDisabled();
+	await expect(bar(page).getByRole("button", { name: "Close or reopen" })).toHaveAttribute(
+		"data-tooltip",
+		"Merged pull requests can’t be closed or reopened",
+	);
+});

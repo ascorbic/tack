@@ -174,7 +174,10 @@ export function ActionBar(props: ActionBarProps) {
 		(sections.length === 1 && selected.length === 1 ? 44 : 0);
 
 	// Cards in repositories Tack can't write to (no app) can't be changed.
-	const targets = cards.filter((c) => c.card.writable !== false && c.card.state !== "merged");
+	// Merged pull requests can still be labelled, assigned and commented on,
+	// but not closed or reopened.
+	const targets = cards.filter((c) => c.card.writable !== false);
+	const closable = targets.filter((c) => c.card.state !== "merged");
 	const repos = useMemo(() => reposOf(targets), [targets]);
 	const metas = useRepoMetas(repos);
 
@@ -231,8 +234,8 @@ export function ActionBar(props: ActionBarProps) {
 				const kind = KIND[id];
 				return !kind || repos.every((repo) => canWrite(metas.get(repo)?.meta, kind));
 			};
-			const anyOpen = targets.some((c) => c.card.state !== "closed");
-			const anyClosed = targets.some((c) => c.card.state === "closed");
+			const anyOpen = closable.some((c) => c.card.state !== "closed");
+			const anyClosed = closable.some((c) => c.card.state === "closed");
 			const triage: Action[] = [
 				{ id: "labels", label: "Labels", icon: <LabelIcon /> },
 				{ id: "milestone", label: "Milestone", icon: <MilestoneIcon /> },
@@ -245,8 +248,16 @@ export function ActionBar(props: ActionBarProps) {
 				},
 				{ id: "backlink", label: "Comment with a link to this board", icon: <BacklinkIcon /> },
 			];
+			const merged =
+				!none && closable.length === 0
+					? "Merged pull requests can’t be closed or reopened"
+					: undefined;
 			for (const action of triage) {
-				if (supported(action.id)) out.push({ ...action, unavailable: none });
+				if (!supported(action.id)) continue;
+				out.push({
+					...action,
+					unavailable: none ?? (action.id === "closeReopen" ? merged : undefined),
+				});
 			}
 			const issues = cards.filter((c) => c.card.kind === "issue");
 			if (issues.length >= 2) {
@@ -254,7 +265,7 @@ export function ActionBar(props: ActionBarProps) {
 			}
 		}
 		return out;
-	}, [doc, stickies, cards, cardNodes, sections, others, targets, repos, metas]);
+	}, [doc, stickies, cards, cardNodes, sections, others, targets, closable, repos, metas]);
 
 	useEffect(
 		() =>
@@ -404,8 +415,8 @@ export function ActionBar(props: ActionBarProps) {
 					</>
 				);
 			case "closeReopen": {
-				const openItems = targets.filter((t) => t.card.state !== "closed");
-				const closedItems = targets.filter((t) => t.card.state === "closed");
+				const openItems = closable.filter((t) => t.card.state !== "closed");
+				const closedItems = closable.filter((t) => t.card.state === "closed");
 				return (
 					<StateMenu
 						open={openItems.length}

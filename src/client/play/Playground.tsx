@@ -96,7 +96,7 @@ export default function Playground() {
 	useEffect(() => () => sim.destroy(), [sim]);
 	// For poking at from the console, e.g. to measure things.
 	useEffect(() => {
-		Object.assign(window, { tackPlayground: sim });
+		Object.assign(window, { tackPlayground: sim, tackCards: cardStore });
 	}, [sim]);
 	// Decisions' write-backs ask a fake repository instead of the server.
 	useEffect(() => installFakeRepoApi(), []);
