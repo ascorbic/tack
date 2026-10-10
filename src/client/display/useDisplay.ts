@@ -213,9 +213,13 @@ export function useDisplay({
 			at: (id) => at.get(id),
 			cardOf,
 			exclude: new Set(drags.keys()),
-			...(hover && {
-				gap: { section: hover.section, index: hover.index, count: hover.ids.length },
-			}),
+			// A sorted list puts what joins it where the sort says, so there's no gap
+			// to aim at, unless its own rows are moving (which puts it in order by hand).
+			...(hover &&
+				(!sortOf(shapes.get(hover.section)) ||
+					hover.ids.some((id) => structure.parentOf.get(id) === hover.section)) && {
+					gap: { section: hover.section, index: hover.index, count: hover.ids.length },
+				}),
 		});
 	}, [active, base, dragKey, hover, shapes, structure, atKey, version]);
 

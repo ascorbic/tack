@@ -14,7 +14,8 @@ export interface DisplayDrop {
 	/** The changes to commit as usual (rows that only reordered left out). */
 	changes: NodeChange<ShapeNode>[];
 	/** Then, in the same transaction, the lists' order; null if no list is involved. */
-	after: (() => void) | null;
+	/** Returns true if a sorted list went back to being sorted by hand. */
+	after: (() => boolean) | null;
 }
 
 export function planDisplayDrop(
@@ -73,7 +74,7 @@ export function planDisplayDrop(
 							cardOf: display.cardOf,
 						})
 				: adjusted.size > 0
-					? () => {}
+					? () => false
 					: null,
 	};
 }

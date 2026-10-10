@@ -611,9 +611,10 @@ export function Board({
 			if (key.kind === "select") {
 				setSelected(new Set([key.id]));
 			} else if (key.kind === "move" && !readOnly) {
-				transactLocal(doc, () =>
+				const unsorted = transactLocal(doc, () =>
 					moveInList(doc, key.section, key.ids, key.index, displayRef.current.cardOf),
 				);
+				if (unsorted) toasts.show({ message: "Back to ordering by hand" });
 			}
 			return true;
 		},
@@ -687,10 +688,11 @@ export function Board({
 			);
 			const after = drop.after;
 			if (after) {
-				transactLocal(doc, () => {
+				const unsorted = transactLocal(doc, () => {
 					applyNodeChanges(doc, drop.changes, presence.lastDragPosition, boxSize);
-					after();
+					return after();
 				});
+				if (unsorted) toasts.show({ message: "Back to ordering by hand" });
 			} else {
 				applyNodeChanges(doc, drop.changes, presence.lastDragPosition, boxSize);
 			}

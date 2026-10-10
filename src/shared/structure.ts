@@ -1,8 +1,16 @@
 import { generateNKeysBetween } from "fractional-indexing";
 import type * as Y from "yjs";
 import { isEnd, looseEnd, resolveEnds } from "./connectors.ts";
-import { type DisplayLayout, displaySections, joinDisplay, layoutDisplays } from "./display.ts";
-import { type Point, type Rect, area, contains, intersects } from "./geometry.ts";
+import {
+	type DisplayLayout,
+	displaySections,
+	insertionIndex,
+	joinDisplay,
+	layoutDisplays,
+	moveInList,
+	sortOf,
+} from "./display.ts";
+import { type Point, type Rect, area, centre, contains, intersects } from "./geometry.ts";
 import {
 	SECTION_DEFAULT,
 	SECTION_MIN,
@@ -103,7 +111,14 @@ function reparent(doc: Y.Doc, ids: Iterable<string>, always: boolean, sizeOf?: S
 		if (changed) {
 			// Its place in the old section's order means nothing in the new one.
 			if (target?.has("order")) target.delete("order");
-			if (container !== null && lists.has(container)) joinDisplay(doc, id, container, sizeOf);
+			if (container !== null && lists.has(container)) {
+				// Into a list: where it landed among the rows (unless the list is
+				// sorted, which decides), with a free-form spot for later.
+				const at = centre(boxOf(id, shape, sizeOf));
+				const index = insertionIndex(layoutDisplays(shapes, structure), container, at);
+				joinDisplay(doc, id, container, sizeOf);
+				if (!sortOf(shapes.get(container))) moveInList(doc, container, [id], index);
+			}
 			shapes = readShapes(doc);
 			structure = readStructure(shapes);
 			sections = sectionGeometries(shapes, structure);

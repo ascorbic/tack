@@ -27,6 +27,7 @@ import {
 	resizeSection,
 	sectionGeometries,
 } from "../src/shared/structure.ts";
+import { boardContext } from "../src/shared/related.ts";
 import { containerFor } from "../src/shared/sections.ts";
 
 function board() {
@@ -436,5 +437,44 @@ describe("containment with lists", () => {
 		setDisplay(doc, ["s"], "cards");
 		expect(get("s")?.display).toBeUndefined();
 		expect(get("far")).toMatchObject({ x: 400, y: 400, parent: "s" });
+	});
+
+	it("puts what's dropped on a list where it landed among the rows", () => {
+		const { doc, sticky, layout } = listBoard();
+		sticky("new", 2000, 2000);
+		// A sticky's centre just above the second row's middle.
+		const second = layout().slots.get("b")?.rect;
+		if (!second) throw new Error("no row");
+		commitMoves(doc, new Map([["new", { x: 40, y: second.y + 10 - 88 }]]));
+		expect(layout().sections.get("s")?.order).toEqual(["a", "new", "b", "far"]);
+	});
+
+	it("lets a sorted list place what joins it, and only unsorts for moving its own rows", () => {
+		const { doc, card, get, layout } = board();
+
+		addSection(doc, { x: 0, y: 0, w: 640, h: 600 }, { id: "sorted" });
+		card("closed", "github.com/a/b#3", 20, 20, "sorted");
+		card("open", "github.com/a/b#12", 300, 20, "sorted");
+		card("joining", "github.com/a/b#21", 2000, 2000);
+		setDisplay(doc, ["sorted"], "list");
+		setSort(doc, "sorted", { by: "state" });
+		expect(placeInDisplay(doc, ["joining"], "sorted", 2, { cardOf })).toBe(false);
+		expect(get("sorted")?.sort).toEqual({ by: "state" });
+		expect(layout({ cardOf }).sections.get("sorted")?.order).toEqual(["open", "joining", "closed"]);
+		expect(placeInDisplay(doc, ["closed"], "sorted", 0, { cardOf })).toBe(true);
+		expect(get("sorted")?.sort).toBeUndefined();
+		expect(layout({ cardOf }).sections.get("sorted")?.order).toEqual(["closed", "open", "joining"]);
+	});
+});
+
+describe("expanding from a row", () => {
+	it("plans around the row, with the list in the way", () => {
+		const { doc, section, card } = board();
+		section("s", 0, 0, 640, 600);
+		card("c", "github.com/a/b#3", 300, 300, "s");
+		setDisplay(doc, ["s"], "list");
+		const context = boardContext(doc, "c");
+		expect(context.box).toEqual({ x: LIST.pad, y: LIST.pad, w: 600 - LIST.pad * 2, h: LIST.row });
+		expect(context.obstacles).toContainEqual({ x: 0, y: 0, w: 600, h: LIST.pad * 2 + LIST.row });
 	});
 });

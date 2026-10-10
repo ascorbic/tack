@@ -600,9 +600,12 @@ export function placeInDisplay(
 	section: string,
 	index: number,
 	options: { sizeOf?: SizeOf; cardOf?: LayoutOptions["cardOf"] } = {},
-): void {
+): boolean {
+	let unsorted = false;
 	doc.transact(() => {
 		const map = shapesMap(doc);
+		const sorted = sortOf({ sort: map.get(section)?.get("sort") as ListSort }) !== null;
+		let reordering = false;
 		for (const id of ids) {
 			const shape = map.get(id);
 			if (!shape || id === section) continue;
@@ -610,10 +613,16 @@ export function placeInDisplay(
 				shape.set("parent", section);
 				if (shape.has("order")) shape.delete("order");
 				joinDisplay(doc, id, section, options.sizeOf);
+			} else {
+				reordering = true;
 			}
 		}
-		moveInList(doc, section, ids, index, options.cardOf);
+		// Joining a sorted list takes the place the sort gives it; only moving
+		// rows within it puts it back in order by hand.
+		if (sorted && !reordering) return;
+		unsorted = moveInList(doc, section, ids, index, options.cardOf);
 	});
+	return unsorted;
 }
 
 /** The box a section's list or grid takes, if it shows one, from the document alone. */

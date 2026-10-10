@@ -83,6 +83,11 @@ export function DisplayPreview({
 		if (suppressed) previewStore.clear();
 	}, [suppressed]);
 	const only = selected.size === 1 ? ([...selected][0] ?? null) : null;
+	// Moving the selection (say, with the arrow keys) shows its card, not
+	// whatever the pointer happens to rest on.
+	useEffect(() => {
+		previewStore.clear();
+	}, [only]);
 	const previewable = (id: string | null) => {
 		if (id === null) return null;
 		const slot = display.slots.get(id);

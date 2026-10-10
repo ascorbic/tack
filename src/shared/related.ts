@@ -3,7 +3,8 @@ import type { Card, MissingCard } from "./cards.ts";
 import { withFallbacks } from "./connectors.ts";
 import { type Rect, intersects } from "./geometry.ts";
 import { addCardShape } from "./provenance.ts";
-import { boxOf } from "./sections.ts";
+import { drawnBox, layoutDisplays } from "./display.ts";
+import { boxOf, readStructure } from "./sections.ts";
 import { type ConnectorEnd, readShape, shapesMap } from "./shapes.ts";
 import { type NewConnector, addConnector, placeInSections, readShapes } from "./structure.ts";
 import type { RelatedResult } from "./widgets.ts";
@@ -428,7 +429,11 @@ export function boardContext(
 	const obstacles: Rect[] = [];
 	const pairs = new Set<string>();
 	const source = shapes.get(sourceId);
-	const sourceBox = source ? boxOf(sourceId, source, sizeOf) : null;
+	// Everything where it's drawn: a card in a list (display.ts) expands from
+	// its row, and what's related lands outside the list, not over its rows.
+	const layout = layoutDisplays(shapes, readStructure(shapes));
+	const listed = layout.slots.has(sourceId);
+	const sourceBox = source ? drawnBox(layout, sourceId, source, sizeOf) : null;
 	for (const [id, shape] of shapes) {
 		if (shape.type === "connector") {
 			const a = shape.from?.shape;
@@ -438,8 +443,8 @@ export function boardContext(
 		}
 		if (shape.type === "card" && shape.ref && !onBoard.has(shape.ref)) onBoard.set(shape.ref, id);
 		if (id === sourceId) continue;
-		const box = boxOf(id, shape, sizeOf);
-		if (shape.type === "section" && sourceBox && contains(box, sourceBox)) continue;
+		const box = drawnBox(layout, id, shape, sizeOf);
+		if (shape.type === "section" && sourceBox && contains(box, sourceBox) && !listed) continue;
 		obstacles.push(box);
 	}
 	// The card's own key points at it, even if another card shows it first.
