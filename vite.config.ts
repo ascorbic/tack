@@ -11,6 +11,10 @@ export default defineConfig({
 		globalSetup: "./test/global-setup.ts",
 		// Playwright's smoke tests run separately, with `pnpm e2e`.
 		include: ["test/**/*.test.ts"],
+		// Integration tests each start a Miniflare runtime, which can take a
+		// few seconds on a loaded machine. Fail on real hangs, not on load.
+		testTimeout: 20_000,
+		hookTimeout: 30_000,
 	},
 	lint: {
 		ignorePatterns: [".claude/worktrees/**", ".cloudflare/**", ".wrangler/**", "dist/**"],
