@@ -156,8 +156,11 @@ test.describe("push sheet", () => {
 		await expect(page.locator(".card .chip.label", { hasText: "needs review" })).toHaveCount(1);
 		await expect(page.locator(".changes-badge")).toHaveText("1");
 
-		// And the push is in the history.
-		await page.getByRole("button", { name: "History", exact: true }).click();
+		// And the push is in the history (the panel's, not the board's).
+		await page
+			.getByRole("complementary", { name: "Pending changes" })
+			.getByRole("button", { name: "History", exact: true })
+			.click();
 		const entries = sheet(page).locator(".push-entry");
 		await expect(entries).toHaveCount(3);
 		await expect(entries.first()).toContainText("pushed 10 changes as Tack’s bot");
