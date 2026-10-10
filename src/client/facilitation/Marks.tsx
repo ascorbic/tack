@@ -8,6 +8,7 @@ import {
 	isOpen,
 	placeDot,
 	removeDot,
+	tallyVote,
 	voteFor,
 } from "../../shared/dotvotes.ts";
 import {
@@ -19,9 +20,11 @@ import {
 import { type SizeOf, boxOf } from "../../shared/sections.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import type { ShapeNode } from "../board.ts";
+import { cardStore } from "../cardStore.ts";
 import { transactLocal } from "../undo.ts";
 import { useServerNow, useStampCounts, useVotes } from "./hooks.ts";
 import { facilitation } from "./store.ts";
+import { useDismissedVotes } from "./Votes.tsx";
 
 // What people put on shapes in a session: stamps along a shape's bottom
 // edge (👍 3 ❤️ 1), and dot votes in its top-right corner. Drawn on their
@@ -81,7 +84,20 @@ export function MarksLayer({
 		() => new Map(nodes.map((node) => [node.id, node.data.shape] as const)),
 		[nodes],
 	);
-	if (stamps.size === 0 && open.length === 0) return null;
+	// A closed vote leaves each shape's rank on it until it's put away.
+	const dismissed = useDismissedVotes();
+	const ranks = useMemo(() => {
+		const out = new Map<string, Rank>();
+		for (const vote of votes) {
+			if (isOpen(vote, now) || dismissed.has(vote.id)) continue;
+			const rows = tallyVote(vote, doc, (ref) => cardStore.get(ref));
+			for (const row of rows) {
+				out.set(row.shape, { rank: row.rank, total: row.total, of: rows.length });
+			}
+		}
+		return out;
+	}, [votes, now, dismissed, doc]);
+	if (stamps.size === 0 && open.length === 0 && ranks.size === 0) return null;
 	return (
 		<ViewportPortal>
 			<div className="marks-layer" data-voting={voting}>
@@ -89,7 +105,8 @@ export function MarksLayer({
 					const shape = node.data.shape;
 					const counts = stamps.get(node.id);
 					const vote = open.length > 0 ? voteFor(open, shapes, node.id, now) : null;
-					if (!counts && !vote) return null;
+					const rank = vote ? undefined : ranks.get(node.id);
+					if (!counts && !vote && !rank) return null;
 					// Rows and mini cards in a list count their own, inline (#72).
 					const inline = node.data.display === "row" || node.data.display === "mini";
 					const box =
@@ -107,6 +124,7 @@ export function MarksLayer({
 							h={box.h}
 							counts={inline ? undefined : counts}
 							vote={inline ? null : vote}
+							rank={inline ? undefined : rank}
 							me={me}
 							readOnly={readOnly}
 							voting={voting && vote !== null}
@@ -127,6 +145,7 @@ const ShapeMarks = memo(function ShapeMarks({
 	h,
 	counts,
 	vote,
+	rank,
 	me,
 	readOnly,
 	voting,
@@ -139,6 +158,7 @@ const ShapeMarks = memo(function ShapeMarks({
 	h: number;
 	counts: StampCount[] | undefined;
 	vote: DotVote | null;
+	rank?: Rank;
 	me: Stamper;
 	readOnly: boolean;
 	voting: boolean;
@@ -166,6 +186,11 @@ const ShapeMarks = memo(function ShapeMarks({
 					/>
 				</div>
 			)}
+			{rank && (
+				<div className="vote-dots-anchor" style={{ transform: `translate(${x + w}px, ${y}px)` }}>
+					<VoteRank rank={rank} />
+				</div>
+			)}
 			{counts && (
 				<div className="stamps-anchor" style={{ transform: `translate(${x}px, ${y + h}px)` }}>
 					<StampRow
@@ -177,6 +202,34 @@ const ShapeMarks = memo(function ShapeMarks({
 		</>
 	);
 });
+
+/** Where a shape came in a closed vote. */
+export interface Rank {
+	rank: number;
+	total: number;
+	/** How many shapes got votes. */
+	of: number;
+}
+
+const ORDINALS = ["1st", "2nd", "3rd"];
+
+/** A closed vote's result on a shape: its rank, and how many votes it got. */
+export function VoteRank({ rank }: { rank: Rank }) {
+	const place = ORDINALS[rank.rank - 1] ?? `${rank.rank}th`;
+	const label = `${place} of ${rank.of}: ${rank.total} ${rank.total === 1 ? "vote" : "votes"}`;
+	return (
+		<div
+			className="vote-rank"
+			data-podium={rank.rank <= 3 ? rank.rank : undefined}
+			role="img"
+			aria-label={label}
+			data-tooltip={label}
+		>
+			<span className="vote-rank-place">{rank.rank}</span>
+			<span className="vote-rank-total">{rank.total}</span>
+		</div>
+	);
+}
 
 /** A shape's stamps, counted: click one to add yours, or take it back. */
 export function StampRow({

@@ -135,6 +135,8 @@ export default function Playground() {
 	const [signedIn, setSignedIn] = useState(true);
 	const [viewOnly, setViewOnly] = useState(false);
 	sim.viewOnly = viewOnly;
+	// The pretend server tells you what you may do now.
+	useEffect(() => facilitator.announce(), [facilitator, viewOnly]);
 	const user = useMemo(
 		() =>
 			signedIn ? { ...guest, login: guest.name.toLowerCase().replace(/[^a-z]+/g, "-") } : guest,

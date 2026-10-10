@@ -30,6 +30,11 @@ export function stopSpotlight(): void {
 	facilitation.send({ type: "spotlight", on: false });
 }
 
+/** End someone else's spotlight: for the owner, or whoever's running the session. */
+export function endSpotlight(): void {
+	facilitation.send({ type: "spotlight", on: false, end: true });
+}
+
 export interface SpotlightState {
 	spotlight: Spotlight | null;
 	/** You're the one spotlighting. */
@@ -133,7 +138,9 @@ export function SpotlightIndicator({
 		return (
 			<div
 				className="follow spotlight"
-				style={{ "--follow": leader.user.color } as React.CSSProperties}
+				// Facilitation's own colour, whoever's spotlighting: a red-cursored
+				// person's spotlight shouldn't read as an alarm.
+				style={{ "--follow": "var(--accent)" } as React.CSSProperties}
 				data-status={leader.status}
 			>
 				<div className="follow-frame spotlight-frame" aria-hidden="true" />
@@ -177,9 +184,10 @@ export function SpotlightPill({
 			className="spotlight-pill"
 			data-kind={kind}
 			role="status"
-			style={{ "--spotlight": color || "var(--accent)" } as React.CSSProperties}
+			style={{ "--person": color || "var(--accent)" } as React.CSSProperties}
 		>
 			<SpotlightIcon />
+			{kind !== "mine" && <span className="spotlight-person" aria-hidden="true" />}
 			{children}
 		</div>
 	);

@@ -97,6 +97,9 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 				case "silent-texts":
 				case "silent-refused":
 				case "facilitation-refused":
+				case "facilitation-you":
+				case "facilitation-present":
+				case "timer-changed":
 					facilitation.apply(message);
 					return;
 				default:

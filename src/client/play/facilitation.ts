@@ -19,6 +19,7 @@ import {
 	readTimer,
 	toggleStamp,
 } from "../../shared/facilitation.ts";
+import { type FacilitationYou, isFacilitator, mayChangeTimer } from "../../shared/facilitator.ts";
 import { readShape, shapesMap, type ShapeProps } from "../../shared/shapes.ts";
 import { type SilentRequest, parseSession } from "../../shared/silent.ts";
 import { MemorySilentStore, type SilentPeer, SilentHub } from "../../shared/silentHub.ts";
@@ -37,6 +38,8 @@ import type { RemotePerson, SimulatedBoard } from "./simulator.ts";
 // so their silent stickies are face down for you until the reveal.
 
 const LOCAL = "local";
+/** You, as the pretend server knows you. */
+const LOCAL_AUTHOR = "you";
 const LATENCY_MS = 40;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -66,6 +69,22 @@ export class SimulatedFacilitator {
 			now: () => this.now(),
 		});
 		sim.silentText = (person, id, text) => this.hub.text(this.peerOf(person), id, text);
+		sim.onPeople = () => this.announce();
+	}
+
+	/** Tell this browser who it is, and who's here, as the board's server does. */
+	announce(): void {
+		const you = this.you();
+		this.toLocal({ type: "facilitation-you", ...you });
+		this.toLocal({ type: "facilitation-present", authors: [...this.present()] });
+	}
+
+	private you(): FacilitationYou {
+		return { author: LOCAL_AUTHOR, editor: !this.sim.viewOnly, owner: this.owner };
+	}
+
+	private present(): Set<string> {
+		return new Set(this.peers().map((peer) => peer.author));
 	}
 
 	now(): number {
@@ -78,6 +97,7 @@ export class SimulatedFacilitator {
 		const previous = facilitation.channel;
 		facilitation.channel = { send: (request) => void this.receive(request) };
 		facilitation.connected();
+		this.announce();
 		return () => {
 			facilitation.channel = previous;
 			facilitation.disconnected();
@@ -93,13 +113,13 @@ export class SimulatedFacilitator {
 	}
 
 	private local(): SilentPeer {
-		return { id: LOCAL, author: "you", canEdit: !this.sim.viewOnly, owner: this.owner };
+		return { id: LOCAL, author: LOCAL_AUTHOR, canEdit: !this.sim.viewOnly, owner: this.owner };
 	}
 
 	private peerOf(person: RemotePerson): SilentPeer {
 		return {
 			id: `person:${person.awareness.clientID}`,
-			author: `person:${person.user.name}`,
+			author: authorOf(person),
 			canEdit: true,
 			owner: false,
 		};
@@ -128,14 +148,48 @@ export class SimulatedFacilitator {
 						reason: "not_editor",
 					});
 				const { type: _type, by, ...command } = request;
-				applyTimer(this.sim.doc, command as TimerAction, this.now(), by, FACILITATION_ORIGIN);
+				const action = (command as TimerAction).action;
+				const timer = readTimer(this.sim.doc);
+				if (!mayChangeTimer(this.you(), action, timer, this.present(), this.now())) {
+					return this.toLocal({
+						type: "facilitation-refused",
+						request: "timer",
+						reason: "not_facilitator",
+					});
+				}
+				const changed = applyTimer(
+					this.sim.doc,
+					command as TimerAction,
+					this.now(),
+					by,
+					FACILITATION_ORIGIN,
+					LOCAL_AUTHOR,
+				);
+				if (changed) this.toLocal({ type: "timer-changed", action, by, author: LOCAL_AUTHOR });
 				return;
 			}
-			case "spotlight":
+			case "spotlight": {
 				if (!peer.canEdit) return;
+				const theirs = this.spotlight !== null && this.spotlight.peer !== LOCAL;
+				const facilitator = isFacilitator(this.you(), this.sim.doc, this.now());
 				if (!request.on) {
-					if (this.spotlight?.peer === LOCAL) this.setSpotlight(null);
+					if (!this.spotlight || (theirs && !request.end)) return;
+					if (theirs && !facilitator) {
+						return this.toLocal({
+							type: "facilitation-refused",
+							request: "spotlight",
+							reason: "not_facilitator",
+						});
+					}
+					this.setSpotlight(null);
 					return;
+				}
+				if (theirs && !facilitator) {
+					return this.toLocal({
+						type: "facilitation-refused",
+						request: "spotlight",
+						reason: "not_facilitator",
+					});
 				}
 				if (typeof request.clientId === "number" && request.user) {
 					this.setSpotlight({
@@ -146,6 +200,7 @@ export class SimulatedFacilitator {
 					});
 				}
 				return;
+			}
 			case "silent-hello":
 				this.hub.hello(peer);
 				return;
@@ -163,7 +218,23 @@ export class SimulatedFacilitator {
 	// --- What the simulated people do ----------------------------------------------
 
 	timer(person: RemotePerson, command: TimerAction): boolean {
-		return applyTimer(this.sim.doc, command, this.now(), person.user, FACILITATION_ORIGIN);
+		const changed = applyTimer(
+			this.sim.doc,
+			command,
+			this.now(),
+			person.user,
+			FACILITATION_ORIGIN,
+			authorOf(person),
+		);
+		if (changed) {
+			this.toLocal({
+				type: "timer-changed",
+				action: command.action,
+				by: { name: person.user.name, color: person.user.color },
+				author: authorOf(person),
+			});
+		}
+		return changed;
 	}
 
 	get timerRunning(): boolean {
@@ -200,6 +271,11 @@ export class SimulatedFacilitator {
 		if (!session) return false;
 		return this.hub.reveal(person ? this.peerOf(person) : this.local(), session.id);
 	}
+}
+
+/** Who a simulated person is to facilitation. */
+export function authorOf(person: RemotePerson): string {
+	return `person:${person.user.name}`;
 }
 
 // --- People's gestures, beyond the simulator's ------------------------------------
@@ -272,7 +348,14 @@ export function startBoardVote(
 	scope: string | null,
 	options: { endsAt?: string; hidden?: boolean } = {},
 ) {
-	return startVote(person.doc, { scope, by: person.user, dots: 3, reactions: true, ...options });
+	return startVote(person.doc, {
+		scope,
+		by: person.user,
+		starter: authorOf(person),
+		dots: 3,
+		reactions: true,
+		...options,
+	});
 }
 
 export function closeOpenVotes(person: RemotePerson, now: number) {

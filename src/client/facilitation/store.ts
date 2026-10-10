@@ -1,10 +1,14 @@
 import { useSyncExternalStore } from "react";
 import {
 	type FacilitationMessage,
+	type FacilitationRefusal,
 	type FacilitationRequest,
 	type Spotlight,
+	type TimerAction,
 	clockOffset,
 } from "../../shared/facilitation.ts";
+import { type FacilitationYou, mayControl, mayDelete } from "../../shared/facilitator.ts";
+import type { Author } from "../../shared/shapes.ts";
 import type { SilentMessage, SilentRefusal, SilentRequest } from "../../shared/silent.ts";
 
 // Facilitation's client side (#50, #49): what the board's server says about
@@ -33,9 +37,22 @@ const SECRET_KEY = "tack:silent-secret";
 
 export interface Refusal {
 	request: string;
-	reason: SilentRefusal | "not_editor" | "invalid";
+	reason: SilentRefusal | FacilitationRefusal;
 	shape?: string;
 	at: number;
+}
+
+/** Someone else changed the timer, for a toast. */
+export interface TimerChange {
+	action: TimerAction["action"];
+	by: Author;
+	at: number;
+}
+
+/** Who you are to facilitation, and who's here, as the server says (see facilitator.ts). */
+export interface Facilitator {
+	you: FacilitationYou | null;
+	present: ReadonlySet<string>;
 }
 
 class FacilitationStore {
@@ -46,6 +63,8 @@ class FacilitationStore {
 	private clockTimer: ReturnType<typeof setInterval> | undefined;
 
 	private spotlightState: Spotlight | null = null;
+	private facilitator: Facilitator = { you: null, present: new Set() };
+	private timerChange: TimerChange | null = null;
 
 	/** Your own silent stickies' text, by shape. */
 	private texts = new Map<string, string>();
@@ -102,6 +121,22 @@ class FacilitationStore {
 				this.spotlightState = message.spotlight;
 				this.emit();
 				return;
+			case "facilitation-you": {
+				const { type: _type, ...you } = message;
+				this.facilitator = { ...this.facilitator, you };
+				this.emit();
+				return;
+			}
+			case "facilitation-present":
+				this.facilitator = { ...this.facilitator, present: new Set(message.authors) };
+				this.emit();
+				return;
+			case "timer-changed":
+				// Only what someone else did is news.
+				if (message.author === this.facilitator.you?.author) return;
+				this.timerChange = { action: message.action, by: message.by, at: Date.now() };
+				this.emit();
+				return;
 			case "silent-texts": {
 				if (message.replace) {
 					// Keep what's still being typed here.
@@ -143,6 +178,24 @@ class FacilitationStore {
 
 	get lastRefusal(): Refusal | null {
 		return this.refusal;
+	}
+
+	get you(): Facilitator {
+		return this.facilitator;
+	}
+
+	get lastTimerChange(): TimerChange | null {
+		return this.timerChange;
+	}
+
+	/** Whether you may control what `starter` started (see `mayControl`). */
+	mayControl(starter: string | null | undefined): boolean {
+		return mayControl(this.facilitator.you, starter, this.facilitator.present);
+	}
+
+	/** Whether you may delete what `starter` started (see `mayDelete`). */
+	mayDelete(starter: string | null | undefined): boolean {
+		return mayDelete(this.facilitator.you, starter);
 	}
 
 	send(request: FacilitationOutgoing): void {
@@ -211,6 +264,8 @@ class FacilitationStore {
 		this.made.clear();
 		this.textsSnapshot = new Map();
 		this.spotlightState = null;
+		this.facilitator = { you: null, present: new Set() };
+		this.timerChange = null;
 		this.refusal = null;
 		this.samples = [];
 		this.offset = 0;
@@ -257,6 +312,15 @@ export function useSilentTexts(): ReadonlyMap<string, string> {
 
 export function useRefusal(): Refusal | null {
 	return useSyncExternalStore(facilitation.subscribe, () => facilitation.lastRefusal);
+}
+
+/** Who you are to facilitation and who's here: re-renders when either changes. */
+export function useFacilitator(): Facilitator {
+	return useSyncExternalStore(facilitation.subscribe, () => facilitation.you);
+}
+
+export function useTimerChange(): TimerChange | null {
+	return useSyncExternalStore(facilitation.subscribe, () => facilitation.lastTimerChange);
 }
 
 export function useClockOffset(): number {

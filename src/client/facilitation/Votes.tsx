@@ -34,6 +34,7 @@ import type { ToastStore } from "../Toasts.tsx";
 import { transactLocal } from "../undo.ts";
 import { useServerNow, useVotes } from "./hooks.ts";
 import { CloseIcon, DotsIcon, TallyIcon } from "./icons.tsx";
+import { facilitation, useFacilitator } from "./store.ts";
 
 // Dot voting's UI (#48): starting a vote (on a section, from its header, or
 // the whole board), a bar for each open vote with your dots left and the
@@ -165,11 +166,9 @@ export function StartVoteForm({
 	const [dots, setDots] = useState(DOTS_DEFAULT);
 	const [ending, setEnding] = useState(0);
 	const [hidden, setHidden] = useState(false);
-	const hasCards = useMemo(
-		() => [...shapesMap(doc).values()].some((shape) => shape.get("type") === "card"),
-		[doc],
-	);
-	const [reactions, setReactions] = useState(hasCards);
+	// Off unless asked for: in a room, what's popular on the forge shouldn't
+	// outvote what the room chose.
+	const [reactions, setReactions] = useState(false);
 	const id = useId();
 	const first = useRef<HTMLButtonElement>(null);
 	useEffect(() => {
@@ -201,6 +200,7 @@ export function StartVoteForm({
 						reactions,
 						...(end ? { endsAt: new Date(now() + end).toISOString() } : {}),
 						by: user,
+						...(facilitation.you.you ? { starter: facilitation.you.you.author } : {}),
 					}),
 				);
 				onStart(voteId);
@@ -271,7 +271,7 @@ export function StartVoteForm({
 				<input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
 				<span>
 					Hide results until it closes
-					<small>Everyone sees only their own dots, so nobody follows the crowd</small>
+					<small>Others’ dots aren’t shown until then, so nobody follows the crowd</small>
 				</span>
 			</label>
 			<label className="vote-toggle">
@@ -297,25 +297,74 @@ export function StartVoteForm({
 	);
 }
 
-/** Closed votes you've put away, so their bar doesn't come back. */
-function useDismissed(): [Set<string>, (id: string) => void] {
-	const [dismissed, setDismissed] = useState<Set<string>>(() => {
+/**
+ * Closed votes you've put away, so their bar (and the ranks on shapes)
+ * don't come back. Remembered in this browser.
+ */
+class DismissedVotes {
+	private ids: ReadonlySet<string> = DismissedVotes.read();
+	private listeners = new Set<Listener>();
+
+	private static read(): ReadonlySet<string> {
 		try {
 			return new Set(JSON.parse(localStorage.getItem("tack:votes-dismissed") ?? "[]") as string[]);
 		} catch {
 			return new Set();
 		}
-	});
-	const dismiss = (id: string) => {
-		setDismissed((current) => {
-			const next = new Set(current).add(id);
-			try {
-				localStorage.setItem("tack:votes-dismissed", JSON.stringify([...next].slice(-50)));
-			} catch {}
-			return next;
-		});
+	}
+
+	dismiss = (id: string): void => {
+		this.ids = new Set(this.ids).add(id);
+		try {
+			localStorage.setItem("tack:votes-dismissed", JSON.stringify([...this.ids].slice(-50)));
+		} catch {}
+		for (const listener of this.listeners) listener();
 	};
-	return [dismissed, dismiss];
+
+	get = (): ReadonlySet<string> => this.ids;
+	subscribe = (listener: Listener) => {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	};
+}
+
+export const dismissedVotes = new DismissedVotes();
+
+export function useDismissedVotes(): ReadonlySet<string> {
+	return useSyncExternalStore(dismissedVotes.subscribe, dismissedVotes.get);
+}
+
+/**
+ * When a vote closes while you're here, everyone sees how it came out: its
+ * results open by themselves (not for votes closed before you arrived).
+ */
+function useResultsOnClose(votes: DotVote[], now: number): void {
+	const wasOpen = useRef<Set<string> | null>(null);
+	useEffect(() => {
+		const open = new Set(votes.filter((vote) => isOpen(vote, now)).map((vote) => vote.id));
+		const before = wasOpen.current;
+		wasOpen.current = open;
+		if (!before) return;
+		const closed = votes.find((vote) => before.has(vote.id) && !open.has(vote.id));
+		if (closed && voteUI.get().tally === null) voteUI.showTally(closed.id);
+	}, [votes, now]);
+}
+
+/** Whether you may close or reopen a vote, and delete it (see facilitator.ts). */
+export function useVoteControl(): {
+	control: (vote: DotVote) => boolean;
+	remove: (vote: DotVote) => boolean;
+} {
+	const facilitator = useFacilitator();
+	return useMemo(
+		() => ({
+			control: (vote: DotVote) => facilitation.mayControl(vote.starter),
+			remove: (vote: DotVote) => facilitation.mayDelete(vote.starter),
+		}),
+		// Re-made whenever who you are, or who's here, changes.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[facilitator],
+	);
 }
 
 /**
@@ -340,7 +389,9 @@ export function VoteBars({
 }) {
 	const votes = useVotes(doc);
 	const now = useServerNow(1000, votes.length > 0);
-	const [dismissed, dismiss] = useDismissed();
+	const dismissed = useDismissedVotes();
+	const { control } = useVoteControl();
+	useResultsOnClose(votes, now);
 	const shown = votes.filter((vote) => isOpen(vote, now) || !dismissed.has(vote.id));
 	const anyOpen = shown.some((vote) => isOpen(vote, now));
 	// The dot tool goes back to normal when nothing's open any more.
@@ -359,13 +410,14 @@ export function VoteBars({
 					user={user}
 					now={now}
 					readOnly={readOnly}
+					canClose={!readOnly && control(vote)}
 					voting={voting}
 					onVoting={onVoting}
 					onClose={() =>
 						transactLocal(doc, () => closeVote(doc, vote.id, user, new Date(now).toISOString()))
 					}
 					onResults={() => voteUI.showTally(vote.id)}
-					onDismiss={() => dismiss(vote.id)}
+					onDismiss={() => dismissedVotes.dismiss(vote.id)}
 				/>
 			))}
 		</div>
@@ -402,6 +454,7 @@ export function VoteBar({
 	user,
 	now,
 	readOnly,
+	canClose = !readOnly,
 	voting,
 	onVoting,
 	onClose,
@@ -413,6 +466,8 @@ export function VoteBar({
 	user: Stamper;
 	now: number;
 	readOnly: boolean;
+	/** You started it, or own the board: Close vote is yours. */
+	canClose?: boolean;
 	voting: boolean;
 	onVoting: (on: boolean) => void;
 	onClose: () => void;
@@ -486,7 +541,7 @@ export function VoteBar({
 				<TallyIcon size={14} />
 				Results
 			</button>
-			{open && !readOnly && (
+			{open && canClose && (
 				<button type="button" className="vote-bar-close" onClick={onClose}>
 					Close vote
 				</button>
@@ -553,6 +608,7 @@ export function TallyPanel({
 	const votes = useVotes(doc);
 	const now = useServerNow(1000);
 	const vote = votes.find((v) => v.id === voteId);
+	const { control, remove } = useVoteControl();
 	// Live card data (for 👍) re-tallies as it arrives.
 	const [cardsVersion, setCardsVersion] = useState(0);
 	const refs = useMemo(
@@ -592,6 +648,8 @@ export function TallyPanel({
 			now={now}
 			user={user}
 			readOnly={readOnly}
+			canControl={!readOnly && control(vote)}
+			canDelete={!readOnly && remove(vote)}
 			onClose={onClose}
 			onReveal={onReveal}
 		/>
@@ -605,6 +663,8 @@ export function TallyView({
 	now,
 	user,
 	readOnly,
+	canControl = !readOnly,
+	canDelete = !readOnly,
 	onClose,
 	onReveal,
 }: {
@@ -614,9 +674,14 @@ export function TallyView({
 	now: number;
 	user: Stamper;
 	readOnly: boolean;
+	/** Close and reopen: whoever started it, and the owner. */
+	canControl?: boolean;
+	/** Delete it, ballots and all: the same, but never just because they've left. */
+	canDelete?: boolean;
 	onClose: () => void;
 	onReveal: (shape: string) => void;
 }) {
+	const [confirming, setConfirming] = useState(false);
 	const open = isOpen(vote, now);
 	const hidden = open && vote.hidden;
 	const { voters, dots } = turnout(vote);
@@ -732,9 +797,9 @@ export function TallyView({
 					))}
 				</ol>
 			)}
-			{!readOnly && (
+			{(canControl || canDelete) && (
 				<footer className="tally-foot">
-					{open ? (
+					{!canControl ? null : open ? (
 						<button
 							type="button"
 							onClick={() =>
@@ -770,16 +835,30 @@ export function TallyView({
 							Reopen…
 						</button>
 					)}
-					<button
-						type="button"
-						className="tally-delete"
-						onClick={() => {
-							transactLocal(doc, () => deleteVote(doc, vote.id));
-							onClose();
-						}}
-					>
-						Delete vote
-					</button>
+					{canDelete &&
+						(confirming ? (
+							<span className="tally-confirm" role="group" aria-label="Delete this vote?">
+								<span>Everyone’s dots go too.</span>
+								<button type="button" onClick={() => setConfirming(false)}>
+									Keep it
+								</button>
+								<button
+									type="button"
+									className="tally-delete-confirm"
+									autoFocus
+									onClick={() => {
+										transactLocal(doc, () => deleteVote(doc, vote.id));
+										onClose();
+									}}
+								>
+									Delete vote
+								</button>
+							</span>
+						) : (
+							<button type="button" className="tally-delete" onClick={() => setConfirming(true)}>
+								Delete vote…
+							</button>
+						))}
 				</footer>
 			)}
 		</aside>

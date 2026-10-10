@@ -15,6 +15,7 @@ import { useDocValue } from "../decisions/useDocValue.ts";
 import { transactLocal } from "../undo.ts";
 import { DotsIcon, HushIcon, StopwatchIcon } from "./icons.tsx";
 import { startSilent } from "./Silent.tsx";
+import { facilitation } from "./store.ts";
 import { sendTimer } from "./Timer.tsx";
 
 // Facilitation a template prepared (#53): the Facilitate menu lists each
@@ -42,6 +43,7 @@ export function startStep(doc: Y.Doc, step: PreparedStep, by: Author): void {
 					reactions: step.reactions ?? false,
 					...(step.title ? { title: step.title } : {}),
 					by,
+					...(facilitation.you.you ? { starter: facilitation.you.you.author } : {}),
 				}),
 			);
 			break;

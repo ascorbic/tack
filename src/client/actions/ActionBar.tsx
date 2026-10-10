@@ -244,6 +244,10 @@ export function ActionBar(props: ActionBarProps) {
 		const actionItems = others.filter((n) => n.data.shape.type === "action");
 		const onlyActions = actionItems.length >= 2 && actionItems.length === selected.length;
 
+		// Silent mode's face-down stickies have no text here yet (#49).
+		const faceDown = stickies.some((s) => s.data.shape.silent)
+			? "Face down until the reveal: reveal first to make an issue"
+			: undefined;
 		if (onlyStickies) {
 			const fresh = stickies.filter((s) => !pendingIssueFor(doc, s.id));
 			out.push({
@@ -256,7 +260,7 @@ export function ActionBar(props: ActionBarProps) {
 						: fresh.length === 1
 							? "Make issue"
 							: `Make ${fresh.length} issues`,
-				unavailable: fresh.length === 0 ? "Already staged as issues" : undefined,
+				unavailable: faceDown ?? (fresh.length === 0 ? "Already staged as issues" : undefined),
 			});
 		}
 		if (onlyStickies && stickies.every((s) => !s.data.shape.silent)) {
@@ -285,6 +289,7 @@ export function ActionBar(props: ActionBarProps) {
 				label: onlySection ? "Make a parent issue from this section" : "Make a parent issue",
 				icon: <ParentIcon />,
 				text: onlySection || clustered ? "Parent issue" : undefined,
+				unavailable: onlySection ? undefined : faceDown,
 			});
 		}
 		// Not a change to stage: it lays out what's already linked, so it's

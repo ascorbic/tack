@@ -62,6 +62,8 @@ export class SimulatedBoard {
 	silentText?: (person: RemotePerson, id: string, text: string) => void;
 	/** You're only looking (the playground's "view only"). */
 	viewOnly = false;
+	/** People came or went (the pretend server tells you who's here). */
+	onPeople?: () => void;
 	private repairTimer = 0;
 
 	constructor() {
@@ -80,12 +82,14 @@ export class SimulatedBoard {
 	join(user: User = randomUser()): RemotePerson {
 		const person = new RemotePerson(this, user);
 		this.people.push(person);
+		this.onPeople?.();
 		return person;
 	}
 
 	leave(person: RemotePerson): void {
 		person.dispose();
 		this.people = this.people.filter((p) => p !== person);
+		this.onPeople?.();
 	}
 
 	destroy(): void {

@@ -9,9 +9,10 @@ import {
 	timerExpired,
 } from "../../shared/facilitation.ts";
 import type { Author } from "../../shared/shapes.ts";
+import type { ToastStore } from "../Toasts.tsx";
 import { chime } from "./chime.ts";
 import { useServerNow, useTimer } from "./hooks.ts";
-import { facilitation } from "./store.ts";
+import { facilitation, useFacilitator, useTimerChange } from "./store.ts";
 
 /** The last stretch, when the clock turns warm and ticks. */
 const FINAL_MS = 10_000;
@@ -20,11 +21,36 @@ export function sendTimer(by: Author, command: TimerAction): void {
 	facilitation.send({ type: "timer", by: { name: by.name, color: by.color }, ...command });
 }
 
+/** Whether you may pause, add to or stop the timer (see facilitator.ts). */
+export function useMayControlTimer(timer: Timer | null, readOnly: boolean): boolean {
+	useFacilitator();
+	return !readOnly && timer !== null && facilitation.mayControl(timer.starter);
+}
+
+const CHANGES: Partial<Record<TimerAction["action"], string>> = {
+	pause: "paused the timer",
+	resume: "started the timer again",
+	stop: "stopped the timer",
+};
+
+/** "Kai stopped the timer": a toast when someone else pauses, restarts or stops it. */
+export function useTimerToasts(toasts: ToastStore): void {
+	const change = useTimerChange();
+	const shown = useRef<number | null>(null);
+	useEffect(() => {
+		if (!change || change.at === shown.current) return;
+		shown.current = change.at;
+		const words = CHANGES[change.action];
+		if (words) toasts.show({ message: `${change.by.name} ${words}` });
+	}, [change, toasts]);
+}
+
 /**
  * The shared timer, at the top of the canvas for everyone. It counts down
  * against the server's clock, so it reaches zero for everyone together;
- * editors can pause, add a minute or stop it. At zero it rings once (for
- * people who were watching it run) and glows.
+ * whoever started it (and the board's owner) can pause, add a minute or
+ * stop it. At zero it rings once (for people who were watching it run)
+ * and glows, then after a while settles into a small chip.
  */
 export function TimerPill({
 	doc,
@@ -51,16 +77,20 @@ export function TimerPill({
 		}
 	}, [timer, done]);
 
+	const canControl = useMayControlTimer(timer, readOnly);
 	if (!timer || timerExpired(timer, now)) return null;
 	return (
 		<TimerView
 			timer={timer}
 			now={now}
-			canControl={!readOnly}
+			canControl={canControl}
 			onAction={(command) => sendTimer(user, command)}
 		/>
 	);
 }
+
+/** How long "Time's up" glows before settling into a small chip. */
+export const TIMER_GLOW_MS = 20_000;
 
 export function TimerView({
 	timer,
@@ -75,13 +105,17 @@ export function TimerView({
 }) {
 	const left = timeLeft(timer, now);
 	const done = timerDone(timer, now);
-	const state = done
-		? "done"
-		: timer.state === "paused"
-			? "paused"
-			: left <= FINAL_MS
-				? "final"
-				: "running";
+	// Time's up glows for a while, then settles so it doesn't crowd the board.
+	const settled = done && now - (timer.endsAt ?? now) > TIMER_GLOW_MS;
+	const state = settled
+		? "settled"
+		: done
+			? "done"
+			: timer.state === "paused"
+				? "paused"
+				: left <= FINAL_MS
+					? "final"
+					: "running";
 	const progress = timer.duration > 0 ? Math.min(1, Math.max(0, left / timer.duration)) : 0;
 	const seconds = Math.ceil(left / 1000);
 	// The digits tick (a little pop) every second of the last stretch.
@@ -104,7 +138,7 @@ export function TimerView({
 			}
 			style={{ "--timer-by": timer.by.color || "var(--accent)" } as React.CSSProperties}
 		>
-			{done && <span key={timer.id} className="timer-ripple" aria-hidden="true" />}
+			{done && !settled && <span key={timer.id} className="timer-ripple" aria-hidden="true" />}
 			<svg className="timer-ring" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
 				<circle className="timer-ring-track" cx="12" cy="12" r={R} />
 				<circle
@@ -127,9 +161,12 @@ export function TimerView({
 				{done ? "Time’s up" : formatClock(left)}
 			</span>
 			{timer.state === "paused" && !done && <span className="timer-note">Paused</span>}
-			<span className="timer-by" title={`Started by ${timer.by.name}`}>
-				{timer.by.name}
-			</span>
+			{timer.label && !settled && <span className="timer-label">{timer.label}</span>}
+			{!settled && (
+				<span className="timer-by" title={`Started by ${timer.by.name}`}>
+					{timer.by.name}
+				</span>
+			)}
 			{canControl && (
 				<span className="timer-controls">
 					{!done &&

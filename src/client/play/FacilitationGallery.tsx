@@ -356,10 +356,18 @@ export default function FacilitationGallery() {
 					<Figure label="Nothing written yet" state="silent-empty">
 						<SilentBadgeView session={SESSION} canReveal onReveal={noop} counts={[]} />
 					</Figure>
+					<Figure label="Someone else reveals" state="silent-participant">
+						<SilentBadgeView
+							session={SESSION}
+							canReveal={false}
+							counts={[{ name: TOM.name, color: TOM.color, count: 1 }]}
+						/>
+					</Figure>
 					<Figure label="View only" state="silent-read-only">
 						<SilentBadgeView
 							session={SESSION}
 							canReveal={false}
+							viewOnly
 							counts={[{ name: TOM.name, color: TOM.color, count: 1 }]}
 						/>
 					</Figure>
