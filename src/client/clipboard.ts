@@ -1,6 +1,7 @@
 import { generateNKeysBetween } from "fractional-indexing";
 import * as v from "valibot";
 import * as Y from "yjs";
+import { ACTION_UNCOPIED } from "../shared/actionItems.ts";
 import { DECISION_UNCOPIED } from "../shared/decisions.ts";
 import { CARD_UNCOPIED } from "../shared/provenance.ts";
 import { itemKey, parseRef } from "../shared/refs.ts";
@@ -137,8 +138,8 @@ export function fromHtml(html: string | undefined | null): ClipboardPayload | nu
 
 /**
  * Plain text for pasting outside Tack: each sticky's text, each card's link,
- * each decision's title and body, and each list's title and search, one per
- * paragraph.
+ * each decision's title and body, each list's title and search, and each
+ * action item as a task (with its owner and due date), one per paragraph.
  */
 export function toPlainText(
 	payload: ClipboardPayload,
@@ -154,6 +155,19 @@ export function toPlainText(
 			const { title, q } = props.config as { title?: unknown; q?: unknown };
 			const line = [title, q].filter((s): s is string => typeof s === "string" && s.trim() !== "");
 			if (line.length > 0) parts.push(line.join(": "));
+		}
+		if (props.type === "action") {
+			const text = plainString(props.text)?.trim() ?? "";
+			const owner = props.owner as { login?: unknown } | undefined;
+			const facts = [
+				typeof owner?.login === "string" ? `@${owner.login}` : "",
+				typeof props.due === "string" ? `due ${props.due}` : "",
+				typeof props.ref === "string" ? (cardUrl(props.ref) ?? props.ref) : "",
+			].filter(Boolean);
+			parts.push(
+				`- [${props.done ? "x" : " "}] ${text}${facts.length ? ` (${facts.join(", ")})` : ""}`,
+			);
+			continue;
 		}
 		if (typeof props.ref === "string") parts.push(cardUrl(props.ref) ?? props.ref);
 		const text = plainString(props.text);
@@ -200,6 +214,9 @@ const UNCOPIED: Record<string, readonly string[]> = {
 	// a copy of a face-down sticky (which has no text here) is a fresh one.
 	section: ["silent"],
 	sticky: ["silent"],
+	// An action item's staged issue is the original's; its link to an issue
+	// that exists travels, so a copy follows the same issue.
+	action: ACTION_UNCOPIED,
 };
 
 /**

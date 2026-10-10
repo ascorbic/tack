@@ -627,8 +627,14 @@ export function useCanvasCommands(options: CommandsOptions) {
 				const shape = shapes.get(id);
 				return shape ? [readShape(shape)] : [];
 			});
-			// A decision always matters: it carries votes and a status, not just words.
-			const hasContent = removed.some((shape) => hasWords(shape.text) || shape.type === "decision");
+			// A decision always matters: it carries votes and a status, not just
+			// words. So does an action item with someone's name on it.
+			const hasContent = removed.some(
+				(shape) =>
+					hasWords(shape.text) ||
+					shape.type === "decision" ||
+					(shape.type === "action" && (shape.owner !== undefined || shape.ref !== undefined)),
+			);
 			if (removed.length <= QUIET_DELETE_LIMIT && !hasContent) return;
 			const { toasts } = latest.current;
 			// Show it once the deletion is on the undo stack, and drop it as soon
@@ -675,6 +681,7 @@ const NOUNS: Record<string, [string, string]> = {
 	connector: ["connector", "connectors"],
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
+	action: ["action item", "action items"],
 };
 
 /** "a sticky", "5 cards", "3 shapes" */

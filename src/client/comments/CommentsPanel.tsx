@@ -55,6 +55,10 @@ export function threadPlace(doc: Y.Doc | null, thread: CommentThread): string {
 		const title = (shape.get("title") as string | undefined)?.trim();
 		return title ? `on “${excerpt(title, 32)}”` : "on a decision";
 	}
+	if (type === "action") {
+		const text = (shape.get("text") as string | undefined)?.trim();
+		return text ? `on “${excerpt(text, 32)}”` : "on an action item";
+	}
 	if (type === "text") return "on some text";
 	return "on the board";
 }
