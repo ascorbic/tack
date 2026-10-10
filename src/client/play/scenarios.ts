@@ -20,6 +20,7 @@ import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 import { seedRelated } from "./related.ts";
 import { seedWrites } from "./writes.ts";
 import { IMAGEKIT, PEOPLE, failChange, stageAs } from "./push.ts";
+import { seedWidgets } from "./widgets.ts";
 
 export interface Scenario {
 	name: string;
@@ -515,6 +516,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"Two rules: pull requests land beside the issues they close, and new bugs go into a section. Open Rules, then fire some webhooks.",
 		seed: seedRules,
+	},
+	widgets: {
+		name: "Widgets",
+		description:
+			"Live lists of a fake repository: drag rows out as cards, hover to find them, drop cards on a list to stage what makes them match, then push.",
+		seed: seedWidgets,
 	},
 	empty: {
 		name: "Empty",

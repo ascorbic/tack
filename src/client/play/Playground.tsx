@@ -30,6 +30,20 @@ import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
 import { playServices } from "./writes.ts";
 import { ChangeControls } from "./ChangeControls.tsx";
 import { pastPushes, SimulatedPush } from "./push.ts";
+import {
+	SimulatedWidgets,
+	WIDGET_CARDS,
+	type WidgetMode,
+	addWidgetCard,
+	pushTriage,
+} from "./widgets.ts";
+import { widgetStore } from "../widgets/store.ts";
+
+const NEW_BUGS = [
+	"Imgix provider drops the crop rectangle",
+	"Lazy loading flickers in Firefox",
+	"Placeholder blur is the wrong colour on dark images",
+];
 
 type Motion = "normal" | "slow" | "reduced";
 
@@ -92,6 +106,21 @@ export default function Playground() {
 	}, [sim]);
 	// Decisions' write-backs ask a fake repository instead of the server.
 	useEffect(() => installFakeRepoApi(), []);
+	// Widgets search a fake repository in the browser instead of on the server.
+	const widgets = useMemo(() => new SimulatedWidgets(sim.doc), [sim]);
+	useEffect(() => {
+		widgetStore.connect(widgets);
+		return () => {
+			widgetStore.connect(null);
+			widgets.destroy();
+		};
+	}, [widgets]);
+	const [widgetMode, setWidgetMode] = useState<WidgetMode>("live");
+	const [widgetNote, setWidgetNote] = useState<string | null>(null);
+	useEffect(() => {
+		setWidgetMode("live");
+		setWidgetNote(null);
+	}, [widgets]);
 
 	const [services] = useState(playServices);
 	const [guest] = useState(localUser);
@@ -338,6 +367,64 @@ export default function Playground() {
 		},
 	};
 
+	// Widgets: the fake repository changing, as webhooks would say, and a
+	// stand-in for pushing what drop-to-match staged.
+	const widgetActions = {
+		mode: (mode: WidgetMode) => {
+			setWidgetMode(mode);
+			widgets.setMode(mode);
+		},
+		opened: () => {
+			const card = fixture({
+				title: pick(NEW_BUGS) ?? "Something broke",
+				labels: [LABELS.bug],
+				updatedAt: new Date().toISOString(),
+			});
+			addWidgetCard(card);
+			widgets.changed();
+			setWidgetNote(`Opened ${card.item}: lists with open bugs pick it up.`);
+		},
+		relabel: () => {
+			const card = pick(
+				WIDGET_CARDS.map((c) => cardStore.get(c.key)).filter((c): c is Card =>
+					Boolean(c && !("missing" in c) && c.state === "open"),
+				),
+			);
+			if (!card) return;
+			const bug = card.labels.some((l) => l.name === "bug");
+			sim.updateCard(card.key, () => ({
+				labels: bug ? card.labels.filter((l) => l.name !== "bug") : [...card.labels, LABELS.bug],
+				updatedAt: new Date().toISOString(),
+			}));
+			widgets.changed();
+			setWidgetNote(`${bug ? "Unlabelled" : "Labelled"} ${card.item} bug.`);
+		},
+		close: () => {
+			const card = pick(
+				WIDGET_CARDS.map((c) => cardStore.get(c.key)).filter((c): c is Card =>
+					Boolean(c && !("missing" in c) && c.state === "open" && c.kind === "issue"),
+				),
+			);
+			if (!card) return;
+			sim.updateCard(card.key, () => ({
+				state: "closed",
+				stateReason: "completed",
+				updatedAt: new Date().toISOString(),
+			}));
+			widgets.changed();
+			setWidgetNote(`Closed ${card.item}.`);
+		},
+		push: () => {
+			const count = pushTriage(sim.doc);
+			widgets.changed();
+			setWidgetNote(
+				count === 0
+					? "Nothing staged: drop a card on a list first."
+					: `Pushed ${count} change${count === 1 ? "" : "s"}: watch the lists.`,
+			);
+		},
+	};
+
 	// Sections and connectors, including the concurrent edits the server's
 	// repair pass exists for.
 	const shapes = () => [...sim.shapeIds("card"), ...sim.shapeIds("sticky")];
@@ -525,6 +612,48 @@ export default function Playground() {
 						</div>
 						<p className="play-hint">
 							{decisionNote ?? "Write-backs use a fake repository with two records already."}
+						</p>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Widgets</h2>
+						<div className="segmented" role="radiogroup" aria-label="Widget data">
+							{(
+								[
+									["live", "Live"],
+									["slow", "Slow"],
+									["rate_limited", "Limited"],
+									["error", "Failing"],
+								] as const
+							).map(([mode, label]) => (
+								<label key={mode} data-checked={widgetMode === mode}>
+									<input
+										type="radio"
+										name="widget-mode"
+										checked={widgetMode === mode}
+										onChange={() => widgetActions.mode(mode)}
+									/>
+									{label}
+								</label>
+							))}
+						</div>
+						<div className="play-buttons">
+							<button type="button" onClick={widgetActions.opened}>
+								A bug is opened
+							</button>
+							<button type="button" onClick={widgetActions.relabel}>
+								Toggle bug on an item
+							</button>
+							<button type="button" onClick={widgetActions.close}>
+								Close an item
+							</button>
+							<button type="button" onClick={widgetActions.push}>
+								Push staged changes
+							</button>
+						</div>
+						<p className="play-hint">
+							{widgetNote ??
+								"W picks a widget. Drag rows out as cards; drop cards on a list to make them match."}
 						</p>
 					</div>
 
