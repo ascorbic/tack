@@ -12,6 +12,10 @@ import { LABELS, fixture } from "./fixtures.ts";
 // Boards for facilitation (#50), silent mode (#49) and dot voting (#48) on
 // /play: `?scenario=retro`, `?scenario=silent` and `?scenario=vote`.
 
+/** Room above for the timer and vote bars, which float at the top of the canvas. */
+const TOP = 150;
+const LEFT = 40;
+
 export const PRIYA = { name: "Priya Shah", color: "#b4467a", login: "priya" };
 export const KAI = { name: "Kai Andersen", color: "#1f7a6b", login: "kai" };
 export const TOM = { name: "Tom Okafor", color: "#a35a12", login: "tom" };
@@ -32,8 +36,8 @@ function note(
 		text,
 		color,
 		author: { name: author.name, color: author.color },
-		x,
-		y,
+		x: x + LEFT,
+		y: y + TOP,
 		z: nextZ(doc),
 		parent,
 	});
@@ -71,15 +75,19 @@ export function seedRetro(doc: Y.Doc): void {
 	doc.transact(() => {
 		const went = addSection(
 			doc,
-			{ x: 0, y: 0, w: 600, h: 520 },
+			{ x: 0 + LEFT, y: TOP, w: 600, h: 520 },
 			{ title: "Went well", color: "green" },
 		);
 		const improve = addSection(
 			doc,
-			{ x: 640, y: 0, w: 600, h: 520 },
+			{ x: 640 + LEFT, y: TOP, w: 600, h: 520 },
 			{ title: "To improve", color: "red" },
 		);
-		addSection(doc, { x: 1280, y: 0, w: 640, h: 520 }, { title: "Ideas", color: "yellow" });
+		addSection(
+			doc,
+			{ x: 1280 + LEFT, y: TOP, w: 640, h: 520 },
+			{ title: "Ideas", color: "yellow" },
+		);
 		const a = note(doc, "The 5.0 beta landed on time", "green", 30, 60, went, PRIYA);
 		note(doc, "Reviews were fast this month", "green", 220, 70, went, KAI);
 		note(doc, "Docs site redesign 🎉", "green", 40, 270, went, TOM);
@@ -87,7 +95,10 @@ export function seedRetro(doc: Y.Doc): void {
 		note(doc, "Too many open PRs waiting on one reviewer", "pink", 860, 70, improve, PRIYA);
 		note(doc, "Release notes still thin", "pink", 680, 270, improve, KAI);
 		VOTE_CARDS.forEach((card, i) => {
-			addCard(doc, card.key, { x: 1310 + (i % 2) * 300, y: 60 + Math.floor(i / 2) * 200 });
+			addCard(doc, card.key, {
+				x: LEFT + 1310 + (i % 2) * 300,
+				y: TOP + 60 + Math.floor(i / 2) * 200,
+			});
 		});
 		toggleStamp(doc, a, "🎉", PRIYA);
 		toggleStamp(doc, a, "🎉", KAI);
@@ -104,8 +115,12 @@ export function seedRetro(doc: Y.Doc): void {
  */
 export function seedSilent(doc: Y.Doc): void {
 	doc.transact(() => {
-		addSection(doc, { x: 0, y: 0, w: 820, h: 560 }, { title: "What hurts", color: "red" });
-		addSection(doc, { x: 880, y: 0, w: 440, h: 560 }, { title: "Parking lot", color: "grey" });
+		addSection(doc, { x: 0 + LEFT, y: TOP, w: 820, h: 560 }, { title: "What hurts", color: "red" });
+		addSection(
+			doc,
+			{ x: 880 + LEFT, y: TOP, w: 440, h: 560 },
+			{ title: "Parking lot", color: "grey" },
+		);
 	});
 }
 
@@ -134,8 +149,8 @@ export function facilitateSilent(f: SimulatedFacilitator): void {
 				type: "sticky",
 				color: "pink",
 				author: { name: who.name, color: who.color },
-				x: 30 + (i % 4) * 196,
-				y: 60 + Math.floor(i / 4) * 196,
+				x: LEFT + 30 + (i % 4) * 196,
+				y: TOP + 60 + Math.floor(i / 4) * 196,
 				z: nextZ(doc),
 				parent: section,
 				silent: session,
@@ -155,8 +170,8 @@ export function facilitateSilent(f: SimulatedFacilitator): void {
 				type: "sticky",
 				color: "yellow",
 				author: { name: "You", color: "#3b4cca" },
-				x: 30 + ((i + 2) % 4) * 196,
-				y: 256,
+				x: LEFT + 30 + ((i + 2) % 4) * 196,
+				y: TOP + 256,
 				z: nextZ(doc),
 				parent: section,
 				silent: session,
@@ -173,16 +188,16 @@ export function seedVote(doc: Y.Doc): void {
 	doc.transact(() => {
 		const next = addSection(
 			doc,
-			{ x: 0, y: 0, w: 960, h: 560 },
+			{ x: 0 + LEFT, y: TOP, w: 960, h: 560 },
 			{ title: "Next quarter", color: "blue" },
 		);
 		const names = addSection(
 			doc,
-			{ x: 1000, y: 0, w: 440, h: 560 },
+			{ x: 1000 + LEFT, y: TOP, w: 440, h: 560 },
 			{ title: "Release name", color: "purple" },
 		);
 		const cards = VOTE_CARDS.map((card, i) =>
-			addCard(doc, card.key, { x: 30 + (i % 3) * 300, y: 60 }),
+			addCard(doc, card.key, { x: LEFT + 30 + (i % 3) * 300, y: TOP + 60 }),
 		);
 		const s1 = note(doc, "Fewer options, better defaults", "yellow", 30, 260, next, PRIYA);
 		const s2 = note(doc, "A provider playground", "yellow", 230, 260, next, KAI);
