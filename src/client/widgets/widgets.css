@@ -1008,7 +1008,7 @@ body[data-row-drag] * {
 
 .widget-config {
 	width: 340px;
-	max-height: min(560px, 74vh);
+	max-height: min(560px, calc(100vh - 140px));
 	overflow: auto;
 	overscroll-behavior: contain;
 	padding: 14px;
@@ -1021,7 +1021,7 @@ body[data-row-drag] * {
 	font-size: 13px;
 	line-height: 1.35;
 	cursor: default;
-	transform-origin: 0 0;
+	transform-origin: 0 50%;
 	animation: widget-panel-in var(--t-settle) var(--ease-spring);
 }
 

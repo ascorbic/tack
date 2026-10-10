@@ -168,7 +168,7 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 				nodeId={id}
 				isVisible={configOpen && !readOnly}
 				position={Position.Right}
-				align="start"
+				align="center"
 				offset={14}
 			>
 				{configOpen && (
@@ -181,7 +181,7 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 				)}
 			</NodeToolbar>
 			{board.dropped?.widget === id && doc && (
-				<NodeToolbar nodeId={id} isVisible position={Position.Right} align="start" offset={14}>
+				<NodeToolbar nodeId={id} isVisible position={Position.Right} align="center" offset={14}>
 					<DropConfirm
 						doc={doc}
 						title={title}
@@ -287,7 +287,7 @@ function OtherWidget({
 					nodeId={id}
 					isVisible={configOpen}
 					position={Position.Right}
-					align="start"
+					align="center"
 					offset={14}
 				>
 					{configOpen && (

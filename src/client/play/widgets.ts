@@ -399,11 +399,11 @@ export function seedWidgets(doc: Y.Doc): void {
 	};
 	list(40, 40, "Open bugs", `repo:${REPO} is:open label:bug`);
 	list(440, 40, "Good first issues", `repo:${REPO} is:open label:"good first issue"`, 360);
-	list(840, 40, "Needs triage", `repo:${REPO} is:issue is:open no:label`, 300);
-	list(840, 380, "Mentions flaky", `repo:${REPO} flaky`, 220);
+	list(840, 40, "Needs triage", `repo:${REPO} is:issue is:open no:label`, 260);
+	list(840, 320, "Mentions flaky", `repo:${REPO} flaky`, 200);
 	const triage = addSection(
 		doc,
-		{ x: 1260, y: 40, w: 340, h: 640 },
+		{ x: 440, y: 540, w: 800, h: 190 },
 		{ title: "Drop these on a list", color: "yellow" },
 	);
 	const cards = ["#425", "#420", "#413"];
@@ -411,8 +411,8 @@ export function seedWidgets(doc: Y.Doc): void {
 		addShape(doc, crypto.randomUUID(), {
 			type: "card",
 			ref: `fake.tack/${REPO}${item}`.toLowerCase(),
-			x: 1304,
-			y: 110 + i * 170,
+			x: 470 + i * 260,
+			y: 586,
 			z: nextZ(doc),
 			parent: triage,
 		});
