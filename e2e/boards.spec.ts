@@ -40,7 +40,8 @@ test.describe.serial("a board's life", () => {
 		await page.getByRole("button", { name: "Create your first board" }).click();
 		await expect(page).toHaveURL(/\/b\/[a-z0-9]{10}\/untitled-board$/);
 		const title = page.getByRole("textbox", { name: "Board title" });
-		await expect(title).toBeFocused();
+		// The first load of a board can be slow on a cold dev server.
+		await expect(title).toBeFocused({ timeout: 15_000 });
 		await page.keyboard.type("E2E roadmap");
 		await page.keyboard.press("Enter");
 		await expect(page).toHaveURL(/\/e2e-roadmap$/);

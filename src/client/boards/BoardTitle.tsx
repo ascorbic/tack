@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MAX_TITLE, cleanTitle } from "../../shared/boards.ts";
 
+/** How long a just-created board's title keeps focus while the board mounts. */
+const SETTLE_MS = 1500;
+
 /**
  * The board's title in the top bar. Anyone who can edit renames it in
  * place: click, type, Enter (Escape puts it back). The field grows with
@@ -19,7 +22,7 @@ export function BoardTitle({
 	/** Start with the title selected, for a board that was just created. */
 	startEditing?: boolean;
 }) {
-	const [editing, setEditing] = useState(startEditing && editable);
+	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(title);
 	const [saving, setSaving] = useState(false);
 	const field = useRef<HTMLInputElement>(null);
@@ -29,6 +32,32 @@ export function BoardTitle({
 	useEffect(() => {
 		if (!editing) setDraft(title);
 	}, [title, editing]);
+
+	// A just-created board starts with its title selected, as soon as the
+	// title can be edited (access may arrive after the first render).
+	const started = useRef(false);
+	useEffect(() => {
+		if (!startEditing || !editable || started.current) return;
+		started.current = true;
+		settleUntil.current = performance.now() + SETTLE_MS;
+		setEditing(true);
+	}, [startEditing, editable]);
+
+	// While the board is still mounting, something else can take focus
+	// (the canvas, a toolbar). Until the person acts, or the board settles,
+	// take it back rather than treating that as finishing the edit.
+	const settleUntil = useRef(0);
+	useEffect(() => {
+		const acted = () => {
+			settleUntil.current = 0;
+		};
+		window.addEventListener("pointerdown", acted, true);
+		window.addEventListener("keydown", acted, true);
+		return () => {
+			window.removeEventListener("pointerdown", acted, true);
+			window.removeEventListener("keydown", acted, true);
+		};
+	}, []);
 
 	useEffect(() => {
 		if (!editing) return;
@@ -85,7 +114,17 @@ export function BoardTitle({
 					maxLength={MAX_TITLE}
 					style={width ? { width: width + 2 } : undefined}
 					onChange={(event) => setDraft(event.target.value)}
-					onBlur={() => void commit()}
+					onBlur={(event) => {
+						if (!event.relatedTarget && performance.now() < settleUntil.current) {
+							const input = event.currentTarget;
+							requestAnimationFrame(() => {
+								input.focus();
+								input.select();
+							});
+							return;
+						}
+						void commit();
+					}}
 					onKeyDown={(event) => {
 						if (event.key === "Enter") {
 							event.preventDefault();

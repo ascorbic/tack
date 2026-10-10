@@ -145,7 +145,8 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 	test.setTimeout(120_000);
 	await page.goto(`/auth/dev?login=e2e-m2-${run}&name=M2%20Tester&return_to=/`);
 	await page.getByRole("button", { name: "Create your first board" }).click();
-	await expect(page.getByRole("textbox", { name: "Board title" })).toBeFocused();
+	// The first load of a board can be slow on a cold dev server.
+	await expect(page.getByRole("textbox", { name: "Board title" })).toBeFocused({ timeout: 15_000 });
 	await page.keyboard.type("M2 exit");
 	await page.keyboard.press("Enter");
 	await expect(page).toHaveURL(/\/b\/[a-z0-9]{10}\/m2-exit$/);
