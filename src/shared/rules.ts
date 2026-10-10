@@ -119,7 +119,9 @@ function isQuery(value: unknown): value is SearchQuery {
 }
 
 /** A rule as stored, or null if it's malformed (another client's bug, an old version). */
-export function readRule(map: Y.Map<unknown>): Rule | null {
+export function readRule(map: unknown): Rule | null {
+	// Anything but a Y.Map isn't a rule this code wrote (and wouldn't merge).
+	if (!(map instanceof Y.Map)) return null;
 	const rule = map.toJSON() as Partial<Rule>;
 	const trigger = rule.trigger as RuleTrigger | undefined;
 	const action = rule.action as RuleAction | undefined;

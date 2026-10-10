@@ -110,6 +110,14 @@ describe("rules: a pull request beside what it links", () => {
 		expect(runRules(other, pullActivity(), memoryOfRules())).toEqual([]);
 	});
 
+	it("ignores entries in the rules map that aren't rules", () => {
+		const doc = board();
+		doc.getMap("rules").set("junk", { name: "Not a Y.Map" });
+		addRule(doc, { kind: "pull-links" }, { kind: "beside-linked" }, ME);
+		expect(listRules(doc)).toHaveLength(1);
+		expect(runRules(doc, pullActivity(), memoryOfRules())).toHaveLength(1);
+	});
+
 	it("does nothing while paused", () => {
 		const doc = board();
 		const rule = addRule(doc, { kind: "pull-links" }, { kind: "beside-linked" }, ME);
