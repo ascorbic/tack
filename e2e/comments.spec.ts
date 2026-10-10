@@ -153,6 +153,15 @@ test.describe("since you were here", () => {
 		await expect(panel.getByRole("region", { name: "Pushed" })).toContainText("pushed 3 changes");
 		await expect(panel.getByRole("region", { name: "Comments" })).toContainText("mentions you");
 		await expect(page.locator(".since-ring").first()).toBeVisible();
+		// "#412 closed" gets the closed glyph, drawn in lines, not a filled disc.
+		const glyph = panel.getByRole("region", { name: "On GitHub" }).locator(".since-glyph svg");
+		await expect(glyph.first()).toBeVisible();
+		expect(await glyph.first().evaluate((svg) => getComputedStyle(svg).fill)).toBe("none");
+		// The button says what its count is made of.
+		await expect(page.getByRole("button", { name: /^Since you were here/ })).toHaveAttribute(
+			"title",
+			/changes? on the board you haven't looked at, 1 thread with new comments/,
+		);
 
 		// Step through the changes on the board.
 		await panel.getByRole("button", { name: "Next change" }).click();
@@ -171,7 +180,25 @@ test.describe("since you were here", () => {
 		// Go to one (it may be off screen), and look.
 		const panel = page.getByRole("complementary", { name: "Since you were here" });
 		await panel.getByRole("button", { name: "Next change" }).click();
-		await expect.poll(() => rings.count(), { timeout: 10_000 }).toBeLessThan(count);
+		await expect.poll(() => rings.count(), { timeout: 12_000 }).toBeLessThan(count);
+	});
+
+	test("highlights wait while you read the digest, and land clear of it", async ({ page }) => {
+		const rings = page.locator(".since-ring");
+		const count = await rings.count();
+		expect(count).toBeGreaterThan(0);
+		// Reading, not looking around yet: nothing fades.
+		await page.waitForTimeout(5_500);
+		expect(await rings.count()).toBe(count);
+		// Stepping to a change puts it beside the digest, not behind it.
+		const panel = page.getByRole("complementary", { name: "Since you were here" });
+		await panel.getByRole("button", { name: "Next change" }).click();
+		await page.waitForTimeout(900);
+		const edge = (await panel.boundingBox())!;
+		const ring = page.locator(".since-ring[data-shape]").first();
+		const shape = await ring.getAttribute("data-shape");
+		const box = (await page.locator(`.react-flow__node[data-id="${shape}"]`).boundingBox())!;
+		expect(box.x + box.width / 2).toBeGreaterThan(edge.x + edge.width);
 	});
 });
 

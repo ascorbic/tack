@@ -357,11 +357,16 @@ li[data-open] > .since-person .comment-icon {
 }
 
 .since-glyph svg {
-	fill: currentColor;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 
-.since-glyph[data-kind="push"] svg {
-	fill: none;
+.since-glyph svg .fill {
+	fill: currentColor;
+	stroke: none;
 }
 
 .since-glyph[data-kind="merged"] {
@@ -390,13 +395,6 @@ li[data-open] > .since-person .comment-icon {
 .since-glyph[data-kind="push"] {
 	background: var(--accent-soft);
 	color: var(--accent);
-}
-
-.since-glyph-dot {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	background: currentColor;
 }
 
 .since-activity {

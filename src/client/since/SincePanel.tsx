@@ -118,7 +118,8 @@ export function SinceButton({
 		[threads, state.digest?.since, youId, login],
 	);
 	const unseen = highlights.filter((h) => !state.seen.has(h.shape)).length;
-	const total = unseen + comments.started.length + comments.replied.length;
+	const commentCount = comments.started.length + comments.replied.length;
+	const total = unseen + commentCount;
 	useEffect(() => {
 		store.openForComments(comments.started.length + comments.replied.length);
 	}, [store, comments.started.length, comments.replied.length]);
@@ -129,7 +130,7 @@ export function SinceButton({
 			className="since-button"
 			aria-pressed={state.panel}
 			aria-label={`Since you were here: ${total} new`}
-			title="What changed since you were last here"
+			title={sinceButtonTitle(unseen, commentCount)}
 			onClick={() => store.setPanel(!state.panel)}
 		>
 			<SinceIcon size={15} />
@@ -137,6 +138,21 @@ export function SinceButton({
 			{total > 0 && <span className="since-button-count">{total}</span>}
 		</button>
 	);
+}
+
+/**
+ * What the button's count is made of, since the digest's stepper counts
+ * only the changes on the board.
+ */
+export function sinceButtonTitle(onBoard: number, threads: number): string {
+	const parts = [
+		onBoard > 0 &&
+			`${onBoard} ${onBoard === 1 ? "change" : "changes"} on the board you haven't looked at`,
+		threads > 0 && `${threads} ${threads === 1 ? "thread" : "threads"} with new comments`,
+	].filter(Boolean);
+	return parts.length > 0
+		? `What changed since you were last here: ${parts.join(", ")}`
+		: "What changed since you were last here";
 }
 
 export function SincePanel({
@@ -450,6 +466,45 @@ function EditTarget({ doc, shape, type }: { doc: Y.Doc; shape: string; type: str
 	return <span className="since-target">{label}</span>;
 }
 
+/**
+ * What happened, for a card that isn't loaded (not on the board, say), so
+ * "#412 closed" still gets the closed glyph rather than a plain dot.
+ */
+export function ActivityGlyph({ kind }: { kind: CardActivity["kind"] }) {
+	if (kind === "comments") return <BubbleIcon size={14} />;
+	return (
+		<svg width={14} height={14} viewBox="0 0 16 16" aria-hidden="true" data-glyph={kind}>
+			{kind === "merged" ? (
+				<>
+					<circle cx="4" cy="3.5" r="1.75" />
+					<circle cx="4" cy="12.5" r="1.75" />
+					<circle cx="12" cy="8" r="1.75" />
+					<path d="M4 5.25v5.5M4 5.25c0 2.5 2 2.75 6.25 2.75" />
+				</>
+			) : kind === "ci_failing" ? (
+				<path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+			) : kind === "ci_passing" || kind === "approved" ? (
+				<path d="M3.5 8.5l3 3 6-7" />
+			) : kind === "changes_requested" ? (
+				<>
+					<circle cx="8" cy="8" r="6.25" />
+					<path d="M8 4.75v3.75" />
+					<circle cx="8" cy="11.1" r="0.9" className="fill" />
+				</>
+			) : (
+				<>
+					<circle cx="8" cy="8" r="6.25" />
+					{kind === "reopened" ? (
+						<circle cx="8" cy="8" r="1.6" className="fill" />
+					) : (
+						<path d="M5.5 8l2 2 3-3.5" />
+					)}
+				</>
+			)}
+		</svg>
+	);
+}
+
 function CardLine({
 	doc,
 	activity,
@@ -472,7 +527,7 @@ function CardLine({
 		<li style={{ "--i": index } as React.CSSProperties}>
 			<button type="button" disabled={!shape} onClick={() => shape && onJump(shape)}>
 				<span className="since-glyph" data-kind={activity.kind}>
-					{live ? <StateIcon card={live} /> : <span className="since-glyph-dot" />}
+					{live ? <StateIcon card={live} /> : <ActivityGlyph kind={activity.kind} />}
 				</span>
 				<span className="since-line-main">
 					<span>
