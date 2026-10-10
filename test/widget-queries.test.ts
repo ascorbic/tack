@@ -395,7 +395,7 @@ describe("follow-up queries", () => {
 		const cookie = await signIn(mf, "octocat");
 		const board = await createBoard(mf, cookie);
 		const client = await open(mf, board, cookie);
-		return { mf, client };
+		return { mf, client, board, cookie };
 	}
 
 	it("ask what's related to each of a dependency map's search results, in the same message", async () => {
@@ -425,7 +425,7 @@ describe("follow-up queries", () => {
 	});
 
 	it("follow the cards in a section as they come and go", async () => {
-		const { client } = await fakeBoard();
+		const { mf, client, board, cookie } = await fakeBoard();
 		const card = (n: number, parent: string | null) =>
 			addShape(client.doc, `card-${n}`, {
 				type: "card",
@@ -455,10 +455,19 @@ describe("follow-up queries", () => {
 			"related:fake.tack/stress/cards#1",
 			"related:fake.tack/stress/cards#6",
 		]);
+		// Cards that arrive while nobody's watching are there for the next to watch.
+		client.send({ type: "widget-unwatch", ids: [widget] });
+		card(16, section);
+		await client.roundTrip();
+		const later = await open(mf, board, cookie);
+		later.send({ type: "widget-watch", ids: [widget] });
+		expect(related(await latest(later, widget))).toContain("related:fake.tack/stress/cards#16");
+		client.send({ type: "widget-watch", ids: [widget] });
+
 		// Moving a card into the section maps it too.
 		transactLocal(client.doc, () => shapesMap(client.doc).get("card-11")?.set("parent", section));
 		await client.roundTrip();
-		const next = await latest(client, widget, (m) => related(m).length === 3);
+		const next = await latest(client, widget, (m) => related(m).length === 4);
 		expect(related(next)).toContain("related:fake.tack/stress/cards#11");
 	});
 });

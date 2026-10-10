@@ -241,6 +241,10 @@ export class WidgetRunner {
 		}
 		const added = ids.filter((id) => !watching.widgets.has(id)).slice(0, 200);
 		for (const id of added) {
+			// What a shape nobody watches runs isn't kept up to date as the board
+			// changes (a dependency map's section gaining cards, say): read it
+			// afresh for its first watcher.
+			if (!this.watched(id)) this.sources.delete(id);
 			watching.widgets.add(id);
 			// Read now, so the repositories it reads are watched straight away.
 			this.sourceOf(id);
