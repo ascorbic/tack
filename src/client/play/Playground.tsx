@@ -30,13 +30,7 @@ import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
 import { playServices } from "./writes.ts";
 import { ChangeControls } from "./ChangeControls.tsx";
 import { pastPushes, SimulatedPush } from "./push.ts";
-import {
-	SimulatedWidgets,
-	WIDGET_CARDS,
-	type WidgetMode,
-	addWidgetCard,
-	pushTriage,
-} from "./widgets.ts";
+import { SimulatedWidgets, WIDGET_CARDS, type WidgetMode, addWidgetCard } from "./widgets.ts";
 import { widgetStore } from "../widgets/store.ts";
 
 const NEW_BUGS = [
@@ -414,15 +408,6 @@ export default function Playground() {
 			widgets.changed();
 			setWidgetNote(`Closed ${card.item}.`);
 		},
-		push: () => {
-			const count = pushTriage(sim.doc);
-			widgets.changed();
-			setWidgetNote(
-				count === 0
-					? "Nothing staged: drop a card on a list first."
-					: `Pushed ${count} change${count === 1 ? "" : "s"}: watch the lists.`,
-			);
-		},
 	};
 
 	// Sections and connectors, including the concurrent edits the server's
@@ -647,13 +632,10 @@ export default function Playground() {
 							<button type="button" onClick={widgetActions.close}>
 								Close an item
 							</button>
-							<button type="button" onClick={widgetActions.push}>
-								Push staged changes
-							</button>
 						</div>
 						<p className="play-hint">
 							{widgetNote ??
-								"W picks a widget. Drag rows out as cards; drop cards on a list to make them match."}
+								"W picks a widget. Drag rows out as cards; drop cards on a list to stage what makes them match, then push from Changes."}
 						</p>
 					</div>
 

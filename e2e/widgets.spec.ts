@@ -145,11 +145,14 @@ test("cards dropped on a list stage what makes them match, then push into it", a
 		},
 	]);
 
-	// Pushing it (the playground's stand-in) brings it into the list.
-	await page.getByLabel("Playground controls").evaluate((el) => {
-		(el as HTMLElement).style.display = "";
-	});
-	await page.getByRole("button", { name: "Push staged changes" }).click();
+	// Pushing it from the changes panel (to the playground's pretend forge)
+	// brings it into the list.
+	await page.getByRole("button", { name: /^Changes/ }).click();
+	await page
+		.getByRole("complementary", { name: "Pending changes" })
+		.getByRole("button", { name: "Review and push 1" })
+		.click();
+	await page.getByRole("button", { name: "Push 1 change" }).click();
 	await expect(row(firstIssues, "Benchmarks in CI")).toBeVisible();
 });
 

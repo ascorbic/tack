@@ -1,8 +1,7 @@
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
-import { changesMap, listChanges } from "../../shared/changes.ts";
 import { matchSearch, parseSearch } from "../../shared/search.ts";
-import { addShape, nextZ, shapesMap, transactLocal } from "../../shared/shapes.ts";
+import { addShape, nextZ, shapesMap } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
 import { addWidget, listConfig } from "../../shared/widgetRegistry.ts";
 import type { QueryError, SearchResult, WidgetMessage } from "../../shared/widgets.ts";
@@ -317,75 +316,6 @@ export class SimulatedWidgets implements WidgetTransport {
 			.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 		return { kind: "search", total: items.length, items: items.slice(0, limit) };
 	}
-}
-
-/**
- * Push staged triage changes to the fake repository: labels, assignees,
- * milestones and state change on its items, and the changes are applied.
- * Returns how many were pushed.
- */
-export function pushTriage(doc: Y.Doc): number {
-	let pushed = 0;
-	transactLocal(doc, () => {
-		for (const change of listChanges(doc)) {
-			if (change.status !== "staged" || change.included === false) continue;
-			const op = change.op;
-			if (!("target" in op) || !("key" in op.target)) continue;
-			const key = op.target.key;
-			const entry = cardStore.get(key);
-			if (!entry || "missing" in entry) continue;
-			let card: Card = entry;
-			switch (op.kind) {
-				case "item.labels": {
-					const names = new Set(card.labels.map((label) => label.name));
-					const known = Object.values(LABELS);
-					card = {
-						...card,
-						labels: [
-							...card.labels.filter((label) => !op.remove?.includes(label.name)),
-							...(op.add ?? [])
-								.filter((name) => !names.has(name))
-								.map(
-									(name) => known.find((label) => label.name === name) ?? { name, color: "8b949e" },
-								),
-						],
-					};
-					break;
-				}
-				case "item.assignees": {
-					const people = Object.values(PEOPLE);
-					card = {
-						...card,
-						assignees: [
-							...card.assignees.filter((a) => !op.remove?.includes(a.login)),
-							...(op.add ?? [])
-								.filter((login) => !card.assignees.some((a) => a.login === login))
-								.map((login) => people.find((p) => p.login === login) ?? { login, avatarUrl: "" }),
-						],
-					};
-					break;
-				}
-				case "item.milestone":
-					milestones.set(key, op.milestone);
-					break;
-				case "item.state":
-					card = {
-						...card,
-						state: op.state,
-						stateReason: op.state === "closed" ? (op.reason ?? "completed") : null,
-					};
-					break;
-				default:
-					continue;
-			}
-			cardStore.set({ ...card, updatedAt: new Date().toISOString() });
-			const stored = changesMap(doc).get(change.id);
-			stored?.set("status", "applied");
-			stored?.set("updatedAt", new Date().toISOString());
-			pushed++;
-		}
-	});
-	return pushed;
 }
 
 /** Lists, and cards to drop on them: a triage board. */
