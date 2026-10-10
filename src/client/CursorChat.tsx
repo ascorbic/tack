@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { onGesture } from "./facilitation/gestures.ts";
 import type { Awareness } from "y-protocols/awareness";
 import {
 	CHAT_FADE_MS,
@@ -70,7 +71,17 @@ export function CursorChat({ awareness, user }: { awareness: Awareness; user: Us
 			setOpen(true);
 		};
 		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
+		const stop = onGesture("chat", (at) => {
+			pointer.current = at;
+			closing.current = false;
+			setSent(null);
+			setText("");
+			setOpen(true);
+		});
+		return () => {
+			window.removeEventListener("keydown", onKey);
+			stop();
+		};
 	}, []);
 
 	const latest = useRef(text);

@@ -42,10 +42,13 @@
 	top: calc(100% + 8px);
 	right: 0;
 	z-index: 30;
-	width: 330px;
+	width: 340px;
+	max-height: calc(100dvh - 76px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	padding: 6px;
 	border-radius: 16px;
-	background: var(--chrome-strong);
+	background: var(--chrome-solid);
 	border: 1px solid var(--line-strong);
 	box-shadow: var(--shadow-lifted);
 	backdrop-filter: blur(16px) saturate(1.3);
@@ -400,6 +403,56 @@
 	color: var(--open);
 }
 
+/* After a while, time's up settles into a small chip, out of the way. */
+.timer[data-state="settled"] {
+	--timer: var(--pass);
+	height: 32px;
+	gap: 6px;
+	padding: 0 4px 0 6px;
+	box-shadow: var(--shadow-hover);
+	animation: timer-settle var(--t-settle) var(--ease-settle);
+}
+
+@keyframes timer-settle {
+	from {
+		scale: 1.06;
+	}
+}
+
+.timer[data-state="settled"] .timer-ring {
+	width: 18px;
+	height: 18px;
+}
+
+.timer[data-state="settled"] .timer-digits {
+	min-width: 0;
+	font-family: var(--font-display);
+	font-size: 13px;
+	color: var(--muted);
+}
+
+.timer[data-state="settled"] .timer-controls {
+	max-width: 0;
+	opacity: 0;
+}
+
+.timer[data-state="settled"]:hover .timer-controls,
+.timer[data-state="settled"]:focus-within .timer-controls {
+	max-width: 120px;
+	opacity: 1;
+}
+
+/* What it's timing, when whoever started it said. */
+.timer-label {
+	max-width: 180px;
+	overflow: hidden;
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
 .timer[data-state="paused"] .timer-digits {
 	animation: timer-paused calc(1600ms * var(--motion)) ease-in-out infinite;
 }
@@ -506,6 +559,7 @@
 /* Spotlight ---------------------------------------------------------------- */
 
 .spotlight-pill {
+	--spotlight: var(--accent);
 	position: absolute;
 	top: 12px;
 	left: 50%;
@@ -516,7 +570,7 @@
 	padding: 4px 4px 4px 11px;
 	border-radius: 999px;
 	background: var(--spotlight);
-	color: #fff;
+	color: var(--on-accent);
 	font-size: 12.5px;
 	font-weight: 520;
 	white-space: nowrap;
@@ -558,7 +612,22 @@
 
 .spotlight-pill[data-kind="away"] > button {
 	background: var(--spotlight);
-	color: #fff;
+	color: var(--on-accent);
+}
+
+/* Whose spotlight it is: their colour, as a dot, in facilitation's own pill. */
+.spotlight-person {
+	flex: none;
+	width: 9px;
+	height: 9px;
+	margin-right: -2px;
+	border-radius: 50%;
+	background: var(--person);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--on-accent) 85%, transparent);
+}
+
+.spotlight-pill[data-kind="away"] .spotlight-person {
+	box-shadow: 0 0 0 2px var(--surface);
 }
 
 .spotlight-icon {
@@ -736,6 +805,29 @@
 		transform var(--t-settle) var(--ease-spring);
 }
 
+/* 1–8 pick a stamp, as they pick an emote from the wheel. */
+.stamp-choice {
+	position: relative;
+}
+
+.stamp-choice-key {
+	position: absolute;
+	right: 1px;
+	bottom: 0;
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-size: 8.5px;
+	font-weight: 600;
+	line-height: 1;
+	opacity: 0;
+	transition: opacity var(--t-quick) var(--ease-out);
+}
+
+.toolbar-options:hover .stamp-choice-key,
+.stamp-choice:focus-visible .stamp-choice-key {
+	opacity: 0.9;
+}
+
 .stamp-choice:hover {
 	background: var(--hover);
 	transform: translateY(-2px) scale(1.1);
@@ -756,6 +848,12 @@
 	filter: drop-shadow(0 0 0.5px var(--accent)) drop-shadow(0 6px 14px rgb(0 0 0 / 10%));
 }
 
+/* Stamping, voting or picking a section, a click is for the whole shape:
+   links in it (a card's title) neither open nor take focus. */
+.canvas:is([data-tool="stamp"], [data-tool="vote"], [data-picking]) .react-flow__node a {
+	pointer-events: none;
+}
+
 /* Dots in a shape's top-right corner. */
 .vote-dots {
 	display: flex;
@@ -768,6 +866,71 @@
 	scale: var(--unzoom, 1);
 	padding-right: 6px;
 	pointer-events: none;
+}
+
+/* A closed vote's result on a shape: its place, and how many votes. */
+.vote-rank {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 9px 0 3px;
+	border-radius: 999px;
+	background: var(--surface);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-hover);
+	color: var(--ink);
+	font-size: 12px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+	translate: calc(-100% - 6px) -50%;
+	transform-origin: 100% 50%;
+	scale: var(--unzoom, 1);
+	pointer-events: auto;
+	animation: rank-in calc(560ms * var(--motion)) var(--ease-spring) backwards;
+}
+
+@keyframes rank-in {
+	from {
+		opacity: 0;
+		scale: calc(var(--unzoom, 1) * 0.6);
+	}
+}
+
+.vote-rank-place {
+	display: grid;
+	place-items: center;
+	min-width: 20px;
+	height: 20px;
+	padding: 0 5px;
+	border-radius: 999px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 11.5px;
+	font-weight: 750;
+}
+
+.vote-rank-total::after {
+	content: "";
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	margin-left: 4px;
+	border-radius: 50%;
+	background: var(--accent);
+	vertical-align: 1px;
+}
+
+.vote-rank[data-podium] .vote-rank-place {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.vote-rank[data-podium="1"] {
+	border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+	box-shadow:
+		0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent),
+		var(--shadow-hover);
 }
 
 .vote-dot {
@@ -1230,6 +1393,14 @@ button.vote-dot:hover {
 	font-size: 12px;
 	font-weight: 650;
 	box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Everyone else: who'll turn them over. */
+.section-silent-who {
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 520;
+	white-space: nowrap;
 }
 
 .section-silent-reveal:hover {
@@ -2013,6 +2184,28 @@ fieldset.vote-start-row {
 	color: var(--danger);
 }
 
+/* Deleting asks once: everyone's dots go with it. */
+.tally-confirm {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	margin-left: auto;
+	color: var(--muted);
+	font-size: 12.5px;
+	animation: pop-in var(--t-base) var(--ease-spring);
+}
+
+.tally-foot .tally-delete-confirm {
+	border-color: transparent;
+	background: var(--danger);
+	color: var(--surface);
+}
+
+.tally-foot .tally-delete-confirm:hover {
+	background: color-mix(in srgb, var(--danger) 86%, var(--ink));
+}
+
 @media (max-width: 640px) {
 	.vote-bar-meta,
 	.timer-by {
@@ -2180,4 +2373,257 @@ fieldset.vote-start-row {
 .facilitate-carry {
 	width: 380px;
 	padding: 14px;
+}
+
+/* The Facilitate menu's "Running now": one place to run a session from --- */
+
+.running {
+	margin: 0 0 4px;
+	padding: 10px 10px 8px;
+	border-radius: 11px;
+	background: color-mix(in srgb, var(--accent) 7%, transparent);
+	border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+	animation: pop-in var(--t-base) var(--ease-spring);
+}
+
+.running-head {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin: 0 0 6px;
+	color: var(--accent);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.running-pulse {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--accent);
+	animation: running-pulse calc(1800ms * var(--motion)) ease-in-out infinite;
+}
+
+@keyframes running-pulse {
+	50% {
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+	}
+}
+
+.running-items {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.running-item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 7px;
+	min-height: 32px;
+	padding: 3px 0;
+	font-size: 12.5px;
+}
+
+.running-item > svg {
+	flex: none;
+	color: var(--accent);
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+}
+
+.running-what {
+	flex: 1;
+	min-width: 0;
+	color: var(--ink);
+	font-weight: 560;
+}
+
+.running-note {
+	color: var(--muted);
+	font-weight: 450;
+}
+
+.running-actions {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-left: auto;
+}
+
+.running-actions button {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 26px;
+	padding: 0 9px;
+	border-radius: 7px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	font-size: 12px;
+	font-weight: 560;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.running-actions button:hover {
+	background: var(--hover);
+}
+
+.running-actions button:active {
+	transform: scale(0.96);
+}
+
+.running-actions .running-reveal {
+	border-color: transparent;
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.running-actions .running-reveal:hover {
+	background: var(--accent-hover);
+}
+
+.running-actions .running-reveal svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+}
+
+/* A row's choices side by side: "On a section…", "On the board…". */
+.facilitate-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+
+.facilitate-actions kbd {
+	margin-left: 3px;
+	padding: 0 4px;
+	border-radius: 4px;
+	background: var(--chip);
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-size: 10.5px;
+}
+
+.facilitate-row h3 .facilitate-key {
+	margin-left: 4px;
+	padding: 1px 5px;
+	border-radius: 5px;
+	background: var(--chip);
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-size: 10.5px;
+	font-weight: 500;
+	vertical-align: 1px;
+}
+
+.timer-starter .timer-label-input {
+	flex: 1 0 100%;
+	height: 30px;
+	padding: 0 9px;
+	border-radius: 8px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	font-size: 12.5px;
+}
+
+/* Picking a section to start something on ---------------------------------- */
+
+.canvas[data-picking] .react-flow__node {
+	cursor: pointer;
+}
+
+.canvas[data-picking] .section {
+	border-style: dashed;
+	border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+	box-shadow: 0 0 0 calc(3 * var(--px, 1px)) color-mix(in srgb, var(--accent) 14%, transparent);
+	animation: picking-breathe calc(1600ms * var(--motion)) ease-in-out infinite;
+}
+
+.canvas[data-picking] .react-flow__node-section:hover > .section,
+.canvas[data-picking] .react-flow__node-section:has(.react-flow__node:hover) > .section {
+	border-style: solid;
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--section-fill) 80%, var(--accent));
+	box-shadow: 0 0 0 calc(4 * var(--px, 1px)) color-mix(in srgb, var(--accent) 24%, transparent);
+	animation: none;
+}
+
+@keyframes picking-breathe {
+	50% {
+		box-shadow: 0 0 0 calc(6 * var(--px, 1px)) color-mix(in srgb, var(--accent) 8%, transparent);
+	}
+}
+
+.section-picker {
+	position: absolute;
+	bottom: 86px;
+	left: 50%;
+	z-index: 12;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 5px 5px 10px;
+	border-radius: 999px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 13px;
+	font-weight: 520;
+	white-space: nowrap;
+	box-shadow: var(--shadow-lifted);
+	transform: translateX(-50%);
+	animation: pill-in var(--t-settle) var(--ease-spring);
+}
+
+.section-picker-icon {
+	display: grid;
+	place-items: center;
+}
+
+.section-picker-icon svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+}
+
+.section-picker button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
+	padding: 0 11px;
+	border: 0;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--on-tooltip) 16%, transparent);
+	color: inherit;
+	font-size: 12.5px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.section-picker button:hover {
+	background: color-mix(in srgb, var(--on-tooltip) 26%, transparent);
+}
+
+.section-picker .section-picker-make {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.section-picker kbd {
+	font-family: var(--font-mono);
+	font-size: 10.5px;
+	opacity: 0.7;
 }

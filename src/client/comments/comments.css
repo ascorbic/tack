@@ -860,7 +860,7 @@
 	display: flex;
 	flex-direction: column;
 	border-radius: 16px;
-	background: var(--chrome-strong);
+	background: var(--chrome-solid);
 	border: 1px solid var(--line-strong);
 	box-shadow: var(--shadow-lifted);
 	backdrop-filter: blur(16px) saturate(1.3);

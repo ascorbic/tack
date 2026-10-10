@@ -35,6 +35,8 @@
 	/* Translucent chrome floating over the canvas: bars, toolbars, panels. */
 	--chrome: rgb(255 255 255 / 86%);
 	--chrome-strong: rgb(255 255 255 / 94%);
+	/* Menus and panels with text over the board: opaque, so cards and cursors don’t show through. */
+	--chrome-solid: rgb(255 255 255);
 	--tooltip: #17191c;
 	--on-tooltip: #ffffff;
 	--skeleton: #ebe9e3;
@@ -140,6 +142,7 @@
 	--well: #141518;
 	--chrome: rgb(30 32 36 / 86%);
 	--chrome-strong: rgb(33 35 39 / 94%);
+	--chrome-solid: rgb(33 35 39);
 	--tooltip: #eceef1;
 	--on-tooltip: #17191c;
 	--skeleton: #26282d;
@@ -358,7 +361,9 @@ textarea {
 
 .topbar {
 	position: relative;
-	z-index: 5;
+	/* Above the canvas's own chrome (the timer, vote bars, spotlight and
+	   follow pills, panels), so the top bar's menus open over them. */
+	z-index: 35;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;

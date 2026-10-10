@@ -452,6 +452,40 @@ export const SHORTCUTS: Shortcut[] = [
 		display: [["Esc"]],
 		keywords: "escape unfollow",
 	},
+	// Handled by Board.tsx while the stamp tool is on.
+	{
+		id: "pickStamp",
+		label: "Pick a stamp",
+		group: "Tools",
+		combos: [],
+		display: [["M", "1–8"]],
+		keywords: "stamp emoji react",
+	},
+	// Handled by facilitation/FacilitateMenu.tsx (facilitationKey).
+	{
+		id: "facilitate",
+		label: "Facilitate menu: what's running, votes, silent mode",
+		group: "People",
+		combos: [],
+		display: [["Shift", "F"]],
+		keywords: "facilitate session run vote silent reveal dot",
+	},
+	{
+		id: "timer",
+		label: "Timer",
+		group: "People",
+		combos: [],
+		display: [["Shift", "T"]],
+		keywords: "timebox countdown clock facilitate",
+	},
+	{
+		id: "spotlight",
+		label: "Spotlight me, or stop",
+		group: "People",
+		combos: [],
+		display: [["Shift", "S"]],
+		keywords: "present bring everyone attention facilitate",
+	},
 	// Handled by facilitation/Emotes.tsx.
 	{
 		id: "emotes",

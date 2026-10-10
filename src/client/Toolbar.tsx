@@ -307,17 +307,21 @@ function StampOptions({
 }) {
 	return (
 		<div className="toolbar-options" role="radiogroup" aria-label="Stamp">
-			{STAMPS.map((s) => (
+			{STAMPS.map((s, i) => (
 				<button
 					key={s}
 					type="button"
 					role="radio"
 					aria-checked={s === stamp}
 					aria-label={`Stamp ${s}`}
+					aria-keyshortcuts={String(i + 1)}
 					className="stamp-choice"
 					onClick={() => onStamp(s)}
 				>
 					{s}
+					<kbd className="stamp-choice-key" aria-hidden="true">
+						{i + 1}
+					</kbd>
 				</button>
 			))}
 			<span className="toolbar-hint">Click shapes to stamp them; again to take it off</span>

@@ -12,6 +12,7 @@ import {
 	highFives,
 } from "../../shared/facilitation.ts";
 import { useAwarenessField } from "../ephemeral.ts";
+import { onGesture } from "./gestures.ts";
 import { isOffBoardTarget } from "../keys.ts";
 import { scaledDuration } from "../motion.ts";
 import type { RemotePresence, User } from "../presence.ts";
@@ -62,7 +63,9 @@ export function Emotes({
 	const [x, y, zoom] = useStore((state) => state.transform);
 	const [floats, setFloats] = useState<Float[]>([]);
 	const [celebrations, setCelebrations] = useState<Celebration[]>([]);
-	const [wheel, setWheel] = useState<{ x: number; y: number } | null>(null);
+	// From the Facilitate menu, the wheel opens mid-board, and waits for the
+	// pointer to come to it before wandering away closes it.
+	const [wheel, setWheel] = useState<{ x: number; y: number; waiting?: boolean } | null>(null);
 	const [raised, setRaised] = useState<number | null>(null);
 	const pointer = useRef({ x: innerWidth / 2, y: innerHeight / 2 });
 	const counter = useRef(0);
@@ -154,13 +157,23 @@ export function Emotes({
 		return () => window.removeEventListener("keydown", onKey, true);
 	}, [enabled, wheel, emit]);
 
+	useEffect(
+		() =>
+			onGesture("emotes", (at) => {
+				if (!enabled) return;
+				setWheel({ ...at, waiting: true });
+			}),
+		[enabled],
+	);
+
 	// The wheel closes when the pointer wanders well away from it.
 	useEffect(() => {
 		if (!wheel) return;
+		let near = !wheel.waiting;
 		const onMove = (event: PointerEvent) => {
-			if (Math.hypot(event.clientX - wheel.x, event.clientY - wheel.y) > WHEEL_RADIUS * 2.6) {
-				setWheel(null);
-			}
+			const far = Math.hypot(event.clientX - wheel.x, event.clientY - wheel.y) > WHEEL_RADIUS * 2.6;
+			if (!far) near = true;
+			else if (near) setWheel(null);
 		};
 		window.addEventListener("pointermove", onMove, { passive: true });
 		return () => window.removeEventListener("pointermove", onMove);

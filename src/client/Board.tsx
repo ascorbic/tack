@@ -18,10 +18,10 @@ import {
 	useState,
 } from "react";
 import { readVotes } from "../shared/dotvotes.ts";
-import type { StampEmoji } from "../shared/facilitation.ts";
+import { STAMPS, type StampEmoji } from "../shared/facilitation.ts";
 import { type CardRun, addCardsInRun, cardsOnBoard, searchScopeOf } from "../shared/addCards.ts";
 import { intersects } from "../shared/geometry.ts";
-import { parseKey } from "../shared/refs.ts";
+import { itemKey, parseKey, parseRef } from "../shared/refs.ts";
 import { boxOf } from "../shared/sections.ts";
 import {
 	type DisplayKind,
@@ -66,12 +66,19 @@ import { CursorChat } from "./CursorChat.tsx";
 import { Cursors } from "./Cursors.tsx";
 import { EmptyBoard } from "./EmptyBoard.tsx";
 import { Emotes } from "./facilitation/Emotes.tsx";
-import { FacilitateMenu } from "./facilitation/FacilitateMenu.tsx";
+import { FacilitateMenu, facilitationKey } from "./facilitation/FacilitateMenu.tsx";
 import { MarksLayer, dotShape, stampShape } from "./facilitation/Marks.tsx";
-import { useSilentToasts } from "./facilitation/Silent.tsx";
+import {
+	type PickKind,
+	SectionPickerHint,
+	sectionAt,
+	sectionPicker,
+	useSectionPicker,
+} from "./facilitation/SectionPicker.tsx";
+import { startSilent, useSilentToasts } from "./facilitation/Silent.tsx";
 import { SpotlightIndicator, useSpotlightFollow } from "./facilitation/Spotlight.tsx";
 import { facilitation } from "./facilitation/store.ts";
-import { TimerPill } from "./facilitation/Timer.tsx";
+import { TimerPill, useTimerToasts } from "./facilitation/Timer.tsx";
 import { StartVoteDialog, TallyPanel, VoteBars, useVoteUI, voteUI } from "./facilitation/Votes.tsx";
 import { FollowIndicator, ViewPublisher, useFollow } from "./Follow.tsx";
 import { HistoryButton } from "./history/HistoryButton.tsx";
@@ -90,7 +97,7 @@ import { nodeTypes } from "./nodes.tsx";
 import { ZoomControls } from "./ZoomControls.tsx";
 import { PanelBoundary, withBoundary } from "./ShapeBoundary.tsx";
 import { People } from "./People.tsx";
-import { type User, authorFor, usePresence } from "./presence.ts";
+import { type User, authorFor, useBoardColor, usePresence } from "./presence.ts";
 import { SectionTool, ZoomVariable, sectionNodeTypes } from "./sections.tsx";
 import { SelectionTools } from "./SelectionTools.tsx";
 import { ShapeToolbar, styledShapes } from "./ShapeToolbar.tsx";
@@ -155,9 +162,10 @@ interface BoardProps extends BoardSource {
 	user: User;
 	/**
 	 * Your avatar in the top bar, e.g. an account menu, given the label the
-	 * plain avatar would have. Defaults to a plain avatar.
+	 * plain avatar would have and you as you appear here (in your colour on
+	 * this board). Defaults to a plain avatar.
 	 */
-	account?: (label: string) => ReactNode;
+	account?: (label: string, user: User) => ReactNode;
 	/** Extra controls at the end of the top bar, e.g. a sign-in button. */
 	actions?: ReactNode;
 	/** Extra UI drawn over the canvas, e.g. the playground's controls. */
@@ -574,6 +582,9 @@ export function Board({
 		},
 		[flow],
 	);
+	// Silent mode and the timer, as they change: with a way to the section.
+	useSilentToasts(liveDoc, toasts, reveal);
+	useTimerToasts(toasts);
 
 	// Restoring from history: back to the live board, with what came back selected.
 	useRestored(replay.controller, {
@@ -883,6 +894,8 @@ export function Board({
 		const onKey = (event: KeyboardEvent) => {
 			if (event.metaKey || event.ctrlKey || event.altKey) return;
 			if (isOffBoardTarget(event.target)) return;
+			// ⇧F, ⇧T and ⇧S are the Facilitate menu's.
+			if (facilitationKey(event)) return;
 			if (event.key === "Escape") setTool("select");
 			const next = TOOL_KEYS[event.key.toLowerCase()];
 			// View only: just the select and hand tools, and comments, no sections (F) or connectors (X).
@@ -898,6 +911,21 @@ export function Board({
 
 	useEffect(() => {
 		if (tool !== "sticky") setGhost(null);
+	}, [tool]);
+
+	// With the stamp tool on, 1–8 pick a stamp, as they pick an emote.
+	useEffect(() => {
+		if (tool !== "stamp") return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+			if (isOffBoardTarget(event.target)) return;
+			const emoji = /^[1-8]$/.test(event.key) ? STAMPS[Number(event.key) - 1] : undefined;
+			if (!emoji) return;
+			event.preventDefault();
+			setStamp(emoji);
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
 	}, [tool]);
 
 	const placeSticky = useCallback(
@@ -938,6 +966,42 @@ export function Board({
 		() => nodes.filter((node) => selected.has(node.id)),
 		[nodes, selected],
 	);
+	const selectedSection =
+		selectedNodes.length === 1 && selectedNodes[0]?.type === "section" ? selectedNodes[0].id : null;
+
+	// Starting silent mode or a vote on a section from the Facilitate menu:
+	// click one (or anything in one), or make one in view.
+	const picking = useSectionPicker();
+	useEffect(() => {
+		if (readOnly) sectionPicker.cancel();
+	}, [readOnly]);
+	const pickSection = useCallback(
+		(kind: PickKind, section: string) => {
+			sectionPicker.cancel();
+			setSelected(new Set([section]));
+			if (kind === "silent") startSilent(section, user);
+			else voteUI.start(section);
+		},
+		[user],
+	);
+	const makeSectionToPick = useCallback(
+		(kind: PickKind, title: string) => {
+			const bounds = canvas.current?.getBoundingClientRect();
+			const zoom = flow.getZoom();
+			const w = Math.min(960, ((bounds?.width ?? 1200) * 0.6) / zoom);
+			const h = Math.min(640, ((bounds?.height ?? 800) * 0.55) / zoom);
+			const middle = flow.screenToFlowPosition({
+				x: (bounds?.left ?? 0) + (bounds?.width ?? innerWidth) / 2,
+				y: (bounds?.top ?? 0) + (bounds?.height ?? innerHeight) / 2,
+			});
+			const id = transactLocal(doc, () =>
+				addSection(doc, { x: middle.x - w / 2, y: middle.y - h / 2, w, h }, { title }, boxSize),
+			);
+			pickSection(kind, id);
+		},
+		[doc, flow, boxSize, pickSection],
+	);
+	const hasSections = useMemo(() => nodes.some((node) => node.type === "section"), [nodes]);
 
 	// Drag a sticky straight off the toolbar.
 	const onDragOver = (event: DragEvent) => {
@@ -1086,7 +1150,8 @@ export function Board({
 		tool !== "connector" &&
 		tool !== "stamp" &&
 		tool !== "vote" &&
-		tool !== "comment";
+		tool !== "comment" &&
+		picking === null;
 	return (
 		<ChangesContext value={changesUI}>
 			<BoardContext
@@ -1111,7 +1176,8 @@ export function Board({
 								people={presence.people}
 								following={follow.following}
 								onFollow={follow.follow}
-								self={account}
+								onJump={follow.jump}
+								self={account && ((label) => account(label, user))}
 							/>
 							<SinceButton doc={liveDoc} login={user.login} youId={comments.youId} />
 							{replay.controller && (
@@ -1134,6 +1200,8 @@ export function Board({
 								readOnly={readOnly}
 								toasts={toasts}
 								onReveal={reveal}
+								selectedSection={selectedSection}
+								onStamp={() => setTool("stamp")}
 							/>
 							<CommentsButton />
 							<ThemeToggle />
@@ -1210,6 +1278,12 @@ export function Board({
 										previewStore.leave(node.id);
 									}}
 									onNodeClick={(event, node) => {
+										// Picking a section to start something on.
+										if (picking) {
+											const section = sectionAt(doc, node.id);
+											if (section) pickSection(picking, section);
+											return;
+										}
 										// Stamping and dot voting: a click puts yours on the shape.
 										if (!readOnly && tool === "stamp" && node.type !== "connector") {
 											stampShape(doc, node.id, stamp, user);
@@ -1418,6 +1492,13 @@ export function Board({
 								/>
 							</div>
 							{!readOnly && <StartVoteDialog doc={doc} user={user} now={facilitation.serverNow} />}
+							{picking && !readOnly && (
+								<SectionPickerHint
+									kind={picking}
+									hasSections={hasSections}
+									onMake={(title) => makeSectionToPick(picking, title)}
+								/>
+							)}
 							{voteState.tally && (
 								<PanelBoundary name="The vote’s results">
 									<TallyPanel
