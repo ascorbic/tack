@@ -1,6 +1,11 @@
+packages:
+  # The docs site (Astro Starlight). It brings its own Astro and Vite.
+  - site
 overrides:
   # Match the installed vite-plus version, so plugins use Vite+'s Vite.
   vite@*: npm:@voidzero-dev/vite-plus-core@1.1.0
+  # Except Astro's: the docs site builds with the Vite Astro was tested on.
+  astro>vite: 8.3.4
   # Match `vp toolchain vitest`, so there's only one Vitest.
   vitest@*: 5.0.3
 onlyBuiltDependencies:

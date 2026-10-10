@@ -1,6 +1,8 @@
 # build output
 dist/
 .cloudflare/
+# Astro (the docs site, site/)
+.astro/
 
 # Playwright output
 e2e/test-results/

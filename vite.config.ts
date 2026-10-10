@@ -17,7 +17,17 @@ export default defineConfig({
 		hookTimeout: 30_000,
 	},
 	lint: {
-		ignorePatterns: [".claude/worktrees/**", ".cloudflare/**", ".wrangler/**", "dist/**"],
+		// The docs site (site/) is Astro's: its modules import Astro's virtual
+		// modules, whose types only exist once Astro has generated them, so it
+		// builds and checks itself (`pnpm --filter site build`). It's still
+		// formatted with everything else.
+		ignorePatterns: [
+			".claude/worktrees/**",
+			".cloudflare/**",
+			".wrangler/**",
+			"dist/**",
+			"site/**",
+		],
 		options: {
 			typeAware: true,
 			typeCheck: true,
