@@ -1203,6 +1203,124 @@
 	width: 50%;
 }
 
+/* A section about to become a parent issue: its card-to-be hovers where
+   it'll land, above the section's middle, on a dashed stem that stands in
+   for the connector the push draws. The stem grows up out of the section,
+   then the card pops onto it. Sized as a card is, so it scales with the
+   board rather than with the flags. */
+.staged-parent {
+	position: absolute;
+	bottom: 100%;
+	left: calc(50% - 126px);
+	z-index: -1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 252px;
+}
+
+.staged-parent-card {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 106px;
+	padding: 11px 13px;
+	border-radius: 12px;
+	border: 1.5px dashed color-mix(in srgb, var(--open) 55%, transparent);
+	background: color-mix(in srgb, var(--surface) 90%, transparent);
+	box-shadow: var(--shadow-rest);
+	color: var(--open);
+	animation: parent-pop var(--t-settle) var(--ease-spring) calc(var(--t-quick) * 0.8) backwards;
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		border-color var(--t-base) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.staged-parent-title {
+	display: -webkit-box;
+	overflow: hidden;
+	color: var(--ink-soft);
+	font-size: 13.5px;
+	font-weight: 600;
+	line-height: 1.35;
+	letter-spacing: -0.005em;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.staged-parent-stem {
+	width: 0;
+	height: 88px;
+	border-left: 1.5px dashed color-mix(in srgb, var(--open) 55%, transparent);
+	transform-origin: 50% 100%;
+	animation: parent-stem var(--t-base) var(--ease-out) backwards;
+}
+
+/* Where the stem meets the section: a small dot, as a connector's end. */
+.staged-parent-stem::after {
+	content: "";
+	position: relative;
+	top: calc(100% - 3px);
+	left: -4px;
+	display: block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--open) 70%, transparent);
+}
+
+@keyframes parent-stem {
+	from {
+		transform: scaleY(0);
+	}
+}
+
+@keyframes parent-pop {
+	from {
+		opacity: 0;
+		transform: translateY(18px) scale(0.9);
+	}
+}
+
+.staged-marks[data-highlighted] .staged-parent-card {
+	border-style: solid;
+	border-color: var(--accent);
+	box-shadow:
+		0 0 0 5px var(--accent-soft),
+		var(--shadow-rest);
+}
+
+.staged-parent[data-included="false"] {
+	opacity: 0.45;
+}
+
+.staged-parent[data-included="false"] .staged-parent-card,
+.staged-parent[data-included="false"] .staged-parent-stem {
+	border-color: var(--line-strong);
+	color: var(--muted);
+}
+
+.staged-parent[data-status="sending"] .staged-parent-card,
+.staged-parent[data-status="sent"] .staged-parent-card {
+	animation: parent-wait calc(1400ms * var(--motion)) ease-in-out infinite;
+}
+
+.staged-parent[data-status="failed"] .staged-parent-card,
+.staged-parent[data-status="failed"] .staged-parent-stem {
+	border-color: var(--fail);
+	color: var(--fail-ink);
+}
+
+@keyframes parent-wait {
+	50% {
+		transform: translateY(-4px);
+		box-shadow: var(--shadow-hover);
+	}
+}
+
 /* ---------------------------------------------------------------------------
    Push sheet
    ------------------------------------------------------------------------ */
@@ -2697,6 +2815,8 @@ a.push-button {
 	.staged-flag[data-status="sending"],
 	.staged-ghost[data-status="sending"],
 	.staged-ghost[data-status="sent"],
+	.staged-parent[data-status="sending"] .staged-parent-card,
+	.staged-parent[data-status="sent"] .staged-parent-card,
 	.staged-label[data-status="sending"],
 	.push-notify[data-loading],
 	.push-button[data-busy] {
@@ -2717,6 +2837,8 @@ a.push-button {
 		.staged-flag[data-status="sending"],
 		.staged-ghost[data-status="sending"],
 		.staged-ghost[data-status="sent"],
+		.staged-parent[data-status="sending"] .staged-parent-card,
+		.staged-parent[data-status="sent"] .staged-parent-card,
 		.staged-label[data-status="sending"],
 		.push-notify[data-loading],
 		.push-button[data-busy]

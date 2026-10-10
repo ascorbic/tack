@@ -51,6 +51,16 @@
 	position: relative;
 }
 
+/* Room above a section for the parent issue's card-to-be. */
+.changes-mark-sample[data-shape="section"] {
+	padding-top: 248px;
+}
+
+.changes-mark-sample[data-shape="section"] .changes-mark-shape {
+	width: 280px;
+	height: 150px;
+}
+
 .changes-gallery-sheets {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(680px, 100%), 1fr));

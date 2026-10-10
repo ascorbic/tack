@@ -158,6 +158,16 @@ export function StagedMarksView({
 			change.effect?.kind === "replace" &&
 			change.effect.shapes.includes(shapeId),
 	);
+	// A section that's about to become a parent issue: where its card will
+	// land (above it, if nothing's in the way) and the connector joining them.
+	const parent = visible.find(
+		(change) =>
+			change.op.kind === "issue.create" &&
+			change.status !== "applied" &&
+			change.effect?.kind === "place" &&
+			change.effect.near.length === 1 &&
+			change.effect.near[0] === shapeId,
+	);
 	const flags: Flag[] = [];
 	const labels: { change: PendingChange; name: string; mode: "add" | "remove"; repo: string }[] =
 		[];
@@ -166,7 +176,10 @@ export function StagedMarksView({
 		const repo = changeRepo(change, index) ?? "";
 		switch (op.kind) {
 			case "issue.create":
-				flags.push({ change, text: `New issue${repo ? ` in ${repoShortName(repo)}` : ""}` });
+				flags.push({
+					change,
+					text: `New ${change.effect?.kind === "place" ? "parent issue" : "issue"}${repo ? ` in ${repoShortName(repo)}` : ""}`,
+				});
 				for (const name of op.labels ?? []) labels.push({ change, name, mode: "add", repo });
 				break;
 			case "pr.create":
@@ -262,6 +275,19 @@ export function StagedMarksView({
 					</span>
 					<span className="staged-ghost-line" />
 					<span className="staged-ghost-line short" />
+				</span>
+			)}
+			{parent?.op.kind === "issue.create" && (
+				<span className="staged-parent" aria-hidden="true" {...state(parent)}>
+					<span className="staged-parent-card">
+						<span className="staged-ghost-head">
+							<KindIcon op={parent.op} size={12} />
+							<span>#?</span>
+						</span>
+						<span className="staged-parent-title">{parent.op.title}</span>
+						<span className="staged-ghost-line short" />
+					</span>
+					<span className="staged-parent-stem" />
 				</span>
 			)}
 			{outline && (

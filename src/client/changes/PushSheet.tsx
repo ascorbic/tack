@@ -455,6 +455,11 @@ function ReviewView({
 																	On the board, its sticky turns into the new card
 																</span>
 															)}
+															{change.effect?.kind === "place" && (
+																<span className="push-change-effect">
+																	On the board, its card lands above its sub-issues
+																</span>
+															)}
 															{change.status === "failed" && (
 																<span className="push-change-failed">
 																	Failed last time: {friendlyError(change.error)}

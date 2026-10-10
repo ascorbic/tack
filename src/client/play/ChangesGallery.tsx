@@ -101,7 +101,7 @@ function PanelFrame({
 
 type Sample = {
 	label: string;
-	shape: "sticky" | "card";
+	shape: "sticky" | "card" | "section";
 	item?: string;
 	text?: string;
 	color?: string;
@@ -124,7 +124,27 @@ function newIssueFromSticky(extra: Partial<PendingChange> = {}): PendingChange {
 	);
 }
 
+function parentFromSection(extra: Partial<PendingChange> = {}): PendingChange {
+	return change({ kind: "issue.create", repo: IMAGEKIT, title: "Docs for 5.0" }, "kai", {
+		shapes: [STICKY_ID],
+		effect: { kind: "place", near: [STICKY_ID] },
+		...extra,
+	});
+}
+
 const SAMPLES: Sample[] = [
+	{
+		label: "Section → parent issue",
+		shape: "section",
+		text: "Docs for 5.0",
+		changes: [parentFromSection()],
+	},
+	{
+		label: "Parent issue, sending",
+		shape: "section",
+		text: "Docs for 5.0",
+		changes: [parentFromSection({ status: "sending" })],
+	},
 	{
 		label: "Sticky → new issue",
 		shape: "sticky",
@@ -254,7 +274,16 @@ function MarkSample({ sample, landing }: { sample: Sample; landing: PendingChang
 		<figure>
 			<div className="changes-mark-sample" data-shape={sample.shape}>
 				<div className="changes-mark-shape">
-					{sample.shape === "sticky" ? (
+					{sample.shape === "section" ? (
+						<div className="section" data-color="blue">
+							<div className="section-header">
+								<div className="section-title">
+									<span className="section-name">{sample.text}</span>
+									<span className="section-count">3</span>
+								</div>
+							</div>
+						</div>
+					) : sample.shape === "sticky" ? (
 						<StickyView
 							text={sample.text ?? ""}
 							color={sample.color ?? "yellow"}
@@ -267,6 +296,7 @@ function MarkSample({ sample, landing }: { sample: Sample; landing: PendingChang
 					<StagedMarksView
 						shapeId={STICKY_ID}
 						cardKey={fixture?.key}
+						shapeType={sample.shape}
 						changes={changes}
 						highlighted={sample.highlighted}
 						labelColorOf={(repo, name) => {
