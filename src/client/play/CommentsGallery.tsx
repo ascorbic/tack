@@ -1,5 +1,5 @@
 import { ReactFlowProvider } from "@xyflow/react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import * as Y from "yjs";
 import {
 	type CommentAuthor,
