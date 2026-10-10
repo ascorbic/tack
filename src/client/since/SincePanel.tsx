@@ -188,10 +188,21 @@ export function SincePanel({
 		digest.pushes.length === 0 &&
 		commentCount === 0;
 
-	const go = (i: number) => {
+	/** Go to the next (or previous) change, skipping ones you've seen while any are left. */
+	const go = (direction: 1 | -1) => {
 		const count = highlights.length;
 		if (count === 0) return;
-		const next = ((i % count) + count) % count;
+		// Before the first step, forwards starts at the first and backwards at the last.
+		const start = step >= 0 ? step : direction > 0 ? -1 : 0;
+		const at = (k: number) => (((start + k * direction) % count) + count) % count;
+		let next = at(1);
+		for (let k = 1; k <= count; k++) {
+			const candidate = at(k);
+			if (!state.seen.has(highlights[candidate]?.shape ?? "")) {
+				next = candidate;
+				break;
+			}
+		}
 		setStep(next);
 		const target = highlights[next];
 		if (target) onJump(target.shape);
@@ -347,7 +358,7 @@ export function SincePanel({
 			<footer className="since-foot">
 				{highlights.length > 0 && (
 					<div className="since-stepper" role="group" aria-label="Changes on the board">
-						<button type="button" aria-label="Previous change" onClick={() => go(step - 1)}>
+						<button type="button" aria-label="Previous change" onClick={() => go(-1)}>
 							<ChevronIcon dir="left" size={14} />
 						</button>
 						<span aria-live="polite">
@@ -355,7 +366,7 @@ export function SincePanel({
 								? `${highlights.length} on the board`
 								: `${step + 1} of ${highlights.length}`}
 						</span>
-						<button type="button" aria-label="Next change" onClick={() => go(step + 1)}>
+						<button type="button" aria-label="Next change" onClick={() => go(1)}>
 							<ChevronIcon size={14} />
 						</button>
 					</div>
