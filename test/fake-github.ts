@@ -17,6 +17,9 @@
 //   fail (rate limits, outages), and `dropWrites` accepts writes without
 //   doing them. `mergePull` merges a pull request as someone on GitHub
 //   would, and `event` gives the webhook payload for an item as it is now.
+// - Comment commands (#58): `comment` is someone commenting on an item (the
+//   `issue_comment` payload to deliver), and the app can react to comments
+//   (`reactions`, `reactionsOn`) and reply (`botComments`).
 //
 // Every request is recorded twice: as `METHOD url` lines in `log`, and as
 // structured `requests` (with GraphQL operation names and variables) so
@@ -433,6 +436,71 @@ export class FakeGitHub {
 		};
 	}
 
+	/**
+	 * Someone comments on an item (#58), as on GitHub: the comment is kept
+	 * (so the app can react to it), and the `issue_comment` webhook's payload
+	 * is returned for the test to deliver. `edit` makes it an `edited`
+	 * delivery of the comment `edit.id`, whose body was `edit.from`.
+	 */
+	comment(
+		repoId: number,
+		number: number,
+		user: { id: number; login: string; type?: "User" | "Bot" },
+		body: string,
+		edit?: { id: number; from: string },
+	): Record<string, unknown> & { comment: { id: number; [key: string]: unknown } } {
+		const repo = this.repos.get(repoId);
+		const item = this.item(repoId, number);
+		if (!repo || !item) throw new Error(`no item ${repoId}#${number}`);
+		let comment = edit ? this.comments.find((c) => c.id === edit.id) : undefined;
+		if (comment) comment.body = body;
+		else {
+			comment = {
+				id: this.comments.length + 1,
+				repoId,
+				number,
+				body,
+				login: user.login,
+				createdAt: new Date().toISOString(),
+			};
+			this.comments.push(comment);
+		}
+		const restComment = this.restComment(repo, comment);
+		return {
+			action: edit ? "edited" : "created",
+			repository: {
+				id: repo.id,
+				node_id: `R_${repo.id}`,
+				full_name: repo.name,
+				private: repo.private,
+			},
+			issue: item.kind === "pull" ? this.restPull(repo, item) : this.restIssue(repo, item),
+			comment: {
+				...restComment,
+				user: { login: user.login, id: user.id, type: user.type ?? "User" },
+			},
+			...(edit ? { changes: { body: { from: edit.from } } } : {}),
+		};
+	}
+
+	/** Reactions on comments, as `{ comment, content, login }`, oldest first. */
+	readonly reactions: { id: number; comment: number; content: string; login: string }[] = [];
+	private reactionIds = 0;
+
+	/** Comments the app's bot left on an item. */
+	botComments(repoId: number, number: number): string[] {
+		return this.comments
+			.filter(
+				(c) => c.repoId === repoId && c.number === number && c.login === `${this.app.slug}[bot]`,
+			)
+			.map((c) => c.body);
+	}
+
+	/** The reactions on a comment, by content. */
+	reactionsOn(comment: number): string[] {
+		return this.reactions.filter((r) => r.comment === comment).map((r) => r.content);
+	}
+
 	/** Give someone read access to a private repository. */
 	addCollaborator(id: number, login: string): void {
 		this.repos.get(id)?.collaborators.add(login);
@@ -830,6 +898,40 @@ export class FakeGitHub {
 			return json(this.restPull(repo, item), 201);
 		}
 
+		// Reactions on comments (#58). Reacting twice with the same content
+		// returns the reaction already there, as GitHub does.
+		const reacting = /^\/issues\/comments\/(\d+)\/reactions(?:\/(\d+))?$/.exec(rest);
+		if (reacting) {
+			const commentId = Number(reacting[1]);
+			if (!this.comments.some((c) => c.id === commentId && c.repoId === repo.id)) {
+				return json({ message: "Not Found" }, 404);
+			}
+			if (method === "POST" && !reacting[2]) {
+				const content = String(body.content);
+				if (
+					!["+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"].includes(content)
+				) {
+					return json({ message: "Validation Failed" }, 422);
+				}
+				const existing = this.reactions.find(
+					(r) => r.comment === commentId && r.content === content && r.login === login,
+				);
+				if (existing) return json({ id: existing.id, content }, 200);
+				const reaction = { id: ++this.reactionIds, comment: commentId, content, login };
+				if (!drop) this.reactions.push(reaction);
+				return json({ id: reaction.id, content }, 201);
+			}
+			if (method === "DELETE" && reacting[2]) {
+				const index = this.reactions.findIndex(
+					(r) => r.id === Number(reacting[2]) && r.comment === commentId,
+				);
+				if (index < 0) return json({ message: "Not Found" }, 404);
+				if (!drop) this.reactions.splice(index, 1);
+				return new Response(null, { status: 204 });
+			}
+			return undefined;
+		}
+
 		const issueMatch = /^\/issues\/(\d+)(\/.*)?$/.exec(rest);
 		const item = issueMatch ? this.items.get(`${repo.id}#${issueMatch[1]}`) : undefined;
 		if (!issueMatch || !item) return undefined;
@@ -948,7 +1050,7 @@ export class FakeGitHub {
 		return {
 			id: comment.id,
 			body: comment.body,
-			user: { login: comment.login },
+			user: { login: comment.login, type: comment.login.endsWith("[bot]") ? "Bot" : "User" },
 			created_at: comment.createdAt,
 			html_url: `https://github.com/${repo.name}/issues/${comment.number}#issuecomment-${comment.id}`,
 		};
