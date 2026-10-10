@@ -12,13 +12,19 @@ import { parseSearch } from "../../shared/search.ts";
 import type { QueryError, SearchResult } from "../../shared/widgets.ts";
 import { StateIcon } from "../CardView.tsx";
 import { scaledDuration } from "../motion.ts";
-import { ago, clock, queryChips } from "./describe.ts";
 import {
-	ClockIcon,
+	Count,
+	QueryErrorEmpty,
+	SkeletonRows,
+	WidgetEmpty,
+	WidgetFoot,
+	useNow,
+} from "./chrome.tsx";
+import { queryChips } from "./describe.ts";
+import {
 	DropIcon,
 	ExternalIcon,
 	ListIcon,
-	LockIcon,
 	PinIcon,
 	RefreshIcon,
 	SearchIcon,
@@ -155,32 +161,12 @@ export function ListView(props: ListViewProps) {
 	);
 }
 
-/** The total, which ticks when it changes. */
-function Count({ value }: { value: number }) {
-	const previous = useRef(value);
-	const [bump, setBump] = useState(0);
-	useEffect(() => {
-		if (previous.current !== value) setBump((n) => n + 1);
-		previous.current = value;
-	}, [value]);
-	return (
-		<span
-			key={bump}
-			className="widget-count"
-			data-pop={bump > 0 || undefined}
-			title={`${value} ${value === 1 ? "match" : "matches"}`}
-		>
-			{value > 999 ? `${Math.round(value / 100) / 10}k` : value}
-		</span>
-	);
-}
-
 function Body(props: ListViewProps) {
 	const { status } = props;
 	switch (status.kind) {
 		case "unconfigured":
 			return (
-				<Empty
+				<WidgetEmpty
 					icon={<SearchIcon size={20} />}
 					title="What should this list show?"
 					detail="Any search, kept live. Pick one to start, or write your own."
@@ -205,32 +191,27 @@ function Body(props: ListViewProps) {
 							Write a search
 						</button>
 					)}
-				</Empty>
+				</WidgetEmpty>
 			);
 		case "loading":
-			return (
-				<ul className="widget-rows" aria-busy="true" aria-label="Loading">
-					{[0.82, 0.64, 0.9, 0.55, 0.74, 0.6].map((width, i) => (
-						<li
-							key={i}
-							className="widget-row widget-row-skeleton"
-							style={{ "--i": i } as React.CSSProperties}
-						>
-							<span className="skeleton widget-skeleton-dot" />
-							<span className="widget-row-main">
-								<span className="skeleton" style={{ width: `${width * 100}%` }} />
-								<span className="skeleton short" />
-							</span>
-						</li>
-					))}
-				</ul>
-			);
+			return <SkeletonRows />;
 		case "error":
-			return <ErrorBody error={status.error} {...props} />;
+			return (
+				<QueryErrorEmpty
+					error={status.error}
+					noun="this list"
+					what="this search"
+					editLabel="Edit the search"
+					readOnly={props.readOnly}
+					now={props.now}
+					onConfigure={props.onConfigure}
+					onRefresh={props.onRefresh}
+				/>
+			);
 		case "ready":
 			if (status.result.items.length === 0) {
 				return (
-					<Empty
+					<WidgetEmpty
 						icon={<span className="widget-empty-mark" aria-hidden="true" />}
 						title="Nothing matches, yet"
 						detail={
@@ -243,111 +224,6 @@ function Body(props: ListViewProps) {
 			}
 			return <Rows {...props} rows={status.result.items} stale={status.stale} />;
 	}
-}
-
-function ErrorBody({ error, ...props }: ListViewProps & { error: QueryError }) {
-	const now = props.now ?? Date.now();
-	switch (error.reason) {
-		case "signed_out":
-			return (
-				<Empty
-					icon={<LockIcon size={20} />}
-					title="Sign in to see this list"
-					detail={error.message}
-				>
-					<a
-						className="widget-action"
-						href={`/auth/signin?return_to=${encodeURIComponent(location.pathname)}`}
-					>
-						Sign in with GitHub
-					</a>
-				</Empty>
-			);
-		case "rate_limited":
-			return (
-				<Empty
-					icon={<ClockIcon size={20} />}
-					title="GitHub needs a breather"
-					detail={
-						error.retryAt && error.retryAt > now
-							? `Too many searches for now. Trying again at ${clock(error.retryAt)}.`
-							: "Too many searches for now. Trying again shortly."
-					}
-					tone="wait"
-				/>
-			);
-		case "invalid":
-			return (
-				<Empty
-					icon={<SearchIcon size={20} />}
-					title="GitHub couldn't read this search"
-					detail={error.message}
-					tone="warn"
-				>
-					{!props.readOnly && props.onConfigure && (
-						<button type="button" className="widget-action" onClick={props.onConfigure}>
-							Edit the search
-						</button>
-					)}
-				</Empty>
-			);
-		case "no_access":
-			return (
-				<Empty
-					icon={<LockIcon size={20} />}
-					title="Tack can't search this for you"
-					detail={error.message}
-					tone="warn"
-				/>
-			);
-		case "unsupported":
-			return (
-				<Empty
-					icon={<WarnIcon size={20} />}
-					title="This forge can't be searched"
-					detail={error.message}
-					tone="warn"
-				/>
-			);
-		default:
-			return (
-				<Empty
-					icon={<WarnIcon size={20} />}
-					title="Couldn't load this list"
-					detail={error.message}
-					tone="warn"
-				>
-					{props.onRefresh && (
-						<button type="button" className="widget-action" onClick={props.onRefresh}>
-							Try again
-						</button>
-					)}
-				</Empty>
-			);
-	}
-}
-
-function Empty({
-	icon,
-	title,
-	detail,
-	tone,
-	children,
-}: {
-	icon: ReactNode;
-	title: string;
-	detail?: string;
-	tone?: "warn" | "wait";
-	children?: ReactNode;
-}) {
-	return (
-		<div className="widget-empty" data-tone={tone}>
-			<span className="widget-empty-icon">{icon}</span>
-			<p className="widget-empty-title">{title}</p>
-			{detail && <p className="widget-empty-detail">{detail}</p>}
-			{children}
-		</div>
-	);
 }
 
 type Motion = "enter" | "leave" | "changed";
@@ -601,38 +477,16 @@ function Footer({
 	onRefresh?: () => void;
 }) {
 	// Keep "2 min ago" current.
-	const [tick, setTick] = useState(0);
-	useEffect(() => {
-		if (fixedNow !== undefined) return;
-		const timer = setInterval(() => setTick((n) => n + 1), 30_000);
-		return () => clearInterval(timer);
-	}, [fixedNow]);
-	void tick;
+	const now = useNow(fixedNow);
 	if (status.kind !== "ready") return null;
-	const now = fixedNow ?? Date.now();
 	const { result, at, stale } = status;
 	const shown = result.items.length;
 	return (
-		<footer className="widget-foot" data-stale={stale || undefined}>
-			<span className="widget-live" data-live={(!stale && !refreshing) || undefined}>
-				<span className="widget-live-dot" aria-hidden="true" />
-				{refreshing
-					? "Refreshing…"
-					: stale
-						? `Updated ${ago(at, now)} · couldn't refresh`
-						: `Updated ${ago(at, now)}`}
-			</span>
-			{stale && onRefresh && !refreshing && (
-				<button type="button" className="widget-foot-retry nodrag nopan" onClick={onRefresh}>
-					Retry
-				</button>
-			)}
-			<span className="widget-foot-count">
-				{result.incomplete ? "Some results missing · " : ""}
-				{result.total > shown
-					? `${shown} of ${result.total}`
-					: `${shown} ${shown === 1 ? "match" : "matches"}`}
-			</span>
-		</footer>
+		<WidgetFoot at={at} stale={stale} refreshing={refreshing} now={now} onRefresh={onRefresh}>
+			{result.incomplete ? "Some results missing · " : ""}
+			{result.total > shown
+				? `${shown} of ${result.total}`
+				: `${shown} ${shown === 1 ? "match" : "matches"}`}
+		</WidgetFoot>
 	);
 }

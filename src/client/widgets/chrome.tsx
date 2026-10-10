@@ -1,4 +1,11 @@
-import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useState } from "react";
+import {
+	type CSSProperties,
+	type ReactNode,
+	type RefObject,
+	useEffect,
+	useLayoutEffect,
+	useState,
+} from "react";
 import type { QueryError, QueryResult } from "../../shared/widgets.ts";
 import { ago, clock } from "./describe.ts";
 import { ClockIcon, LockIcon, RefreshIcon, SearchIcon, SettingsIcon, WarnIcon } from "./icons.tsx";
@@ -147,11 +154,25 @@ export function WidgetShell(props: ShellProps) {
 }
 
 /** A number that pops when it changes. */
-function Count({ value }: { value: number }) {
+export function Count({
+	value,
+	one,
+	many,
+}: {
+	value: number;
+	/** What it counts, for its tooltip: “match”, and “matches”. */
+	one?: string;
+	many?: string;
+}) {
 	const [shown, setShown] = useState({ value, bump: 0 });
 	if (shown.value !== value) setShown({ value, bump: shown.bump + 1 });
 	return (
-		<span key={shown.bump} className="widget-count" data-pop={shown.bump > 0 || undefined}>
+		<span
+			key={shown.bump}
+			className="widget-count"
+			data-pop={shown.bump > 0 || undefined}
+			title={one && many ? `${value} ${value === 1 ? one : many}` : undefined}
+		>
 			{value > 999 ? `${Math.round(value / 100) / 10}k` : value}
 		</span>
 	);
@@ -237,6 +258,8 @@ export function QueryErrorEmpty({
 	readOnly,
 	onRefresh,
 	onConfigure,
+	what = "that",
+	editLabel = "Change it",
 }: {
 	error: QueryError;
 	/** What couldn't load: “this timeline”. */
@@ -245,6 +268,10 @@ export function QueryErrorEmpty({
 	readOnly?: boolean;
 	onRefresh?: () => void;
 	onConfigure?: () => void;
+	/** What GitHub couldn't read, when it was asked something it didn't understand: “this search”. */
+	what?: string;
+	/** The action that fixes it. */
+	editLabel?: string;
 }) {
 	switch (error.reason) {
 		case "signed_out":
@@ -279,13 +306,13 @@ export function QueryErrorEmpty({
 			return (
 				<WidgetEmpty
 					icon={<SearchIcon size={20} />}
-					title="GitHub couldn't read that"
+					title={`GitHub couldn't read ${what}`}
 					detail={error.message}
 					tone="warn"
 				>
 					{!readOnly && onConfigure && (
 						<button type="button" className="widget-action" onClick={onConfigure}>
-							Change it
+							{editLabel}
 						</button>
 					)}
 				</WidgetEmpty>
@@ -362,4 +389,49 @@ export async function copyText(text: string): Promise<boolean> {
 		area.remove();
 		return ok;
 	}
+}
+
+/** Placeholder rows while the first results load. */
+export function SkeletonRows({
+	widths = [0.82, 0.64, 0.9, 0.55, 0.74, 0.6],
+}: {
+	widths?: number[];
+}) {
+	return (
+		<ul className="widget-rows" aria-busy="true" aria-label="Loading">
+			{widths.map((width, i) => (
+				<li
+					key={i}
+					className="widget-row widget-row-skeleton"
+					style={{ "--i": i } as CSSProperties}
+				>
+					<span className="skeleton widget-skeleton-dot" />
+					<span className="widget-row-main">
+						<span className="skeleton" style={{ width: `${width * 100}%` }} />
+						<span className="skeleton short" />
+					</span>
+				</li>
+			))}
+		</ul>
+	);
+}
+
+// Names the review queue, milestone and stale finder used before these were shared.
+export const Empty = WidgetEmpty;
+export const LiveFooter = WidgetFoot;
+export const useTick = useNow;
+
+/** Why a query couldn't run: `noun` is “list”, not “this list”. */
+export function QueryErrorState({
+	noun,
+	...props
+}: Omit<Parameters<typeof QueryErrorEmpty>[0], "what"> & { noun: string }) {
+	return (
+		<QueryErrorEmpty
+			editLabel="Edit the search"
+			{...props}
+			noun={`this ${noun}`}
+			what="this search"
+		/>
+	);
 }
