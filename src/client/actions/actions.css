@@ -1053,6 +1053,16 @@
 	margin: 0;
 }
 
+/* The off-screen copy of the board a snapshot is drawn from (snapshot.ts):
+   every shape as it settles, not part way through an entrance. */
+.snapshot-stage,
+.snapshot-stage *,
+.snapshot-stage *::before,
+.snapshot-stage *::after {
+	animation: none !important;
+	transition: none !important;
+}
+
 /* Include a snapshot: a small switch, its knob sliding over on a spring. */
 .backlink-include {
 	position: relative;

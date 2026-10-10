@@ -12,12 +12,20 @@ import type { Rect } from "../snapping.ts";
 // (It's a maintained fork of html-to-image, whose newer releases React Flow
 // warns against; rendering our own SVG would mean re-implementing every shape.)
 //
+// It draws the board as it is, not as this person sees it this moment: a copy
+// at rest, with no selection, hover, staged-change marks, toolbars, cursors
+// or minimap (see `stage`).
+//
 // Cards the comment's readers mustn't see are hidden before rasterising:
 // their contents are dropped from the clone entirely (not blurred, which can
 // be undone) and replaced by a plain "private" placeholder of the same size.
 
-/** Board chrome that never belongs in a snapshot: selection UI, cursors, guides. */
-const CHROME = [
+/**
+ * What never belongs in a snapshot: selection UI, cursors and guides, and
+ * staged changes' marks (which may not be true by the time it's read).
+ */
+export const CHROME = [
+	".staged-marks",
 	".selection-frame",
 	".guides",
 	".cursors-layer",
@@ -32,8 +40,86 @@ const CHROME = [
 	".connector-draft",
 	".react-flow__node-toolbar",
 	".react-flow__resize-control",
+	".react-flow__nodesselection",
+	".react-flow__selection",
+	".react-flow__minimap",
+	".react-flow__panel",
 	"[data-snapshot='hide']",
 ].join(",");
+
+/** Attributes saying something's selected or highlighted for this person, right now. */
+const TRANSIENT_ATTRIBUTES = ["data-selected", "data-linked", "data-highlighted"];
+/** React Flow's classes for the same. */
+const TRANSIENT_CLASSES = ["selected", "dragging"];
+
+/**
+ * Put a copy of the board at rest: no chrome, nothing selected or
+ * highlighted. Works on a detached copy, so the board on screen never
+ * changes while a snapshot is drawn.
+ */
+export function atRest(root: Element): void {
+	for (const element of root.querySelectorAll(CHROME)) element.remove();
+	for (const element of [root, ...root.querySelectorAll("*")]) {
+		for (const name of TRANSIENT_ATTRIBUTES) element.removeAttribute(name);
+		element.classList.remove(...TRANSIENT_CLASSES);
+	}
+}
+
+/**
+ * Stage a copy of the viewport at rest, off screen, for drawing.
+ *
+ * modern-screenshot inlines each element's computed style, so whatever the
+ * element on screen looks like right now (selected, hovered, mid-animation)
+ * is what gets drawn. So we draw a copy instead: inside shallow copies of its
+ * ancestors up to the `.react-flow` element (so the board's styles match it
+ * as they match the original), out of view, inert, with nothing selected,
+ * under no pointer, and with animations and transitions off (`.snapshot-stage`
+ * in actions.css), so every shape is drawn as it settles.
+ */
+function stage(
+	viewport: HTMLElement,
+	flow: HTMLElement,
+): { copy: HTMLElement; dispose: () => void } {
+	const chain: HTMLElement[] = [];
+	for (let element = viewport.parentElement; element; element = element.parentElement) {
+		chain.unshift(element);
+		if (element === flow) break;
+	}
+	let host: HTMLElement | null = null;
+	let inner: HTMLElement | null = null;
+	for (const element of chain) {
+		const shell = element.cloneNode(false) as HTMLElement;
+		shell.removeAttribute("id");
+		if (inner) inner.append(shell);
+		else host = shell;
+		inner = shell;
+	}
+	const copy = viewport.cloneNode(true) as HTMLElement;
+	// Typed values aren't attributes, so cloning leaves them behind.
+	const fields = "input, textarea, select";
+	const from = viewport.querySelectorAll<HTMLInputElement>(fields);
+	copy.querySelectorAll<HTMLInputElement>(fields).forEach((field, i) => {
+		const value = from[i]?.value;
+		if (value !== undefined) field.value = value;
+	});
+	atRest(copy);
+	const root = host ?? copy;
+	if (inner) inner.append(copy);
+	root.classList.add("snapshot-stage");
+	root.setAttribute("aria-hidden", "true");
+	root.inert = true;
+	Object.assign(root.style, {
+		position: "fixed",
+		left: "-200vw",
+		top: "0",
+		width: `${flow.clientWidth}px`,
+		height: `${flow.clientHeight}px`,
+		overflow: "hidden",
+		pointerEvents: "none",
+	});
+	(flow.parentElement ?? document.body).append(root);
+	return { copy, dispose: () => root.remove() };
+}
 
 /** Space around the selection, in board units. */
 export const SNAPSHOT_PADDING = 160;
@@ -138,28 +224,34 @@ export async function renderSnapshot(request: SnapshotRequest): Promise<Blob> {
 			if (!hidden.has(id)) continue;
 			node.replaceChildren(placeholder(clone.ownerDocument, request.sizeOf?.(id)));
 		}
+		// What was drawn, for the e2e tests to look at.
+		if (import.meta.env.DEV) Object.assign(window, { tackSnapshotDom: clone.outerHTML });
 	};
 
-	const maxScale = SNAPSHOT_MAX_SIDE / Math.max(width, height);
-	const scales = [Math.min(2, window.devicePixelRatio || 1, maxScale), Math.min(1, maxScale)];
-	let blob: Blob | null = null;
-	for (const scale of new Set(scales)) {
-		blob = await domToBlob(viewport, {
-			type: "image/png",
-			width,
-			height,
-			scale,
-			backgroundColor: background,
-			filter,
-			onCloneNode,
-			style: {
-				width: `${width}px`,
-				height: `${height}px`,
-				transform: `translate(${-region.x * zoom}px, ${-region.y * zoom}px) scale(${zoom})`,
-				transformOrigin: "0 0",
-			},
-		});
-		if (blob.size <= SNAPSHOT_MAX_BYTES) return blob;
+	const { copy, dispose } = stage(viewport, request.flow);
+	try {
+		const maxScale = SNAPSHOT_MAX_SIDE / Math.max(width, height);
+		const scales = [Math.min(2, window.devicePixelRatio || 1, maxScale), Math.min(1, maxScale)];
+		for (const scale of new Set(scales)) {
+			const blob = await domToBlob(copy, {
+				type: "image/png",
+				width,
+				height,
+				scale,
+				backgroundColor: background,
+				filter,
+				onCloneNode,
+				style: {
+					width: `${width}px`,
+					height: `${height}px`,
+					transform: `translate(${-region.x * zoom}px, ${-region.y * zoom}px) scale(${zoom})`,
+					transformOrigin: "0 0",
+				},
+			});
+			if (blob.size <= SNAPSHOT_MAX_BYTES) return blob;
+		}
+	} finally {
+		dispose();
 	}
 	throw new Error("The snapshot came out too big to upload. Try selecting fewer cards.");
 }

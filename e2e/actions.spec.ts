@@ -261,6 +261,16 @@ test("backlinks are a link to the board, naming the card's section, by default",
 });
 
 test("backlinks with snapshots that hide other private repositories", async ({ page }) => {
+	// A staged label, so the card has staged marks the snapshot must leave out.
+	await select(page, "Custom domains");
+	await page.keyboard.press("Alt+KeyL");
+	const labels = page.getByRole("dialog", { name: "Labels" });
+	await labels.getByRole("combobox").fill("docs");
+	await page.keyboard.press("Enter");
+	await page.keyboard.press("ControlOrMeta+Enter");
+	await expect(labels).toHaveCount(0);
+	await expect(node(page, "Custom domains").locator(".staged-label")).toHaveCount(1);
+
 	await select(page, "Custom domains", "Rotate the signing keys");
 	await page.keyboard.press("Alt+KeyK");
 	const panel = page.getByRole("dialog", { name: "Comment with a link to this board" });
@@ -287,6 +297,20 @@ test("backlinks with snapshots that hide other private repositories", async ({ p
 	);
 	expect(sizes).toHaveLength(2);
 	expect(sizes.every((bytes) => bytes > 1000)).toBe(true);
+
+	// The image is of the board as it is (#69): the cards, but not their
+	// selection, nor the label that's only staged.
+	const drawn = await page.evaluate(
+		() => (window as unknown as { tackSnapshotDom: string }).tackSnapshotDom,
+	);
+	expect(drawn).toContain("Custom domains");
+	expect(drawn).not.toContain("staged-");
+	expect(drawn).not.toMatch(/data-selected="true"|class="[^"]*\bselected\b/);
+	expect(drawn).not.toContain("react-flow__node-toolbar");
+	// The board on screen kept its selection and marks throughout.
+	await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
+	await expect(node(page, "Custom domains").locator(".staged-label")).toHaveCount(1);
+	await expect(page.locator(".snapshot-stage")).toHaveCount(0);
 
 	// The choice is remembered for this board.
 	await page.keyboard.press("Alt+KeyK");
