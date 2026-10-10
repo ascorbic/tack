@@ -1,10 +1,12 @@
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { Person } from "../../shared/auth.ts";
 import type {
 	BoardInfo,
 	BoardMember,
 	BoardMembers,
 	MemberRole,
+	PeopleSuggestions,
+	PersonLookup,
 	Role,
 	UpdateBoardRequest,
 	Visibility,
@@ -13,6 +15,8 @@ import { personColor, personUser } from "../auth/me.ts";
 import { Avatar } from "../People.tsx";
 import type { ApiResult } from "./api.ts";
 import { VisibilityIcon } from "./icons.tsx";
+import { InviteField } from "./InviteField.tsx";
+import { loginHash, notOnGitHub, quoted } from "./invites.ts";
 
 /** What sharing does, so the gallery can fake it. */
 export interface ShareActions {
@@ -21,11 +25,13 @@ export interface ShareActions {
 	setRole: (login: string, role: Role) => Promise<ApiResult<BoardMembers>>;
 	remove: (login: string) => Promise<ApiResult<BoardMembers>>;
 	update: (request: UpdateBoardRequest) => Promise<ApiResult<BoardInfo>>;
+	/** Who a login is (on this Tack, or on GitHub), to preview invites as they're typed. */
+	lookup?: (login: string) => Promise<ApiResult<PersonLookup>>;
+	/** People on this Tack whose login or name starts with `q`, to suggest. */
+	suggest?: (q: string) => Promise<ApiResult<PeopleSuggestions>>;
 	/** The link to copy. */
 	link: string;
 }
-
-const LOGIN = /^@?[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 
 const VISIBILITY: Record<Visibility, { label: string; describe: (role: MemberRole) => string }> = {
 	private: {
@@ -38,8 +44,7 @@ const VISIBILITY: Record<Visibility, { label: string; describe: (role: MemberRol
 	},
 	public: {
 		label: "Anyone with the link",
-		describe: (role) =>
-			`Anyone with the link can view, no sign-in needed. People on this Tack ${can(role)}.`,
+		describe: () => "Anyone with the link can view it, no sign-in needed.",
 	},
 };
 
@@ -66,6 +71,8 @@ export function SharePanel({
 	onClose,
 	onLeft,
 	headingId,
+	setupPending = false,
+	repos,
 }: {
 	board: BoardInfo;
 	me: Person | null;
@@ -76,10 +83,19 @@ export function SharePanel({
 	/** You left the board. */
 	onLeft?: () => void;
 	headingId?: string;
+	/**
+	 * This Tack isn't set up yet, so access control is off: everyone who
+	 * reaches it counts as on it, signed in or not.
+	 */
+	setupPending?: boolean;
+	/** Whether the board's repositories are live and writable (for editors). */
+	repos?: ReactNode;
 }) {
 	const [members, setMembers] = useState<BoardMember[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [fresh, setFresh] = useState<Set<string>>(new Set());
+	// Tack never emails anyone: after an invite, say who has to send the link.
+	const [sendLink, setSendLink] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -95,10 +111,13 @@ export function SharePanel({
 
 	const apply = (result: ApiResult<BoardMembers>): boolean => {
 		if (!result.ok) {
+			const logins = result.logins ?? [];
 			setError(
-				result.error === "invalid_login" && result.logins?.length
-					? `“${result.logins.join("”, “")}” ${result.logins.length === 1 ? "isn’t a" : "aren’t"} GitHub username${result.logins.length === 1 ? "" : "s"}.`
-					: (ERRORS[result.error] ?? "Something went wrong. Please try again."),
+				result.error === "invalid_login" && logins.length
+					? `${quoted(logins)} ${logins.length === 1 ? "isn’t a" : "aren’t"} GitHub username${logins.length === 1 ? "" : "s"}.`
+					: result.error === "unknown_login" && logins.length
+						? notOnGitHub(logins)
+						: (ERRORS[result.error] ?? "Something went wrong. Please try again."),
 			);
 			return false;
 		}
@@ -112,7 +131,9 @@ export function SharePanel({
 		const ok = apply(await actions.invite(logins, role));
 		if (ok) {
 			const added = logins.map((login) => login.replace(/^@/, "").toLowerCase());
-			setFresh(new Set(added.filter((login) => !known.has(login))));
+			const newcomers = added.filter((login) => !known.has(login));
+			setFresh(new Set(newcomers));
+			if (newcomers.length > 0) setSendLink(true);
 		}
 		return ok;
 	};
@@ -148,6 +169,24 @@ export function SharePanel({
 
 	const isOwner = board.owner !== null && board.owner.id === me?.id;
 	const amMember = members?.some((member) => member.person?.id === me?.id) ?? false;
+	const roleSelect = (
+		<Select
+			label="What people on this Tack can do"
+			value={board.instanceRole}
+			onChange={(value) => void update({ instanceRole: value as MemberRole })}
+			options={[
+				{ value: "editor", label: "Can edit" },
+				{ value: "viewer", label: "Can view" },
+			]}
+		/>
+	);
+	const instanceRole = board.canManage ? (
+		roleSelect
+	) : (
+		<span className="share-role-label">
+			{board.instanceRole === "editor" ? "Can edit" : "Can view"}
+		</span>
+	);
 
 	return (
 		<div className="share" data-managing={board.canManage}>
@@ -164,7 +203,15 @@ export function SharePanel({
 				)}
 			</header>
 
-			{board.canManage && <InviteForm onInvite={invite} onInvalid={setError} />}
+			{board.canManage && (
+				<InviteField
+					members={members ?? []}
+					lookup={actions.lookup}
+					suggest={actions.suggest}
+					onInvite={invite}
+					onError={setError}
+				/>
+			)}
 
 			{error && (
 				<p className="share-error" role="alert">
@@ -190,12 +237,10 @@ export function SharePanel({
 
 			<section className="share-access" aria-label="General access">
 				<h3>General access</h3>
-				<div className="share-access-row">
-					<span className="share-access-icon" data-visibility={board.visibility}>
-						<VisibilityIcon visibility={board.visibility} />
-					</span>
-					<div className="share-access-text">
-						{board.canManage ? (
+				<AccessRow
+					visibility={board.visibility}
+					title={
+						board.canManage ? (
 							<Select
 								label="Who can open this board"
 								value={board.visibility}
@@ -208,104 +253,154 @@ export function SharePanel({
 							/>
 						) : (
 							<strong>{VISIBILITY[board.visibility].label}</strong>
-						)}
-						<span className="share-access-describe">
-							{VISIBILITY[board.visibility].describe(board.instanceRole)}
-						</span>
-					</div>
-					{board.visibility !== "private" &&
-						(board.canManage ? (
-							<Select
-								label="What people on this Tack can do"
-								value={board.instanceRole}
-								onChange={(value) => void update({ instanceRole: value as MemberRole })}
-								options={[
-									{ value: "editor", label: "Can edit" },
-									{ value: "viewer", label: "Can view" },
-								]}
-							/>
-						) : (
-							<span className="share-role-label">
-								{board.instanceRole === "editor" ? "Can edit" : "Can view"}
-							</span>
-						))}
-				</div>
+						)
+					}
+					describe={VISIBILITY[board.visibility].describe(board.instanceRole)}
+					role={
+						board.visibility === "instance" ? (
+							instanceRole
+						) : board.visibility === "public" ? (
+							// The public can only ever look: what people here can do is the next row.
+							<span className="share-role-label">Can view</span>
+						) : null
+					}
+				/>
+				{board.visibility === "public" && (
+					<AccessRow
+						visibility="instance"
+						title={<strong>People on this Tack</strong>}
+						describe={`Everyone who can sign in here ${can(board.instanceRole)}.`}
+						role={instanceRole}
+						entering
+					/>
+				)}
+				{setupPending && board.visibility !== "private" && (
+					<p className="share-note">
+						This Tack isn’t set up yet, so anyone who opens it counts as on this Tack, signed in or
+						not.
+					</p>
+				)}
 			</section>
 
-			<footer className="share-foot">
-				{amMember && !isOwner && (
-					<button type="button" className="share-leave" onClick={() => void leave()}>
-						Leave board
-					</button>
-				)}
-				<CopyLink link={actions.link} />
-			</footer>
+			{repos}
+
+			<ShareFoot
+				board={board}
+				canLeave={amMember && !isOwner}
+				onLeave={leave}
+				link={actions.link}
+				sendLink={sendLink}
+				onCopied={() => setSendLink(false)}
+			/>
 		</div>
 	);
 }
 
-function InviteForm({
-	onInvite,
-	onInvalid,
+function AccessRow({
+	visibility,
+	title,
+	describe,
+	role,
+	entering = false,
 }: {
-	onInvite: (logins: string[], role: MemberRole) => Promise<boolean>;
-	onInvalid: (message: string) => void;
+	visibility: Visibility;
+	title: ReactNode;
+	describe: string;
+	role: ReactNode;
+	/** Slide in: it's just appeared because the visibility changed. */
+	entering?: boolean;
 }) {
-	const [value, setValue] = useState("");
-	const [role, setRole] = useState<MemberRole>("editor");
-	const [busy, setBusy] = useState(false);
-	const id = useId();
+	return (
+		<div className="share-access-row" data-entering={entering || undefined}>
+			<span className="share-access-icon" data-visibility={visibility}>
+				<VisibilityIcon visibility={visibility} />
+			</span>
+			<div className="share-access-text">
+				{title}
+				<span className="share-access-describe">{describe}</span>
+			</div>
+			{role}
+		</div>
+	);
+}
 
-	const submit = async (event: FormEvent) => {
-		event.preventDefault();
-		const logins = value
-			.split(/[\s,]+/)
-			.map((login) => login.trim())
-			.filter(Boolean);
-		if (logins.length === 0) return;
-		const invalid = logins.filter((login) => !LOGIN.test(login));
-		if (invalid.length > 0) {
-			onInvalid(
-				`“${invalid.join("”, “")}” ${invalid.length === 1 ? "isn’t a GitHub username" : "aren’t GitHub usernames"}.`,
-			);
-			return;
-		}
-		setBusy(true);
-		if (await onInvite(logins, role)) setValue("");
-		setBusy(false);
-	};
+/** Leave (asking first), and copy the link, nudged after an invite. */
+function ShareFoot({
+	board,
+	canLeave,
+	onLeave,
+	link,
+	sendLink,
+	onCopied,
+}: {
+	board: BoardInfo;
+	canLeave: boolean;
+	onLeave: () => Promise<void>;
+	link: string;
+	sendLink: boolean;
+	onCopied: () => void;
+}) {
+	const [confirming, setConfirming] = useState(false);
+	const [leaving, setLeaving] = useState(false);
+	const stay = useRef<HTMLButtonElement>(null);
+	useEffect(() => {
+		if (confirming) stay.current?.focus();
+	}, [confirming]);
+
+	if (confirming) {
+		return (
+			<footer
+				className="share-foot share-confirm"
+				role="alertdialog"
+				aria-label="Leave this board?"
+			>
+				<p>
+					<strong>Leave “{board.title}”?</strong>{" "}
+					{board.visibility === "private"
+						? "You’ll need an invite to get back in."
+						: board.visibility === "public"
+							? "You can still open it from its link."
+							: "You can still open it as someone on this Tack."}
+				</p>
+				<button
+					ref={stay}
+					type="button"
+					className="share-cancel"
+					onClick={() => setConfirming(false)}
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					className="share-leave-confirm"
+					disabled={leaving}
+					onClick={async () => {
+						setLeaving(true);
+						await onLeave();
+						setLeaving(false);
+					}}
+				>
+					{leaving ? "Leaving…" : "Leave"}
+				</button>
+			</footer>
+		);
+	}
 
 	return (
-		<form className="share-invite" onSubmit={(event) => void submit(event)}>
-			<label htmlFor={id} className="visually-hidden">
-				GitHub usernames to invite
-			</label>
-			<span className="share-invite-field">
-				<span className="share-invite-at" aria-hidden="true">
-					@
-				</span>
-				<input
-					id={id}
-					value={value}
-					placeholder="GitHub username, or several"
-					autoComplete="off"
-					spellCheck={false}
-					onChange={(event) => setValue(event.target.value)}
-				/>
-				<Select
-					label="Invite as"
-					value={role}
-					onChange={(next) => setRole(next as MemberRole)}
-					options={[
-						{ value: "editor", label: "Can edit" },
-						{ value: "viewer", label: "Can view" },
-					]}
-				/>
-			</span>
-			<button type="submit" className="primary" disabled={busy || !value.trim()}>
-				{busy ? "Inviting…" : "Invite"}
-			</button>
-		</form>
+		<footer className="share-foot" data-send-link={sendLink || undefined}>
+			{sendLink ? (
+				<p className="share-hint" role="status">
+					Tack doesn’t email anyone. Copy the link and send it to them.
+				</p>
+			) : (
+				canLeave && (
+					<button type="button" className="share-leave" onClick={() => setConfirming(true)}>
+						Leave board
+					</button>
+				)
+			)}
+			<CopyLink link={link} nudge={sendLink} onCopied={onCopied} />
+		</footer>
 	);
 }
 
@@ -343,7 +438,8 @@ function MemberRow({
 					{you && <span className="share-you"> (you)</span>}
 				</strong>
 				<span className="share-member-sub">
-					{person ? `@${person.login}` : `@${member.login} · invited, hasn’t signed in yet`}
+					<span className="share-login">@{person?.login ?? member.login}</span>
+					{!person && " · invited, hasn’t signed in yet"}
 				</span>
 			</span>
 			{manage ? (
@@ -395,7 +491,16 @@ function Select({
 	);
 }
 
-function CopyLink({ link }: { link: string }): ReactNode {
+function CopyLink({
+	link,
+	nudge = false,
+	onCopied,
+}: {
+	link: string;
+	/** Draw the eye to it: there's someone to send it to. */
+	nudge?: boolean;
+	onCopied?: () => void;
+}): ReactNode {
 	const [copied, setCopied] = useState(false);
 	const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(timer.current), []);
@@ -411,7 +516,10 @@ function CopyLink({ link }: { link: string }): ReactNode {
 		setCopied(true);
 		clearTimeout(timer.current);
 		// Long enough to read, whatever the motion setting.
-		timer.current = setTimeout(() => setCopied(false), 1800);
+		timer.current = setTimeout(() => {
+			setCopied(false);
+			onCopied?.();
+		}, 1800);
 	};
 
 	return (
@@ -419,6 +527,8 @@ function CopyLink({ link }: { link: string }): ReactNode {
 			type="button"
 			className="share-copy"
 			data-copied={copied || undefined}
+			data-nudge={(nudge && !copied) || undefined}
+			data-autofocus-fallback=""
 			onClick={() => void copy()}
 		>
 			<span className="share-copy-icon" aria-hidden="true">
@@ -435,10 +545,4 @@ function CopyLink({ link }: { link: string }): ReactNode {
 			<span aria-live="polite">{copied ? "Link copied" : "Copy link"}</span>
 		</button>
 	);
-}
-
-function loginHash(login: string): number {
-	let hash = 0;
-	for (const char of login) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) | 0;
-	return hash;
 }

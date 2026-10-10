@@ -24,6 +24,9 @@ export function ShareDialog({
 		if (open && !el.open) {
 			setClosing(false);
 			el.showModal();
+			// Most people open Share to type a name: start there, or on Copy
+			// link for those who can't invite, rather than on Close.
+			el.querySelector<HTMLElement>("[data-autofocus], [data-autofocus-fallback]")?.focus();
 		} else if (!open && el.open) {
 			el.close();
 		}

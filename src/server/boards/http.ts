@@ -14,6 +14,7 @@ export const STATUS: Record<BoardError, number> = {
 	not_found: 404,
 	invalid: 400,
 	invalid_login: 422,
+	unknown_login: 422,
 	too_large: 413,
 };
 

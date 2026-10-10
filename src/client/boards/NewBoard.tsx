@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useId, useMemo, useRef, useState } from "react";
 import { parseRepoInput } from "../../shared/actions.ts";
-import type { BoardInfo } from "../../shared/boards.ts";
+import type { BoardInfo, Visibility } from "../../shared/boards.ts";
 import { DEFAULT_HOST } from "../../shared/refs.ts";
 import { TEMPLATE_REPOS_MAX, type TemplateInfo } from "../../shared/templates.ts";
 import { widgetDefinition } from "../../shared/widgetRegistry.ts";
@@ -8,7 +8,7 @@ import { repoName } from "../actions/selection.ts";
 import { recentRepos } from "../actions/services.ts";
 import { relativeTime } from "./api.ts";
 import { BoardThumbnail } from "./BoardThumbnail.tsx";
-import { PlusIcon } from "./icons.tsx";
+import { PlusIcon, VisibilityIcon } from "./icons.tsx";
 import { Modal } from "./Modal.tsx";
 import {
 	BUILT_IN_INFOS,
@@ -30,6 +30,8 @@ export interface NewBoardRequest {
 	title: string;
 	repos: string[];
 	carryFrom: string | null;
+	/** Who can open it, when there was a choice. */
+	visibility?: Visibility;
 }
 
 const BLANK = "blank";
@@ -59,6 +61,12 @@ export interface NewBoardPickerProps {
 	onDelete?: (template: TemplateInfo) => Promise<boolean>;
 	/** Which template to start on. */
 	initial?: string;
+	/**
+	 * Who new boards are open to, to start with (the person's last choice),
+	 * offering the choice. Absent where there's no choice: boards made
+	 * signed out have no owner, so they're open to everyone.
+	 */
+	access?: Visibility;
 	headingId?: string;
 	/** The saved templates, for the gallery; the live page reads the shared library. */
 	saved?: SavedTemplates;
@@ -73,10 +81,13 @@ export function NewBoardPicker({
 	error = null,
 	onDelete,
 	initial,
+	access,
 	headingId,
 	saved: givenSaved,
 	now,
 }: NewBoardPickerProps) {
+	// Kept while browsing templates: it's about the board, not the template.
+	const [visibility, setVisibility] = useState(access);
 	const library = useSavedTemplates();
 	const saved = givenSaved ?? library;
 	const savedList = saved.status === "ready" ? saved.templates : [];
@@ -151,6 +162,8 @@ export function NewBoardPicker({
 				boards={boards}
 				creating={creating}
 				error={error}
+				visibility={visibility}
+				onVisibility={setVisibility}
 				onCancel={onCancel}
 				onCreate={onCreate}
 				onDelete={
@@ -340,6 +353,8 @@ function Details({
 	boards,
 	creating,
 	error,
+	visibility,
+	onVisibility,
 	onCancel,
 	onCreate,
 	onDelete,
@@ -349,6 +364,8 @@ function Details({
 	boards: BoardInfo[];
 	creating: boolean;
 	error: string | null;
+	visibility?: Visibility;
+	onVisibility: (visibility: Visibility) => void;
 	onCancel?: () => void;
 	onCreate: (request: NewBoardRequest) => void;
 	onDelete?: () => Promise<void>;
@@ -382,6 +399,7 @@ function Details({
 			title: title.trim(),
 			repos,
 			carryFrom,
+			...(visibility ? { visibility } : {}),
 		});
 	};
 
@@ -438,6 +456,7 @@ function Details({
 					/>
 				</label>
 				{spec && <RepoField spec={spec} repos={repos} onChange={setRepos} />}
+				{visibility && <AccessField value={visibility} onChange={onVisibility} />}
 				{carryable.length > 0 && (
 					<label className="new-board-field">
 						<span>Bring open action items from</span>
@@ -517,6 +536,45 @@ function Details({
 				</div>
 			</form>
 		</aside>
+	);
+}
+
+const ACCESS_CHOICES: { value: Visibility; label: string; hint: string }[] = [
+	{ value: "instance", label: "Everyone on this Tack", hint: "can open and edit it" },
+	{ value: "private", label: "Only people I invite", hint: "until you share it" },
+];
+
+/** Who can open the new board: a choice, remembered for next time. */
+function AccessField({
+	value,
+	onChange,
+}: {
+	value: Visibility;
+	onChange: (value: Visibility) => void;
+}) {
+	const name = useId();
+	return (
+		<fieldset className="new-board-field new-board-access">
+			<legend>Who can open it</legend>
+			<div className="new-board-access-choices">
+				{ACCESS_CHOICES.map((choice) => (
+					<label key={choice.value} data-checked={value === choice.value || undefined}>
+						<input
+							type="radio"
+							name={name}
+							value={choice.value}
+							checked={value === choice.value}
+							onChange={() => onChange(choice.value)}
+						/>
+						<VisibilityIcon visibility={choice.value} size={15} />
+						<span>
+							<strong>{choice.label}</strong>
+							<small>{choice.hint}</small>
+						</span>
+					</label>
+				))}
+			</div>
+		</fieldset>
 	);
 }
 

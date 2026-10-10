@@ -344,6 +344,8 @@ describe("comment commands", () => {
 		);
 
 		const pending = await createBoard(alice, "Pending plans", "private");
+		// On GitHub, but never signed in here: an invite that hasn't resolved.
+		github.addUser({ id: 404, login: "dave", name: "Dave", avatar_url: "" });
 		await invite(alice, pending.id, ["dave"], "viewer");
 		const waiting = github.comment(SECRET, 8, ALICE, "@tack add to pending plans");
 		await deliver(waiting);

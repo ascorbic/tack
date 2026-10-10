@@ -8,6 +8,8 @@ import type {
 	CreateBoardRequest,
 	CreatedBoard,
 	InviteRequest,
+	PeopleSuggestions,
+	PersonLookup,
 	Role,
 	UpdateBoardRequest,
 } from "../../shared/boards.ts";
@@ -68,6 +70,13 @@ export const boardsApi = {
 	setRole: (id: string, login: string, role: Role) =>
 		call<BoardMembers>(memberUrl(id, login), send("PATCH", { role })),
 	remove: (id: string, login: string) => call<BoardMembers>(memberUrl(id, login), send("DELETE")),
+};
+
+/** People to invite: suggestions from this Tack, and who a login is on GitHub. */
+export const peopleApi = {
+	suggest: (q: string) => call<PeopleSuggestions>(`/api/people?q=${encodeURIComponent(q)}`),
+	lookup: (login: string) =>
+		call<PersonLookup>(`/api/people/${encodeURIComponent(login.replace(/^@/, ""))}`),
 };
 
 /** The board's shareable link. */

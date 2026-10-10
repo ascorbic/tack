@@ -887,3 +887,88 @@ a.new-board-create {
 a.new-board-create:hover {
 	background: var(--accent-hover);
 }
+
+/* Who can open a new board: two cards, the choice remembered. */
+.new-board-access {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.new-board-access legend {
+	margin-bottom: 6px;
+	padding: 0;
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	font-weight: 640;
+}
+
+.new-board-access-choices {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+}
+
+.new-board-access label {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 10px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink-soft);
+	cursor: pointer;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.new-board-access label:hover {
+	background: var(--surface-muted);
+}
+
+.new-board-access label[data-checked] {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+	color: var(--accent);
+}
+
+.new-board-access label:has(input:focus-visible) {
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.new-board-access .icon {
+	margin-top: 2px;
+}
+
+.new-board-access label[data-checked] .icon {
+	animation: tpl-pop var(--t-settle) var(--ease-spring);
+}
+
+.new-board-field.new-board-access input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.new-board-access strong {
+	display: block;
+	color: var(--ink);
+	font-size: 13px;
+	font-weight: 620;
+	line-height: 1.3;
+}
+
+.new-board-access small {
+	display: block;
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.3;
+}

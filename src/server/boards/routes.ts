@@ -17,8 +17,10 @@ import { isCrossSite, json } from "../auth/http.ts";
 import { ACCESS_HEADER, type ConnectionAccess } from "../board.ts";
 import { log } from "../log.ts";
 import { directory } from "../namespaces.ts";
+import { normaliseLogins } from "../auth/logins.ts";
 import { visitorKey } from "./access.ts";
 import { STATUS, invalid, notAllowed, parse, respond, safeDecode, visitorFor } from "./http.ts";
+import { lookupLogins, refusedLogins } from "./people.ts";
 import { TemplateFields, createBoard } from "./templates.ts";
 
 export { visitorFor };
@@ -105,6 +107,14 @@ export async function handleBoards(request: Request, env: Env): Promise<Response
 		if (method === "POST") {
 			const body = await parse(request, InviteBody);
 			if (!body) return invalid();
+			// A typo would sit in the list as "invited" for ever: check
+			// GitHub has someone by each name first (where it can be asked).
+			const { valid } = normaliseLogins(body.logins);
+			const refused = refusedLogins(await lookupLogins(env, visitor, valid));
+			if (refused.length > 0) {
+				log.info("board.member.refused", { board: id, by: visitor.user?.login, logins: refused });
+				return respond({ ok: false, error: "unknown_login", logins: refused });
+			}
 			return respond(await index.invite(visitor, id, body));
 		}
 		return notAllowed();

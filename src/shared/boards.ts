@@ -170,12 +170,39 @@ export interface MemberUpdateRequest {
 	role: Role;
 }
 
+/**
+ * Who a GitHub login is, for inviting them (`GET /api/people/:login`):
+ * - known: they've signed in to this Tack
+ * - github: a GitHub user who hasn't yet
+ * - unknown: there's no such GitHub user (a typo, most likely)
+ * - organization: an organisation, which can't be invited
+ * - unchecked: GitHub couldn't be asked (no token, rate limited, offline)
+ */
+export interface PersonLookup {
+	login: string;
+	status: "known" | "github" | "unknown" | "organization" | "unchecked";
+	/** Their name and picture, where known. */
+	person: Person | null;
+	/**
+	 * Whether they'll be let into this Tack: true or false for people who've
+	 * signed in, true for logins on the allowlist, and null when only their
+	 * organisations could say (that's checked when they sign in).
+	 */
+	allowed: boolean | null;
+}
+
+/** `GET /api/people?q=`: people on this Tack whose login or name starts with `q`. */
+export interface PeopleSuggestions {
+	people: PersonLookup[];
+}
+
 export type BoardError =
 	| "sign_in_required"
 	| "forbidden"
 	| "not_found"
 	| "invalid"
 	| "invalid_login"
+	| "unknown_login"
 	| "owner_required"
 	| "too_large";
 
@@ -217,6 +244,11 @@ export function slugify(title: string): string {
 /** Where a board lives: `/b/{id}/{slug}`. */
 export function boardPath(board: { id: string; slug: string }): string {
 	return `/b/${encodeURIComponent(board.id)}/${board.slug}`;
+}
+
+/** Whether a path is the home page (`/`, or `/index.html`); anything else unknown is a 404. */
+export function isHomePath(pathname: string): boolean {
+	return pathname === "/" || pathname === "" || pathname === "/index.html";
 }
 
 /** The board id from a `/b/{id}/{slug}` path, if it is one. */

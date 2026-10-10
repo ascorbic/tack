@@ -1,6 +1,7 @@
 import { routePartykitRequest } from "partyserver";
 import { handleAuth } from "./server/auth/routes.ts";
 import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.ts";
+import { handlePeople } from "./server/boards/people.ts";
 import { handleTemplates } from "./server/boards/templates.ts";
 import { handleClientError } from "./server/clientErrors.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
@@ -64,6 +65,10 @@ export default {
 		// The board index, membership and visibility.
 		const boards = await handleBoards(request, env);
 		if (boards) return boards;
+
+		// People to invite to boards, and checking their logins against GitHub.
+		const people = await handlePeople(request, env);
+		if (people) return people;
 
 		// Board sync: /parties/board/:id, checked per board (viewers get read-only connections).
 		const party = await routePartykitRequest(request, env, {
