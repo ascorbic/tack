@@ -13,13 +13,7 @@ import type * as Y from "yjs";
 import { boardRepos } from "../../shared/actions.ts";
 import type { Card } from "../../shared/cards.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
-import { resizeWidget } from "../../shared/structure.ts";
-import {
-	WIDGET_MIN,
-	readConfig,
-	updateWidgetConfig,
-	widgetSize,
-} from "../../shared/widgetRegistry.ts";
+import { readConfig, updateWidgetConfig } from "../../shared/widgetRegistry.ts";
 import type {
 	QueryError,
 	SearchResult,
@@ -27,8 +21,7 @@ import type {
 	WidgetQuery,
 } from "../../shared/widgets.ts";
 import { isFresh, takeFocus } from "../board.ts";
-import { DocContext, ReadOnlyContext, SectionContext } from "../DocContext.ts";
-import { RESIZE_HANDLES, ResizeGrip } from "../sections.tsx";
+import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { transactLocal } from "../undo.ts";
 import { WidgetContext } from "./context.ts";
 import { useRowDrag } from "./RowDrag.tsx";
@@ -197,33 +190,6 @@ export function useRows(id: string): RowProps {
 		onRowPointerDown: drag.onPointerDown,
 		onReveal: (key) => board.reveal(cards?.shapesFor(key) ?? []),
 	};
-}
-
-/** The grips that resize a selected widget. */
-export function WidgetGrips({
-	id,
-	shape,
-	selected,
-}: {
-	id: string;
-	shape: ShapeProps;
-	selected: boolean;
-}) {
-	const doc = useContext(DocContext);
-	const readOnly = useContext(ReadOnlyContext);
-	const ui = useContext(SectionContext);
-	if (!selected || !doc || readOnly) return null;
-	return RESIZE_HANDLES.map((handle) => (
-		<ResizeGrip
-			key={handle}
-			id={id}
-			handle={handle}
-			min={WIDGET_MIN}
-			start={() => ({ x: shape.x, y: shape.y, ...widgetSize(shape) })}
-			ui={ui}
-			onCommit={(rect) => transactLocal(doc, () => resizeWidget(doc, id, rect, ui.sizeOf))}
-		/>
-	));
 }
 
 /** A widget's config panel, floating beside it. */

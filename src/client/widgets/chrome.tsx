@@ -415,23 +415,3 @@ export function SkeletonRows({
 		</ul>
 	);
 }
-
-// Names the review queue, milestone and stale finder used before these were shared.
-export const Empty = WidgetEmpty;
-export const LiveFooter = WidgetFoot;
-export const useTick = useNow;
-
-/** Why a query couldn't run: `noun` is “list”, not “this list”. */
-export function QueryErrorState({
-	noun,
-	...props
-}: Omit<Parameters<typeof QueryErrorEmpty>[0], "what"> & { noun: string }) {
-	return (
-		<QueryErrorEmpty
-			editLabel="Edit the search"
-			{...props}
-			noun={`this ${noun}`}
-			what="this search"
-		/>
-	);
-}

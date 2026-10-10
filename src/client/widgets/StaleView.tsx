@@ -8,7 +8,14 @@ import {
 	spanText,
 	staleGroups,
 } from "../../shared/stale.ts";
-import { Count, Empty, LiveFooter, QueryErrorState, SkeletonRows, useTick } from "./chrome.tsx";
+import {
+	Count,
+	QueryErrorEmpty,
+	SkeletonRows,
+	WidgetEmpty,
+	WidgetFoot,
+	useNow,
+} from "./chrome.tsx";
 import { queryChips } from "./describe.ts";
 import type { RowProps, SearchStatus } from "./host.tsx";
 import {
@@ -68,7 +75,7 @@ const STAGED_TEXT: Record<StaleAction, string> = {
 
 export function StaleView(props: StaleViewProps) {
 	const { status, title, config, selected, enter, refreshing, compact, readOnly } = props;
-	const now = useTick(props.now);
+	const now = useNow(props.now);
 	const result = status.kind === "ready" ? status.results.items : undefined;
 	const groups = useMemo(
 		() => (result ? staleGroups(result.items, now, config.days) : null),
@@ -152,7 +159,7 @@ export function StaleView(props: StaleViewProps) {
 				)}
 			</div>
 			{status.kind === "ready" && result && !compact && (
-				<LiveFooter
+				<WidgetFoot
 					at={status.at}
 					stale={status.stale}
 					refreshing={refreshing}
@@ -162,7 +169,7 @@ export function StaleView(props: StaleViewProps) {
 					{result.total > result.items.length
 						? `quietest ${result.items.length} of ${result.total}`
 						: `${count} quiet`}
-				</LiveFooter>
+				</WidgetFoot>
 			)}
 		</section>
 	);
@@ -173,7 +180,7 @@ function Body(props: StaleViewProps & { now: number; groups: StaleGroup[] | null
 	switch (status.kind) {
 		case "unconfigured":
 			return (
-				<Empty
+				<WidgetEmpty
 					icon={<StaleIcon size={20} />}
 					title="What should it look through?"
 					detail={`Anything that's had no activity for ${spanText(config.days)} shows up here, quietest first.`}
@@ -197,15 +204,17 @@ function Body(props: StaleViewProps & { now: number; groups: StaleGroup[] | null
 							Write a search
 						</button>
 					)}
-				</Empty>
+				</WidgetEmpty>
 			);
 		case "loading":
 			return <SkeletonRows widths={[0.7, 0.85, 0.6, 0.76, 0.54]} />;
 		case "error":
 			return (
-				<QueryErrorState
+				<QueryErrorEmpty
+					what="this search"
 					error={status.error}
-					noun="finder"
+					noun="this finder"
+					editLabel="Edit the search"
 					readOnly={props.readOnly}
 					now={props.now}
 					onConfigure={props.onConfigure}
@@ -216,7 +225,7 @@ function Body(props: StaleViewProps & { now: number; groups: StaleGroup[] | null
 			if (!groups || props.count === 0) {
 				return (
 					<div className="stale-clear">
-						<Empty
+						<WidgetEmpty
 							icon={<CheckIcon size={22} />}
 							title="Nothing's gone quiet"
 							detail={`Everything here has had activity in the last ${spanText(config.days)}.`}

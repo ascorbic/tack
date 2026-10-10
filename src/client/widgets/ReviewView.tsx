@@ -12,7 +12,14 @@ import {
 	shortAge,
 	waitingFor,
 } from "../../shared/review.ts";
-import { Count, Empty, LiveFooter, QueryErrorState, SkeletonRows, useTick } from "./chrome.tsx";
+import {
+	Count,
+	QueryErrorEmpty,
+	SkeletonRows,
+	WidgetEmpty,
+	WidgetFoot,
+	useNow,
+} from "./chrome.tsx";
 import type { RowProps, SearchStatus } from "./host.tsx";
 import { CheckIcon, RefreshIcon, ReviewIcon, SettingsIcon } from "./icons.tsx";
 import "./kinds.css";
@@ -55,7 +62,7 @@ function scopeChip(config: ReviewConfig): string | null {
 
 export function ReviewView(props: ReviewViewProps) {
 	const { status, title, config, selected, enter, refreshing, compact, readOnly } = props;
-	const now = useTick(props.now);
+	const now = useNow(props.now);
 	const result = status.kind === "ready" ? status.results.pulls : undefined;
 	const stale = status.kind === "ready" && status.stale;
 	const chip = scopeChip(config);
@@ -128,7 +135,7 @@ export function ReviewView(props: ReviewViewProps) {
 				)}
 			</div>
 			{status.kind === "ready" && result && !compact && (
-				<LiveFooter
+				<WidgetFoot
 					at={status.at}
 					stale={status.stale}
 					refreshing={refreshing}
@@ -140,7 +147,7 @@ export function ReviewView(props: ReviewViewProps) {
 						: result.total === 0
 							? "nothing waiting"
 							: `${result.total} waiting`}
-				</LiveFooter>
+				</WidgetFoot>
 			)}
 		</section>
 	);
@@ -151,7 +158,7 @@ function Body(props: ReviewViewProps & { now: number }) {
 	switch (status.kind) {
 		case "unconfigured":
 			return (
-				<Empty
+				<WidgetEmpty
 					icon={<ReviewIcon size={20} />}
 					title="Whose reviews?"
 					detail="Pull requests waiting on you, a team, or everything in a repository, oldest first."
@@ -183,15 +190,16 @@ function Body(props: ReviewViewProps & { now: number }) {
 							)}
 						</div>
 					)}
-				</Empty>
+				</WidgetEmpty>
 			);
 		case "loading":
 			return <SkeletonRows widths={[0.78, 0.6, 0.86, 0.5, 0.7]} />;
 		case "error":
 			return (
-				<QueryErrorState
+				<QueryErrorEmpty
+					what="this search"
 					error={status.error}
-					noun="queue"
+					noun="this queue"
 					editLabel="Change what it shows"
 					readOnly={props.readOnly}
 					now={props.now}
@@ -204,7 +212,7 @@ function Body(props: ReviewViewProps & { now: number }) {
 			if (!result || result.items.length === 0) {
 				return (
 					<div className="review-clear">
-						<Empty
+						<WidgetEmpty
 							icon={<CheckIcon size={22} />}
 							title="All caught up"
 							detail={

@@ -13,19 +13,13 @@ import { useChangesUI } from "../changes/context.ts";
 import { useChangeList } from "../changes/store.ts";
 import { HistoryContext } from "../DocContext.ts";
 import { transactLocal } from "../undo.ts";
-import {
-	ConfigToolbar,
-	WidgetGrips,
-	suggestedRepo,
-	useCompact,
-	useRows,
-	useWidgetHost,
-} from "./host.tsx";
+import { ConfigToolbar, suggestedRepo, useCompact, useRows, useWidgetHost } from "./host.tsx";
 import { MilestoneConfigPanel, ReviewConfigPanel, StaleConfigPanel } from "./KindPanels.tsx";
 import { MilestoneView } from "./MilestoneView.tsx";
 import { ReviewView } from "./ReviewView.tsx";
 import { type StagedMark, type StaleAction, StaleView } from "./StaleView.tsx";
 import { useBoardCards } from "./store.ts";
+import { useResizeGrips } from "./WidgetNode.tsx";
 
 // The review queue, milestone and stale finder on the board (#43): each
 // kind's view, fed by the widget runner, with its panel beside it.
@@ -61,7 +55,7 @@ export function ReviewWidget({ id, shape, selected }: KindProps) {
 				onRefresh={host.refresh}
 				onConfigure={host.toggleConfig}
 			/>
-			<WidgetGrips id={id} shape={shape} selected={selected} />
+			{useResizeGrips(id, shape, selected)}
 			<ConfigToolbar id={id} open={host.configOpen && !host.readOnly}>
 				<ReviewConfigPanel
 					config={host.config}
@@ -112,7 +106,7 @@ export function MilestoneWidget({ id, shape, selected }: KindProps) {
 				onRefresh={host.refresh}
 				onConfigure={host.toggleConfig}
 			/>
-			<WidgetGrips id={id} shape={shape} selected={selected} />
+			{useResizeGrips(id, shape, selected)}
 			<ConfigToolbar id={id} open={host.configOpen && !host.readOnly}>
 				<MilestoneConfigPanel
 					config={config}
@@ -259,7 +253,7 @@ export function StaleWidget({ id, shape, selected }: KindProps) {
 				onRefresh={host.refresh}
 				onConfigure={host.toggleConfig}
 			/>
-			<WidgetGrips id={id} shape={shape} selected={selected} />
+			{useResizeGrips(id, shape, selected)}
 			<ConfigToolbar id={id} open={host.configOpen && !host.readOnly}>
 				<StaleConfigPanel
 					config={config}

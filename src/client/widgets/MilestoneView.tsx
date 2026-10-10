@@ -11,7 +11,7 @@ import {
 	progress,
 } from "../../shared/milestone.ts";
 import type { Milestone } from "../../shared/push.ts";
-import { Empty, LiveFooter, QueryErrorState, useTick } from "./chrome.tsx";
+import { QueryErrorEmpty, WidgetEmpty, WidgetFoot, useNow } from "./chrome.tsx";
 import type { RowProps, SearchStatus } from "./host.tsx";
 import { MilestoneIcon, RefreshIcon, SettingsIcon } from "./icons.tsx";
 import "./kinds.css";
@@ -47,7 +47,7 @@ const dateText = (at: number) =>
 
 export function MilestoneView(props: MilestoneViewProps) {
 	const { status, title, config, selected, enter, refreshing, compact, readOnly } = props;
-	const now = useTick(props.now);
+	const now = useNow(props.now);
 	const open = status.kind === "ready" ? status.results.open : undefined;
 	const closed = status.kind === "ready" ? status.results.closed : undefined;
 	const stats = open && closed ? progress(open.total, closed.total) : null;
@@ -128,7 +128,7 @@ export function MilestoneView(props: MilestoneViewProps) {
 				)}
 			</div>
 			{status.kind === "ready" && stats && !compact && (
-				<LiveFooter
+				<WidgetFoot
 					at={status.at}
 					stale={status.stale}
 					refreshing={refreshing}
@@ -136,7 +136,7 @@ export function MilestoneView(props: MilestoneViewProps) {
 					onRefresh={props.onRefresh}
 				>
 					{stats.open} open · {stats.closed} closed
-				</LiveFooter>
+				</WidgetFoot>
 			)}
 		</section>
 	);
@@ -151,9 +151,10 @@ function Body(props: MilestoneViewProps & { now: number }) {
 			return <Loading />;
 		case "error":
 			return (
-				<QueryErrorState
+				<QueryErrorEmpty
+					what="this search"
 					error={status.error}
-					noun="milestone"
+					noun="this milestone"
 					editLabel="Pick another milestone"
 					readOnly={props.readOnly}
 					now={now}
@@ -166,7 +167,7 @@ function Body(props: MilestoneViewProps & { now: number }) {
 			const closed = status.results.closed;
 			if (!open || !closed || open.total + closed.total === 0) {
 				return (
-					<Empty
+					<WidgetEmpty
 						icon={<MilestoneIcon size={20} />}
 						title="Nothing in this milestone yet"
 						detail="Its issues and pull requests show up here, with how it's going, as they're added."
@@ -191,7 +192,7 @@ function Body(props: MilestoneViewProps & { now: number }) {
 function Choose(props: MilestoneViewProps) {
 	const { milestones, now = Date.now() } = props;
 	return (
-		<Empty
+		<WidgetEmpty
 			icon={<MilestoneIcon size={20} />}
 			title="Which milestone?"
 			detail={
@@ -232,7 +233,7 @@ function Choose(props: MilestoneViewProps) {
 					{milestones && milestones.length > 0 ? "Another repository…" : "Set it up"}
 				</button>
 			)}
-		</Empty>
+		</WidgetEmpty>
 	);
 }
 
