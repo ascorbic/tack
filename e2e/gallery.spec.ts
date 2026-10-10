@@ -387,3 +387,54 @@ test("every history state renders", async ({ page }) => {
 	);
 	await expect(page.locator("figure[data-state=restore-copy]")).toContainText("Restore a copy");
 });
+
+test("every row and mini card state renders", async ({ page }) => {
+	await page.goto("/play/lists");
+	await expect(page.getByRole("heading", { name: "Lists and mini cards" })).toBeVisible();
+	const section = (name: string) =>
+		page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
+	const rows = section("Rows");
+	const minis = section("Mini cards");
+	await expect(rows.locator("figure")).toHaveCount(18);
+	await expect(minis.locator("figure")).toHaveCount(18);
+	await expect(rows.locator(".display-row")).toHaveCount(18);
+	await expect(minis.locator(".display-mini")).toHaveCount(18);
+	for (const state of ["open", "merged", "draft", "closed"]) {
+		await expect(rows.locator(`figure[data-state=${state}] .display-row`)).toHaveAttribute(
+			"data-state",
+			state,
+		);
+	}
+	await expect(rows.locator("figure[data-state=not-planned] .display-chip")).toHaveText(
+		"Not planned",
+	);
+	await expect(rows.locator("figure[data-state=failing] .display-ci-dot")).toHaveAttribute(
+		"data-ci",
+		"failing",
+	);
+	await expect(minis.locator("figure[data-state=pending] .display-ci")).toHaveAttribute(
+		"data-ci",
+		"pending",
+	);
+	// Stamps and dots are counted inline: dots drawn on a row, counted on a mini card.
+	await expect(rows.locator("figure[data-state=marks] .display-marks .stamp")).toHaveCount(2);
+	await expect(rows.locator("figure[data-state=marks] .vote-dot")).toHaveCount(3);
+	await expect(minis.locator("figure[data-state=marks] .display-dot-count")).toHaveText("3");
+	await expect(rows.locator("figure[data-state=selected] .display-row")).toHaveAttribute(
+		"data-selected",
+		"true",
+	);
+	await expect(rows.locator("figure[data-state=loading] .display-skeleton")).toBeVisible();
+	// Silent mode: someone else's lies face down, with nothing of its text; yours is marked.
+	const faceDown = rows.locator("figure[data-state=face-down] .display-sticky");
+	await expect(faceDown).toHaveAttribute("data-face-down", "true");
+	await expect(faceDown).toContainText("Face down · Tom Okafor");
+	await expect(rows.locator("figure[data-state=hidden] .display-hidden")).toBeVisible();
+	await expect(section("Zoomed out").locator(".display-item[data-tier=compact]")).toHaveCount(10);
+	await expect(section("Zoomed out").locator(".display-item[data-tier=far]")).toHaveCount(10);
+	const switches = section("Switching and sorting");
+	await expect(switches.getByRole("radio", { checked: true })).toHaveCount(3);
+	await expect(switches.getByRole("button", { name: "By hand" })).toBeVisible();
+	await expect(switches.getByRole("button", { name: /State/ })).toBeVisible();
+	await expect(section("Popped out").locator(".display-preview .card")).toBeVisible();
+});

@@ -1,4 +1,5 @@
 import { useContext, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
 	type ListSort,
 	type ListSortBy,
@@ -98,24 +99,32 @@ export function DisplaySwitch({ id, shape }: { id: string; shape: ShapeProps }) 
 
 function SortMenu({ id, sort }: { id: string; sort: ListSort | null }) {
 	const doc = useContext(DocContext);
-	const [open, setOpen] = useState(false);
+	// Where the menu opens, on screen: it's drawn over everything on the
+	// board, rather than inside the section (which stacks beneath its rows).
+	const [open, setOpen] = useState<{ left: number; top: number } | null>(null);
 	const menu = useId();
 	const root = useRef<HTMLDivElement>(null);
+	const list = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!open) return;
 		const onDown = (event: PointerEvent) => {
-			if (!root.current?.contains(event.target as Node)) setOpen(false);
+			const target = event.target as Node;
+			if (!root.current?.contains(target) && !list.current?.contains(target)) setOpen(null);
 		};
+		// Panning or zooming moves the button away from the menu.
+		const onWheel = () => setOpen(null);
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key !== "Escape") return;
 			event.stopPropagation();
-			setOpen(false);
+			setOpen(null);
 		};
 		window.addEventListener("pointerdown", onDown, true);
 		window.addEventListener("keydown", onKey, true);
+		window.addEventListener("wheel", onWheel, { capture: true, passive: true });
 		return () => {
 			window.removeEventListener("pointerdown", onDown, true);
 			window.removeEventListener("keydown", onKey, true);
+			window.removeEventListener("wheel", onWheel, true);
 		};
 	}, [open]);
 	if (!doc) return null;
@@ -132,12 +141,13 @@ function SortMenu({ id, sort }: { id: string; sort: ListSort | null }) {
 				type="button"
 				className="display-sort-button"
 				aria-haspopup="menu"
-				aria-expanded={open}
+				aria-expanded={open !== null}
 				aria-controls={menu}
 				onPointerDown={(event) => event.stopPropagation()}
 				onClick={(event) => {
 					event.stopPropagation();
-					setOpen((value) => !value);
+					const box = event.currentTarget.getBoundingClientRect();
+					setOpen((value) => (value ? null : { left: box.left, top: box.bottom + 6 }));
 				}}
 			>
 				<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
@@ -145,40 +155,50 @@ function SortMenu({ id, sort }: { id: string; sort: ListSort | null }) {
 				</svg>
 				{sortLabel(sort)}
 			</button>
-			{open && (
-				<div className="display-sort-menu" id={menu} role="menu" aria-label="Sort">
-					{SORTS.map((option) => {
-						const active = option.by === null ? sort === null : sort?.by === option.by;
-						return (
-							<button
-								key={option.label}
-								type="button"
-								role="menuitemradio"
-								aria-checked={active}
-								className="display-sort-option"
-								onPointerDown={(event) => event.stopPropagation()}
-								onClick={(event) => {
-									event.stopPropagation();
-									choose(option.by);
-									if (option.by === null || !active) setOpen(false);
-								}}
-							>
-								<span className="display-sort-check" aria-hidden="true">
-									{active ? "✓" : ""}
-								</span>
-								<span className="display-sort-name">{option.label}</span>
-								<span className="display-sort-hint">
-									{active && option.by !== null
-										? sort?.desc
-											? "Reversed: click to flip"
-											: "Click again to reverse"
-										: option.hint}
-								</span>
-							</button>
-						);
-					})}
-				</div>
-			)}
+			{open &&
+				createPortal(
+					<div
+						ref={list}
+						className="display-sort-menu"
+						id={menu}
+						role="menu"
+						aria-label="Sort"
+						data-chrome
+						style={{ left: open.left, top: open.top }}
+					>
+						{SORTS.map((option) => {
+							const active = option.by === null ? sort === null : sort?.by === option.by;
+							return (
+								<button
+									key={option.label}
+									type="button"
+									role="menuitemradio"
+									aria-checked={active}
+									className="display-sort-option"
+									onPointerDown={(event) => event.stopPropagation()}
+									onClick={(event) => {
+										event.stopPropagation();
+										choose(option.by);
+										if (option.by === null || !active) setOpen(null);
+									}}
+								>
+									<span className="display-sort-check" aria-hidden="true">
+										{active ? "✓" : ""}
+									</span>
+									<span className="display-sort-name">{option.label}</span>
+									<span className="display-sort-hint">
+										{active && option.by !== null
+											? sort?.desc
+												? "Reversed: click to flip"
+												: "Click again to reverse"
+											: option.hint}
+									</span>
+								</button>
+							);
+						})}
+					</div>,
+					document.body,
+				)}
 		</div>
 	);
 }

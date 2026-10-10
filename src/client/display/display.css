@@ -950,10 +950,9 @@
 }
 
 .display-sort-menu {
-	position: absolute;
-	top: calc(100% + 6px);
-	left: 0;
-	z-index: 10;
+	position: fixed;
+	z-index: 4000;
+
 	display: grid;
 	min-width: 230px;
 	padding: 5px;
