@@ -9,7 +9,8 @@ import { createPortal } from "react-dom";
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { NOMINAL_SIZE } from "../../shared/sections.ts";
-import { addShape, nextZ, transactLocal } from "../../shared/shapes.ts";
+import { addCardShape } from "../../shared/provenance.ts";
+import { transactLocal } from "../../shared/shapes.ts";
 import { placeInSections } from "../../shared/structure.ts";
 import { CardView } from "../CardView.tsx";
 import { scaledDuration } from "../motion.ts";
@@ -134,14 +135,12 @@ export function useRowDrag({
 				latest.current.seedCard(card);
 				const id = crypto.randomUUID();
 				transactLocal(doc, () => {
-					addShape(doc, id, {
-						type: "card",
-						ref: card.key,
-						x: Math.round(position.x),
-						y: Math.round(position.y),
-						z: nextZ(doc),
-						provenance: { via: "list", source: widget },
-					});
+					addCardShape(
+						doc,
+						id,
+						{ ref: card.key, x: position.x, y: position.y },
+						{ via: "list", source: widget },
+					);
 					placeInSections(doc, [id]);
 				});
 				ghosts.set(null);

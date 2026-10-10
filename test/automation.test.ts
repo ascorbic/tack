@@ -253,7 +253,8 @@ describe("inbox frames", () => {
 			query: { ...inboxQuery("repo:demo/inbox is:closed"), host: "fake.tack" },
 		});
 		await eventually(() => latest(client, previewId(section))?.kind === "search", 8000);
-		client.send({ type: "inbox-preview", id: section, query: inboxQuery("is:open") });
+		// A query that can't run says why.
+		client.send({ type: "inbox-preview", id: section, query: inboxQuery("  ") });
 		await eventually(
 			() => widgetData(client, previewId(section)).at(-1)?.results.inbox?.kind === "error",
 			8000,

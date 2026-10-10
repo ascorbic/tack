@@ -1,23 +1,40 @@
 import type * as Y from "yjs";
-import { forgeForHost } from "../../shared/refs.ts";
+import { type Card, isMissing } from "../../shared/cards.ts";
+import {
+	INBOX_LIMIT,
+	INBOX_ORIGIN,
+	INBOX_QUERY,
+	type InboxPreviewRequest,
+	confirmMatches,
+	previewId,
+} from "../../shared/inbox.ts";
+import { forgeForHost, parseRepoKey } from "../../shared/refs.ts";
 import { mentionsMe } from "../../shared/search.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import { queryScope, widgetDefinition, widgetQueries } from "../../shared/widgetRegistry.ts";
 import type {
 	QueryError,
 	QueryResult,
+	RelatedQuery,
+	ReleaseQuery,
 	SearchQuery,
 	WidgetMessage,
 	WidgetQuery,
 	WidgetRequest,
 } from "../../shared/widgets.ts";
-import { forge } from "../forges/index.ts";
+import { type MissingReason, type RepoIdentity, forge } from "../forges/index.ts";
 import type { Logger } from "../log.ts";
 
 // Running widgets' queries (#37), for one board. Each connection watches the
 // widgets it can see; this runs their queries with the permissions of the
 // person on that connection, caches results by query and access level, and
 // sends `widget-data` messages.
+//
+// Inbox frames (#40) are widgets with one query: a section with an `inbox`
+// runs its search under the name `inbox`, and the cards it brought that
+// show up in anyone's results are confirmed as still matching. Someone
+// writing an inbox's query can preview it (`inbox-preview`), answered under
+// `previewId(section)`.
 //
 // Access levels:
 // - `user:{id}`: a signed-in person with their own token. Their searches run
@@ -46,6 +63,8 @@ export interface RunnerTiming {
 	minIntervalMs: number;
 	/** Asking for a refresh does nothing if the result is younger than this. */
 	throttleMs: number;
+	/** How often inboxes search again while watched, with no webhook to say so. */
+	inboxRefreshMs: number;
 }
 
 export const DEFAULT_TIMING: RunnerTiming = {
@@ -53,7 +72,21 @@ export const DEFAULT_TIMING: RunnerTiming = {
 	debounceMs: 2_000,
 	minIntervalMs: 10_000,
 	throttleMs: 5_000,
+	inboxRefreshMs: 60_000,
 };
+
+/** GitHub rejects longer searches. */
+const MAX_QUERY = 256;
+
+/** What a shape asks the runner to run: a widget's queries, or an inbox's one. */
+interface Source {
+	queries: Record<string, WidgetQuery>;
+	/** Queries that can't run as written, answered with these instead. */
+	errors: Record<string, QueryError>;
+	/** How often its results go stale, in ms, when no webhook says sooner. */
+	refreshMs: number | null;
+	inbox: boolean;
+}
 
 /** Queries per access level per minute, well inside the forge's search limits. */
 const RUNS_PER_MINUTE = 20;
@@ -83,6 +116,8 @@ export interface RunnerHost {
 	readerToken(): Promise<string | null>;
 	/** Ask to hear about webhooks for these repositories (`{host}/{owner}/{name}`). */
 	watchRepos(repos: string[]): void;
+	/** A repository's identity, for queries about one (releases). */
+	route(repoKey: string): Promise<RepoIdentity | MissingReason>;
 	now?(): number;
 }
 
@@ -106,13 +141,15 @@ interface Watching {
 	/** The access level, once known. */
 	level: string | null;
 	widgets: Set<string>;
+	/** Inbox queries it's previewing (as JSON), kept warm while it writes. */
+	previews: Set<string>;
 }
 
 export class WidgetRunner {
 	private connections = new Map<string, Watching>();
 	private entries = new Map<string, Entry>();
-	/** Each widget's queries as last read from the document. */
-	private queries = new Map<string, Record<string, WidgetQuery>>();
+	/** What each shape runs, as last read from the document. */
+	private sources = new Map<string, Source>();
 	/** Runs per access level in the current minute. */
 	private budget = new Map<string, { minute: number; runs: number }>();
 	private timer: ReturnType<typeof setTimeout> | undefined;
@@ -151,8 +188,13 @@ export class WidgetRunner {
 
 	/** Handle a request from a connection. Returns false if it wasn't a widget request. */
 	request(connection: string, message: unknown): boolean {
-		const request = message as WidgetRequest | null;
+		const request = message as WidgetRequest | InboxPreviewRequest | null;
 		switch (request?.type) {
+			case "inbox-preview":
+				if (typeof request.id === "string" && request.query) {
+					void this.preview(connection, request.id, request.query);
+				}
+				return true;
 			case "widget-watch":
 				this.watch(connection, strings(request.ids));
 				return true;
@@ -177,7 +219,7 @@ export class WidgetRunner {
 		for (const id of added) {
 			watching.widgets.add(id);
 			// Read now, so the repositories it reads are watched straight away.
-			this.queriesOf(id);
+			this.sourceOf(id);
 		}
 		this.startTicking();
 		for (const id of added) void this.deliver(connection, id, { maxAge: this.timing.freshMs });
@@ -185,7 +227,12 @@ export class WidgetRunner {
 	}
 
 	private watching(connection: string, widgets = new Set<string>()): Watching {
-		const watching: Watching = { access: this.host.access(connection), level: null, widgets };
+		const watching: Watching = {
+			access: this.host.access(connection),
+			level: null,
+			widgets,
+			previews: new Set(),
+		};
 		watching.access.then(
 			(access) => {
 				watching.level = access.key;
@@ -214,6 +261,33 @@ export class WidgetRunner {
 		void this.deliver(connection, id, { maxAge: this.timing.throttleMs });
 	}
 
+	/** Run an inbox query someone is writing, for its live count, answered under `previewId(id)`. */
+	async preview(connection: string, id: string, raw: SearchQuery): Promise<void> {
+		let watching = this.connections.get(connection);
+		if (!watching) {
+			watching = this.watching(connection);
+			this.connections.set(connection, watching);
+		}
+		const query = inboxQueryOf({ query: raw });
+		let result: QueryResult | QueryError = query.kind === "error" ? query : unavailable();
+		if (query.kind === "search") {
+			const access = await watching.access;
+			// Keep the last few previews warm, so typing back and forth is instant.
+			watching.previews.add(JSON.stringify(query));
+			if (watching.previews.size > 5) {
+				watching.previews.delete(watching.previews.values().next().value as string);
+			}
+			result = (await this.resolve(query, access, this.timing.freshMs)).result ?? unavailable();
+		}
+		if (!this.connections.has(connection)) return;
+		this.host.send(connection, {
+			type: "widget-data",
+			id: previewId(id),
+			results: { [INBOX_QUERY]: result },
+			at: new Date().toISOString(),
+		});
+	}
+
 	/** A connection's access changed (say, they signed in elsewhere): look again. */
 	reaccess(connection: string): void {
 		const before = this.connections.get(connection);
@@ -228,7 +302,7 @@ export class WidgetRunner {
 
 	/**
 	 * A repository changed (a webhook for one of its items arrived): queries
-	 * that read it, or its owner, run again shortly.
+	 * that read it or its owner, or that search everywhere, run again shortly.
 	 */
 	repoChanged(repoKey: string): number {
 		const repo = repoKey.toLowerCase();
@@ -237,7 +311,8 @@ export class WidgetRunner {
 		for (const entry of this.entries.values()) {
 			if (!this.inUse(entry)) continue;
 			const scope = queryScope(entry.query);
-			if (!scope.repos.includes(repo) && !scope.owners.includes(owner)) continue;
+			const everywhere = scope.repos.length === 0 && scope.owners.length === 0;
+			if (!everywhere && !scope.repos.includes(repo) && !scope.owners.includes(owner)) continue;
 			this.schedule(
 				entry,
 				Math.max(this.now() + this.timing.debounceMs, entry.ranAt + this.timing.minIntervalMs),
@@ -257,7 +332,7 @@ export class WidgetRunner {
 				continue;
 			}
 			entry.usedAt = now;
-			const period = this.refreshPeriod(key);
+			const period = this.refreshPeriod(entry);
 			const scheduled = period !== null && entry.at !== undefined && now - entry.at >= period;
 			if ((entry.dueAt !== null && entry.dueAt <= now) || scheduled) {
 				running.push(this.rerun(key, entry));
@@ -279,26 +354,46 @@ export class WidgetRunner {
 
 	// --- Internals --------------------------------------------------------------------
 
+	/** What a shape runs, read from the document: a widget's queries, or an inbox's. */
+	private readSource(id: string): Source | null {
+		const shape = shapesMap(this.host.doc).get(id);
+		if (!shape) return null;
+		const type = shape.get("type");
+		if (type === "widget") {
+			const kind = shape.get("widget");
+			const refresh = widgetDefinition(kind)?.refresh;
+			return {
+				queries: widgetQueries({ widget: kind as string, config: shape.get("config") }),
+				errors: {},
+				refreshMs: refresh ? refresh * 1000 : null,
+				inbox: false,
+			};
+		}
+		if (type !== "section" || shape.get("inbox") === undefined) return null;
+		const query = inboxQueryOf(shape.get("inbox"));
+		return query.kind === "error"
+			? { queries: {}, errors: { [INBOX_QUERY]: query }, refreshMs: null, inbox: true }
+			: {
+					queries: { [INBOX_QUERY]: query },
+					errors: {},
+					refreshMs: this.timing.inboxRefreshMs,
+					inbox: true,
+				};
+	}
+
 	private widgetsChanged(ids: Set<string>): void {
-		const shapes = shapesMap(this.host.doc);
 		for (const id of ids) {
-			const shape = shapes.get(id);
-			const before = this.queries.get(id);
-			if (!shape || shape.get("type") !== "widget") {
-				this.queries.delete(id);
-				continue;
-			}
-			const after = widgetQueries({
-				widget: shape.get("widget") as string,
-				config: shape.get("config"),
-			});
-			this.queries.set(id, after);
-			if (before && JSON.stringify(before) === JSON.stringify(after)) continue;
-			if (!before && !this.watched(id)) continue;
-			// Its config changed: everyone watching it gets its new results.
+			const before = this.sources.get(id);
+			const after = this.readSource(id);
+			if (after) this.sources.set(id, after);
+			else this.sources.delete(id);
+			if (JSON.stringify(before ?? null) === JSON.stringify(after)) continue;
+			if (!this.watched(id)) continue;
+			// Its config (or an inbox's query) changed: everyone watching gets new results.
 			for (const [connection, watching] of this.connections) {
-				if (watching.widgets.has(id))
+				if (watching.widgets.has(id)) {
 					void this.deliver(connection, id, { maxAge: this.timing.freshMs });
+				}
 			}
 			this.renewRepoWatches();
 		}
@@ -309,61 +404,69 @@ export class WidgetRunner {
 		return false;
 	}
 
-	private queriesOf(id: string): Record<string, WidgetQuery> | null {
-		const known = this.queries.get(id);
+	private sourceOf(id: string): Source | null {
+		const known = this.sources.get(id);
 		if (known) return known;
-		const shape = shapesMap(this.host.doc).get(id);
-		if (!shape || shape.get("type") !== "widget") return null;
-		const queries = widgetQueries({
-			widget: shape.get("widget") as string,
-			config: shape.get("config"),
-		});
-		this.queries.set(id, queries);
-		return queries;
+		const source = this.readSource(id);
+		if (source) this.sources.set(id, source);
+		return source;
 	}
 
-	/** The definition's refresh period for a cached query, the shortest of the widgets using it. */
-	private refreshPeriod(key: string): number | null {
+	/** Whether any watched shape runs this query (as JSON). */
+	private uses(source: Source | undefined, query: string): boolean {
+		return Boolean(
+			source && Object.values(source.queries).some((q) => JSON.stringify(q) === query),
+		);
+	}
+
+	/** The refresh period for a cached query: the shortest of the watched shapes using it. */
+	private refreshPeriod(entry: Entry): number | null {
 		let period: number | null = null;
-		const shapes = shapesMap(this.host.doc);
-		for (const [id, queries] of this.queries) {
-			if (!this.watched(id)) continue;
-			for (const query of Object.values(queries)) {
-				if (!key.endsWith(`\n${JSON.stringify(query)}`)) continue;
-				const refresh = widgetDefinition(shapes.get(id)?.get("widget"))?.refresh;
-				if (refresh && (period === null || refresh * 1000 < period)) period = refresh * 1000;
+		const query = JSON.stringify(entry.query);
+		for (const [id, source] of this.sources) {
+			if (!this.watched(id) || !this.uses(source, query)) continue;
+			if (source.refreshMs !== null && (period === null || source.refreshMs < period)) {
+				period = source.refreshMs;
 			}
 		}
 		return period;
 	}
 
-	/** Whether any connection with this entry's access watches a widget that runs its query. */
+	/** Whether any connection with this entry's access watches a shape that runs its query. */
 	private inUse(entry: Entry): boolean {
 		const query = JSON.stringify(entry.query);
 		for (const watching of this.connections.values()) {
 			if (watching.level !== entry.access.key) continue;
 			for (const id of watching.widgets) {
-				const queries = this.queries.get(id);
-				if (queries && Object.values(queries).some((q) => JSON.stringify(q) === query)) {
-					return true;
-				}
+				if (this.uses(this.sources.get(id), query)) return true;
 			}
+			if (watching.previews.has(query)) return true;
 		}
 		return false;
 	}
 
-	/** Send a widget's results to a connection, running its queries if they're older than `maxAge`. */
+	/** Send a shape's results to a connection, running its queries if they're older than `maxAge`. */
 	private async deliver(connection: string, id: string, { maxAge }: { maxAge: number }) {
 		const watching = this.connections.get(connection);
 		if (!watching) return;
 		try {
 			const access = await watching.access;
-			const queries = this.queriesOf(id);
-			if (!queries) return;
-			const results: WidgetMessage["results"] = {};
+			const source = this.sourceOf(id);
+			// A section that stopped being an inbox while someone watched it.
+			const shape = shapesMap(this.host.doc).get(id);
+			if (!source && shape?.get("type") !== "section") return;
+			const results: WidgetMessage["results"] = source
+				? { ...source.errors }
+				: {
+						[INBOX_QUERY]: {
+							kind: "error",
+							reason: "invalid",
+							message: "This section isn't an inbox any more.",
+						},
+					};
 			let oldest = this.now();
 			await Promise.all(
-				Object.entries(queries).map(async ([name, query]) => {
+				Object.entries(source?.queries ?? {}).map(async ([name, query]) => {
 					const entry = await this.resolve(query, access, maxAge);
 					results[name] = entry.result ?? unavailable();
 					if (entry.at !== undefined && entry.at < oldest) oldest = entry.at;
@@ -371,6 +474,12 @@ export class WidgetRunner {
 			);
 			// It may have stopped watching while the queries ran.
 			if (!this.connections.get(connection)?.widgets.has(id)) return;
+			// Cards an inbox brought that are in anyone's results do match. (Being
+			// left out of one person's says nothing: they may not be able to read it.)
+			const found = results[INBOX_QUERY];
+			if (source?.inbox && found?.kind === "search") {
+				confirmMatches(this.host.doc, id, found, INBOX_ORIGIN);
+			}
 			this.host.send(connection, {
 				type: "widget-data",
 				id,
@@ -412,8 +521,7 @@ export class WidgetRunner {
 		for (const [connection, watching] of this.connections) {
 			if (watching.level !== entry.access.key) continue;
 			for (const id of watching.widgets) {
-				const queries = this.queries.get(id);
-				if (queries && Object.values(queries).some((q) => JSON.stringify(q) === query)) {
+				if (this.uses(this.sources.get(id), query)) {
 					void this.deliver(connection, id, { maxAge: Number.POSITIVE_INFINITY });
 				}
 			}
@@ -478,14 +586,55 @@ export class WidgetRunner {
 			case "search":
 				return this.search(query, access);
 			case "related":
+				return this.related(query, access);
 			case "release":
-				// Not yet run on boards (see src/server/forges/types.ts).
-				return {
-					kind: "error",
-					reason: "unsupported",
-					message: "This board can't run that kind of query yet.",
-				};
+				return this.release(query, access);
 		}
+	}
+
+	/**
+	 * What's related to an item. With the viewer's token, the forge leaves out
+	 * what they can't see; for everyone else only public items are kept,
+	 * everywhere they're named.
+	 */
+	private async related(query: RelatedQuery, access: Access): Promise<QueryResult | QueryError> {
+		const parsed = parseRepoKey(query.key.replace(/[#!]\d+$/, ""));
+		const adapter = parsed ? forge(parsed.forge) : null;
+		if (!adapter?.related) return unsupported("This forge can't say what's related.");
+		const result = await adapter.related(query.key, this.host.env, { token: access.token });
+		if (result.kind === "error" || access.key !== "public") return result;
+		const cards = result.cards.filter(
+			(entry): entry is Card => !isMissing(entry) && entry.visibility === "public",
+		);
+		if (!cards.some((card) => card.key === result.key)) return noAccess();
+		const keep = new Set(cards.map((card) => card.key));
+		const only = (keys: string[]) => keys.filter((key) => keep.has(key));
+		return {
+			...result,
+			...(result.parent && keep.has(result.parent) ? {} : { parent: undefined }),
+			subIssues: only(result.subIssues),
+			blockedBy: only(result.blockedBy),
+			blocking: only(result.blocking),
+			linkedPulls: only(result.linkedPulls),
+			cards,
+		};
+	}
+
+	/** A repository's latest release; for everyone but its readers, only if it's public. */
+	private async release(query: ReleaseQuery, access: Access): Promise<QueryResult | QueryError> {
+		const repo = await this.host.route(query.repo);
+		if (typeof repo === "string") return noAccess();
+		const adapter = forge(repo.forge);
+		if (!adapter.release) return unsupported("This forge has no releases.");
+		if (access.key === "public" && adapter.canRead && repo.private !== false) return noAccess();
+		const result = await adapter.release(repo, this.host.env, { token: access.token });
+		if (result.kind === "error" || access.key !== "public") return result;
+		return {
+			...result,
+			mergedSince: result.mergedSince.filter(
+				(card) => card.visibility === "public" || !adapter.canRead,
+			),
+		};
 	}
 
 	private async search(query: SearchQuery, access: Access): Promise<QueryResult | QueryError> {
@@ -557,7 +706,7 @@ export class WidgetRunner {
 		const repos = new Set<string>();
 		for (const watching of this.connections.values()) {
 			for (const id of watching.widgets) {
-				for (const query of Object.values(this.queries.get(id) ?? {})) {
+				for (const query of Object.values(this.sources.get(id)?.queries ?? {})) {
 					for (const repo of queryScope(query).repos) repos.add(repo);
 				}
 			}
@@ -577,4 +726,36 @@ function strings(value: unknown): string[] {
 
 function unavailable(): QueryError {
 	return { kind: "error", reason: "error", message: "No results yet." };
+}
+
+function unsupported(message: string): QueryError {
+	return { kind: "error", reason: "unsupported", message };
+}
+
+function noAccess(): QueryError {
+	return { kind: "error", reason: "no_access", message: "It doesn't exist, or you can't see it." };
+}
+
+/** An inbox's query as it runs, with an inbox's defaults, or why it can't run. */
+export function inboxQueryOf(inbox: unknown): SearchQuery | QueryError {
+	const query = (inbox as { query?: Partial<SearchQuery> } | null)?.query;
+	if (query?.kind !== "search" || typeof query.q !== "string" || typeof query.host !== "string") {
+		return { kind: "error", reason: "invalid", message: "That isn't a search." };
+	}
+	const q = query.q.trim();
+	if (!q) return { kind: "error", reason: "invalid", message: "Write a query to fill this inbox." };
+	if (q.length > MAX_QUERY) {
+		return { kind: "error", reason: "invalid", message: "That query is too long." };
+	}
+	if (!forgeForHost(query.host)) {
+		return unsupported(`Tack can't search ${query.host}.`);
+	}
+	return {
+		kind: "search",
+		host: query.host.toLowerCase(),
+		q,
+		sort: query.sort ?? "created",
+		order: query.order ?? "desc",
+		limit: Math.min(Math.max(1, query.limit ?? INBOX_LIMIT), 100),
+	};
 }

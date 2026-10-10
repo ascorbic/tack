@@ -5,23 +5,16 @@ import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
 import type { BoardRequest, Card, CardMessage, MissingCard } from "../shared/cards.ts";
 import type { AuditEntry, PushResponse } from "../shared/push.ts";
 import type { InboxPreviewRequest } from "../shared/inbox.ts";
-import { forgeForHost, parseRepoKey, repoKeyOf } from "../shared/refs.ts";
+import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
 import type { RepoActivity } from "../shared/rules.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
-import type {
-	QueryError,
-	SearchQuery,
-	SearchResult,
-	WidgetMessage,
-	WidgetRequest,
-} from "../shared/widgets.ts";
+import type { WidgetRequest } from "../shared/widgets.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "./boards/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
 import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
 import { userToken } from "./identity.ts";
-import { InboxRunner, type InboxTiming } from "./inbox.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
 import { PushEngine, type PushCommand, type PushTiming } from "./push/engine.ts";
@@ -124,10 +117,10 @@ export class Board extends YServer<Env> {
 	private pushes: PushEngine | null = null;
 	/** Runs the board's rules on webhook deliveries (#44). */
 	private rules: RulesEngine | null = null;
-	/** Runs inbox frames' queries for the people looking (#40). */
-	private inboxes: InboxRunner | null = null;
-
-	/** Runs widgets' queries for the people watching them (#37). Ready once the document has loaded. */
+	/**
+	 * Runs widgets' and inbox frames' queries for the people watching them
+	 * (#37, #40). Ready once the document has loaded.
+	 */
 	private widgets: WidgetRunner | null = null;
 	/** When each repository was last asked to tell us about its webhooks, for widgets. */
 	private queryWatches = new Map<string, number>();
@@ -192,12 +185,6 @@ export class Board extends YServer<Env> {
 					// Logged as board.save.failed; the debounced save tries again.
 				}
 			},
-		});
-		this.inboxes = new InboxRunner({
-			board: this.name,
-			doc: this.document,
-			search: (query, viewer) => this.searchAs(query, viewer),
-			send: (id, message) => this.sendTo(id, message),
 		});
 		watchCardRefs(this.document, () => void this.syncSubscriptions(), {
 			wait: SYNC_WAIT_MS,
@@ -396,7 +383,6 @@ export class Board extends YServer<Env> {
 		wasClean: boolean,
 	): void | Promise<void> {
 		this.viewing.delete(connection.id);
-		this.inboxes?.closed(connection.id);
 		this.widgets?.disconnect(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
 		return super.onClose(connection, code, reason, wasClean);
@@ -409,12 +395,11 @@ export class Board extends YServer<Env> {
 		} catch {
 			return;
 		}
-		// Viewers can watch widgets too: watching never changes the document.
-		this.widgets?.request(connection.id, request);
-		if (request?.type !== "recheck") {
-			this.onInboxRequest(connection, request);
-			return;
-		}
+		// Widgets and inbox frames: viewers can watch them too, as watching
+		// never changes the document.
+		if (!this.viewing.has(connection.id)) return;
+		if (this.widgets?.request(connection.id, request)) return;
+		if (request?.type !== "recheck") return;
 		const viewing = this.viewing.get(connection.id);
 		const now = Date.now();
 		if (!viewing || now - viewing.recheckedAt < RECHECK_THROTTLE_MS) return;
@@ -424,92 +409,12 @@ export class Board extends YServer<Env> {
 		if (cards.length > 0) this.send(connection, cards, { maxAge: 0 });
 	}
 
-	/** Inbox frames: watching, refreshing and previewing their queries (#40). */
-	private onInboxRequest(
-		connection: Connection,
-		request: WidgetRequest | InboxPreviewRequest | null,
-	): void {
-		const inboxes = this.inboxes;
-		const viewing = this.viewing.get(connection.id);
-		if (!inboxes || !viewing || !request) return;
-		const ids = (value: unknown) =>
-			Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
-		switch (request.type) {
-			case "widget-watch":
-				if (inboxes.watch(connection.id, viewing.userId, ids(request.ids)).length > 0) {
-					this.watchInboxRepos();
-				}
-				return;
-			case "widget-unwatch":
-				inboxes.unwatch(connection.id, ids(request.ids));
-				return;
-			case "widget-refresh":
-				if (typeof request.id === "string") inboxes.refresh(connection.id, request.id);
-				return;
-			case "inbox-preview":
-				if (typeof request.id === "string" && request.query) {
-					void inboxes.preview(connection.id, viewing.userId, request.id, request.query);
-				}
-				return;
-		}
-	}
-
-	/** Send a widget message to one connection. Results were searched as its viewer. */
-	private sendTo(connectionId: string, message: WidgetMessage): void {
-		const connection = this.getConnection(connectionId);
-		if (connection) this.sendCustomMessage(connection, JSON.stringify(message));
-	}
-
-	/**
-	 * Run a search as a viewer: with their own token, so private items only
-	 * reach people who can read them. Signed-out viewers search as nobody
-	 * (adapters fall back to the app's access for public data).
-	 */
-	private async searchAs(
-		query: SearchQuery,
-		viewer: number | null,
-	): Promise<SearchResult | QueryError> {
-		const id = forgeForHost(query.host);
-		const adapter = id ? forge(id) : null;
-		if (!adapter?.search) {
-			return {
-				kind: "error",
-				reason: "unsupported",
-				message: "Searching isn't available for this forge yet.",
-			};
-		}
-		const token = viewer !== null ? await userToken(this.env, viewer) : null;
-		return adapter.search(query, this.env, { token });
-	}
-
-	/**
-	 * Watch the repositories inboxes search, so their deliveries reach this
-	 * board (`repoActivity`) while anyone's looking, even with none of their
-	 * items on it yet.
-	 */
-	private watchInboxRepos(): void {
-		const repos = this.inboxes?.watchedRepos() ?? [];
-		if (repos.length === 0) return;
-		const reader = this.reader;
-		this.ctx.waitUntil(
-			Promise.allSettled(
-				repos.map(async (repoKey) => {
-					const repo = await this.route(repoKey);
-					if (typeof repo !== "string") await repoObject(this.env, repo).watch(this.name, reader);
-				}),
-			).then((results) => {
-				const failed = results.filter((result) => result.status === "rejected").length;
-				if (failed > 0) log.warn("board.watch.failed", { board: this.name, failed });
-			}),
-		);
-	}
-
 	// --- Rules and inboxes (M3) ----------------------------------------------------
 
 	/**
 	 * Called by a `Repo` with every webhook delivery from a repository on this
-	 * board (or one an inbox searches): rules run on it, and inboxes that
-	 * could include its items search again.
+	 * board (or one a widget or inbox reads): rules run on it, and widgets and
+	 * inboxes that could include its items search again.
 	 */
 	async repoActivity(activity: RepoActivity): Promise<void> {
 		try {
@@ -517,12 +422,25 @@ export class Board extends YServer<Env> {
 		} catch (error) {
 			log.error("rule.failed", { board: this.name, delivery: activity.delivery, error });
 		}
-		this.inboxes?.activity(activity.repo);
+		const due = this.widgets?.repoChanged(activity.repo) ?? 0;
+		if (due > 0)
+			log.info("widget.refresh", { board: this.name, repo: activity.repo, queries: due });
 	}
 
-	/** For tests: shorten the inbox runner's timings. */
-	async inboxTiming(timing: Partial<InboxTiming>): Promise<void> {
-		this.inboxes?.setTiming(timing);
+	/** For tests: shorten the inbox timings (inboxes run on the widget runner). */
+	async inboxTiming(timing: {
+		cacheMs?: number;
+		refreshMs?: number;
+		activityMs?: number;
+	}): Promise<void> {
+		if (!this.widgets) return;
+		const next = this.widgets.timing;
+		if (timing.cacheMs !== undefined) next.freshMs = timing.cacheMs;
+		if (timing.refreshMs !== undefined) next.inboxRefreshMs = timing.refreshMs;
+		if (timing.activityMs !== undefined) {
+			next.debounceMs = timing.activityMs;
+			next.minIntervalMs = 0;
+		}
 	}
 
 	override onError(connection: Connection, error: unknown): void {
@@ -586,10 +504,15 @@ export class Board extends YServer<Env> {
 			readerToken: async () =>
 				this.reader === null ? null : userToken(this.env, this.reader).catch(() => null),
 			watchRepos: (repos) => this.watchQueryRepos(repos),
+			route: (repoKey) => this.route(repoKey),
 		});
 	}
 
-	/** Ask repositories that widgets read to tell this board when their items change. */
+	/**
+	 * Watch the repositories widgets and inboxes read, so their deliveries
+	 * reach this board (`repoActivity`) while anyone's looking, even with none
+	 * of their items on it yet.
+	 */
 	private watchQueryRepos(repoKeys: string[]): void {
 		const now = Date.now();
 		const due = repoKeys.filter(
@@ -597,23 +520,18 @@ export class Board extends YServer<Env> {
 		);
 		if (due.length === 0) return;
 		for (const key of due) this.queryWatches.set(key, now);
+		const reader = this.reader;
 		this.ctx.waitUntil(
 			Promise.allSettled(
 				due.map(async (key) => {
 					const repo = await this.route(key);
-					if (typeof repo !== "string") await repoObject(this.env, repo).watchQueries(this.name);
+					if (typeof repo !== "string") await repoObject(this.env, repo).watch(this.name, reader);
 				}),
 			).then((results) => {
 				const failed = results.filter((result) => result.status === "rejected").length;
 				if (failed > 0) log.warn("widget.watch.failed", { board: this.name, failed });
 			}),
 		);
-	}
-
-	/** Called by a `Repo` when a delivery changed its items: widgets reading it refresh. */
-	async queriesChanged(repoKey: string): Promise<void> {
-		const due = this.widgets?.repoChanged(repoKey) ?? 0;
-		log.info("widget.refresh", { board: this.name, repo: repoKey, queries: due });
 	}
 
 	/** For tests: shorten the widget runner's pauses. */
@@ -988,7 +906,6 @@ export class Board extends YServer<Env> {
 		if (this.heartbeat) return;
 		this.heartbeat = setInterval(() => {
 			this.watchRepos(true);
-			this.watchInboxRepos();
 			void this.recheckAccess().catch((error: unknown) =>
 				log.error("board.readable.failed", { board: this.name, error }),
 			);

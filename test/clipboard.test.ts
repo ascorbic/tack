@@ -247,7 +247,7 @@ describe("decisions", () => {
 });
 
 describe("widgets", () => {
-	it("copy with their config and size, and cards from them keep where they came from", () => {
+	it("copy with their config and size; pasted cards from them were placed by hand", () => {
 		const doc = new Y.Doc();
 		const list = addWidget(doc, "list", { x: 0, y: 0 }, { title: "Bugs", q: "label:bug" });
 		addShape(doc, "c", {
@@ -264,7 +264,7 @@ describe("widgets", () => {
 		const [copy, card] = ids.map((id) => readShape(shapesMap(doc).get(id) as Y.Map<unknown>));
 		expect(copy).toMatchObject({ type: "widget", widget: "list", w: 360, h: 440 });
 		expect(copy?.config).toMatchObject({ title: "Bugs", q: "label:bug" });
-		// The pasted card came from the pasted list.
-		expect(card?.provenance).toEqual({ via: "list", source: ids[0] });
+		// Whoever pastes a copy placed it.
+		expect(card?.provenance).toBeUndefined();
 	});
 });

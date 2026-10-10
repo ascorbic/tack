@@ -7,7 +7,9 @@
 import type { Miniflare, Response } from "miniflare";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
+import { inboxQuery, setInbox } from "../src/shared/inbox.ts";
 import { transactLocal } from "../src/shared/shapes.ts";
+import { addSection } from "../src/shared/structure.ts";
 import { addWidget, updateWidgetConfig } from "../src/shared/widgetRegistry.ts";
 import type { SearchResult, WidgetMessage } from "../src/shared/widgets.ts";
 import { type BoardClient, connectBoard, eventually } from "./board-client.ts";
@@ -252,7 +254,7 @@ describe("widget queries", () => {
 		await latest(owner, widget);
 		// The board asked the repository to tell it about its webhooks.
 		await eventually(async () =>
-			(await (await repoStub(mf, `github.com/@${WIDGETS}`)).queryWatchers()).includes(board),
+			(await (await repoStub(mf, `github.com/@${WIDGETS}`)).watchers()).includes(board),
 		);
 
 		github.setItem(WIDGETS, {
@@ -323,6 +325,29 @@ describe("widget queries", () => {
 		await owner.roundTrip();
 		await new Promise((resolve) => setTimeout(resolve, 300));
 		expect(widgetMessages(owner, widget)).toHaveLength(count);
+	});
+});
+
+describe("inbox frames on the same runner", () => {
+	it("search GitHub as each viewer, and confirm what they find", async () => {
+		const { github, mf, board, owner } = await setup();
+		const section = transactLocal(owner.doc, () => {
+			const id = addSection(owner.doc, { x: 2000, y: 0, w: 640, h: 440 }, { title: "Bugs" });
+			setInbox(owner.doc, id, inboxQuery("org:acme is:open label:bug"));
+			return id;
+		});
+		await owner.roundTrip();
+		const bob = await open(mf, board, await signInWithGitHub(mf, github, BOB));
+		for (const client of [owner, bob]) client.send({ type: "widget-watch", ids: [section] });
+		const inbox = (message: WidgetMessage) =>
+			((message.results.inbox as SearchResult | undefined)?.items ?? []).map((card) => card.title);
+		expect(inbox(await latest(owner, section, (m) => inbox(m).length > 0))).toEqual(
+			expect.arrayContaining(["Widgets wobble", SECRET_TITLE]),
+		);
+		expect(inbox(await latest(bob, section, (m) => inbox(m).length > 0))).toEqual([
+			"Widgets wobble",
+		]);
+		expect(JSON.stringify(bob.messages)).not.toContain(SECRET_TITLE);
 	});
 });
 
