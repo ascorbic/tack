@@ -95,6 +95,12 @@ export interface PushHost {
 	persist(): void;
 	/** Make sure the alarm goes off by `at`. */
 	alarmAt(at: number): Promise<void>;
+	/**
+	 * A write landed in these repositories (keys). Not every write comes
+	 * back as a webhook the app hears (blocked-by and sub-issues don't), so
+	 * the board's widgets reading them should look again.
+	 */
+	wrote?(repoKeys: string[]): void;
 }
 
 const DEFAULT_TIMING: PushTiming = { spacingMs: 1_000, confirmMs: 2 * 60_000, backoffMs: 5_000 };
@@ -639,6 +645,8 @@ export class PushEngine {
 			},
 			error: undefined,
 		});
+		const written = [operationRepo(op), result.key ? repoKeyOf(result.key) : null];
+		this.host.wrote?.([...new Set(written.filter((repo): repo is string => repo !== null))]);
 		const logger = this.logger(push.id);
 		if (state === "applied") {
 			logger.info("push.change.applied", {

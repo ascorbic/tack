@@ -242,6 +242,9 @@ export class Board extends YServer<Env> {
 					// Logged as board.save.failed; the debounced save tries again.
 				}
 			},
+			wrote: (repos) => {
+				for (const repo of repos) this.widgets?.repoChanged(repo);
+			},
 			alarmAt: async (at) => {
 				const current = await this.ctx.storage.getAlarm();
 				const real = realTime(at);
