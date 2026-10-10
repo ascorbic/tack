@@ -38,6 +38,21 @@ const SHOTS: Shot[] = [
 	{ name: "silent", title: "Sprint 14 retro", url: "/play?scenario=silent" },
 	{ name: "comments", title: "Sprint 14 retro", url: "/play?scenario=comments" },
 	{ name: "since", title: "Sprint 14 retro", url: "/play?scenario=since" },
+	{
+		name: "history",
+		title: "Sprint 14 retro",
+		url: "/play?scenario=history",
+		prepare: async (page) => {
+			await page.getByTitle(/^History \(/).click();
+			await page.waitForTimeout(1200);
+			// A few steps back, so the board shows the past and who changed it.
+			for (let step = 0; step < 4; step++) {
+				await page.keyboard.press("ArrowLeft");
+				await page.waitForTimeout(250);
+			}
+			await page.waitForTimeout(1200);
+		},
+	},
 	{ name: "inbox", title: "Triage", url: "/play?scenario=inbox" },
 	{
 		name: "rules",
