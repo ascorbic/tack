@@ -202,6 +202,12 @@ export class FakeGitHub {
 	/** Seconds a user token lasts; tests shorten it to exercise refreshes. */
 	userTokenTtl = 8 * 60 * 60;
 
+	/**
+	 * What time it is on GitHub, epoch ms: real time, unless a test moves the
+	 * Worker's clock (`setClock` in harness.ts) and this along with it.
+	 */
+	now: () => number = () => Date.now();
+
 	/** Org login → member logins. */
 	readonly orgMembers = new Map<string, Set<string>>();
 	/** Installation id → account and repositories (`owner/name`). */
@@ -332,7 +338,7 @@ export class FakeGitHub {
 	/** A user token for someone, without the OAuth flow, for calling the API directly. */
 	userTokenFor(user: FakeUser): string {
 		const access = token("ghu");
-		this.userTokens.set(access, { user, expiresAt: Date.now() + this.userTokenTtl * 1000 });
+		this.userTokens.set(access, { user, expiresAt: this.now() + this.userTokenTtl * 1000 });
 		return access;
 	}
 
@@ -404,7 +410,7 @@ export class FakeGitHub {
 		const message = `Merge pull request #${number} from ${item.headRef}`;
 		this.refs.set(`${repoId}:main`, this.storeCommit(this.storeTree(files), [main, head], message));
 		item.state = "merged";
-		item.updatedAt = new Date(Math.max(Date.now(), Date.parse(item.updatedAt) + 1)).toISOString();
+		item.updatedAt = new Date(Math.max(this.now(), Date.parse(item.updatedAt) + 1)).toISOString();
 		return this.event(repoId, number, "closed");
 	}
 
@@ -461,7 +467,7 @@ export class FakeGitHub {
 				number,
 				body,
 				login: user.login,
-				createdAt: new Date().toISOString(),
+				createdAt: new Date(this.now()).toISOString(),
 			};
 			this.comments.push(comment);
 		}
@@ -616,7 +622,7 @@ export class FakeGitHub {
 			this.installationTokens.set(minted, id);
 			this.minted.push({ installation: id, token: minted });
 			return json(
-				{ token: minted, expires_at: new Date(Date.now() + 3_600_000).toISOString() },
+				{ token: minted, expires_at: new Date(this.now() + 3_600_000).toISOString() },
 				201,
 			);
 		}
@@ -750,7 +756,7 @@ export class FakeGitHub {
 		if (!repo || !this.canSee(repo, auth)) return undefined;
 		const rest = repoMatch?.[2] ?? "";
 		const method = request.method;
-		const now = new Date().toISOString();
+		const now = new Date(this.now()).toISOString();
 		let match: RegExpExecArray | null;
 
 		// Reads.
@@ -940,7 +946,7 @@ export class FakeGitHub {
 		const touch = () => {
 			if (!drop)
 				item.updatedAt = new Date(
-					Math.max(Date.now(), Date.parse(item.updatedAt) + 1),
+					Math.max(this.now(), Date.parse(item.updatedAt) + 1),
 				).toISOString();
 		};
 
@@ -1230,7 +1236,7 @@ export class FakeGitHub {
 				title: input.title ?? "",
 				body: input.body ?? "",
 				category: category?.name ?? "",
-				createdAt: new Date().toISOString(),
+				createdAt: new Date(this.now()).toISOString(),
 			};
 			if (!this.dropWrites) this.discussions.push(discussion);
 			return json({
@@ -1689,7 +1695,7 @@ export class FakeGitHub {
 
 		const access = token("ghu");
 		const refresh = token("ghr");
-		this.userTokens.set(access, { user, expiresAt: Date.now() + this.userTokenTtl * 1000 });
+		this.userTokens.set(access, { user, expiresAt: this.now() + this.userTokenTtl * 1000 });
 		this.refreshTokens.set(refresh, user);
 		return json({
 			access_token: access,
@@ -1703,7 +1709,7 @@ export class FakeGitHub {
 
 	private userFor(accessToken: string): FakeUser | null {
 		const entry = this.userTokens.get(accessToken);
-		return entry && entry.expiresAt > Date.now() ? entry.user : null;
+		return entry && entry.expiresAt > this.now() ? entry.user : null;
 	}
 
 	private installationForRepo(repo: string): { id: number; account: string } | null {
@@ -1729,7 +1735,7 @@ export class FakeGitHub {
 			exp: number;
 			iat: number;
 		};
-		const now = Date.now() / 1000;
+		const now = this.now() / 1000;
 		if (claims.iss !== this.app.client_id) throw new Error("Wrong JWT issuer");
 		if (claims.exp <= now || claims.iat > now || claims.exp - claims.iat > 600) {
 			throw new Error("JWT expired or too long-lived");

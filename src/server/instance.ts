@@ -21,6 +21,7 @@ import type { Board } from "./board.ts";
 import type { Viewer } from "./identity.ts";
 import { log } from "./log.ts";
 import { boards, repos } from "./namespaces.ts";
+import { setTestClock, testClockEnabled } from "./testClock.ts";
 
 const DAY = 24 * 60 * 60_000;
 export const SESSION_TTL = 30 * DAY;
@@ -649,6 +650,17 @@ export class Instance extends DurableObject<Env> {
 		await this.upsertUser(user, { orgs, tokens: null, admin: options.admin === true });
 		log.info("auth.signin.dev", { login: user.login, user: user.id });
 		return this.startSession(user.id);
+	}
+
+	/**
+	 * Move the Worker's clock `offsetMs` ahead of real time, for tests of
+	 * things that take days (`testClock.ts`). Only with `TACK_TEST_CLOCK=1`,
+	 * which only the test harness sets. Every object in the isolate shares it.
+	 */
+	testClock(offsetMs: number): { ok: boolean; now: number } {
+		if (!testClockEnabled(this.env)) return { ok: false, now: Date.now() };
+		setTestClock(offsetMs);
+		return { ok: true, now: Date.now() };
 	}
 
 	/** Look up a session (by its raw id from the cookie) and whether access control is on. */

@@ -16,6 +16,7 @@ import { CommentCommands } from "./commands.ts";
 import { userToken } from "./identity.ts";
 import { type Logger, log } from "./log.ts";
 import { boards } from "./namespaces.ts";
+import { realTime } from "./testClock.ts";
 
 /** CI and review events for an item are coalesced for this long... */
 const REFETCH_WAIT_MS = 2_000;
@@ -879,7 +880,7 @@ export class Repo extends DurableObject<Env> {
 		const poll = this.nextPollAt();
 		const due = [refetch, poll, this.commands.nextDue()].filter((at): at is number => at != null);
 		if (due.length === 0) return;
-		const next = Math.min(...due);
+		const next = realTime(Math.min(...due));
 		const current = await this.ctx.storage.getAlarm();
 		if (current === null || next < current) await this.ctx.storage.setAlarm(next);
 	}

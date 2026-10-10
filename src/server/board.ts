@@ -67,6 +67,7 @@ import { repoObject, resolveRepo } from "./routing.ts";
 import { RulesEngine } from "./rules.ts";
 import { CardHistory, ChangeLog, Visits } from "./since.ts";
 import { loadSnapshot, storeSnapshot } from "./snapshots.ts";
+import { realTime } from "./testClock.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
 import { type RunnerTiming, WidgetRunner } from "./widgets/runner.ts";
 
@@ -243,9 +244,10 @@ export class Board extends YServer<Env> {
 			},
 			alarmAt: async (at) => {
 				const current = await this.ctx.storage.getAlarm();
+				const real = realTime(at);
 				// An alarm in the past is the one running now (or about to).
-				if (current === null || at < current || current <= Date.now()) {
-					await this.ctx.storage.setAlarm(at);
+				if (current === null || real < current || current <= realTime(Date.now())) {
+					await this.ctx.storage.setAlarm(real);
 				}
 			},
 		});
@@ -933,25 +935,25 @@ export class Board extends YServer<Env> {
 	 * reach this board (`repoActivity`) while anyone's looking, even with none
 	 * of their items on it yet.
 	 */
-	private watchQueryRepos(repoKeys: string[]): void {
+	private watchQueryRepos(repoKeys: string[]): Promise<void> {
 		const now = Date.now();
 		const due = repoKeys.filter(
 			(key) => now - (this.queryWatches.get(key) ?? 0) >= WATCH_THROTTLE_MS,
 		);
-		if (due.length === 0) return;
+		if (due.length === 0) return Promise.resolve();
 		for (const key of due) this.queryWatches.set(key, now);
 		const reader = this.reader;
-		this.ctx.waitUntil(
-			Promise.allSettled(
-				due.map(async (key) => {
-					const repo = await this.route(key);
-					if (typeof repo !== "string") await repoObject(this.env, repo).watch(this.name, reader);
-				}),
-			).then((results) => {
-				const failed = results.filter((result) => result.status === "rejected").length;
-				if (failed > 0) log.warn("widget.watch.failed", { board: this.name, failed });
+		const watched = Promise.allSettled(
+			due.map(async (key) => {
+				const repo = await this.route(key);
+				if (typeof repo !== "string") await repoObject(this.env, repo).watch(this.name, reader);
 			}),
-		);
+		).then((results) => {
+			const failed = results.filter((result) => result.status === "rejected").length;
+			if (failed > 0) log.warn("widget.watch.failed", { board: this.name, failed });
+		});
+		this.ctx.waitUntil(watched);
+		return watched;
 	}
 
 	/** For tests: shorten the widget runner's pauses. */
@@ -959,9 +961,12 @@ export class Board extends YServer<Env> {
 		if (this.widgets) Object.assign(this.widgets.timing, timing);
 	}
 
-	/** For tests: run whatever widget queries are due now, and wait for them. */
+	/**
+	 * For tests: what the widget runner does every tick, now (whatever's due
+	 * runs, and the repositories it reads are watched again), and wait for it.
+	 */
 	async runWidgets(): Promise<void> {
-		await this.widgets?.tick();
+		await this.widgets?.beat();
 	}
 
 	/** For tests and debugging over RPC only: the widget results cache, without results. */

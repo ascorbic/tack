@@ -130,7 +130,7 @@ export interface RunnerHost {
 	/** A signed-in person's token, to search public data with (better rate limits). */
 	readerToken(): Promise<string | null>;
 	/** Ask to hear about webhooks for these repositories (`{host}/{owner}/{name}`). */
-	watchRepos(repos: string[]): void;
+	watchRepos(repos: string[]): void | Promise<void>;
 	/** A repository's identity, for queries about one (releases). */
 	route(repoKey: string): Promise<RepoIdentity | MissingReason>;
 	now?(): number;
@@ -247,7 +247,7 @@ export class WidgetRunner {
 		}
 		this.startTicking();
 		for (const id of added) void this.deliver(connection, id, { maxAge: this.timing.freshMs });
-		this.renewRepoWatches();
+		void this.renewRepoWatches();
 	}
 
 	private watching(connection: string, widgets = new Set<string>()): Watching {
@@ -444,7 +444,7 @@ export class WidgetRunner {
 					void this.deliver(connection, id, { maxAge: this.timing.freshMs });
 				}
 			}
-			this.renewRepoWatches();
+			void this.renewRepoWatches();
 		}
 	}
 
@@ -536,7 +536,7 @@ export class WidgetRunner {
 				);
 				const before = JSON.stringify(this.followUps.get(id) ?? {});
 				this.followUps.set(id, followUps);
-				if (JSON.stringify(followUps) !== before) this.renewRepoWatches();
+				if (JSON.stringify(followUps) !== before) void this.renewRepoWatches();
 				await pool(Object.entries(followUps), FOLLOW_UP_CONCURRENCY, async ([name, query]) => {
 					const entry = await this.resolve(query, access, maxAge);
 					results[name] = entry.result ?? unavailable();
@@ -650,7 +650,7 @@ export class WidgetRunner {
 		entry.result = result;
 		if (failed) return;
 		entry.at = now;
-		this.renewRepoWatches();
+		void this.renewRepoWatches();
 	}
 
 	/** Run one query as `access` may: their own token, or limited to public data. */
@@ -768,10 +768,7 @@ export class WidgetRunner {
 
 	private startTicking(): void {
 		if (this.ticker) return;
-		this.ticker = setInterval(() => {
-			void this.tick();
-			this.renewRepoWatches();
-		}, TICK_MS);
+		this.ticker = setInterval(() => void this.beat(), TICK_MS);
 	}
 
 	private stopTicking(): void {
@@ -779,8 +776,17 @@ export class WidgetRunner {
 		this.ticker = undefined;
 	}
 
+	/**
+	 * What happens every `TICK_MS` while anyone's watching: whatever's due
+	 * runs, and the repositories queries read are asked again to tell this
+	 * board about their webhooks. Resolves once both are done.
+	 */
+	async beat(): Promise<void> {
+		await Promise.all([this.tick(), this.renewRepoWatches()]);
+	}
+
 	/** Ask the repositories watched widgets read to tell this board about their webhooks. */
-	private renewRepoWatches(): void {
+	private async renewRepoWatches(): Promise<void> {
 		const repos = new Set<string>();
 		for (const watching of this.connections.values()) {
 			for (const id of watching.widgets) {
@@ -798,7 +804,7 @@ export class WidgetRunner {
 			if (entry.result?.kind !== "search" || !this.inUse(entry)) continue;
 			for (const card of entry.result.items) repos.add(`${card.host}/${card.repo}`.toLowerCase());
 		}
-		if (repos.size > 0) this.host.watchRepos([...repos]);
+		if (repos.size > 0) await this.host.watchRepos([...repos]);
 	}
 }
 

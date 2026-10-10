@@ -23,6 +23,8 @@ export interface WorkerOptions {
 	outboundService?: (request: Request) => Response | Promise<Response>;
 	/** Keep Durable Object storage here, so a test can restart the Worker. */
 	persist?: string;
+	/** Let the test move the Worker's clock (`TACK_TEST_CLOCK=1`), with `setClock()`. */
+	clock?: boolean;
 }
 
 export function startWorker(options: WorkerOptions = {}): Miniflare {
@@ -45,6 +47,7 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 				// An alias, so tests cover one (production's default is none).
 				TACK_COMMAND_ALIAS: "tack",
 				...(options.devAuth ? { TACK_DEV_AUTH: "1" } : {}),
+				...(options.clock ? { TACK_TEST_CLOCK: "1" } : {}),
 				...options.bindings,
 			},
 			...(options.outboundService ? { outboundService: options.outboundService } : {}),
@@ -137,6 +140,20 @@ export async function signInWithGitHub(
 	const session = cookies(done).tack_session;
 	if (done.status !== 302 || !session) throw new Error(`GitHub sign-in failed (${done.status}).`);
 	return `tack_session=${session}`;
+}
+
+/**
+ * Move the Worker's clock (started with `{ clock: true }`) so that it's now
+ * `at` (epoch ms, at or after the real time), and keep it running from
+ * there: every timestamp, visit and window the server keeps goes by it (see
+ * `src/server/testClock.ts`). Returns the offset from real time, for keeping
+ * a `FakeGitHub` (its `now`) and the test's own clocks in step.
+ */
+export async function setClock(mf: Miniflare, at: number): Promise<number> {
+	const offset = at - Date.now();
+	const result = await (await instanceStub(mf)).testClock(offset);
+	if (!result.ok) throw new Error("The Worker's clock can't move: start it with { clock: true }.");
+	return offset;
 }
 
 /** An RPC stub for the `Board` Durable Object with this name, started. */
