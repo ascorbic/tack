@@ -300,7 +300,6 @@ function seedPush(doc: Y.Doc): void {
 	if (upstream) {
 		stageAs(doc, { kind: "item.labels", target: { key: upstream.key }, add: ["question"] }, tom, {
 			shapes: [shape("upstream")],
-			included: false,
 			minutesAgo: 2,
 		});
 	}

@@ -1,5 +1,6 @@
 import { generateNKeysBetween } from "fractional-indexing";
 import type * as Y from "yjs";
+import { type PendingChange, changesMadeFrom, listChanges, unstageChanges } from "./changes.ts";
 import { isEnd, looseEnd, resolveEnds } from "./connectors.ts";
 import {
 	type DisplayLayout,
@@ -341,13 +342,11 @@ export function addSection(
 export function removeShapes(doc: Y.Doc, ids: Iterable<string>, sizeOf?: SizeOf): void {
 	doc.transact(() => {
 		const shapes = readShapes(doc);
-		const structure = readStructure(shapes);
-		const doomed = new Set<string>();
-		for (const id of ids) {
-			if (!shapes.has(id)) continue;
-			doomed.add(id);
-			for (const inside of descendantsOf(structure, id)) doomed.add(inside);
-		}
+		const doomed = doomedBy(shapes, ids);
+		// What was staged from them goes with them, in the same transaction,
+		// so one Undo brings both back (see `changesMadeFrom`).
+		const unstaged = changesMadeFrom(doc, doomed);
+		if (unstaged.length > 0) unstageChanges(doc, unstaged);
 		const map = shapesMap(doc);
 		const box = (id: string) => {
 			const shape = shapes.get(id);
@@ -371,6 +370,36 @@ export function removeShapes(doc: Y.Doc, ids: Iterable<string>, sizeOf?: SizeOf)
 		}
 		for (const id of doomed) map.delete(id);
 	});
+}
+
+/**
+ * What deleting `ids` deletes: the shapes, everything inside sections among
+ * them, and connectors whose ends are both bound to those.
+ */
+function doomedBy(shapes: ReadonlyMap<string, ShapeProps>, ids: Iterable<string>): Set<string> {
+	const structure = readStructure(shapes);
+	const doomed = new Set<string>();
+	for (const id of ids) {
+		if (!shapes.has(id)) continue;
+		doomed.add(id);
+		for (const inside of descendantsOf(structure, id)) doomed.add(inside);
+	}
+	for (const [id, shape] of shapes) {
+		if (shape.type !== "connector" || doomed.has(id)) continue;
+		const { from, to } = shape;
+		if (!isEnd(from) || !isEnd(to)) continue;
+		if (from.shape && to.shape && doomed.has(from.shape) && doomed.has(to.shape)) doomed.add(id);
+	}
+	return doomed;
+}
+
+/**
+ * The staged changes deleting `ids` would unstage (see `removeShapes`), so
+ * the toast can say so before it happens.
+ */
+export function unstagedByDeleting(doc: Y.Doc, ids: Iterable<string>): PendingChange[] {
+	const gone = new Set(changesMadeFrom(doc, doomedBy(readShapes(doc), ids)));
+	return listChanges(doc).filter((change) => gone.has(change.id));
 }
 
 export interface NewConnector {

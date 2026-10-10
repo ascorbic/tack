@@ -15,19 +15,23 @@ const person = (login: string): Stager => PEOPLE[login] ?? { name: login };
 
 let next = 0;
 
+/** Changes the person reviewing has left out of their push, in the gallery's samples. */
+export const LEFT_OUT = new Set<string>();
+
 export function change(
 	op: Operation,
 	by: string,
-	extra: Partial<PendingChange> & { minutesAgo?: number } = {},
+	extra: Partial<PendingChange> & { minutesAgo?: number; leftOut?: boolean } = {},
 ): PendingChange {
-	const { minutesAgo = 5, ...rest } = extra;
+	const { minutesAgo = 5, leftOut = false, ...rest } = extra;
+	const id = `g${next++}`;
+	if (leftOut) LEFT_OUT.add(id);
 	return {
-		id: `g${next++}`,
+		id,
 		op,
 		status: "staged",
 		stagedBy: person(by),
 		stagedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
-		included: true,
 		...rest,
 	};
 }
@@ -99,7 +103,7 @@ export function everyKind(): PendingChange[] {
 		),
 		change({ kind: "item.state", target: { key: key("#398") }, state: "open" }, "priya", {
 			minutesAgo: 7,
-			included: false,
+			leftOut: true,
 		}),
 		change(
 			{
@@ -140,7 +144,7 @@ export function everyKind(): PendingChange[] {
 		),
 		change({ kind: "item.labels", target: { key: `${SHARP}#4012` }, add: ["question"] }, "tom", {
 			minutesAgo: 3,
-			included: false,
+			leftOut: true,
 		}),
 	];
 }

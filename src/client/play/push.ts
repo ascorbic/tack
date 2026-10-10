@@ -7,7 +7,6 @@ import {
 	type PushAs,
 	type Stager,
 	changesMap,
-	includeChanges,
 	listChanges,
 	resolveTargets,
 	stageChange,
@@ -443,7 +442,6 @@ export function stageAs(
 	options: {
 		shapes?: string[];
 		effect?: PendingChange["effect"];
-		included?: boolean;
 		minutesAgo?: number;
 	} = {},
 ): string {
@@ -461,7 +459,6 @@ export function stageAs(
 			);
 		});
 	}
-	if (options.included === false) includeChanges(theirs, [id], false);
 	Y.applyUpdate(doc, Y.encodeStateAsUpdate(theirs, Y.encodeStateVector(doc)), SERVER_ORIGIN);
 	theirs.destroy();
 	return id;

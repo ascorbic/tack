@@ -1,30 +1,10 @@
 import { useSyncExternalStore } from "react";
 import type * as Y from "yjs";
-import { type PushAs, includeChanges, unstageChanges } from "../../shared/changes.ts";
+import { type PushAs, unstageChanges } from "../../shared/changes.ts";
 import type { PushClient, PushRefusal } from "./api.ts";
 import { type ChangeIndex, isPending, withDependencies, withDependents } from "./describe.ts";
 
 // Staging edits that keep dependencies whole, and the push in progress.
-
-/**
- * Include or leave out changes, taking dependencies along: including a
- * change includes the new issue it refers to; leaving out a new issue
- * leaves out the changes about it. One undo step.
- */
-export function setIncluded(
-	doc: Y.Doc,
-	ids: Iterable<string>,
-	included: boolean,
-	index: ChangeIndex,
-): string[] {
-	const closure = included ? withDependencies(ids, index) : withDependents(ids, index);
-	const affected = [...closure].filter((id) => {
-		const change = index.get(id);
-		return change && isPending(change) && (change.included !== false) !== included;
-	});
-	if (affected.length > 0) includeChanges(doc, affected, included);
-	return affected;
-}
 
 /**
  * Unstage changes, and the changes that refer to them (a label on an issue
@@ -65,6 +45,7 @@ export type PushState =
 export class PushSession {
 	private state: PushState = { phase: "idle" };
 	private listeners = new Set<() => void>();
+	private out: ReadonlySet<string> = new Set();
 
 	constructor(private client: PushClient | null) {}
 
@@ -73,6 +54,36 @@ export class PushSession {
 	}
 
 	getSnapshot = (): PushState => this.state;
+
+	/**
+	 * What this person has left out of their next push. It's theirs alone,
+	 * never on the board: the Changes panel is everyone's list, but nobody
+	 * can quietly take something out of someone else's push.
+	 */
+	leftOut = (): ReadonlySet<string> => this.out;
+
+	/**
+	 * Leave changes out of the next push, or put them back, taking
+	 * dependencies along: including a change includes the new issue it
+	 * refers to; leaving out a new issue leaves out the changes about it.
+	 * Returns the ids that changed.
+	 */
+	setIncluded(ids: Iterable<string>, included: boolean, index: ChangeIndex): string[] {
+		const closure = included ? withDependencies(ids, index) : withDependents(ids, index);
+		const affected = [...closure].filter((id) => {
+			const change = index.get(id);
+			return change && isPending(change) && this.out.has(id) === included;
+		});
+		if (affected.length === 0) return affected;
+		const next = new Set(this.out);
+		for (const id of affected) {
+			if (included) next.delete(id);
+			else next.add(id);
+		}
+		this.out = next;
+		this.notify();
+		return affected;
+	}
 
 	subscribe = (listener: () => void): (() => void) => {
 		this.listeners.add(listener);
@@ -128,6 +139,14 @@ export class PushSession {
 
 	private set(state: PushState): void {
 		this.state = state;
+		// Once pushed, a change has gone: nothing to leave out any more.
+		if (state.phase === "pushing" && state.ids.some((id) => this.out.has(id))) {
+			this.out = new Set([...this.out].filter((id) => !state.ids.includes(id)));
+		}
+		this.notify();
+	}
+
+	private notify(): void {
 		for (const listener of this.listeners) listener();
 	}
 }
@@ -135,6 +154,14 @@ export class PushSession {
 export function usePushState(session: PushSession | null): PushState {
 	return useSyncExternalStore(session?.subscribe ?? noop, session?.getSnapshot ?? idle);
 }
+
+/** What this person has left out of their next push (see `PushSession.leftOut`). */
+export function useLeftOut(session: PushSession | null): ReadonlySet<string> {
+	return useSyncExternalStore(session?.subscribe ?? noop, session?.leftOut ?? none);
+}
+
+const NONE: ReadonlySet<string> = new Set();
+const none = () => NONE;
 
 const IDLE: PushState = { phase: "idle" };
 const noop = () => () => {};

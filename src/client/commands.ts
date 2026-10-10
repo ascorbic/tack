@@ -3,7 +3,13 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import type * as Y from "yjs";
 import type { SizeOf } from "../shared/sections.ts";
 import { readShape, shapesMap } from "../shared/shapes.ts";
-import { commitMoves, copyClosure, readShapes, settlePasted } from "../shared/structure.ts";
+import {
+	commitMoves,
+	copyClosure,
+	readShapes,
+	settlePasted,
+	unstagedByDeleting,
+} from "../shared/structure.ts";
 import { align, distribute, type Item, tidy } from "./arrange.ts";
 import {
 	type Position,
@@ -685,14 +691,16 @@ export function useCanvasCommands(options: CommandsOptions) {
 					shape.type === "decision" ||
 					(shape.type === "action" && (shape.owner !== undefined || shape.ref !== undefined)),
 			);
-			if (removed.length <= QUIET_DELETE_LIMIT && !hasContent) return;
+			// Anything staged from them goes too: say so, so Undo is the obvious way back.
+			const unstaged = unstagedByDeleting(doc, ids);
+			if (removed.length <= QUIET_DELETE_LIMIT && !hasContent && unstaged.length === 0) return;
 			const { toasts } = latest.current;
 			// Show it once the deletion is on the undo stack, and drop it as soon
 			// as something else is, since Undo would then undo that instead.
 			queueMicrotask(() => {
 				const step = history.top();
 				const toast = toasts.show({
-					message: `Deleted ${describe(removed)}`,
+					message: `Deleted ${describe(removed)}${unstaged.length > 0 ? ` and unstaged ${describeUnstaged(unstaged)}` : ""}`,
 					action: {
 						label: "Undo",
 						hint: shortcutHint("undo", apple),
@@ -738,6 +746,13 @@ const NOUNS: Record<string, [string, string]> = {
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
 };
+
+/** "its issue", "3 issues", "4 changes": what deleting shapes unstaged. */
+function describeUnstaged(changes: { op: { kind: string } }[]): string {
+	const issues = changes.every((change) => change.op.kind === "issue.create");
+	if (changes.length === 1) return issues ? "its issue" : "its change";
+	return `${changes.length} ${issues ? "issues" : "changes"}`;
+}
 
 /** "a sticky", "5 cards", "3 shapes" */
 function describe(shapes: { type: string }[]): string {

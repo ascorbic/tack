@@ -1,6 +1,13 @@
 import { useSyncExternalStore } from "react";
 import type * as Y from "yjs";
-import { type PendingChange, changesMap, readChange } from "../../shared/changes.ts";
+import {
+	type PendingChange,
+	changesMap,
+	readChange,
+	stagingOrder,
+	stickySource,
+} from "../../shared/changes.ts";
+import { shapesMap } from "../../shared/shapes.ts";
 
 const EMPTY: readonly PendingChange[] = Object.freeze([]);
 
@@ -21,15 +28,21 @@ export class ChangesStore {
 	private highlighted: ReadonlySet<string> = new Set();
 	private highlightListeners = new Set<() => void>();
 	private readonly map: Y.Map<Y.Map<unknown>>;
+	private readonly shapes: Y.Map<Y.Map<unknown>>;
+	/** The sticky each new issue is made from, so edits to it re-read the change. */
+	private sources = new Map<string, string[]>();
 
-	constructor(doc: Y.Doc) {
+	constructor(private readonly doc: Y.Doc) {
 		this.map = changesMap(doc);
+		this.shapes = shapesMap(doc);
 		this.read();
 		this.map.observeDeep(this.onChange);
+		this.shapes.observeDeep(this.onShapes);
 	}
 
 	destroy(): void {
 		this.map.unobserveDeep(this.onChange);
+		this.shapes.unobserveDeep(this.onShapes);
 		this.listeners.clear();
 		this.highlightListeners.clear();
 	}
@@ -76,17 +89,42 @@ export class ChangesStore {
 		for (const listener of this.listeners) listener();
 	};
 
+	/** A sticky a new issue is made from changed (or went): that issue reads differently now. */
+	private onShapes = (events: Y.YEvent<Y.AbstractType<unknown>>[]) => {
+		if (this.sources.size === 0) return;
+		const touched = new Set<string>();
+		const add = (shape: unknown) => {
+			for (const change of (typeof shape === "string" && this.sources.get(shape)) || []) {
+				touched.add(change);
+			}
+		};
+		for (const event of events) {
+			if (event.target === this.shapes) for (const key of event.keys.keys()) add(key);
+			else add(event.path[0]);
+		}
+		if (touched.size === 0) return;
+		this.read(touched);
+		for (const listener of this.listeners) listener();
+	};
+
 	/** Re-read the changes that were touched (or all of them), keeping the rest. */
 	private read(touched?: Set<string>): void {
 		const next = new Map<string, PendingChange>();
 		for (const [id, change] of this.map) {
 			const previous = this.changes.get(id);
-			next.set(id, previous && touched && !touched.has(id) ? previous : readChange(change));
+			next.set(
+				id,
+				previous && touched && !touched.has(id) ? previous : readChange(change, this.doc),
+			);
 		}
 		this.changes = next;
-		this.snapshot = [...next.values()].sort((a, b) =>
-			a.stagedAt < b.stagedAt ? -1 : a.stagedAt > b.stagedAt ? 1 : a.id < b.id ? -1 : 1,
-		);
+		this.snapshot = [...next.values()].sort(stagingOrder);
+		const sources = new Map<string, string[]>();
+		for (const change of this.snapshot) {
+			const sticky = stickySource(change);
+			if (sticky) sources.set(sticky, [...(sources.get(sticky) ?? []), change.id]);
+		}
+		this.sources = sources;
 
 		const grouped = new Map<string, PendingChange[]>();
 		for (const change of this.snapshot) {

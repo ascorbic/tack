@@ -261,13 +261,11 @@ export function StagedMarksView({
 		if (change.status === "sending") return `${what}\nSending to ${forge}…`;
 		if (change.status === "sent") return `${what}\nSent, waiting for ${forge} to confirm`;
 		if (change.status === "applied") return `${what}\nOn ${forge}`;
-		const left = change.included === false ? " · left out of the next push" : "";
-		return `${what}\nStaged by ${stagerName(change.stagedBy, you)}${left}`;
+		return `${what}\nStaged by ${stagerName(change.stagedBy, you)}`;
 	};
 
 	const state = (change: PendingChange) => ({
 		"data-status": landed.has(change.id) ? "landed" : change.status,
-		"data-included": change.included !== false,
 	});
 
 	const outline = visible.length > 0 || highlighted;

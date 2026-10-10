@@ -14,16 +14,20 @@ import {
 	changeForge,
 	changesForge,
 	estimateWatchers,
+	DRIFT_NOTE,
 	failureCopy,
-	friendlyError,
 	groupByKind,
 	groupByRepo,
 	indexChanges,
 	isPending,
+	isPushable,
 	missingDependencies,
 	peopleCount,
+	pushEta,
 	repoName,
+	reviewOrder,
 	summarize,
+	waitingFor,
 } from "./describe.ts";
 import {
 	BellIcon,
@@ -38,8 +42,8 @@ import {
 	WarningIcon,
 } from "./icons.tsx";
 import { ChangePreview } from "./Preview.tsx";
-import { IncludeToggle, StagedBy, StagerAvatar, StatusGlyph } from "./parts.tsx";
-import { type PushState, setIncluded, usePushState } from "./session.ts";
+import { ForgeError, IncludeToggle, StagedBy, StagerAvatar, StatusGlyph } from "./parts.tsx";
+import { type PushState, useLeftOut, usePushState } from "./session.ts";
 import { useChangeList } from "./store.ts";
 
 // The push sheet: review exactly what will be written and who'll hear about
@@ -66,6 +70,8 @@ export interface PushSheetViewProps {
 	installHref: string;
 	/** Whether this board can push at all (it has a server to push to). */
 	canPush: boolean;
+	/** What this person has left out of this push: theirs alone, not the board's. */
+	leftOut: ReadonlySet<string>;
 	onToggle: (ids: string[], included: boolean) => void;
 	onPush: () => void;
 	onRetry: (ids: string[]) => void;
@@ -102,6 +108,7 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 	const changes = useChangeList(ui.store);
 	const index = useMemo(() => indexChanges(changes), [changes]);
 	const state = usePushState(ui.session);
+	const leftOut = useLeftOut(ui.session);
 	const repos = useMemo(
 		() => [...new Set(groupByRepo(changes, index).map((group) => group.repo))].filter(Boolean),
 		[changes, index],
@@ -167,7 +174,7 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 		}, scaledDuration(140));
 	};
 
-	const included = changes.filter((change) => isPending(change) && change.included !== false);
+	const included = changes.filter((change) => isPushable(change) && !leftOut.has(change.id));
 
 	const push = () => {
 		if (included.length === 0 || ui.readOnly || !signedIn(ui.user)) return;
@@ -195,7 +202,7 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 						return group && repos.has(group.repo);
 					})
 					.map((change) => change.id);
-				setIncluded(ui.doc, ids, false, index);
+				ui.session.setIncluded(ids, false, index);
 				ui.session.reset();
 				break;
 			}
@@ -204,7 +211,7 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 					included.map((change) => change.id),
 					index,
 				);
-				setIncluded(ui.doc, missing, true, index);
+				ui.session.setIncluded(missing, true, index);
 				ui.session.reset();
 				break;
 			}
@@ -251,7 +258,8 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 					signInHref={ui.signInHref}
 					installHref={ui.installHref}
 					canPush={ui.client !== null}
-					onToggle={(ids, on) => setIncluded(ui.doc, ids, on, index)}
+					leftOut={leftOut}
+					onToggle={(ids, on) => ui.session.setIncluded(ids, on, index)}
 					onPush={push}
 					onRetry={(ids) => void ui.session.push(ids, as, index)}
 					onResolve={resolve}
@@ -331,6 +339,7 @@ function ReviewView({
 	signInHref,
 	installHref,
 	canPush,
+	leftOut,
 	onToggle,
 	onPush,
 	onResolve,
@@ -339,7 +348,8 @@ function ReviewView({
 }: PushSheetViewProps & { forge: string }) {
 	const index = useMemo(() => indexChanges(changes), [changes]);
 	const pending = changes.filter(isPending);
-	const included = pending.filter((change) => change.included !== false);
+	const isIn = (change: PendingChange) => isPushable(change) && !leftOut.has(change.id);
+	const included = pending.filter(isIn);
 	const groups = groupByRepo(pending, index);
 	const estimate = estimateWatchers(included, index, meta);
 	const requesting = state.phase === "requesting";
@@ -379,7 +389,7 @@ function ReviewView({
 
 				{groups.map((group) => {
 					const info = meta(group.repo);
-					const repoIncluded = group.changes.filter((change) => change.included !== false);
+					const repoIncluded = group.changes.filter(isIn);
 					const noisy = repoIncluded.some((change) => KINDS[change.op.kind].notifies);
 					return (
 						<section key={group.repo} className="push-repo" aria-label={repoName(group.repo)}>
@@ -413,17 +423,18 @@ function ReviewView({
 								</p>
 							)}
 							{groupByKind(group.changes).map((kind) => {
-								const on = kind.changes.filter((change) => change.included !== false);
+								const on = kind.changes.filter(isIn);
+								const choosable = kind.changes.filter(isPushable);
 								return (
 									<div key={kind.kind} className="push-kind">
 										<div className="push-kind-head">
 											<IncludeToggle
-												checked={on.length === kind.changes.length}
-												disabled={readOnly}
+												checked={on.length > 0 && on.length === choosable.length}
+												disabled={readOnly || choosable.length === 0}
 												label={`Include all: ${KINDS[kind.kind].group}`}
 												onChange={(checked) =>
 													onToggle(
-														kind.changes.map((change) => change.id),
+														choosable.map((change) => change.id),
 														checked,
 													)
 												}
@@ -442,12 +453,13 @@ function ReviewView({
 												<li
 													key={change.id}
 													className="push-change"
-													data-included={change.included !== false}
+													data-included={isIn(change)}
 													data-status={change.status}
+													data-drift={change.drift}
 												>
 													<IncludeToggle
-														checked={change.included !== false}
-														disabled={readOnly}
+														checked={isIn(change)}
+														disabled={readOnly || !isPushable(change)}
 														label={`Include: ${summarize(change.op, index)}`}
 														onChange={(checked) => onToggle([change.id], checked)}
 													/>
@@ -461,6 +473,11 @@ function ReviewView({
 														/>
 														<div className="push-change-foot">
 															<StagedBy change={change} you={user.login} />
+															{change.drift && (
+																<span className="push-change-drift" data-drift={change.drift}>
+																	{DRIFT_NOTE[change.drift]}
+																</span>
+															)}
 															{change.effect?.kind === "replace" && (
 																<span className="push-change-effect">
 																	On the board, its sticky turns into the new card
@@ -474,7 +491,11 @@ function ReviewView({
 															{change.status === "failed" && (
 																<span className="push-change-failed">
 																	Failed last time:{" "}
-																	{friendlyError(change.error, changeForge(change, index))}
+																	<ForgeError
+																		error={change.error}
+																		detail={change.errorDetail}
+																		forge={changeForge(change, index)}
+																	/>
 																</span>
 															)}
 															{info?.writes && !info.writes.includes(change.op.kind) && (
@@ -688,8 +709,10 @@ function ProgressView({
 	forge,
 }: PushSheetViewProps & { forge: string }) {
 	const ids = state.phase === "pushing" ? state.ids : [];
-	const pushed = usePushedChanges(ids, changes);
 	const index = useMemo(() => indexChanges(changes), [changes]);
+	// In the order they were reviewed in, not the order they're written in
+	// (which puts what depends on a new issue after it).
+	const pushed = reviewOrder(usePushedChanges(ids, changes), index);
 	const total = pushed.length;
 	const applied = pushed.filter((change) => change.status === "applied").length;
 	const sent = pushed.filter((change) => change.status === "sent").length;
@@ -734,7 +757,7 @@ function ProgressView({
 							{" · "}
 							{settled
 								? "Everyone on the board sees this too"
-								: "You can close this: it carries on, and the changes panel follows along"}
+								: `${pushEta(working)}You can close this: it carries on, and the changes panel follows along`}
 						</p>
 					</div>
 				</div>
@@ -780,12 +803,18 @@ function ProgressView({
 										)
 									) : change.status === "sent" ? (
 										`Sent, waiting for ${changeForge(change, index)} to confirm`
-									) : change.status === "sending" ? (
-										"Sending…"
 									) : change.status === "failed" ? (
 										<span className="push-step-error">
-											{friendlyError(change.error, changeForge(change, index))}
+											<ForgeError
+												error={change.error}
+												detail={change.errorDetail}
+												forge={changeForge(change, index)}
+											/>
 										</span>
+									) : waitingFor(change, index) ? (
+										`Waits for ${waitingFor(change, index)} to be made`
+									) : change.status === "sending" ? (
+										"Sending…"
 									) : (
 										"Waiting its turn"
 									)}
@@ -1017,10 +1046,11 @@ function HistoryView({ history, onReloadHistory, user }: PushSheetViewProps) {
 											)}
 											{change.error && (
 												<span className="push-step-error">
-													{friendlyError(
-														change.error,
-														change.url ? forgeOfUrl(change.url) : undefined,
-													)}
+													<ForgeError
+														error={change.error}
+														detail={change.detail}
+														forge={change.url ? forgeOfUrl(change.url) : undefined}
+													/>
 												</span>
 											)}
 										</li>

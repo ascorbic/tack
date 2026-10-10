@@ -12,7 +12,7 @@ import { useChangesState } from "../changes/useChanges.ts";
 import type { User } from "../presence.ts";
 import { StickyView } from "../StickyNode.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
-import { change, docWith, everyKind, midPush, someStaged } from "./changeFixtures.ts";
+import { LEFT_OUT, change, docWith, everyKind, midPush, someStaged } from "./changeFixtures.ts";
 import { ACCESS_GALLERY, PLANNING_CARDS } from "./fixtures.ts";
 import { IMAGEKIT, SimulatedPush, pastPushes, playMeta } from "./push.ts";
 import "./changesGallery.css";
@@ -150,13 +150,6 @@ const SAMPLES: Sample[] = [
 		shape: "sticky",
 		text: "Better errors when the CDN isn’t recognised",
 		changes: [newIssueFromSticky()],
-	},
-	{
-		label: "Left out of the next push",
-		shape: "sticky",
-		color: "blue",
-		text: "A provider playground?",
-		changes: [newIssueFromSticky({ included: false })],
 	},
 	{
 		label: "Sending",
@@ -434,7 +427,10 @@ function sheetSamples(): SheetSample[] {
 }
 
 function SheetFrame({ sample }: { sample: SheetSample }) {
-	const [changes, setChanges] = useState(sample.changes);
+	const [changes] = useState(sample.changes);
+	const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(
+		() => new Set(sample.changes.filter((c) => LEFT_OUT.has(c.id)).map((c) => c.id)),
+	);
 	const [as, setAs] = useState<PushAs>(sample.as ?? "user");
 	const [mode, setMode] = useState<SheetMode>(sample.mode ?? "review");
 	return (
@@ -453,10 +449,16 @@ function SheetFrame({ sample }: { sample: SheetSample }) {
 					signInHref="#sign-in"
 					installHref="#install"
 					canPush
+					leftOut={leftOut}
 					onToggle={(ids, included) =>
-						setChanges((current) =>
-							current.map((c) => (ids.includes(c.id) ? { ...c, included } : c)),
-						)
+						setLeftOut((current) => {
+							const next = new Set(current);
+							for (const id of ids) {
+								if (included) next.delete(id);
+								else next.add(id);
+							}
+							return next;
+						})
 					}
 					onPush={() => {}}
 					onRetry={() => {}}

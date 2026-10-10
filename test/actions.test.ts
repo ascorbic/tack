@@ -25,7 +25,8 @@ import {
 	pendingDependencies,
 	unstageChanges,
 } from "../src/shared/changes.ts";
-import { addShape, transactLocal } from "../src/shared/shapes.ts";
+import { addShape, shapesMap, transactLocal } from "../src/shared/shapes.ts";
+import { removeShapes, unstagedByDeleting } from "../src/shared/structure.ts";
 import { History } from "../src/client/undo.ts";
 
 const PRIYA: Stager = { login: "priya", name: "Priya Shah", color: "#b4467a" };
@@ -100,7 +101,7 @@ describe("stickies to issues", () => {
 		expect(changes[0]?.effect).toEqual({ kind: "replace", shapes: ["s1"] });
 		expect(changes[0]?.shapes).toEqual(["s1"]);
 		expect(changes[0]?.stagedBy).toEqual(PRIYA);
-		expect(changes.every((c) => c.status === "staged" && c.included)).toBe(true);
+		expect(changes.every((c) => c.status === "staged")).toBe(true);
 		expect(pendingIssueFor(doc, "s2")?.id).toBe(result.staged[1]);
 	});
 
@@ -182,6 +183,106 @@ describe("stickies to issues", () => {
 		expect(listChanges(doc)).toHaveLength(0);
 		history.redo();
 		expect(listChanges(doc)).toHaveLength(2);
+	});
+});
+
+describe("in the order people read the board", () => {
+	it("stages stickies top to bottom, then left to right, as one batch", () => {
+		const { doc, add } = board();
+		add("c", { ...sticky("Bottom left"), x: 0, y: 400 });
+		add("b", { ...sticky("Top right"), x: 400, y: 10 });
+		add("a", { ...sticky("Top left"), x: 0, y: 0 });
+		stageStickyIssues(
+			doc,
+			["c", "b", "a"]
+				.map((id) => ({ id, text: "" }))
+				.map(({ id }) => ({
+					id,
+					text: String(shapesMap(doc).get(id)?.get("text")),
+				})),
+			REPO,
+			PRIYA,
+		);
+		const changes = listChanges(doc);
+		expect(changes.map((change) => change.op.kind === "issue.create" && change.op.title)).toEqual([
+			"Top left",
+			"Top right",
+			"Bottom left",
+		]);
+		expect(new Set(changes.map((change) => change.batch?.id)).size).toBe(1);
+		expect(changes.map((change) => change.batch?.index)).toEqual([0, 1, 2]);
+	});
+});
+
+describe("deleting what changes were made from", () => {
+	it("unstages a sticky's issue and what refers to it, in the same undo step", () => {
+		const { doc, add } = board();
+		add("s1", sticky("Faster cold starts"));
+		add("s2", sticky("Cache the manifest"));
+		add("c1", card(`${REPO}#9`));
+		const history = new History(doc);
+		histories.push(history);
+		stageStickyIssues(
+			doc,
+			[
+				{ id: "s1", text: "Faster cold starts" },
+				{ id: "s2", text: "Cache the manifest" },
+			],
+			REPO,
+			PRIYA,
+		);
+		const [first] = listChanges(doc);
+		stageTriage(
+			doc,
+			[{ key: `${REPO}#9`, shape: "c1" }],
+			{ kind: "item.milestone", milestone: "5.0" },
+			PRIYA,
+		);
+		stageBlockedBy(
+			doc,
+			{ blocked: { key: `${REPO}#9` }, blocker: { pending: first!.id }, connector: "k1" },
+			PRIYA,
+		);
+		expect(
+			unstagedByDeleting(doc, ["s1"])
+				.map((change) => change.op.kind)
+				.sort(),
+		).toEqual(["issue.create", "item.blockedBy"]);
+
+		const kinds = () => ops(doc).map((op) => op.kind).sort();
+		transactLocal(doc, () => removeShapes(doc, ["s1"]));
+		expect(kinds()).toEqual(["issue.create", "item.milestone"]);
+		expect(ops(doc).find((op) => op.kind === "issue.create")).toMatchObject({
+			title: "Cache the manifest",
+		});
+
+		// The card's milestone stays: the item is still on the forge.
+		transactLocal(doc, () => removeShapes(doc, ["c1"]));
+		expect(kinds()).toEqual(["issue.create", "item.milestone"]);
+
+		history.undo();
+		history.undo();
+		expect(
+			ops(doc)
+				.map((op) => op.kind)
+				.sort(),
+		).toEqual(["issue.create", "issue.create", "item.blockedBy", "item.milestone"]);
+		expect(shapesMap(doc).has("s1")).toBe(true);
+	});
+
+	it("unstages a section's parent issue with the section, but not changes already being pushed", () => {
+		const { doc, add } = board();
+		add("sec", { type: "section", title: "Docs", x: 0, y: 0, w: 600, h: 400, z: "a0" });
+		add("s1", { ...sticky("Write the guide"), parent: "sec", x: 20, y: 20 });
+		const result = stageParentIssue(
+			doc,
+			{ repo: REPO, title: "Docs", shapes: ["sec"], near: ["sec"] },
+			[{ shape: "s1", sticky: "Write the guide" }],
+			PRIYA,
+		);
+		changesMap(doc).get(result.parent!)?.set("status", "sending");
+		transactLocal(doc, () => removeShapes(doc, ["sec"]));
+		expect(listChanges(doc).map((change) => change.id)).toEqual([result.parent]);
 	});
 });
 

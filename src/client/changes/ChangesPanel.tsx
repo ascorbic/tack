@@ -7,19 +7,30 @@ import "./changes.css";
 import { type ChangesUI, signedIn, useChangesUI } from "./context.ts";
 import {
 	type ChangeIndex,
+	type ChangeRow,
+	DRIFT_NOTE,
+	batchRows,
 	changeForge,
 	changeRepo,
-	friendlyError,
 	groupByRepo,
 	indexChanges,
 	isInFlight,
 	isPending,
+	isPushable,
 	repoName,
 	summarize,
+	summarizeBatch,
 } from "./describe.ts";
-import { CloseIcon, ExternalIcon, HistoryIcon, KindIcon, RetryIcon } from "./icons.tsx";
-import { IncludeToggle, StagedBy, StatusGlyph } from "./parts.tsx";
-import { setIncluded, unstage, usePushState } from "./session.ts";
+import {
+	ChevronIcon,
+	CloseIcon,
+	ExternalIcon,
+	HistoryIcon,
+	KindIcon,
+	RetryIcon,
+} from "./icons.tsx";
+import { ForgeError, StagedBy, StatusGlyph } from "./parts.tsx";
+import { unstage, useLeftOut, usePushState } from "./session.ts";
 import { useChangeList } from "./store.ts";
 
 /** How many landed changes the panel keeps showing; the rest are in the history. */
@@ -27,9 +38,12 @@ const LANDED_SHOWN = 5;
 
 /**
  * The board's pending changes, FigJam-panel style: grouped by repository,
- * with who staged each, a toggle for whether it goes in the next push, and
- * unstage. Failed changes say why and offer a retry. Everyone on the board
- * sees the same list, live; view-only people see it but can't change it.
+ * in the order they were staged (each action's in board order), with who
+ * staged each and unstage. What one action staged together reads as one
+ * row that opens up. Failed changes say why and offer a retry. Everyone on
+ * the board sees the same list, live; view-only people see it but can't
+ * change it. What goes in a push is chosen in the push sheet, by whoever
+ * pushes.
  */
 export function ChangesPanel() {
 	const ui = useChangesUI();
@@ -46,7 +60,8 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 	const landed = changes
 		.filter((change) => change.status === "applied")
 		.sort((a, b) => ((a.updatedAt ?? "") < (b.updatedAt ?? "") ? 1 : -1));
-	const included = pending.filter((change) => change.included !== false);
+	const leftOut = useLeftOut(ui.session);
+	const included = pending.filter((change) => isPushable(change) && !leftOut.has(change.id));
 	const groups = groupByRepo(pending, index);
 	const push = usePushState(ui.session);
 	const panel = useRef<HTMLElement>(null);
@@ -109,7 +124,7 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 					<p>
 						{ui.readOnly
 							? "What’s staged on this board. You can look, but not change it."
-							: `Staged here, waiting to go to ${forge}. Everyone on the board sees this list.`}
+							: `Staged here, waiting to go to ${forge}. Everyone on the board sees this list; whoever pushes picks what goes.`}
 					</p>
 				</div>
 				<button
@@ -141,8 +156,8 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 							<span className="changes-repo-count">{group.changes.length}</span>
 						</h3>
 						<ul>
-							{group.changes.map((change) => (
-								<PanelRow key={change.id} ui={ui} change={change} index={index} />
+							{batchRows(group.changes).map((row) => (
+								<PanelItem key={rowKey(row)} ui={ui} row={row} index={index} />
 							))}
 						</ul>
 					</section>
@@ -155,8 +170,8 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 							<span className="changes-repo-count">{inFlight.length}</span>
 						</h3>
 						<ul>
-							{inFlight.map((change) => (
-								<PanelRow key={change.id} ui={ui} change={change} index={index} />
+							{batchRows(inFlight).map((row) => (
+								<PanelItem key={rowKey(row)} ui={ui} row={row} index={index} />
 							))}
 						</ul>
 					</section>
@@ -233,17 +248,133 @@ function PanelEmpty({ readOnly, forge }: { readOnly: boolean; forge: string }) {
 	);
 }
 
+function rowKey(row: ChangeRow): string {
+	return row.kind === "batch" ? row.id : row.change.id;
+}
+
+function PanelItem({ ui, row, index }: { ui: ChangesUI; row: ChangeRow; index: ChangeIndex }) {
+	return row.kind === "batch" ? (
+		<BatchRow ui={ui} changes={row.changes} index={index} />
+	) : (
+		<PanelRow ui={ui} change={row.change} index={index} />
+	);
+}
+
+/** Toast for unstaged changes, with Undo. */
+function unstaged(ui: ChangesUI, removed: string[]) {
+	if (removed.length === 0) return;
+	ui.store.highlight([]);
+	ui.toasts?.show({
+		message: removed.length === 1 ? "Unstaged 1 change" : `Unstaged ${removed.length} changes`,
+		action: ui.undo ? { label: "Undo", hint: "⌘Z", run: ui.undo } : undefined,
+	});
+}
+
+/**
+ * Changes one action staged together, as one row: what they do, who
+ * staged them, unstage all. It opens to show each, and opens by itself
+ * when one of them is picked out on the board or fails.
+ */
+function BatchRow({
+	ui,
+	changes,
+	index,
+}: {
+	ui: ChangesUI;
+	changes: PendingChange[];
+	index: ChangeIndex;
+}) {
+	const [first] = changes;
+	const failed = changes.filter((change) => change.status === "failed").length;
+	const revealed = changes.some((change) => change.id === ui.revealed);
+	const [open, setOpen] = useState(false);
+	useEffect(() => {
+		if (revealed || failed > 0) setOpen(true);
+	}, [revealed, failed]);
+	if (!first) return null;
+	const shapes = [...new Set(changes.flatMap((change) => change.shapes ?? []))];
+	const editable = !ui.readOnly && changes.some(isPending);
+	const status = failed > 0 ? "failed" : first.status;
+	const summary = summarizeBatch(changes, index);
+	return (
+		<li className="change-batch" data-open={open || undefined} data-status={status}>
+			<div
+				className="change-row"
+				data-status={status}
+				onPointerEnter={() => ui.store.highlight(shapes)}
+				onPointerLeave={() => ui.store.highlight([])}
+			>
+				<button
+					type="button"
+					className="change-batch-toggle"
+					aria-expanded={open}
+					aria-label={open ? `Fold up: ${summary}` : `Show each: ${summary}`}
+					onClick={() => setOpen(!open)}
+				>
+					<ChevronIcon />
+				</button>
+				<span className="change-kind" data-kind={first.op.kind}>
+					<KindIcon op={first.op} />
+				</span>
+				<div className="change-main">
+					<button
+						type="button"
+						className="change-summary"
+						title={shapes.length ? "Show on the board" : undefined}
+						onClick={() => shapes.length && ui.focusShapes(shapes)}
+					>
+						{summary}
+					</button>
+					<div className="change-meta">
+						<StagedBy change={first} you={ui.user.login} />
+						{failed > 0 && <span className="change-batch-failed">{failed} didn’t make it</span>}
+					</div>
+				</div>
+				{editable && (
+					<button
+						type="button"
+						className="change-unstage"
+						aria-label={`Unstage all: ${summary}`}
+						title="Unstage all"
+						onClick={() =>
+							unstaged(
+								ui,
+								unstage(
+									ui.doc,
+									changes.map((change) => change.id),
+									index,
+								),
+							)
+						}
+					>
+						<CloseIcon size={12} />
+					</button>
+				)}
+			</div>
+			{open && (
+				<ul className="change-batch-items">
+					{changes.map((change) => (
+						<PanelRow key={change.id} ui={ui} change={change} index={index} nested />
+					))}
+				</ul>
+			)}
+		</li>
+	);
+}
+
 function PanelRow({
 	ui,
 	change,
 	index,
+	nested = false,
 }: {
 	ui: ChangesUI;
 	change: PendingChange;
 	index: ChangeIndex;
+	/** Inside a batch's row, which already says who staged it. */
+	nested?: boolean;
 }) {
 	const pending = isPending(change);
-	const included = change.included !== false;
 	const editable = pending && !ui.readOnly;
 	const forge = changeForge(change, index);
 	const row = useRef<HTMLLIElement>(null);
@@ -256,15 +387,7 @@ function PanelRow({
 		setFlash((n) => n + 1);
 	}, [ui.revealed, change.id]);
 
-	const remove = () => {
-		const removed = unstage(ui.doc, [change.id], index);
-		if (removed.length === 0) return;
-		ui.store.highlight([]);
-		ui.toasts?.show({
-			message: removed.length === 1 ? "Unstaged 1 change" : `Unstaged ${removed.length} changes`,
-			action: ui.undo ? { label: "Undo", hint: "⌘Z", run: ui.undo } : undefined,
-		});
-	};
+	const remove = () => unstaged(ui, unstage(ui.doc, [change.id], index));
 
 	const retry = () => {
 		void ui.session.push([change.id], change.pushedAs ?? "user", index);
@@ -275,22 +398,14 @@ function PanelRow({
 			ref={row}
 			className="change-row"
 			data-status={change.status}
-			data-included={included}
+			data-drift={change.drift}
+			data-nested={nested || undefined}
 			data-flash={flash > 0 || undefined}
 			key={flash}
 			onPointerEnter={() => ui.store.highlight(change.shapes ?? [])}
 			onPointerLeave={() => ui.store.highlight([])}
 		>
-			{pending ? (
-				<IncludeToggle
-					checked={included}
-					disabled={!editable}
-					label={`Include in the next push: ${summarize(change.op, index)}`}
-					onChange={(checked) => setIncluded(ui.doc, [change.id], checked, index)}
-				/>
-			) : (
-				<StatusGlyph status={change.status} />
-			)}
+			<StatusGlyph status={change.status} />
 			<span className="change-kind" data-kind={change.op.kind}>
 				<KindIcon op={change.op} />
 			</span>
@@ -313,13 +428,18 @@ function PanelRow({
 						<span className="change-progress">Sending…</span>
 					) : change.status === "sent" ? (
 						<span className="change-progress">Sent, waiting for {forge} to confirm</span>
-					) : (
+					) : nested ? null : (
 						<StagedBy change={change} you={ui.user.login} />
+					)}
+					{pending && change.drift && (
+						<span className="change-drift" data-drift={change.drift}>
+							{DRIFT_NOTE[change.drift]}
+						</span>
 					)}
 				</div>
 				{change.status === "failed" && (
 					<p className="change-error">
-						{friendlyError(change.error, forge)}
+						<ForgeError error={change.error} detail={change.errorDetail} forge={forge} />
 						{!ui.readOnly && ui.client && signedIn(ui.user) && (
 							<button type="button" className="change-retry" onClick={retry}>
 								<RetryIcon size={12} />

@@ -1,5 +1,6 @@
 import type * as Y from "yjs";
 import {
+	Batcher,
 	type ChangeEffect,
 	type ChangeStatus,
 	type CloseReason,
@@ -14,8 +15,10 @@ import {
 	unstageChanges,
 } from "./changes.ts";
 import { readConnector } from "./connectors.ts";
+import { readingOrder } from "./display.ts";
 import type { RepoMeta } from "./push.ts";
 import { forgeForHost, repoKeyOf } from "./refs.ts";
+import { TITLE_MAX, issueFromText } from "./issueText.ts";
 import { readShape, shapesMap, transactLocal } from "./shapes.ts";
 
 // Built-in actions (#32): what the selection actions stage. Pure document
@@ -25,8 +28,7 @@ import { readShape, shapesMap, transactLocal } from "./shapes.ts";
 // (src/shared/changes.ts) in one local transaction, so one action is one undo
 // step, and the push sheet decides when they're written.
 
-/** GitHub's limit on issue titles. */
-export const TITLE_MAX = 256;
+export { TITLE_MAX, issueFromText } from "./issueText.ts";
 
 /** Changes that are still on their way: an issue that will exist, or is being made. */
 const LIVE: ReadonlySet<ChangeStatus> = new Set(["staged", "sending", "sent", "failed"]);
@@ -37,31 +39,6 @@ export function canWrite(meta: Pick<RepoMeta, "writes"> | null | undefined, kind
 }
 
 // Stickies to issues --------------------------------------------------------
-
-const MARKER = /^(?:#{1,6}\s+|[-*•]\s+|\[[ x]\]\s+)/i;
-
-/**
- * A sticky's text as an issue: the first line is the title (without a
- * leading heading or bullet marker), the rest is the body. A first line too
- * long for a title is cut at a word and kept whole in the body. Null when
- * there's nothing to say.
- */
-export function issueFromText(text: string): { title: string; body?: string } | null {
-	const lines = text.replace(/\r\n?/g, "\n").split("\n");
-	const first = lines.findIndex((line) => line.trim() !== "");
-	if (first === -1) return null;
-	const line = (lines[first] ?? "").trim().replace(MARKER, "").trim();
-	const rest = lines
-		.slice(first + 1)
-		.join("\n")
-		.trim();
-	if (line === "") return rest ? issueFromText(rest) : null;
-	if (line.length <= TITLE_MAX) return rest ? { title: line, body: rest } : { title: line };
-	const cut = line.slice(0, TITLE_MAX - 1);
-	const space = cut.lastIndexOf(" ");
-	const title = `${(space > TITLE_MAX / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
-	return { title, body: rest ? `${line}\n\n${rest}` : line };
-}
 
 /**
  * The live `issue.create` change that will turn this shape into a card, if
@@ -132,8 +109,11 @@ export function stageStickyIssues(
 ): StageResult {
 	const result: StageResult = { staged: [], skipped: [] };
 	const fields = extrasOf(extras);
+	const batch = new Batcher();
 	transactLocal(doc, () => {
-		for (const sticky of stickies) {
+		// In the order people read the board, so the Changes panel and the
+		// push sheet list them the way they're laid out.
+		for (const sticky of inReadingOrder(doc, stickies)) {
 			if (pendingIssueFor(doc, sticky.id)) {
 				result.skipped.push({ shape: sticky.id, reason: "staged" });
 				continue;
@@ -146,11 +126,23 @@ export function stageStickyIssues(
 			const id = stageChange(doc, { kind: "issue.create", repo, ...issue, ...fields }, stager, {
 				shapes: [sticky.id],
 				effect: { kind: "replace", shapes: [sticky.id] },
+				batch,
 			});
 			result.staged.push(id);
 		}
 	});
 	return result;
+}
+
+/** Shapes by their place on the board: top to bottom in rows, then left to right. */
+function inReadingOrder<T extends { id: string }>(doc: Y.Doc, items: readonly T[]): T[] {
+	const shapes = shapesMap(doc);
+	const at = items.map((item) => {
+		const shape = shapes.get(item.id);
+		return { id: item.id, x: Number(shape?.get("x") ?? 0), y: Number(shape?.get("y") ?? 0) };
+	});
+	const rank = new Map(readingOrder(at).map((id, i) => [id, i]));
+	return [...items].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
 }
 
 // Parent issues --------------------------------------------------------------
@@ -196,6 +188,7 @@ export function stageParentIssue(
 	const result: ParentResult = { staged: [], skipped: [], parent: null, children: 0 };
 	const title = parent.title.trim();
 	if (!title) return result;
+	const batch = new Batcher();
 	transactLocal(doc, () => {
 		const parentId = stageChange(
 			doc,
@@ -206,7 +199,7 @@ export function stageParentIssue(
 				...(parent.body?.trim() ? { body: parent.body.trim() } : {}),
 			},
 			stager,
-			{ shapes: parent.shapes },
+			{ shapes: parent.shapes, batch },
 		);
 		result.parent = parentId;
 		result.staged.push(parentId);
@@ -236,7 +229,11 @@ export function stageParentIssue(
 						doc,
 						{ kind: "issue.create", repo: parent.repo, ...issue },
 						stager,
-						{ shapes: [child.shape], effect: { kind: "replace", shapes: [child.shape] } },
+						{
+							shapes: [child.shape],
+							effect: { kind: "replace", shapes: [child.shape] },
+							batch,
+						},
 					);
 					result.staged.push(id);
 					target = { pending: id };
@@ -247,9 +244,7 @@ export function stageParentIssue(
 					doc,
 					{ kind: "item.subIssue", parent: { pending: parentId }, child: target },
 					stager,
-					{
-						shapes: [child.shape],
-					},
+					{ shapes: [child.shape], batch },
 				),
 			);
 			subIssues.push(child.shape);
@@ -431,6 +426,7 @@ export function stageTriage(
 	targets: TriageTarget[],
 	triage: Triage,
 	stager: Stager,
+	options: { batch?: Batcher } = {},
 ): string[] {
 	const ids: string[] = [];
 	const existing = listChanges(doc).filter(
@@ -441,6 +437,7 @@ export function stageTriage(
 			"key" in change.op.target &&
 			sameStager(change.stagedBy, stager),
 	);
+	const batch = options.batch ?? new Batcher();
 	transactLocal(doc, () => {
 		const changes = changesMap(doc);
 		for (const { key, shape, current } of targets) {
@@ -467,7 +464,7 @@ export function stageTriage(
 				changes.get(mine.id)?.set("op", op);
 				ids.push(mine.id);
 			} else {
-				ids.push(stageChange(doc, op, stager, { shapes: shape ? [shape] : undefined }));
+				ids.push(stageChange(doc, op, stager, { shapes: shape ? [shape] : undefined, batch }));
 			}
 		}
 	});
@@ -541,9 +538,10 @@ export function stageSetEdits(
 	}[],
 	stager: Stager,
 ): string[] {
+	const batch = new Batcher();
 	return transactLocal(doc, () =>
 		edits.flatMap(({ key, shape, current, add, remove }) =>
-			stageTriage(doc, [{ key, shape, current }], { kind, add, remove }, stager),
+			stageTriage(doc, [{ key, shape, current }], { kind, add, remove }, stager, { batch }),
 		),
 	);
 }
@@ -556,10 +554,12 @@ export function stageComments(
 	comments: { key: string; body: string; shape?: string }[],
 	stager: Stager,
 ): string[] {
+	const batch = new Batcher();
 	return transactLocal(doc, () =>
 		comments.map(({ key, body, shape }) =>
 			stageChange(doc, { kind: "item.comment", target: { key }, body }, stager, {
 				shapes: shape ? [shape] : undefined,
+				batch,
 			}),
 		),
 	);

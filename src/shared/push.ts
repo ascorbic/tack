@@ -77,5 +77,7 @@ export interface AuditEntry {
 		status: "applied" | "sent" | "failed";
 		url?: string;
 		error?: string;
+		/** What the forge itself said, when that's different from `error`. */
+		detail?: string;
 	}[];
 }

@@ -1,5 +1,6 @@
 import * as Y from "yjs";
-import { LOCAL_ORIGIN } from "./shapes.ts";
+import { issueFromText } from "./issueText.ts";
+import { LOCAL_ORIGIN, shapesMap } from "./shapes.ts";
 
 // Pending changes: writes to the forge that people stage on a board and then
 // push as a batch (docs/plan.md, M2). Moving things on a board never changes
@@ -115,6 +116,19 @@ export type ChangeEffect =
 	| { kind: "place"; near: string[] }
 	| { kind: "link"; shapes: string[] };
 
+/**
+ * How a new issue made from a sticky stands against that sticky now:
+ * `edited` since it was staged (the issue follows it), `deleted`, or
+ * `empty` (nothing left to make a title from).
+ */
+export type Drift = "edited" | "deleted" | "empty";
+
+/** Changes staged together by one action: which, and in what order they were staged. */
+export interface Batch {
+	id: string;
+	index: number;
+}
+
 export interface PendingChange {
 	id: string;
 	op: Operation;
@@ -124,8 +138,14 @@ export interface PendingChange {
 	/** Board shapes this change came from or is about, for highlighting. */
 	shapes?: string[];
 	effect?: ChangeEffect;
-	/** Whether this change is included in the next push (the push sheet's toggle). */
-	included?: boolean;
+	/** Staged with others by one action (Make 40 issues), so they read as one. */
+	batch?: Batch;
+	/**
+	 * Derived when read, never stored: a new issue made from a sticky is the
+	 * sticky's text as it is now (`followSticky`), and this says whether the
+	 * sticky has changed since it was staged.
+	 */
+	drift?: Drift;
 	/** Set by the server from here on. */
 	pushId?: string;
 	pushedBy?: Stager;
@@ -133,7 +153,10 @@ export interface PendingChange {
 	pushedAs?: PushAs;
 	/** What the forge made or changed: the created item's key and URL. */
 	result?: { key?: string; url?: string };
+	/** Why it failed, in words people can act on. */
 	error?: string;
+	/** What the forge itself said, when that's different, for looking it up. */
+	errorDetail?: string;
 	updatedAt?: string;
 }
 
@@ -141,14 +164,91 @@ export function changesMap(doc: Y.Doc): Y.Map<Y.Map<unknown>> {
 	return doc.getMap("changes");
 }
 
-export function readChange(change: Y.Map<unknown>): PendingChange {
-	return change.toJSON() as PendingChange;
+/**
+ * A change as it reads now. With the document, a new issue made from a
+ * sticky takes its title and body from the sticky as it is (see
+ * `followSticky`), so editing a sticky after staging it changes the issue.
+ */
+export function readChange(change: Y.Map<unknown>, doc?: Y.Doc): PendingChange {
+	const read = change.toJSON() as PendingChange;
+	return doc ? followSticky(doc, read) : read;
+}
+
+/**
+ * The sticky a staged new issue is made from: its title and body are read
+ * from it until a push snapshots them. Null for anything else, and once
+ * it's being pushed (the sticky is about to become its card).
+ */
+export function stickySource(
+	change: Pick<PendingChange, "op" | "effect" | "status">,
+): string | null {
+	if (change.op?.kind !== "issue.create" || change.effect?.kind !== "replace") return null;
+	if (change.status !== "staged" && change.status !== "failed") return null;
+	const [only, ...rest] = change.effect.shapes;
+	return only && rest.length === 0 ? only : null;
+}
+
+/**
+ * A new issue made from a sticky, as the sticky reads now: its title and
+ * body are the sticky's text, whatever it said when staged, and `drift`
+ * says it was edited since, or that the sticky is empty or gone (a push
+ * leaves those out). Labels, milestone and assignees are the change's own.
+ */
+export function followSticky(doc: Y.Doc, change: PendingChange): PendingChange {
+	const id = stickySource(change);
+	if (!id || change.op.kind !== "issue.create") return change;
+	const shape = shapesMap(doc).get(id);
+	if (!shape || shape.get("type") !== "sticky") return { ...change, drift: "deleted" };
+	const text = shape.get("text");
+	const issue = issueFromText(typeof text === "string" ? text : "");
+	if (!issue) return { ...change, drift: "empty" };
+	const { op } = change;
+	if (issue.title === op.title && (issue.body ?? "") === (op.body ?? "")) return change;
+	const { body: _body, ...rest } = op;
+	return {
+		...change,
+		op: { ...rest, title: issue.title, ...(issue.body ? { body: issue.body } : {}) },
+		drift: "edited",
+	};
+}
+
+/** Staging order: when, then each batch in the order its action staged it. */
+export function stagingOrder(a: PendingChange, b: PendingChange): number {
+	if (a.stagedAt !== b.stagedAt) return a.stagedAt < b.stagedAt ? -1 : 1;
+	// Within a moment, each batch (or change) together, in its own order.
+	const ag = a.batch?.id ?? a.id;
+	const bg = b.batch?.id ?? b.id;
+	if (ag !== bg) return ag < bg ? -1 : 1;
+	return (a.batch?.index ?? 0) - (b.batch?.index ?? 0);
 }
 
 export function listChanges(doc: Y.Doc): PendingChange[] {
-	return [...changesMap(doc).values()]
-		.map(readChange)
-		.sort((a, b) => (a.stagedAt < b.stagedAt ? -1 : a.stagedAt > b.stagedAt ? 1 : 0));
+	return [...changesMap(doc).values()].map((change) => readChange(change, doc)).sort(stagingOrder);
+}
+
+let lastStamp = 0;
+
+/**
+ * When a change is staged: now, but always later than the last change this
+ * client staged, so what one person stages lists in the order they did it.
+ */
+function stamp(): string {
+	lastStamp = Math.max(Date.now(), lastStamp + 1);
+	return new Date(lastStamp).toISOString();
+}
+
+/**
+ * Changes staged by one action share a batch: the same time, and their
+ * order. Pass the same `Batcher` to every `stageChange` the action makes.
+ */
+export class Batcher {
+	readonly id = crypto.randomUUID();
+	readonly at = stamp();
+	private next = 0;
+
+	take(): Batch {
+		return { id: this.id, index: this.next++ };
+	}
 }
 
 /** Stage a change, as an undoable local edit. Returns its id. */
@@ -156,7 +256,7 @@ export function stageChange(
 	doc: Y.Doc,
 	op: Operation,
 	stagedBy: Stager,
-	options: { shapes?: string[]; effect?: ChangeEffect; id?: string } = {},
+	options: { shapes?: string[]; effect?: ChangeEffect; id?: string; batch?: Batcher } = {},
 ): string {
 	const id = options.id ?? crypto.randomUUID();
 	doc.transact(() => {
@@ -165,8 +265,8 @@ export function stageChange(
 		change.set("op", op);
 		change.set("status", "staged" satisfies ChangeStatus);
 		change.set("stagedBy", stagedBy);
-		change.set("stagedAt", new Date().toISOString());
-		change.set("included", true);
+		change.set("stagedAt", options.batch?.at ?? stamp());
+		if (options.batch) change.set("batch", options.batch.take());
 		if (options.shapes?.length) change.set("shapes", options.shapes);
 		if (options.effect) change.set("effect", options.effect);
 		changesMap(doc).set(id, change);
@@ -185,12 +285,73 @@ export function unstageChanges(doc: Y.Doc, ids: string[]): void {
 	}, LOCAL_ORIGIN);
 }
 
-/** Include or leave out staged changes from the next push. */
-export function includeChanges(doc: Y.Doc, ids: string[], included: boolean): void {
+const CREATES: ReadonlySet<OperationKind> = new Set([
+	"issue.create",
+	"pr.create",
+	"discussion.create",
+]);
+
+/**
+ * The shapes a staged change is made from, which it can't outlive: the
+ * sticky a new issue's text comes from, the section or cluster a parent
+ * issue stands for, the decision a write-back records, the connector a
+ * blocked-by link was drawn as, the action items an issue is for. Changes
+ * about items already on the forge (labels on a card) aren't made from
+ * their card: the item is still there when the card goes.
+ */
+function madeFrom(change: Y.Map<unknown>): string[] {
+	const effect = change.get("effect") as ChangeEffect | undefined;
+	const op = change.get("op") as Operation | undefined;
+	switch (effect?.kind) {
+		case "replace":
+		case "link":
+			return effect.shapes;
+		case "connect":
+			return [effect.shape];
+	}
+	const shapes = change.get("shapes");
+	return op && CREATES.has(op.kind) && Array.isArray(shapes) ? (shapes as string[]) : [];
+}
+
+/**
+ * The staged (or failed) changes that go when these shapes are deleted:
+ * those made from them (`madeFrom`, every one of its shapes deleted), and
+ * the changes that refer to the issues those would have made.
+ */
+export function changesMadeFrom(doc: Y.Doc, deleted: ReadonlySet<string>): string[] {
 	const changes = changesMap(doc);
-	doc.transact(() => {
-		for (const id of ids) changes.get(id)?.set("included", included);
-	}, LOCAL_ORIGIN);
+	const out = new Set<string>();
+	const pending = (change: Y.Map<unknown>) => {
+		const status = change.get("status");
+		return status === "staged" || status === "failed";
+	};
+	for (const [id, change] of changes) {
+		if (!pending(change)) continue;
+		const from = madeFrom(change);
+		if (from.length > 0 && from.every((shape) => deleted.has(shape))) out.add(id);
+	}
+	let grew = out.size > 0;
+	while (grew) {
+		grew = false;
+		for (const [id, change] of changes) {
+			if (out.has(id) || !pending(change)) continue;
+			const op = change.get("op") as Operation | undefined;
+			if (op && safeDependencies(op).some((dep) => out.has(dep))) {
+				out.add(id);
+				grew = true;
+			}
+		}
+	}
+	return [...out];
+}
+
+/** Dependencies of an operation anyone could have written into the document. */
+function safeDependencies(op: Operation): string[] {
+	try {
+		return pendingDependencies(op);
+	} catch {
+		return [];
+	}
 }
 
 function targetsOf(op: Operation): Target[] {

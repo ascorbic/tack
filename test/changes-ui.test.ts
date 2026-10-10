@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import {
+	Batcher,
 	type Operation,
 	type PendingChange,
 	changesMap,
 	listChanges,
 	stageChange,
 } from "../src/shared/changes.ts";
+import { addShape, shapesMap, transactLocal } from "../src/shared/shapes.ts";
 import type { RepoMeta } from "../src/shared/push.ts";
 import { forgeName, forgeNameOf, sentenceCase } from "../src/shared/refs.ts";
 import {
@@ -14,21 +16,26 @@ import {
 	changeRepo,
 	changesForge,
 	estimateWatchers,
+	batchRows,
 	failureCopy,
 	friendlyError,
 	groupByKind,
 	groupByRepo,
 	indexChanges,
+	isPushable,
 	missingDependencies,
 	peopleCount,
+	pushEta,
 	repoName,
+	reviewOrder,
 	summarize,
+	summarizeBatch,
+	waitingFor,
 	withDependencies,
 	withDependents,
 } from "../src/client/changes/describe.ts";
-import { PushSession, setIncluded, unstage } from "../src/client/changes/session.ts";
+import { PushSession, unstage } from "../src/client/changes/session.ts";
 import { ChangesStore } from "../src/client/changes/store.ts";
-import { History } from "../src/client/undo.ts";
 
 // The pending-changes UI's logic: how changes read, group and depend on
 // each other, who a push notifies, what a refusal says, and staging edits
@@ -201,26 +208,45 @@ describe("dependencies", () => {
 });
 
 describe("staging edits", () => {
-	it("includes and leaves out with dependencies, as one undo step", () => {
+	it("leaves out and puts back with dependencies, for this person only", () => {
 		const { doc, create, sub, labels, close } = board();
-		const history = new History(doc);
-		const index = () => indexChanges(listChanges(doc));
+		const before = Y.encodeStateAsUpdate(doc);
+		const session = new PushSession(null);
+		const index = indexChanges(listChanges(doc));
 		const included = () =>
 			listChanges(doc)
-				.filter((change) => change.included !== false)
+				.filter((change) => !session.leftOut().has(change.id))
 				.map((change) => change.id)
 				.sort();
+		let notified = 0;
+		session.subscribe(() => notified++);
 
-		setIncluded(doc, [create], false, index());
+		// Leaving out a new issue leaves out the changes about it.
+		expect(session.setIncluded([create], false, index).sort()).toEqual(
+			[create, sub, labels].sort(),
+		);
 		expect(included()).toEqual([close]);
-		setIncluded(doc, [labels], true, index());
+		// Putting back a change about it puts the issue back too.
+		session.setIncluded([labels], true, index);
 		expect(included()).toEqual([create, labels, close].sort());
+		expect(notified).toBe(2);
+		// Nothing about it is on the board, so nobody else's push changes.
+		expect(Y.encodeStateAsUpdate(doc)).toEqual(before);
+	});
 
-		history.undo();
-		expect(included()).toEqual([close]);
-		history.undo();
-		expect(included()).toEqual([create, sub, labels, close].sort());
-		history.destroy();
+	it("forgets what was left out once it's pushed", async () => {
+		const { doc, create, close } = board();
+		const session = new PushSession({
+			push: async () => ({ ok: true, pushId: "p1" }),
+			pushes: async () => ({ ok: true, value: [] }),
+			repoMeta: async () => ({ ok: false, error: "nope" }),
+		});
+		const index = indexChanges(listChanges(doc));
+		session.setIncluded([close], false, index);
+		session.setIncluded([create], false, index);
+		await session.push([close], "user", index);
+		expect(session.leftOut().has(close)).toBe(false);
+		expect(session.leftOut().has(create)).toBe(true);
 	});
 
 	it("unstages the changes that depend on an unstaged issue, and only pending ones", () => {
@@ -229,6 +255,118 @@ describe("staging edits", () => {
 		const removed = unstage(doc, [create, close], indexChanges(listChanges(doc)));
 		expect(removed.sort()).toEqual([create, sub, labels].sort());
 		expect(listChanges(doc).map((change) => change.id)).toEqual([close]);
+	});
+});
+
+describe("batches", () => {
+	function batch(n: number) {
+		const doc = new Y.Doc();
+		const batcher = new Batcher();
+		const ids = Array.from({ length: n }, (_, i) =>
+			stageChange(doc, { kind: "issue.create", repo: REPO, title: `Idea ${i + 1}` }, by, {
+				shapes: [`s${i}`],
+				effect: { kind: "replace", shapes: [`s${i}`] },
+				batch: batcher,
+			}),
+		);
+		return { doc, ids };
+	}
+
+	it("lists a batch in the order it was staged, whatever the ids", () => {
+		const { doc, ids } = batch(40);
+		expect(listChanges(doc).map((change) => change.id)).toEqual(ids);
+		const store = new ChangesStore(doc);
+		expect(store.list().map((change) => change.id)).toEqual(ids);
+		store.destroy();
+	});
+
+	it("folds what one action staged into one row, where the first of it was", () => {
+		const { doc, ids } = batch(4);
+		const lone = stageChange(doc, { kind: "issue.create", repo: REPO, title: "Lone" }, by);
+		changesMap(doc)
+			.get(lone)
+			?.set("stagedAt", new Date(Date.now() + 1000).toISOString());
+		const changes = listChanges(doc);
+		const rows = batchRows(changes);
+		expect(rows.map((row) => row.kind)).toEqual(["batch", "change"]);
+		const [first] = rows;
+		expect(first?.kind === "batch" && first.changes.map((c) => c.id)).toEqual(ids);
+		expect(rows[1]?.kind === "change" && rows[1].change.id).toBe(lone);
+		expect(summarizeBatch(changes.slice(0, 4), indexChanges(changes))).toBe(
+			"4 new issues from stickies",
+		);
+		// Two of a kind aren't worth folding.
+		expect(batchRows(listChanges(batch(2).doc)).map((row) => row.kind)).toEqual([
+			"change",
+			"change",
+		]);
+	});
+
+	it("says what a batch of triage does", () => {
+		const doc = new Y.Doc();
+		const batcher = new Batcher();
+		for (const n of [1, 2, 3]) {
+			stageChange(
+				doc,
+				{ kind: "item.milestone", target: { key: `${REPO}#${n}` }, milestone: "5.0" },
+				by,
+				{ batch: batcher },
+			);
+		}
+		const changes = listChanges(doc);
+		expect(summarizeBatch(changes, indexChanges(changes))).toBe("Move 3 items to 5.0");
+	});
+});
+
+describe("a new issue follows its sticky", () => {
+	function sticky(text: string) {
+		const doc = new Y.Doc();
+		transactLocal(doc, () => addShape(doc, "s1", { type: "sticky", text, x: 0, y: 0, z: "a0" }));
+		const id = stageChange(
+			doc,
+			{ kind: "issue.create", repo: REPO, title: "A playground", labels: ["idea"] },
+			by,
+			{ shapes: ["s1"], effect: { kind: "replace", shapes: ["s1"] } },
+		);
+		return { doc, id };
+	}
+
+	it("re-reads the change when its sticky is edited, and says so", () => {
+		const { doc, id } = sticky("A playground");
+		const store = new ChangesStore(doc);
+		expect(store.get(id)?.drift).toBeUndefined();
+		let notified = 0;
+		store.subscribe(() => notified++);
+		transactLocal(doc, () =>
+			shapesMap(doc).get("s1")?.set("text", "A playground with live preview\nFor every provider"),
+		);
+		expect(notified).toBe(1);
+		const change = store.get(id);
+		expect(change?.op).toMatchObject({
+			title: "A playground with live preview",
+			body: "For every provider",
+			labels: ["idea"],
+		});
+		expect(change?.drift).toBe("edited");
+		expect(isPushable(change!)).toBe(true);
+		store.destroy();
+	});
+
+	it("can't be pushed once its sticky is empty", () => {
+		const { doc, id } = sticky("A playground");
+		transactLocal(doc, () => shapesMap(doc).get("s1")?.set("text", "   "));
+		const [change] = listChanges(doc);
+		expect(change?.id).toBe(id);
+		expect(change?.drift).toBe("empty");
+		expect(isPushable(change!)).toBe(false);
+	});
+
+	it("stops following once it's being pushed", () => {
+		const { doc, id } = sticky("A playground");
+		changesMap(doc).get(id)?.set("status", "sending");
+		transactLocal(doc, () => shapesMap(doc).get("s1")?.set("text", "Something else"));
+		expect(listChanges(doc)[0]?.op).toMatchObject({ title: "A playground" });
+		expect(listChanges(doc)[0]?.drift).toBeUndefined();
 	});
 });
 
@@ -334,6 +472,29 @@ describe("refused pushes", () => {
 		expect(failureCopy({ ok: false, reason: "no_write_access", message: "" }).title).toBe(
 			"You can stage but not push here",
 		);
+	});
+});
+
+describe("progress", () => {
+	it("lists a push in review order, and says what a change waits for", () => {
+		const { doc, create, sub, labels, close } = board();
+		for (const id of [create, sub, labels]) changesMap(doc).get(id)?.set("status", "sending");
+		const changes = listChanges(doc);
+		const index = indexChanges(changes);
+		// Written dependencies first; reviewed by repository, then kind.
+		const written = [labels, close, sub, create].map((id) => index.get(id)!);
+		const order = reviewOrder(written, index).map((change) => change.id);
+		expect(order).toEqual([create, sub, labels, close]);
+		expect(waitingFor(index.get(labels)!, index)).toBe("“Better errors”");
+		changesMap(doc).get(create)?.set("status", "applied");
+		const later = indexChanges(listChanges(doc));
+		expect(waitingFor(later.get(labels)!, later)).toBeNull();
+	});
+
+	it("says roughly how long a big push has left", () => {
+		expect(pushEta(3)).toBe("");
+		expect(pushEta(36)).toBe("About 40 s left. ");
+		expect(pushEta(120)).toBe("About 2 minutes left. ");
 	});
 });
 

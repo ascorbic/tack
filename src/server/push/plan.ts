@@ -217,7 +217,8 @@ export function planPush(
 		const [change] = pending.splice(next, 1);
 		if (!change) break;
 		placed.add(change.id);
-		const checked = checkOperation(change.op);
+		const gone = DRIFTED[change.drift ?? "edited"];
+		const checked = gone ? ({ ok: false, error: gone } as const) : checkOperation(change.op);
 		ordered.push(
 			checked.ok
 				? { change, op: checked.op, repo: writeRepo(checked.op, byId) }
@@ -226,6 +227,16 @@ export function planPush(
 	}
 	return { ok: true, ordered };
 }
+
+/**
+ * New issues whose sticky can't say what they are any more. (One edited
+ * since it was staged is pushed as it reads now: see `followSticky`.)
+ */
+const DRIFTED: Partial<Record<NonNullable<PendingChange["drift"]>, string>> = {
+	deleted: "Its sticky was deleted from the board, so there's nothing to make this issue from.",
+	empty:
+		"Its sticky is empty now, so this issue would have no title. Write on it, or unstage this.",
+};
 
 /** Pending dependencies of an operation that may not be well formed. */
 function dependenciesOf(op: Operation): string[] {

@@ -233,8 +233,7 @@ export async function pushWriteBacks(doc: Y.Doc, ms = 500): Promise<number> {
 			.map((shape) => shape.get("writeback")),
 	);
 	const staged = listChanges(doc).filter(
-		(change) =>
-			writeBacks.has(change.id) && change.status === "staged" && change.included !== false,
+		(change) => writeBacks.has(change.id) && change.status === "staged",
 	);
 	for (const change of staged) setChange(doc, change.id, "sending");
 	await sleep(ms);

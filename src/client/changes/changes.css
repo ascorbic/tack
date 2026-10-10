@@ -400,9 +400,125 @@
 	}
 }
 
-.change-row[data-included="false"] .change-kind,
-.change-row[data-included="false"] .change-summary {
+/* A sticky that was emptied (or deleted) since its issue was staged. */
+.change-row[data-drift="empty"] .change-kind,
+.change-row[data-drift="empty"] .change-summary,
+.change-row[data-drift="deleted"] .change-kind,
+.change-row[data-drift="deleted"] .change-summary {
 	opacity: 0.5;
+}
+
+/* What one action staged together, as one row that opens up. */
+.change-batch > .change-row {
+	grid-template-columns: 20px 24px minmax(0, 1fr) 22px;
+}
+
+.change-batch-toggle {
+	display: grid;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	margin-top: 2px;
+	padding: 0;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	color: var(--muted);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out);
+}
+
+.change-batch-toggle:hover {
+	background: var(--surface);
+	color: var(--ink);
+}
+
+.change-batch-toggle .icon {
+	transform: rotate(-90deg);
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.change-batch[data-open] .change-batch-toggle .icon {
+	transform: none;
+}
+
+.change-batch-failed {
+	margin-left: 8px;
+	color: var(--fail-ink);
+	font-weight: 600;
+}
+
+.change-batch-items {
+	position: relative;
+	margin: 0 0 4px 19px !important;
+	padding-left: 10px !important;
+	animation: batch-open var(--t-settle) var(--ease-spring);
+}
+
+/* A thread down the batch's rows, so they read as its own. */
+.change-batch-items::before {
+	content: "";
+	position: absolute;
+	top: 2px;
+	bottom: 10px;
+	left: 0;
+	border-left: 1.5px solid var(--line);
+	border-radius: 2px;
+}
+
+@keyframes batch-open {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+}
+
+.change-batch-items .change-row {
+	padding-top: 6px;
+	padding-bottom: 6px;
+	animation: none;
+}
+
+.change-drift {
+	display: block;
+	margin-top: 3px;
+	color: var(--pending-ink);
+	font-size: 11.5px;
+	line-height: 1.35;
+}
+
+.change-drift[data-drift="empty"],
+.change-drift[data-drift="deleted"] {
+	color: var(--fail-ink);
+}
+
+/* Why a write failed, with what the forge said behind "Details". */
+.forge-error-toggle {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-weight: 600;
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+.forge-error-detail {
+	display: block;
+	margin-top: 4px;
+	padding: 5px 8px;
+	border-radius: 7px;
+	background: color-mix(in srgb, var(--fail) 8%, var(--surface));
+	color: var(--ink-soft);
+	font-size: 11.5px;
+	line-height: 1.4;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 .change-row[data-status="failed"] {
@@ -1672,6 +1788,16 @@
 .push-change-failed {
 	color: var(--fail-ink);
 	font-size: 12px;
+}
+
+.push-change-drift {
+	color: var(--pending-ink);
+	font-size: 12px;
+}
+
+.push-change-drift[data-drift="empty"],
+.push-change-drift[data-drift="deleted"] {
+	color: var(--fail-ink);
 }
 
 /* Previews of what will be written. */

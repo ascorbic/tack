@@ -27,6 +27,25 @@ function change(
 
 const create = (title: string): Operation => ({ kind: "issue.create", repo: REPO, title });
 
+describe("new issues from stickies that changed", () => {
+	it("pushes an edited sticky as it reads now, and refuses a deleted or empty one", () => {
+		const edited = { ...change("a", create("Now")), drift: "edited" as const };
+		const deleted = { ...change("b", create("Gone")), drift: "deleted" as const };
+		const empty = { ...change("c", create("Blank")), drift: "empty" as const };
+		const plan = planPush([edited, deleted, empty], ["a", "b", "c"], new Set(), new Map());
+		expect(plan.ok).toBe(true);
+		if (!plan.ok) return;
+		expect(plan.ordered.map((item) => [item.change.id, item.op?.kind ?? item.error])).toEqual([
+			["a", "issue.create"],
+			["b", "Its sticky was deleted from the board, so there's nothing to make this issue from."],
+			[
+				"c",
+				"Its sticky is empty now, so this issue would have no title. Write on it, or unstage this.",
+			],
+		]);
+	});
+});
+
 function card(overrides: Partial<Card> = {}): Card {
 	return {
 		key: ITEM,

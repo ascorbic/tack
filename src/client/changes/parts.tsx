@@ -4,7 +4,7 @@ import { isMissing } from "../../shared/cards.ts";
 import { relativeTime } from "../boards/api.ts";
 import { useCard } from "../cardStore.ts";
 import { initials } from "../People.tsx";
-import { type ChangeIndex, STATUS_LABEL, targetLabel } from "./describe.ts";
+import { type ChangeIndex, STATUS_LABEL, friendlyError, targetLabel } from "./describe.ts";
 import { CheckIcon, CloseIcon } from "./icons.tsx";
 import "./changes.css";
 
@@ -163,5 +163,43 @@ export function IncludeToggle({
 				<CheckIcon size={12} />
 			</span>
 		</label>
+	);
+}
+
+/**
+ * Why a change failed, as Tack puts it, with what the forge said itself
+ * behind "Details", for whoever needs to look it up.
+ */
+export function ForgeError({
+	error,
+	detail,
+	forge,
+}: {
+	error: string | undefined;
+	detail?: string;
+	forge?: string;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<span className="forge-error">
+			{friendlyError(error, forge)}
+			{detail && (
+				<>
+					{" "}
+					<button
+						type="button"
+						className="forge-error-toggle"
+						aria-expanded={open}
+						onClick={(event) => {
+							event.stopPropagation();
+							setOpen(!open);
+						}}
+					>
+						{open ? "Hide details" : "Details"}
+					</button>
+					{open && <code className="forge-error-detail">{detail}</code>}
+				</>
+			)}
+		</span>
 	);
 }

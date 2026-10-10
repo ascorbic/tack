@@ -59,6 +59,22 @@ export function isPending(change: Pick<PendingChange, "status">): boolean {
 	return change.status === "staged" || change.status === "failed";
 }
 
+/**
+ * Changes that could go in a push: pending, and not a new issue whose
+ * sticky was deleted or emptied since it was staged (there's nothing to
+ * make it from; the push sheet leaves those out).
+ */
+export function isPushable(change: Pick<PendingChange, "status" | "drift">): boolean {
+	return isPending(change) && change.drift !== "deleted" && change.drift !== "empty";
+}
+
+/** What a sticky's drift means for its new issue, in a few words. */
+export const DRIFT_NOTE: Record<NonNullable<PendingChange["drift"]>, string> = {
+	edited: "Edited since it was staged: this is the sticky as it reads now",
+	deleted: "Its sticky was deleted, so it’s left out",
+	empty: "Its sticky is empty now, so it’s left out until it says something",
+};
+
 /** Changes a push is working on right now. */
 export function isInFlight(change: Pick<PendingChange, "status">): boolean {
 	return change.status === "sending" || change.status === "sent";
@@ -259,6 +275,87 @@ export function missingDependencies(ids: Iterable<string>, index: ChangeIndex): 
 	return [...withDependencies(chosen, index)].filter((id) => !chosen.has(id));
 }
 
+/** A row in a list of changes: one change, or a batch staged by one action. */
+export type ChangeRow =
+	| { kind: "change"; change: PendingChange }
+	| { kind: "batch"; id: string; changes: PendingChange[] };
+
+/** How many changes of a kind one action staged before they read as one row. */
+export const BATCH_MIN = 3;
+
+/**
+ * Rows for a list of changes, in its order: changes of one kind that one
+ * action staged together (Make 40 issues) become one row, where the first
+ * of them was, so 40 stickies read as "40 new issues from stickies".
+ */
+export function batchRows(changes: readonly PendingChange[], min = BATCH_MIN): ChangeRow[] {
+	const groups = new Map<string, PendingChange[]>();
+	const keyOf = (change: PendingChange) =>
+		change.batch ? `${change.batch.id}:${change.op.kind}` : null;
+	for (const change of changes) {
+		const key = keyOf(change);
+		if (!key) continue;
+		const group = groups.get(key);
+		if (group) group.push(change);
+		else groups.set(key, [change]);
+	}
+	const rows: ChangeRow[] = [];
+	const placed = new Set<string>();
+	for (const change of changes) {
+		const key = keyOf(change);
+		const group = key ? groups.get(key) : undefined;
+		if (!key || !group || group.length < min) {
+			rows.push({ kind: "change", change });
+		} else if (!placed.has(key)) {
+			placed.add(key);
+			rows.push({ kind: "batch", id: key, changes: group });
+		}
+	}
+	return rows;
+}
+
+/**
+ * What a batch does, in one line: "40 new issues from stickies", "Add
+ * labels to 6 items", "12 sub-issues of “Docs for 5.0”".
+ */
+export function summarizeBatch(changes: readonly PendingChange[], index: ChangeIndex): string {
+	const [first] = changes;
+	if (!first) return "";
+	const n = changes.length;
+	const items = `${n} items`;
+	const op = first.op;
+	switch (op.kind) {
+		case "issue.create":
+			return changes.every((change) => change.effect?.kind === "replace")
+				? `${n} new issues from stickies`
+				: `${n} new issues`;
+		case "item.subIssue": {
+			const parents = new Set(
+				changes.map((change) =>
+					change.op.kind === "item.subIssue" ? targetLabel(change.op.parent, index) : "",
+				),
+			);
+			return parents.size === 1 ? `${n} sub-issues of ${[...parents][0]}` : `${n} sub-issue links`;
+		}
+		case "item.labels":
+			return `Labels on ${items}`;
+		case "item.assignees":
+			return `Assignees on ${items}`;
+		case "item.milestone": {
+			const same = changes.every(
+				(change) => change.op.kind === "item.milestone" && change.op.milestone === op.milestone,
+			);
+			return same && op.milestone ? `Move ${items} to ${op.milestone}` : `Milestones on ${items}`;
+		}
+		case "item.state":
+			return op.state === "open" ? `Reopen ${items}` : `Close ${items}`;
+		case "item.comment":
+			return `Comment on ${items}`;
+		default:
+			return `${n} × ${KINDS[op.kind].label}`;
+	}
+}
+
 export interface RepoGroup<T = PendingChange> {
 	/** The repository key, or "" for changes that don't name one. */
 	repo: string;
@@ -285,6 +382,43 @@ export function groupByKind(
 		kind,
 		changes: changes.filter((change) => change.op.kind === kind),
 	})).filter((group) => group.changes.length > 0);
+}
+
+/** Changes in the order the push sheet reviews them: by repository, then kind, creations first. */
+export function reviewOrder(
+	changes: readonly PendingChange[],
+	index: ChangeIndex,
+): PendingChange[] {
+	return groupByRepo(changes, index).flatMap((group) =>
+		groupByKind(group.changes).flatMap((kind) => kind.changes),
+	);
+}
+
+/**
+ * The new issue a change being pushed is still waiting for, if any: "“Cache
+ * the manifest”". Changes about a new issue are written once it's made.
+ */
+export function waitingFor(change: PendingChange, index: ChangeIndex): string | null {
+	if (change.status !== "sending" && change.status !== "staged") return null;
+	for (const id of pendingDependencies(change.op)) {
+		const created = index.get(id);
+		if (created && (created.status === "sending" || created.status === "staged")) {
+			return created.op.kind === "issue.create" ? `“${created.op.title}”` : "a new issue";
+		}
+	}
+	return null;
+}
+
+/** Writes go about a second apart (GitHub asks for that), so a push of 40 takes a while. */
+const SECONDS_PER_WRITE = 1.1;
+
+/** "About 40 s left. " while a big push is going, so people watching know it isn't stuck. */
+export function pushEta(remaining: number): string {
+	if (remaining < 5) return "";
+	const seconds = Math.round(remaining * SECONDS_PER_WRITE);
+	if (seconds < 60) return `About ${Math.ceil(seconds / 5) * 5} s left. `;
+	const minutes = Math.round(seconds / 60);
+	return `About ${minutes} minute${minutes === 1 ? "" : "s"} left. `;
 }
 
 /** "~40 people", "1 person", "~1.2k people": watcher counts are rough by nature. */

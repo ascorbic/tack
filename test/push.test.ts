@@ -208,7 +208,7 @@ describe("pushing", () => {
 			y: 60,
 			z: "a3",
 			parent: "section",
-			text: "Wobble",
+			text: "Fix the wobble",
 		});
 		addShape(doc, "other", {
 			type: "sticky",
