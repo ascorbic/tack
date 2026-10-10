@@ -1233,3 +1233,14 @@ body[data-row-drag] .widget-row-actions {
 	-webkit-box-orient: vertical;
 	text-wrap: balance;
 }
+
+/* Reduced motion: running CI stops breathing. */
+@media (prefers-reduced-motion: reduce) {
+	.review-ci[data-ci="pending"] .review-ci-dot {
+		animation: none;
+	}
+}
+
+:root[data-motion="reduced"] .review-ci[data-ci="pending"] .review-ci-dot {
+	animation: none;
+}
