@@ -8,10 +8,10 @@ import type { Miniflare, Response } from "miniflare";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
 import { inboxQuery, setInbox } from "../src/shared/inbox.ts";
-import { transactLocal } from "../src/shared/shapes.ts";
+import { addShape, shapesMap, transactLocal } from "../src/shared/shapes.ts";
 import { addSection } from "../src/shared/structure.ts";
 import { addWidget, updateWidgetConfig } from "../src/shared/widgetRegistry.ts";
-import type { SearchResult, WidgetMessage } from "../src/shared/widgets.ts";
+import type { RelatedResult, SearchResult, WidgetMessage } from "../src/shared/widgets.ts";
 import { type BoardClient, connectBoard, eventually } from "./board-client.ts";
 import { FakeGitHub, type FakeUser } from "./fake-github.ts";
 import { boardStub, instanceStub, repoStub, signIn, startWorker } from "./harness.ts";
@@ -381,5 +381,110 @@ describe("fake forge searches", () => {
 			expect(["open", "draft"]).toContain(card.state);
 			expect(card.labels.map((label) => label.name)).toContain("docs");
 		}
+	});
+});
+
+describe("follow-up queries", () => {
+	async function fakeBoard() {
+		const mf = startWorker({ devAuth: true });
+		cleanups.push(() => mf.dispose());
+		const cookie = await signIn(mf, "octocat");
+		const board = await createBoard(mf, cookie);
+		const client = await open(mf, board, cookie);
+		return { mf, client };
+	}
+
+	it("ask what's related to each of a dependency map's search results, in the same message", async () => {
+		const { client } = await fakeBoard();
+		const widget = transactLocal(client.doc, () =>
+			addWidget(
+				client.doc,
+				"dependencies",
+				{ x: 0, y: 0 },
+				{ host: "fake.tack", q: "repo:stress/cards is:issue is:open", limit: 5 },
+			),
+		);
+		await client.roundTrip();
+		client.send({ type: "widget-watch", ids: [widget] });
+		const message = await latest(client, widget, (m) => Object.keys(m.results).length > 1);
+		const items = message.results.items as SearchResult;
+		expect(items.items).toHaveLength(5);
+		const names = Object.keys(message.results).filter((name) => name.startsWith("related:"));
+		expect(names.sort()).toEqual(items.items.map((card) => `related:${card.key}`).sort());
+		for (const name of names) {
+			const result = message.results[name] as RelatedResult;
+			expect(result.kind).toBe("related");
+			// The fake forge's issues are each blocked by the one five after.
+			const n = Number(result.key.split("#")[1]);
+			expect(result.blockedBy).toEqual([`fake.tack/stress/cards#${n + 5}`]);
+		}
+	});
+
+	it("follow the cards in a section as they come and go", async () => {
+		const { client } = await fakeBoard();
+		const card = (n: number, parent: string | null) =>
+			addShape(client.doc, `card-${n}`, {
+				type: "card",
+				ref: `fake.tack/stress/cards#${n}`,
+				x: 40 + n * 10,
+				y: 60,
+				z: `a${n}`,
+				parent,
+			});
+		const { section, widget } = transactLocal(client.doc, () => {
+			const section = addSection(client.doc, { x: 0, y: 0, w: 800, h: 400 }, { title: "Launch" });
+			card(1, section);
+			card(6, section);
+			card(11, null);
+			const widget = addWidget(
+				client.doc,
+				"dependencies",
+				{ x: 900, y: 0 },
+				{ source: "section", section },
+			);
+			return { section, widget };
+		});
+		await client.roundTrip();
+		client.send({ type: "widget-watch", ids: [widget] });
+		const related = (m: WidgetMessage) => Object.keys(m.results).sort();
+		expect(related(await latest(client, widget))).toEqual([
+			"related:fake.tack/stress/cards#1",
+			"related:fake.tack/stress/cards#6",
+		]);
+		// Moving a card into the section maps it too.
+		transactLocal(client.doc, () => shapesMap(client.doc).get("card-11")?.set("parent", section));
+		await client.roundTrip();
+		const next = await latest(client, widget, (m) => related(m).length === 3);
+		expect(related(next)).toContain("related:fake.tack/stress/cards#11");
+	});
+});
+
+describe("dependency maps on GitHub", () => {
+	it("show each viewer only the blockers they can read", async () => {
+		const github = fakeGitHub();
+		// #1 is blocked by #2, and by the private repository's #5.
+		github.blockedBy.set(`${WIDGETS}#1`, [
+			github.databaseId(WIDGETS, 2),
+			github.databaseId(SECRET, 5),
+		]);
+		const mf = await configured(github);
+		const alice = await signInWithGitHub(mf, github, ALICE);
+		const board = await createBoard(mf, alice);
+		const owner = await open(mf, board, alice);
+		const widget = transactLocal(owner.doc, () =>
+			addWidget(owner.doc, "dependencies", { x: 0, y: 0 }, { q: "repo:acme/widgets is:open" }),
+		);
+		await owner.roundTrip();
+		const anonymous = await open(mf, board);
+		for (const client of [owner, anonymous]) client.send({ type: "widget-watch", ids: [widget] });
+
+		const name = "related:github.com/acme/widgets#1";
+		const blockers = async (client: BoardClient) => {
+			const message = await latest(client, widget, (m) => m.results[name]?.kind === "related");
+			return (message.results[name] as RelatedResult).blockedBy.sort();
+		};
+		expect(await blockers(owner)).toEqual(["github.com/acme/secret#5", "github.com/acme/widgets#2"]);
+		expect(await blockers(anonymous)).toEqual(["github.com/acme/widgets#2"]);
+		expect(JSON.stringify(anonymous.messages)).not.toContain("acme/secret");
 	});
 });

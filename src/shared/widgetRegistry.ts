@@ -1,9 +1,12 @@
 import * as v from "valibot";
 import type * as Y from "yjs";
+import { dependencyWidget } from "./dependencyMap.ts";
 import type { Rect } from "./geometry.ts";
 import { DEFAULT_HOST } from "./refs.ts";
+import { releaseWidget } from "./releaseDraft.ts";
 import { parseSearch, searchScope } from "./search.ts";
 import { type ShapeProps, addShape, nextZ, shapesMap } from "./shapes.ts";
+import { timelineWidget } from "./timeline.ts";
 import {
 	MAX_FOLLOW_UPS,
 	NO_BOARD,
@@ -108,6 +111,9 @@ export const LIST_PRESETS: { label: string; title: string; q: (repo: string) => 
 
 export const WIDGETS: Record<string, WidgetDefinition<never>> = {
 	list: listWidget as unknown as WidgetDefinition<never>,
+	timeline: timelineWidget as unknown as WidgetDefinition<never>,
+	release: releaseWidget as unknown as WidgetDefinition<never>,
+	dependencies: dependencyWidget as unknown as WidgetDefinition<never>,
 };
 
 /** The definition for a kind, or null for kinds this version doesn't know. */

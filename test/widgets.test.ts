@@ -16,8 +16,11 @@ import {
 } from "../src/shared/widgetRegistry.ts";
 
 describe("the widget registry", () => {
-	it("knows list widgets, and nothing else yet", () => {
+	it("knows its kinds, and nothing else", () => {
 		expect(widgetDefinition("list")).toBe(listWidget);
+		for (const kind of ["timeline", "release", "dependencies"]) {
+			expect(widgetDefinition(kind)?.kind).toBe(kind);
+		}
 		expect(widgetDefinition("toString")).toBeNull();
 		expect(widgetDefinition(undefined)).toBeNull();
 	});
