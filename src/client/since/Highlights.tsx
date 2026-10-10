@@ -5,6 +5,7 @@ import { NOMINAL_SIZE, type SizeOf } from "../../shared/sections.ts";
 import type { Highlight, HighlightKind } from "../../shared/since.ts";
 import type { ShapeNode } from "../board.ts";
 import { scaledDuration } from "../motion.ts";
+import { clearView } from "../clearView.ts";
 import { useHighlights } from "./SincePanel.tsx";
 import { type SinceStore, sinceStore, useSince } from "./store.ts";
 import "./since.css";
@@ -12,10 +13,13 @@ import "./since.css";
 // Highlights on the canvas for "since you were here" (#46): a soft ring
 // around each shape that's new, changed, moved or closed since your last
 // visit, with a small label. Each fades once it's been on screen for a
-// moment, so the board quietens as you look around.
+// moment, so the board quietens as you look around. Only once you're
+// looking, though: nothing counts as seen until you've moved the pointer,
+// scrolled or pressed a key, and never while it's under a panel (the
+// digest itself, on arrival).
 
 /** How long a highlight has to be in view to count as seen. */
-const SEEN_AFTER_MS = 1800;
+export const SEEN_AFTER_MS = 4500;
 /** How long a seen highlight takes to fade. */
 const FADE_MS = 900;
 
@@ -59,12 +63,23 @@ export function HighlightLayer({
 	}, [nodes, sizeOf]);
 
 	const unseen = highlights.filter((h) => !state.seen.has(h.shape));
+	const engaged = useEngaged();
 
-	// Which unseen highlights are in view now, and since when.
+	// Which unseen highlights are in view now (clear of panels), and since when.
 	const inView = useRef(new Map<string, number>());
 	useEffect(() => {
+		if (!engaged || unseen.length === 0) {
+			inView.current.clear();
+			return;
+		}
 		const [tx, ty, zoom] = transform;
-		const view = { x: -tx / zoom, y: -ty / zoom, w: width / zoom, h: height / zoom };
+		const clear = clearView();
+		const view = {
+			x: (-tx + clear.left) / zoom,
+			y: -ty / zoom,
+			w: Math.max(0, width - clear.left - clear.right) / zoom,
+			h: height / zoom,
+		};
 		const now = performance.now();
 		const visible = new Set<string>();
 		for (const highlight of unseen) {
@@ -127,6 +142,24 @@ export function HighlightLayer({
 			</div>
 		</ViewportPortal>
 	);
+}
+
+/**
+ * Whether the person has done anything yet: moved the pointer, scrolled,
+ * clicked or pressed a key. Until then they're reading, not looking around.
+ */
+function useEngaged(): boolean {
+	const [engaged, setEngaged] = useState(false);
+	useEffect(() => {
+		if (engaged) return;
+		const events = ["pointermove", "pointerdown", "wheel", "keydown"] as const;
+		const on = () => setEngaged(true);
+		for (const type of events) window.addEventListener(type, on, { passive: true, once: true });
+		return () => {
+			for (const type of events) window.removeEventListener(type, on);
+		};
+	}, [engaged]);
+	return engaged;
 }
 
 export function HighlightRing({

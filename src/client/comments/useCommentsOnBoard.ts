@@ -2,6 +2,7 @@ import { useReactFlow } from "@xyflow/react";
 import { useCallback, useEffect, useRef } from "react";
 import { type CommentThread, mentions, pinPosition } from "../../shared/comments.ts";
 import { NOMINAL_SIZE, type SizeOf } from "../../shared/sections.ts";
+import { centreClearOf, clearView } from "../clearView.ts";
 import type { ShapeNode } from "../board.ts";
 import { scaledDuration } from "../motion.ts";
 import type { User } from "../presence.ts";
@@ -96,11 +97,13 @@ export function useCommentsOnBoard({
 		(thread: CommentThread) => {
 			const at = pointOf(thread);
 			const zoom = Math.max(flow.getZoom(), 0.9);
-			// Leave room for the popover, to the pin's right.
-			void flow.setCenter(at.x + 170 / zoom, at.y + 80 / zoom, {
+			// Leave room for the popover, to the pin's right, clear of open panels.
+			const centre = centreClearOf(
+				{ x: at.x + 170 / zoom, y: at.y + 80 / zoom },
 				zoom,
-				duration: scaledDuration(JUMP_MS),
-			});
+				clearView(),
+			);
+			void flow.setCenter(centre.x, centre.y, { zoom, duration: scaledDuration(JUMP_MS) });
 			// (A resolved thread's pin shows while it's open.)
 			commentStore.openThread(thread.id, { flash: true });
 		},
@@ -110,12 +113,25 @@ export function useCommentsOnBoard({
 	const jumpToShape = useCallback(
 		(id: string) => {
 			if (!flow.getNode(id)) return;
-			void flow.fitView({
-				nodes: [{ id }],
-				padding: 1.4,
-				maxZoom: Math.max(flow.getZoom(), 0.9),
-				duration: scaledDuration(JUMP_MS),
-			});
+			// In the middle of what's clear of open panels (the digest, say),
+			// with room around it.
+			const view = clearView();
+			const bounds = flow.getNodesBounds([id]);
+			const clear = Math.max(200, view.width - view.left - view.right);
+			const zoom = Math.max(
+				0.2,
+				Math.min(
+					Math.max(flow.getZoom(), 0.9),
+					clear / (bounds.width * 2.4),
+					view.height / (bounds.height * 2.4),
+				),
+			);
+			const centre = centreClearOf(
+				{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 },
+				zoom,
+				view,
+			);
+			void flow.setCenter(centre.x, centre.y, { zoom, duration: scaledDuration(JUMP_MS) });
 		},
 		[flow],
 	);
