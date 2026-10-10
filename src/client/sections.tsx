@@ -21,6 +21,8 @@ import { transactLocal, updateShapes } from "../shared/shapes.ts";
 import { addSection, resizeSection } from "../shared/structure.ts";
 import { type ShapeNode, focusWhenMounted, isFresh, takeFocus } from "./board.ts";
 import { DocContext, ReadOnlyContext, SectionContext, type SectionUI } from "./DocContext.ts";
+import { SilentBadge, SilentButton } from "./facilitation/Silent.tsx";
+import { VoteButton } from "./facilitation/Votes.tsx";
 import { TrayIcon } from "./inbox/icons.tsx";
 import { inboxUI, useTray } from "./inbox/useTray.ts";
 import "./sections.css";
@@ -79,6 +81,7 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 			data-selected={!!selected}
 			data-drop-target={ui.dropTargets.has(id)}
 			data-enter={enter}
+			data-silent={shape.silent ? true : undefined}
 		>
 			{received > 0 && <span key={received} className="section-received" aria-hidden="true" />}
 			<div className="section-header">
@@ -109,6 +112,7 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 						{count}
 					</span>
 					{shape.inbox && <InboxBadge id={id} shape={shape} />}
+					{shape.silent && <SilentBadge shape={shape} />}
 				</div>
 				{selected && doc && !readOnly && (
 					<SectionColors
@@ -130,6 +134,8 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 						Make inbox
 					</button>
 				)}
+				{alone && doc && !readOnly && !shape.silent && <SilentButton id={id} />}
+				{alone && doc && !readOnly && <VoteButton id={id} />}
 			</div>
 			{selected &&
 				doc &&

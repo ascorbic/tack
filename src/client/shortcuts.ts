@@ -412,6 +412,15 @@ export const SHORTCUTS: Shortcut[] = [
 		display: [["Esc"]],
 		keywords: "escape unfollow",
 	},
+	// Handled by facilitation/Emotes.tsx.
+	{
+		id: "emotes",
+		label: "Emotes and high-fives",
+		group: "People",
+		combos: [],
+		display: [["E"], ["E", "1–8"]],
+		keywords: "emoji react high five wave celebrate",
+	},
 	{
 		id: "shortcuts",
 		label: "Keyboard shortcuts",
@@ -442,6 +451,7 @@ const TOOL_LABELS: Record<string, string> = {
 	decision: "Decision",
 	section: "Section",
 	connector: "Connector",
+	stamp: "Stamp",
 };
 
 /** Sheet entries for the toolbar's single-key tool shortcuts. */

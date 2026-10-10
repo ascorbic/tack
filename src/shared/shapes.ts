@@ -2,6 +2,7 @@ import { generateKeyBetween } from "fractional-indexing";
 import * as Y from "yjs";
 import type { Anchor } from "./geometry.ts";
 import type { Dismissal } from "./inbox.ts";
+import type { SilentSession } from "./silent.ts";
 import type { InboxConfig, Provenance } from "./widgets.ts";
 
 // The board document: `shapes` is a map of shape id → Y.Map of properties.
@@ -54,6 +55,24 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              |                    | matches (or nothing brought it)               |
 // | widget       | widget             | its kind, e.g. `list` (see widgetRegistry.ts) |
 // | config       | widget             | the kind's config, read with its schema       |
+// | silent       | section            | its silent session (`SilentSession`), written |
+// |              |                    | only by the server (silent.ts)                |
+// | silent       | sticky             | the silent session it was made in: it's face  |
+// |              |                    | down, and has no `text` in the document until |
+// |              |                    | the reveal                                    |
+//
+// Beside `shapes`, the document has these root maps:
+//
+// | map          | meaning                                                      |
+// | ------------ | ------------------------------------------------------------ |
+// | changes      | staged changes for the forge (changes.ts)                    |
+// | rules        | the board's rules, and `ruleLog` their activity (rules.ts)    |
+// | facilitation | `timer`: the shared timer (`Timer`), written by the server   |
+// |              | in its own clock (facilitation.ts)                           |
+// | stamps       | one key per person, shape and stamp → `Stamp`, so stamps     |
+// |              | never conflict (facilitation.ts)                             |
+// | dotVotes     | vote id → Y.Map of its settings and a nested `ballots` map   |
+// |              | of voter key → `Ballot` (dotvotes.ts)                         |
 //
 // Decisions link to items with ordinary connectors: a connector between a
 // decision and a card links that card (see `linkedItems` in decisions.ts).
@@ -160,6 +179,11 @@ export interface ShapeProps {
 	unmatched?: string;
 	/** Inbox sections: items dismissed from the tray, by key (a Y.Map in the document). */
 	dismissed?: Record<string, Dismissal>;
+	/**
+	 * Silent mode (silent.ts): on a section, its session; on a sticky, the
+	 * id of the session it was made in, while it's face down.
+	 */
+	silent?: string | SilentSession;
 }
 
 /**

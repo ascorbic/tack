@@ -19,6 +19,8 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { readVotes } from "../shared/dotvotes.ts";
+import type { StampEmoji } from "../shared/facilitation.ts";
 import { itemKey, parseRef } from "../shared/refs.ts";
 import {
 	type Position,
@@ -52,6 +54,14 @@ import { ConnectorLayer } from "./connectors.tsx";
 import { CursorChat } from "./CursorChat.tsx";
 import { Cursors } from "./Cursors.tsx";
 import { EmptyBoard } from "./EmptyBoard.tsx";
+import { Emotes } from "./facilitation/Emotes.tsx";
+import { FacilitateMenu } from "./facilitation/FacilitateMenu.tsx";
+import { MarksLayer, dotShape, stampShape } from "./facilitation/Marks.tsx";
+import { useSilentToasts } from "./facilitation/Silent.tsx";
+import { SpotlightIndicator, useSpotlightFollow } from "./facilitation/Spotlight.tsx";
+import { facilitation } from "./facilitation/store.ts";
+import { TimerPill } from "./facilitation/Timer.tsx";
+import { StartVoteDialog, TallyPanel, VoteBars, useVoteUI, voteUI } from "./facilitation/Votes.tsx";
 import { FollowIndicator, ViewPublisher, useFollow } from "./Follow.tsx";
 import { Guides, useSnapping } from "./Guides.tsx";
 import { BoardContext } from "./DocContext.ts";
@@ -141,6 +151,8 @@ export function Board({
 	const flow = useReactFlow();
 	const presence = usePresence(awareness, user);
 	const follow = useFollow(awareness, presence.people);
+	// Spotlight: someone bringing everyone to their view (#50).
+	const spotlight = useSpotlightFollow(awareness, presence.people, follow);
 	usePublishStatus(awareness);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [measured, setMeasured] = useState<Map<string, { width: number; height: number }>>(
@@ -164,6 +176,7 @@ export function Board({
 	const history = useMemo(() => new History(doc), [doc]);
 	useEffect(() => () => history.destroy(), [history]);
 	const [toasts] = useState(() => new ToastStore());
+	useSilentToasts(doc, toasts);
 	// Selection actions: staging changes for the forge (src/client/actions/).
 	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
 	const [actionRequests] = useState(() => new ActionRequests());
@@ -268,6 +281,12 @@ export function Board({
 
 	const [tool, setTool] = useState<Tool>("select");
 	const [stickyColor, setStickyColor] = useState<StickyColor>("yellow");
+	const [stamp, setStamp] = useState<StampEmoji>("👍");
+	const voteState = useVoteUI();
+	const setVoting = useCallback(
+		(on: boolean) => setTool((current) => (on ? "vote" : current === "vote" ? "select" : current)),
+		[],
+	);
 
 	// Rules (automation that places cards) and inbox frames.
 	const [rulesOpen, setRulesOpen] = useState(false);
@@ -557,7 +576,12 @@ export function Board({
 	// Select: drag the canvas to marquee-select; scroll or space-drag to pan.
 	// Hand: drag to pan, and shapes can't be picked up. Section and connector:
 	// drag to draw, so shapes can't be picked up either.
-	const shapesInteractive = tool !== "hand" && tool !== "section" && tool !== "connector";
+	const shapesInteractive =
+		tool !== "hand" &&
+		tool !== "section" &&
+		tool !== "connector" &&
+		tool !== "stamp" &&
+		tool !== "vote";
 	return (
 		<ChangesContext value={changesUI}>
 			<BoardContext
@@ -591,6 +615,7 @@ export function Board({
 								toasts={toasts}
 								onReveal={reveal}
 							/>
+							<FacilitateMenu doc={doc} awareness={awareness} user={user} readOnly={readOnly} />
 							<ThemeToggle />
 							<span className="status" data-synced={synced}>
 								{synced ? "Synced" : "Connecting…"}
@@ -655,6 +680,28 @@ export function Board({
 									if (node.type === "card") linkStore.set(null, "card");
 								}}
 								onNodeClick={(event, node) => {
+									// Stamping and dot voting: a click puts yours on the shape.
+									if (!readOnly && tool === "stamp" && node.type !== "connector") {
+										stampShape(doc, node.id, stamp, user);
+										return;
+									}
+									if (!readOnly && tool === "vote") {
+										const shapes = new Map(nodes.map((n) => [n.id, n.data.shape] as const));
+										const result = dotShape(
+											doc,
+											readVotes(doc),
+											shapes,
+											node.id,
+											user,
+											event.altKey,
+										);
+										if (result === "none_left") {
+											toasts.show({ message: "No dots left: click one of yours to move it" });
+										} else if (result === "no_vote") {
+											toasts.show({ message: "That’s not part of a vote" });
+										}
+										return;
+									}
 									// Clicking one shape in a multi-selection selects just that one.
 									if (event.shiftKey || event.metaKey || event.ctrlKey) return;
 									if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
@@ -735,7 +782,16 @@ export function Board({
 										onCommand={commands.run}
 									/>
 								)}
+								<MarksLayer
+									doc={doc}
+									nodes={nodes}
+									sizeOf={boxSize}
+									me={user}
+									readOnly={readOnly}
+									voting={!readOnly && tool === "vote"}
+								/>
 								<Cursors people={presence.people} />
+								<Emotes awareness={awareness} user={user} people={presence.people} />
 								<ViewPublisher awareness={awareness} />
 								{!readOnly && (
 									<ShapeToolbar
@@ -772,7 +828,38 @@ export function Board({
 								)}
 							</ReactFlow>
 							<EmptyBoard empty={!readOnly && synced && shapeNodes.length === 0} onTool={setTool} />
-							<FollowIndicator person={follow.target} onStop={follow.stop} />
+							{spotlight.along ? null : (
+								<FollowIndicator person={follow.target} onStop={follow.stop} />
+							)}
+							<SpotlightIndicator
+								state={spotlight}
+								withYou={
+									presence.people.filter((person) => person.following === awareness.clientID).length
+								}
+								onBreakOut={follow.stop}
+							/>
+							<div className="facilitation-dock">
+								<TimerPill doc={doc} user={user} readOnly={readOnly} />
+								<VoteBars
+									doc={doc}
+									user={user}
+									readOnly={readOnly}
+									voting={tool === "vote"}
+									onVoting={setVoting}
+									toasts={toasts}
+								/>
+							</div>
+							{!readOnly && <StartVoteDialog doc={doc} user={user} now={facilitation.serverNow} />}
+							{voteState.tally && (
+								<TallyPanel
+									doc={doc}
+									voteId={voteState.tally}
+									user={user}
+									readOnly={readOnly}
+									onClose={() => voteUI.showTally(null)}
+									onReveal={reveal}
+								/>
+							)}
 							<CursorChat awareness={awareness} user={user} />
 							{!readOnly && (
 								<Toolbar
@@ -783,6 +870,8 @@ export function Board({
 									onAddCard={onAddCard}
 									onAddWidget={addWidgetAt}
 									suggestedRepo={suggestedRepo}
+									stamp={stamp}
+									onStamp={setStamp}
 								/>
 							)}
 							{rulesOpen && (

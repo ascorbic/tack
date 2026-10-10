@@ -7,6 +7,7 @@ import type { BoardRequest, CardMessage } from "../shared/cards.ts";
 import type { WidgetMessage } from "../shared/widgets.ts";
 import { cardStore } from "./cardStore.ts";
 import type { WidgetRequest } from "../shared/widgets.ts";
+import { type FacilitationIncoming, facilitation } from "./facilitation/store.ts";
 import { inboxStore } from "./inbox/store.ts";
 import { widgetStore } from "./widgets/store.ts";
 
@@ -39,7 +40,11 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		const doc = new Y.Doc();
 		const provider = new YProvider(location.host, name, doc, { party: "board" });
 		provider.on("custom-message", (raw: string) => {
-			const message = JSON.parse(raw) as CardMessage | BoardMessage | WidgetMessage;
+			const message = JSON.parse(raw) as
+				| CardMessage
+				| BoardMessage
+				| WidgetMessage
+				| FacilitationIncoming;
 			switch (message.type) {
 				case "access":
 					handlers.current.onRole?.(message.role);
@@ -51,6 +56,13 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 					// Widgets and inbox frames each pick out their own ids.
 					widgetStore.apply(message);
 					inboxStore.apply(message);
+					return;
+				case "clock":
+				case "spotlight":
+				case "silent-texts":
+				case "silent-refused":
+				case "facilitation-refused":
+					facilitation.apply(message);
 					return;
 				default:
 					cardStore.apply(message);
@@ -77,6 +89,7 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		provider.on("status", ({ status }: { status: string }) => {
 			if (status === "connected") widgetStore.rewatch();
 		});
+		facilitation.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
 		return { doc, provider };
 	});
 	const [synced, setSynced] = useState(false);
@@ -86,12 +99,16 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		const onSync = (isSynced: boolean) => {
 			setSynced(isSynced);
 			// A new connection knows nothing of what this one was watching.
-			if (isSynced) inboxStore.rewatch();
+			if (isSynced) {
+				inboxStore.rewatch();
+				facilitation.connected();
+			}
 		};
 		provider.on("sync", onSync);
 		return () => {
 			provider.off("sync", onSync);
 			widgetStore.connect(null);
+			facilitation.disconnected();
 			provider.destroy();
 		};
 	}, [connection]);

@@ -15,8 +15,10 @@ import {
 	readShape,
 	shapesMap,
 } from "../shared/shapes.ts";
+import { joinSilentSession } from "../shared/silent.ts";
 import { commitMoves, placeInSections, removeShapes } from "../shared/structure.ts";
 import { widgetSize } from "../shared/widgetRegistry.ts";
+import { facilitation } from "./facilitation/store.ts";
 import { transactLocal } from "./undo.ts";
 
 export type ShapeNode = Node<{
@@ -234,9 +236,20 @@ export function addSticky(
 		color = "yellow",
 		author,
 		font,
-	}: { color?: StickyColor; author?: Author; font?: ShapeFont } = {},
+		mine = true,
+	}: {
+		color?: StickyColor;
+		author?: Author;
+		font?: ShapeFont;
+		/**
+		 * Made by this person (not, say, a simulated one): a sticky landing in
+		 * a silent section is claimed as theirs with the server.
+		 */
+		mine?: boolean;
+	} = {},
 ): string {
 	const id = crypto.randomUUID();
+	let silent: string | null = null;
 	transactLocal(doc, () => {
 		addShape(doc, id, {
 			type: "sticky",
@@ -249,7 +262,12 @@ export function addSticky(
 			z: nextZ(doc),
 		});
 		placeInSections(doc, [id]);
+		// In a silent section, its text stays off the document (see shared/silent.ts).
+		silent = joinSilentSession(doc, id);
 	});
+	// Claim it once the sticky itself has gone to the server (this may be
+	// inside a bigger transaction, which ends first).
+	if (silent && mine) queueMicrotask(() => facilitation.claim(id));
 	return id;
 }
 
@@ -308,6 +326,16 @@ export function takeFocus(id: string): boolean {
 	return true;
 }
 
+/**
+ * Set a sticky's (or text block's) text. A silent sticky's text never goes
+ * into the document: it goes to the server, for its author alone, until the
+ * reveal (see shared/silent.ts).
+ */
 export function setStickyText(doc: Y.Doc, id: string, text: string): void {
-	transactLocal(doc, () => shapesMap(doc).get(id)?.set("text", text));
+	const shape = shapesMap(doc).get(id);
+	if (shape && shape.get("type") === "sticky" && typeof shape.get("silent") === "string") {
+		facilitation.setText(id, text);
+		return;
+	}
+	transactLocal(doc, () => shape?.set("text", text));
 }

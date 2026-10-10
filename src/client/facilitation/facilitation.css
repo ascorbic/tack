@@ -1,0 +1,2005 @@
+/* ---------------------------------------------------------------------------
+   Facilitation (#50), silent mode (#49) and dot voting (#48)
+   ------------------------------------------------------------------------ */
+
+/* The top bar's Facilitate menu ----------------------------------------- */
+
+.facilitate {
+	position: relative;
+}
+
+.topbar .facilitate-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 11px 0 9px;
+}
+
+.facilitate-button .facilitate-icon {
+	color: var(--muted);
+	transition:
+		color var(--t-base) var(--ease-out),
+		rotate var(--t-settle) var(--ease-spring);
+}
+
+.facilitate-button:hover .facilitate-icon {
+	rotate: -14deg;
+}
+
+.topbar .facilitate-button[aria-expanded="true"] {
+	border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+/* Something's running: the baton glows. */
+.facilitate-button[data-live] .facilitate-icon {
+	color: var(--accent);
+}
+
+.facilitate-menu {
+	position: absolute;
+	top: calc(100% + 8px);
+	right: 0;
+	z-index: 30;
+	width: 330px;
+	padding: 6px;
+	border-radius: 16px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(16px) saturate(1.3);
+	transform-origin: top right;
+	animation: facilitate-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes facilitate-in {
+	from {
+		opacity: 0;
+		scale: 0.96;
+		translate: 0 -6px;
+	}
+}
+
+.facilitate-row {
+	display: flex;
+	gap: 10px;
+	padding: 10px;
+	border-radius: 11px;
+}
+
+.facilitate-row + .facilitate-row {
+	border-top: 1px solid var(--line);
+	border-radius: 0;
+}
+
+.facilitate-row-icon {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 28px;
+	height: 28px;
+	border-radius: 8px;
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.facilitate-row-icon svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+}
+
+.facilitate-row-body {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+	min-width: 0;
+}
+
+.facilitate-row h3 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 14px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.facilitate-note {
+	margin: -4px 0 0;
+	color: var(--muted);
+	font-size: 12.5px;
+	line-height: 1.4;
+}
+
+.facilitate-note kbd,
+.emote-wheel-item kbd {
+	display: inline-grid;
+	place-items: center;
+	min-width: 17px;
+	height: 17px;
+	padding: 0 4px;
+	border-radius: 5px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	font-family: var(--font-mono);
+	font-size: 10.5px;
+	color: var(--ink-soft);
+}
+
+.facilitate-row-body > button,
+.timer-starter button,
+.vote-start-foot button,
+.tally-foot button,
+.vote-bar button,
+.section-silent-reveal {
+	height: 30px;
+	padding: 0 11px;
+	border-radius: 8px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	font-size: 12.5px;
+	font-weight: 560;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.facilitate-row-body > button:hover:not(:disabled),
+.timer-starter button:hover:not(:disabled),
+.vote-start-foot button:hover,
+.tally-foot button:hover,
+.vote-bar button:hover {
+	background: var(--hover);
+}
+
+.facilitate-row-body > button:active:not(:disabled),
+.timer-starter button:active:not(:disabled),
+.vote-bar button:active {
+	transform: scale(0.96);
+}
+
+.facilitate-row-body > button:disabled,
+.timer-starter button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.facilitate-primary,
+.vote-primary {
+	border-color: transparent !important;
+	background: var(--accent) !important;
+	color: var(--on-accent);
+}
+
+.facilitate-primary:hover:not(:disabled),
+.vote-primary:hover {
+	background: var(--accent-hover) !important;
+}
+
+.timer-starter {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+
+.timer-starter .timer-preset {
+	min-width: 40px;
+	padding: 0 9px;
+	font-family: var(--font-mono);
+	font-variant-numeric: tabular-nums;
+}
+
+.timer-custom {
+	display: flex;
+	gap: 5px;
+}
+
+.timer-custom input {
+	width: 52px;
+	height: 30px;
+	padding: 0 8px;
+	border-radius: 8px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+}
+
+.facilitate-sound {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 2px 4px 4px;
+	padding: 8px 6px 4px;
+	border-top: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 12.5px;
+	cursor: pointer;
+}
+
+.facilitate-sound input {
+	accent-color: var(--accent);
+}
+
+/* The dock at the top of the canvas: the timer, then votes ---------------- */
+
+.facilitation-dock {
+	position: absolute;
+	top: 12px;
+	left: 50%;
+	z-index: 9;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	max-width: calc(100% - 32px);
+	transform: translateX(-50%);
+	pointer-events: none;
+	transition: top var(--t-settle) var(--ease-settle);
+}
+
+.facilitation-dock > * {
+	pointer-events: auto;
+}
+
+/* Make room under a follow or spotlight pill. */
+.canvas:has(.follow-pill, .spotlight-pill) .facilitation-dock {
+	top: 54px;
+}
+
+/* The timer ---------------------------------------------------------------- */
+
+.timer {
+	--timer: var(--accent);
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	height: 40px;
+	padding: 0 6px 0 9px;
+	border-radius: 999px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(14px) saturate(1.4);
+	animation: timer-in var(--t-settle) var(--ease-spring) backwards;
+	transition:
+		background var(--t-base) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+@keyframes timer-in {
+	from {
+		opacity: 0;
+		translate: 0 -10px;
+		scale: 0.9;
+	}
+}
+
+.timer[data-state="final"] {
+	--timer: var(--pending);
+}
+
+.timer[data-state="done"] {
+	--timer: var(--pass);
+	background: color-mix(in srgb, var(--pass) 14%, var(--chrome-strong));
+	box-shadow:
+		0 0 0 3px color-mix(in srgb, var(--pass) 30%, transparent),
+		var(--shadow-lifted);
+	animation: timer-done calc(900ms * var(--motion)) var(--ease-spring);
+}
+
+@keyframes timer-done {
+	30% {
+		scale: 1.08;
+	}
+	55% {
+		scale: 0.98;
+	}
+}
+
+/* A soft ring spreading out as time runs out, twice. */
+.timer-ripple {
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	border: 2px solid var(--pass);
+	pointer-events: none;
+	animation: timer-ripple calc(1400ms * var(--motion)) var(--ease-out) 2 forwards;
+}
+
+@keyframes timer-ripple {
+	from {
+		opacity: 0.7;
+		scale: 1;
+	}
+	to {
+		opacity: 0;
+		scale: 1.25 1.9;
+	}
+}
+
+.timer-ring {
+	flex: none;
+	rotate: -90deg;
+}
+
+.timer-ring circle {
+	fill: none;
+	stroke-width: 3;
+}
+
+.timer-ring-track {
+	stroke: var(--line-strong);
+}
+
+.timer-ring-fill {
+	stroke: var(--timer);
+	stroke-linecap: round;
+	transition:
+		stroke-dashoffset calc(250ms * var(--motion)) linear,
+		stroke var(--t-base) var(--ease-out);
+}
+
+.timer-bell {
+	fill: var(--timer);
+	stroke: var(--timer);
+	stroke-width: 0.8;
+	stroke-linecap: round;
+	rotate: 90deg;
+	transform-origin: 12px 12px;
+	animation: timer-bell calc(1000ms * var(--motion)) var(--ease-out) 2;
+}
+
+@keyframes timer-bell {
+	15% {
+		rotate: 110deg;
+	}
+	30% {
+		rotate: 72deg;
+	}
+	45% {
+		rotate: 100deg;
+	}
+	60% {
+		rotate: 84deg;
+	}
+	75% {
+		rotate: 90deg;
+	}
+}
+
+.timer-digits {
+	min-width: 46px;
+	font-size: 17px;
+	font-weight: 650;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+	color: var(--ink);
+}
+
+.timer[data-state="final"] .timer-digits {
+	color: var(--pending-ink);
+	animation: timer-tick calc(320ms * var(--motion)) var(--ease-spring);
+}
+
+@keyframes timer-tick {
+	40% {
+		scale: 1.14;
+	}
+}
+
+.timer[data-state="done"] .timer-digits {
+	min-width: 0;
+	font-family: var(--font-display);
+	font-size: 15px;
+	color: var(--open);
+}
+
+.timer[data-state="paused"] .timer-digits {
+	animation: timer-paused calc(1600ms * var(--motion)) ease-in-out infinite;
+}
+
+@keyframes timer-paused {
+	50% {
+		opacity: 0.45;
+	}
+}
+
+.timer-note {
+	padding: 2px 7px;
+	border-radius: 999px;
+	background: var(--chip);
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.timer-by {
+	max-width: 120px;
+	overflow: hidden;
+	color: var(--muted);
+	font-size: 12px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.timer-by::before {
+	content: "";
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	margin-right: 5px;
+	border-radius: 50%;
+	background: var(--timer-by);
+	vertical-align: 0.5px;
+}
+
+.timer-controls {
+	display: flex;
+	gap: 2px;
+	max-width: 0;
+	overflow: hidden;
+	opacity: 0;
+	transition:
+		max-width var(--t-settle) var(--ease-settle),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.timer:hover .timer-controls,
+.timer:focus-within .timer-controls,
+.timer[data-state="done"] .timer-controls,
+.timer[data-state="paused"] .timer-controls {
+	max-width: 120px;
+	opacity: 1;
+}
+
+.timer-button {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--ink-soft);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.timer-button:hover {
+	background: var(--hover);
+}
+
+.timer-button:active {
+	transform: scale(0.9);
+}
+
+.timer-button svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.timer-button svg path[d^="M6 4.5"] {
+	fill: currentColor;
+}
+
+.timer-plus {
+	fill: currentColor;
+	stroke: none;
+	font-family: var(--font-mono);
+	font-size: 8.5px;
+	font-weight: 700;
+}
+
+/* Spotlight ---------------------------------------------------------------- */
+
+.spotlight-pill {
+	position: absolute;
+	top: 12px;
+	left: 50%;
+	z-index: 9;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 4px 4px 11px;
+	border-radius: 999px;
+	background: var(--spotlight);
+	color: #fff;
+	font-size: 12.5px;
+	font-weight: 520;
+	white-space: nowrap;
+	box-shadow:
+		0 0 0 4px color-mix(in srgb, var(--spotlight) 22%, transparent),
+		var(--shadow-lifted);
+	pointer-events: auto;
+	transform: translateX(-50%);
+	animation: pill-in var(--t-settle) var(--ease-spring);
+}
+
+.spotlight-pill[data-kind="away"] {
+	background: var(--chrome-strong);
+	color: var(--ink);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+}
+
+.spotlight-pill strong {
+	font-weight: 700;
+}
+
+.spotlight-pill > button {
+	height: 24px;
+	padding: 0 11px;
+	border: 0;
+	border-radius: 999px;
+	background: rgb(255 255 255 / 22%);
+	color: inherit;
+	font-size: 12px;
+	font-weight: 650;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.spotlight-pill > button:hover {
+	background: rgb(255 255 255 / 34%);
+}
+
+.spotlight-pill[data-kind="away"] > button {
+	background: var(--spotlight);
+	color: #fff;
+}
+
+.spotlight-icon {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.spotlight-pill .spotlight-icon {
+	flex: none;
+}
+
+/* The beams sweep gently while it's on. */
+.spotlight-pill .spotlight-beam {
+	transform-origin: 8px 12px;
+	animation: spotlight-sweep calc(2600ms * var(--motion)) ease-in-out infinite;
+}
+
+@keyframes spotlight-sweep {
+	50% {
+		rotate: 8deg;
+	}
+}
+
+.spotlight-count {
+	opacity: 0.8;
+}
+
+/* Following a spotlight: a brighter frame than following, with a glow. */
+.spotlight-frame {
+	box-shadow:
+		inset 0 0 0 3px var(--follow),
+		inset 0 0 60px color-mix(in srgb, var(--follow) 22%, transparent);
+}
+
+/* Stamps and dots on shapes -------------------------------------------- */
+
+.marks-layer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	pointer-events: none;
+}
+
+.stamps-anchor,
+.vote-dots-anchor {
+	position: absolute;
+	left: 0;
+	top: 0;
+	z-index: 5;
+}
+
+.stamps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	width: max-content;
+	max-width: 260px;
+	padding-left: 8px;
+	translate: 0 -50%;
+	transform-origin: 0 50%;
+	scale: var(--unzoom, 1);
+	pointer-events: auto;
+}
+
+.stamp {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	height: 26px;
+	padding: 0 7px 0 6px;
+	border-radius: 999px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	box-shadow: var(--shadow-rest);
+	font-size: 14px;
+	line-height: 1;
+	cursor: pointer;
+	transition:
+		transform var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+	animation: stamp-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.stamp:disabled {
+	cursor: default;
+}
+
+.stamp:hover:not(:disabled) {
+	transform: translateY(-1px);
+	border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong));
+}
+
+.stamp:active:not(:disabled) {
+	transform: scale(0.92);
+}
+
+.stamp[data-mine="true"] {
+	border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+	background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+/* A new stamp lands with a thunk: dropped from above, and a squash. */
+@keyframes stamp-in {
+	from {
+		opacity: 0;
+		transform: translateY(-10px) scale(1.6) rotate(-12deg);
+	}
+	55% {
+		opacity: 1;
+		transform: scale(0.88, 1.1);
+	}
+}
+
+.stamp[data-pop] .stamp-emoji {
+	animation: stamp-pop var(--t-settle) var(--ease-spring);
+}
+
+@keyframes stamp-pop {
+	30% {
+		scale: 1.45;
+		rotate: -10deg;
+	}
+}
+
+.stamp-count {
+	font-family: var(--font-mono);
+	font-size: 11.5px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+	color: var(--ink-soft);
+}
+
+/* The stamp tool: its button wears the stamp you'll make. */
+.tool-stamp-emoji {
+	font-size: 19px;
+	line-height: 1;
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.tool-stamp:hover .tool-stamp-emoji,
+.tool-stamp[aria-pressed="true"] .tool-stamp-emoji {
+	transform: rotate(-10deg) scale(1.12);
+}
+
+.stamp-choice {
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border: 0;
+	border-radius: 9px;
+	background: transparent;
+	font-size: 18px;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-settle) var(--ease-spring);
+}
+
+.stamp-choice:hover {
+	background: var(--hover);
+	transform: translateY(-2px) scale(1.1);
+}
+
+.stamp-choice[aria-checked="true"] {
+	background: var(--accent-soft);
+	box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.canvas[data-tool="stamp"] .react-flow__node,
+.canvas[data-tool="vote"] .react-flow__node {
+	cursor: copy;
+}
+
+.canvas[data-tool="stamp"] .react-flow__node:hover,
+.canvas[data-tool="vote"] .react-flow__node:hover {
+	filter: drop-shadow(0 0 0.5px var(--accent)) drop-shadow(0 6px 14px rgb(0 0 0 / 10%));
+}
+
+/* Dots in a shape's top-right corner. */
+.vote-dots {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 3px;
+	width: 120px;
+	translate: -100% -40%;
+	transform-origin: 100% 0;
+	scale: var(--unzoom, 1);
+	padding-right: 6px;
+	pointer-events: none;
+}
+
+.vote-dot {
+	--dot: var(--me, var(--accent));
+	display: block;
+	width: 15px;
+	height: 15px;
+	padding: 0;
+	border: 2px solid var(--surface);
+	border-radius: 50%;
+	background: var(--dot);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+	animation: dot-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.vote-dots .vote-dot[data-mine="true"] {
+	box-shadow:
+		0 0 0 1.5px var(--dot),
+		0 1px 3px rgb(0 0 0 / 25%);
+}
+
+button.vote-dot {
+	pointer-events: auto;
+	cursor: pointer;
+	transition: transform var(--t-quick) var(--ease-out);
+}
+
+button.vote-dot:hover {
+	transform: scale(1.2);
+}
+
+@keyframes dot-in {
+	from {
+		opacity: 0;
+		transform: translateY(-14px) scale(0.2);
+	}
+	60% {
+		opacity: 1;
+		transform: translateY(1px) scale(1.15, 0.9);
+	}
+}
+
+.vote-dot-more {
+	display: grid;
+	place-items: center;
+	min-width: 15px;
+	height: 15px;
+	padding: 0 4px;
+	border-radius: 999px;
+	background: var(--ink);
+	color: var(--surface);
+	font-family: var(--font-mono);
+	font-size: 9.5px;
+	font-weight: 700;
+}
+
+/* While voting, shapes that take dots are outlined. */
+.vote-target {
+	position: absolute;
+	left: 0;
+	top: 0;
+	border-radius: 10px;
+	outline: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+	outline-offset: 5px;
+	animation: fade-in var(--t-base) var(--ease-out);
+}
+
+/* Emotes and high-fives --------------------------------------------------- */
+
+.emotes-layer {
+	position: absolute;
+	inset: 0;
+	z-index: 7;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.emotes-viewport {
+	position: absolute;
+	left: 0;
+	top: 0;
+	transform-origin: 0 0;
+}
+
+.emote-float,
+.emote-hand,
+.high-five {
+	position: absolute;
+	left: 0;
+	top: 0;
+	transform-origin: 0 0;
+}
+
+.emote-float-glyph {
+	position: absolute;
+	left: -16px;
+	top: -16px;
+	font-size: 30px;
+	line-height: 1;
+	filter: drop-shadow(0 4px 6px rgb(0 0 0 / 18%));
+	animation: emote-float calc(1900ms * var(--motion)) cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+}
+
+@keyframes emote-float {
+	0% {
+		opacity: 0;
+		transform: translate(0, 4px) scale(0.3);
+	}
+	12% {
+		opacity: 1;
+		transform: translate(calc(var(--drift) * 4px), -14px) scale(1.25);
+	}
+	35% {
+		transform: translate(calc(var(--drift) * -10px), -50px) scale(1)
+			rotate(calc(var(--drift) * 10deg));
+	}
+	65% {
+		opacity: 1;
+		transform: translate(calc(var(--drift) * 14px), -96px) scale(0.95)
+			rotate(calc(var(--drift) * -8deg));
+	}
+	100% {
+		opacity: 0;
+		transform: translate(calc(var(--drift) * 6px), -140px) scale(0.8);
+	}
+}
+
+/* Someone's hand held out, waving, waiting for a high-five. */
+.emote-hand-glyph {
+	position: absolute;
+	left: 8px;
+	top: -30px;
+	font-size: 26px;
+	line-height: 1;
+	transform-origin: 50% 90%;
+	filter: drop-shadow(0 3px 5px rgb(0 0 0 / 18%));
+	animation:
+		pop-in var(--t-base) var(--ease-spring),
+		emote-wave calc(900ms * var(--motion)) ease-in-out infinite;
+}
+
+@keyframes emote-wave {
+	50% {
+		rotate: 18deg;
+	}
+}
+
+.emote-my-hand {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 40;
+	pointer-events: none;
+}
+
+.emote-my-hand .emote-hand-glyph {
+	left: 0;
+	top: 0;
+}
+
+/* The wheel of emotes around the pointer. */
+.emote-wheel {
+	position: fixed;
+	z-index: 40;
+	width: 0;
+	height: 0;
+}
+
+.emote-wheel-hub {
+	position: absolute;
+	left: -15px;
+	top: -15px;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 700;
+	box-shadow: var(--shadow-lifted);
+	animation: pop-in var(--t-base) var(--ease-spring);
+}
+
+.emote-wheel-item {
+	position: absolute;
+	left: -22px;
+	top: -22px;
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	border: 1px solid var(--line);
+	border-radius: 50%;
+	background: var(--chrome-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(12px);
+	font-size: 22px;
+	cursor: pointer;
+	transform: translate(var(--x), var(--y));
+	transition:
+		transform var(--t-settle) var(--ease-spring),
+		background var(--t-quick) var(--ease-out);
+	animation: wheel-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i) * 18ms * var(--motion));
+}
+
+@keyframes wheel-in {
+	from {
+		opacity: 0;
+		transform: translate(0, 0) scale(0.3);
+	}
+}
+
+.emote-wheel-item:hover,
+.emote-wheel-item:focus-visible {
+	transform: translate(var(--x), var(--y)) scale(1.2);
+	background: var(--surface);
+}
+
+.emote-wheel-item:active {
+	transform: translate(var(--x), var(--y)) scale(0.95);
+}
+
+.emote-wheel-item kbd {
+	position: absolute;
+	right: -3px;
+	bottom: -3px;
+	min-width: 15px;
+	height: 15px;
+	font-size: 9px;
+}
+
+.emote-wheel-item[data-high-five] {
+	background: color-mix(in srgb, var(--pending) 20%, var(--chrome-strong));
+}
+
+/* A high-five: a clap, a ring of sparks in both colours, and their names. */
+.high-five-burst {
+	position: absolute;
+	left: 0;
+	top: 0;
+}
+
+.high-five-clap {
+	position: absolute;
+	left: -22px;
+	top: -24px;
+	font-size: 44px;
+	line-height: 1;
+	filter: drop-shadow(0 6px 10px rgb(0 0 0 / 20%));
+	animation: high-five-clap calc(1700ms * var(--motion)) var(--ease-spring) forwards;
+}
+
+@keyframes high-five-clap {
+	0% {
+		opacity: 0;
+		transform: scale(0.2) rotate(-30deg);
+	}
+	18% {
+		opacity: 1;
+		transform: scale(1.35) rotate(8deg);
+	}
+	32% {
+		transform: scale(1) rotate(0deg);
+	}
+	80% {
+		opacity: 1;
+		transform: scale(1) translateY(-8px);
+	}
+	100% {
+		opacity: 0;
+		transform: scale(0.9) translateY(-20px);
+	}
+}
+
+.high-five-spark {
+	position: absolute;
+	left: -4px;
+	top: -4px;
+	width: 8px;
+	height: 8px;
+	border-radius: 2px;
+	background: var(--spark);
+	rotate: var(--angle);
+	animation: high-five-spark calc(1100ms * var(--motion)) cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+	animation-delay: calc(60ms * var(--motion));
+}
+
+.high-five-spark:nth-child(3n) {
+	border-radius: 50%;
+}
+
+@keyframes high-five-spark {
+	0% {
+		opacity: 1;
+		transform: translateY(0) scale(0.4);
+	}
+	70% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+		transform: translateY(-74px) scale(1) rotate(160deg);
+	}
+}
+
+.high-five-names {
+	position: absolute;
+	left: 0;
+	top: 46px;
+	z-index: 1;
+	padding: 4px 10px;
+	border-radius: 999px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 12px;
+	font-weight: 650;
+	white-space: nowrap;
+	transform: translateX(-50%);
+	animation: high-five-names calc(1700ms * var(--motion)) var(--ease-out) forwards;
+}
+
+@keyframes high-five-names {
+	0%,
+	15% {
+		opacity: 0;
+		translate: 0 6px;
+	}
+	30%,
+	80% {
+		opacity: 1;
+		translate: 0 0;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+/* Silent mode ---------------------------------------------------------------- */
+
+/* A silent section: a hush of fine stripes across it. */
+.section[data-silent="true"] {
+	background-image: repeating-linear-gradient(
+		-45deg,
+		transparent 0 10px,
+		color-mix(in srgb, var(--ink) 3.5%, transparent) 10px 11px
+	);
+}
+
+.section-silent-start,
+.section-vote-start {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 9px 0 7px;
+	border-radius: 8px;
+	border: 1px solid var(--line-strong);
+	background: var(--chrome-strong);
+	color: var(--ink-soft);
+	font-size: 12px;
+	font-weight: 560;
+	white-space: nowrap;
+	cursor: pointer;
+	scale: var(--unzoom, 1);
+	transform-origin: 0 50%;
+	animation: pop-in var(--t-base) var(--ease-spring);
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.section-silent-start:hover,
+.section-vote-start:hover {
+	background: var(--surface);
+}
+
+.section-silent {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: 4px;
+	animation: pop-in var(--t-base) var(--ease-spring);
+}
+
+.section-silent-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 8px 0 6px;
+	border-radius: 999px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 11.5px;
+	font-weight: 650;
+	letter-spacing: 0.01em;
+}
+
+.section-silent-people {
+	display: inline-flex;
+	align-items: center;
+}
+
+.section-silent-person {
+	position: relative;
+	display: inline-grid;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	margin-left: -5px;
+	border-radius: 50%;
+	border: 2px solid var(--surface);
+	background: var(--author);
+	color: #fff;
+	font-size: 9px;
+	font-weight: 700;
+}
+
+.section-silent-person:first-child {
+	margin-left: 0;
+}
+
+.section-silent-count {
+	position: absolute;
+	right: -6px;
+	bottom: -5px;
+	display: grid;
+	place-items: center;
+	min-width: 14px;
+	height: 14px;
+	padding: 0 3px;
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--ink);
+	font-family: var(--font-mono);
+	font-size: 9px;
+	font-weight: 700;
+	box-shadow: 0 0 0 1px var(--line-strong);
+	animation: pop-in var(--t-base) var(--ease-spring);
+}
+
+.section-silent-more {
+	margin-left: 6px;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.section-silent-reveal {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 24px;
+	padding: 0 10px 0 8px;
+	border-color: transparent;
+	background: var(--accent);
+	color: var(--on-accent);
+	font-size: 12px;
+	font-weight: 650;
+	box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.section-silent-reveal:hover {
+	background: var(--accent-hover);
+	transform: translateY(-1px);
+}
+
+.section-silent-reveal:hover .facilitate-icon {
+	animation: reveal-wiggle calc(500ms * var(--motion)) var(--ease-spring);
+}
+
+@keyframes reveal-wiggle {
+	40% {
+		rotate: 18deg;
+		scale: 1.15;
+	}
+}
+
+/* Someone else's sticky, face down: the paper's back, hatched in their
+   colour, with their initials. */
+.sticky[data-face-down] {
+	background:
+		radial-gradient(
+			circle at 50% 46%,
+			color-mix(in srgb, var(--sticky) 70%, white) 0 30px,
+			transparent 31px
+		),
+		repeating-linear-gradient(
+			45deg,
+			color-mix(in srgb, var(--author) 16%, var(--sticky)) 0 6px,
+			var(--sticky) 6px 12px
+		);
+}
+
+.sticky-face-down {
+	display: grid;
+	place-items: center;
+	width: 100%;
+	height: 100%;
+}
+
+.sticky-face-down-mark {
+	display: grid;
+	place-items: center;
+	width: 46px;
+	height: 46px;
+	border-radius: 50%;
+	background: var(--author);
+	color: #fff;
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	box-shadow:
+		0 0 0 3px color-mix(in srgb, var(--sticky) 60%, white),
+		0 2px 6px rgb(0 0 0 / 18%);
+}
+
+/* Yours: an eye, struck through, says only you can see it. */
+.sticky-hidden {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	display: grid;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--sticky-ink) 10%, transparent);
+	color: var(--sticky-ink-soft);
+}
+
+.sticky-hidden svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.3;
+	stroke-linecap: round;
+}
+
+/* The reveal: each sticky turns over, in a wave across the section. The
+   back shows for the first half of the turn, then the front. */
+.sticky[data-flip] {
+	animation: sticky-flip calc(760ms * var(--motion)) var(--ease-out) backwards;
+	animation-delay: calc(var(--flip-delay, 0ms) * var(--motion));
+}
+
+@keyframes sticky-flip {
+	0% {
+		transform: perspective(700px) rotate(var(--tilt, 0deg)) rotateY(0deg) scale(1);
+	}
+	48% {
+		transform: perspective(700px) rotate(var(--tilt, 0deg)) rotateY(90deg) scale(1.08);
+		box-shadow: var(--sticky-shadow-lifted);
+	}
+	52% {
+		transform: perspective(700px) rotate(var(--tilt, 0deg)) rotateY(-90deg) scale(1.08);
+	}
+	80% {
+		transform: perspective(700px) rotate(var(--tilt, 0deg)) rotateY(8deg) scale(1.02);
+	}
+	100% {
+		transform: perspective(700px) rotate(var(--tilt, 0deg)) rotateY(0deg) scale(1);
+	}
+}
+
+.sticky-back {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	border-radius: inherit;
+	background:
+		radial-gradient(
+			circle at 50% 46%,
+			color-mix(in srgb, var(--sticky) 70%, white) 0 30px,
+			transparent 31px
+		),
+		repeating-linear-gradient(
+			45deg,
+			color-mix(in srgb, var(--author) 16%, var(--sticky)) 0 6px,
+			var(--sticky) 6px 12px
+		);
+	pointer-events: none;
+	animation: sticky-back calc(760ms * var(--motion)) step-end forwards;
+	animation-delay: calc(var(--flip-delay, 0ms) * var(--motion));
+}
+
+@keyframes sticky-back {
+	0% {
+		opacity: 1;
+	}
+	50%,
+	100% {
+		opacity: 0;
+	}
+}
+
+/* Starting a vote ---------------------------------------------------------------- */
+
+.vote-start {
+	position: absolute;
+	top: 64px;
+	left: 50%;
+	z-index: 30;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	width: min(420px, calc(100vw - 32px));
+	padding: 16px;
+	border-radius: 18px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(16px) saturate(1.3);
+	transform: translateX(-50%);
+	animation: vote-start-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes vote-start-in {
+	from {
+		opacity: 0;
+		translate: 0 -10px;
+		scale: 0.97;
+	}
+}
+
+.vote-start-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.vote-start-head h2 {
+	flex: 1;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 17px;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+.vote-start-icon,
+.tally-head-icon {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 30px;
+	height: 30px;
+	border-radius: 9px;
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.vote-icon-button {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0 !important;
+	border: 0 !important;
+	border-radius: 8px;
+	background: transparent !important;
+	color: var(--muted);
+	cursor: pointer;
+}
+
+.vote-icon-button:hover {
+	background: var(--hover) !important;
+	color: var(--ink);
+}
+
+.vote-start-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+fieldset.vote-start-row {
+	flex-direction: column;
+	align-items: flex-start;
+}
+
+.vote-start-label {
+	padding: 0;
+	color: var(--ink-soft);
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.vote-stepper {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px;
+	border-radius: 11px;
+	background: var(--well);
+}
+
+.vote-stepper button {
+	width: 28px;
+	height: 28px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--surface);
+	font-size: 16px;
+	box-shadow: var(--shadow-rest);
+	cursor: pointer;
+}
+
+.vote-stepper button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.vote-stepper-value {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 64px;
+	padding: 0 6px;
+	justify-content: center;
+	font-family: var(--font-mono);
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.vote-stepper-dots {
+	display: inline-flex;
+}
+
+.vote-stepper-dots .vote-dot {
+	width: 11px;
+	height: 11px;
+	margin-left: -3px;
+	border-width: 1.5px;
+}
+
+.vote-choices {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+
+.vote-choices label {
+	display: inline-flex;
+	align-items: center;
+	height: 28px;
+	padding: 0 10px;
+	border-radius: 999px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	font-size: 12.5px;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out);
+}
+
+.vote-choices label:has(:focus-visible) {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.vote-choices label[data-checked="true"] {
+	border-color: var(--accent);
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.vote-choices input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.vote-toggle {
+	display: flex;
+	align-items: flex-start;
+	gap: 9px;
+	font-size: 13px;
+	font-weight: 560;
+	cursor: pointer;
+}
+
+.vote-toggle input {
+	margin-top: 2px;
+	accent-color: var(--accent);
+}
+
+.vote-toggle small {
+	display: block;
+	margin-top: 1px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 450;
+}
+
+.vote-start-foot {
+	display: flex;
+	justify-content: flex-end;
+	gap: 6px;
+}
+
+/* A vote's bar, under the timer ------------------------------------------------ */
+
+.vote-bars {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+}
+
+.vote-bar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	max-width: 100%;
+	height: 42px;
+	padding: 0 5px 0 12px;
+	border-radius: 999px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(14px) saturate(1.4);
+	font-size: 12.5px;
+	white-space: nowrap;
+	animation: timer-in var(--t-settle) var(--ease-spring) backwards;
+	transition:
+		box-shadow var(--t-base) var(--ease-out),
+		background var(--t-base) var(--ease-out);
+}
+
+.vote-bar[data-voting="true"] {
+	box-shadow:
+		0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
+		var(--shadow-lifted);
+}
+
+.vote-bar[data-open="false"] {
+	background: var(--surface-muted);
+}
+
+.vote-bar button {
+	height: 30px;
+	border-radius: 999px;
+}
+
+.vote-bar-icon {
+	display: grid;
+	color: var(--accent);
+}
+
+.vote-bar-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--ink-soft);
+}
+
+.vote-bar-title strong {
+	color: var(--ink);
+	font-weight: 650;
+}
+
+.vote-bar-dots {
+	display: inline-flex;
+	gap: 3px;
+}
+
+.vote-bar-dots .vote-dot {
+	width: 13px;
+	height: 13px;
+	border-width: 0;
+	box-shadow: none;
+	animation: none;
+	transition:
+		background var(--t-base) var(--ease-out),
+		transform var(--t-settle) var(--ease-spring);
+}
+
+.vote-bar-dots .vote-dot[data-used="true"] {
+	background: transparent;
+	box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--me) 45%, transparent);
+	transform: scale(0.82);
+}
+
+/* The dot that just left: it flies up and away. */
+.vote-bar-dots .vote-dot[data-spent] {
+	animation: dot-spent var(--t-settle) var(--ease-out);
+}
+
+@keyframes dot-spent {
+	0% {
+		background: var(--me);
+		transform: scale(1);
+	}
+	40% {
+		background: var(--me);
+		transform: translateY(-10px) scale(0.6);
+	}
+}
+
+.vote-bar-meta {
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.vote-bar[data-soon] .vote-bar-meta {
+	color: var(--pending-ink);
+	font-weight: 600;
+}
+
+.vote-bar-place[aria-pressed="false"] {
+	border-color: transparent !important;
+	background: var(--accent) !important;
+	color: var(--on-accent);
+}
+
+.vote-bar-place[aria-pressed="true"] {
+	border-color: var(--accent) !important;
+	color: var(--accent);
+}
+
+.vote-bar-results {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+
+/* Results ------------------------------------------------------------------------ */
+
+.tally-panel {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	bottom: 96px;
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	width: min(400px, calc(100vw - 24px));
+	border-radius: 16px;
+	background: var(--chrome-strong);
+	border: 1px solid var(--line-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(16px) saturate(1.3);
+	overflow: hidden;
+	animation: rules-panel-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes rules-panel-in {
+	from {
+		opacity: 0;
+		translate: 18px 0;
+		scale: 0.98;
+	}
+}
+
+.tally-head {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 16px 14px 12px 16px;
+	border-bottom: 1px solid var(--line);
+}
+
+.tally-head > div {
+	flex: 1;
+	min-width: 0;
+}
+
+.tally-head h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 18px;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+.tally-head p {
+	margin: 2px 0 0;
+	color: var(--muted);
+	font-size: 12.5px;
+	line-height: 1.4;
+}
+
+.tally-status {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 10px 16px;
+	border-bottom: 1px solid var(--line);
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	font-weight: 560;
+}
+
+.tally-status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--muted);
+}
+
+.tally-status[data-open="true"] .tally-status-dot {
+	background: var(--pass);
+	box-shadow: 0 0 0 0 color-mix(in srgb, var(--pass) 50%, transparent);
+	animation: tally-live calc(1800ms * var(--motion)) var(--ease-out) infinite;
+}
+
+@keyframes tally-live {
+	70% {
+		box-shadow: 0 0 0 6px transparent;
+	}
+}
+
+.tally-turnout {
+	margin-left: auto;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.tally-hidden,
+.tally-empty {
+	margin: 0;
+	padding: 14px 16px;
+	color: var(--muted);
+	font-size: 13px;
+}
+
+.tally-rows {
+	flex: 1;
+	margin: 0;
+	padding: 8px;
+	overflow-y: auto;
+	list-style: none;
+}
+
+.tally-rows li {
+	animation: tally-row-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i) * 40ms * var(--motion));
+}
+
+@keyframes tally-row-in {
+	from {
+		opacity: 0;
+		translate: 0 8px;
+	}
+}
+
+.tally-row {
+	display: grid;
+	grid-template-columns: 28px 1fr auto;
+	grid-template-areas:
+		"rank label total"
+		"rank bar bar"
+		"rank voters voters";
+	gap: 4px 10px;
+	width: 100%;
+	padding: 10px;
+	border: 0;
+	border-radius: 11px;
+	background: transparent;
+	text-align: left;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.tally-row:hover {
+	background: var(--hover);
+}
+
+.tally-rank {
+	grid-area: rank;
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-family: var(--font-mono);
+	font-size: 12px;
+	font-weight: 700;
+}
+
+/* Gold, silver and bronze for the winners. */
+.tally-row[data-rank="1"] .tally-rank {
+	background: linear-gradient(140deg, #ffe58f, #e8b84a);
+	color: #5a3d00;
+	box-shadow: 0 2px 8px rgb(232 184 74 / 45%);
+}
+
+.tally-row[data-rank="2"] .tally-rank {
+	background: linear-gradient(140deg, #eef0f3, #c4c9d0);
+	color: #3f444b;
+}
+
+.tally-row[data-rank="3"] .tally-rank {
+	background: linear-gradient(140deg, #f5d2b0, #c98a55);
+	color: #4a2a0e;
+}
+
+.tally-label {
+	grid-area: label;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	overflow: hidden;
+	font-size: 13.5px;
+	font-weight: 560;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.tally-label-gone {
+	color: var(--muted);
+	font-style: italic;
+}
+
+.tally-paper {
+	flex: none;
+	width: 12px;
+	height: 12px;
+	border-radius: 2px 2px 4px 2px;
+	background: var(--sticky);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 15%);
+}
+
+.tally-number {
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.tally-total {
+	grid-area: total;
+	font-family: var(--font-mono);
+	font-size: 15px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.tally-bar {
+	grid-area: bar;
+	display: flex;
+	height: 6px;
+	border-radius: 999px;
+	background: var(--well);
+	overflow: hidden;
+}
+
+.tally-bar-dots,
+.tally-bar-reactions {
+	height: 100%;
+	transform-origin: 0 50%;
+	animation: tally-grow calc(700ms * var(--motion)) var(--ease-settle) backwards;
+}
+
+.tally-bar-dots {
+	background: var(--accent);
+}
+
+.tally-bar-reactions {
+	background: var(--pending);
+}
+
+@keyframes tally-grow {
+	from {
+		transform: scaleX(0);
+	}
+}
+
+.tally-voters {
+	grid-area: voters;
+	display: flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.tally-voter {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: var(--avatar);
+	color: #fff;
+	font-size: 8.5px;
+	font-weight: 700;
+}
+
+.tally-voter sub {
+	position: absolute;
+	right: -4px;
+	bottom: -4px;
+	min-width: 12px;
+	height: 12px;
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--ink);
+	font-family: var(--font-mono);
+	font-size: 8px;
+	line-height: 12px;
+	text-align: center;
+	box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.tally-reactions {
+	margin-left: 4px;
+	padding: 1px 7px;
+	border-radius: 999px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-size: 11.5px;
+	font-weight: 650;
+}
+
+.tally-foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	padding: 12px 14px;
+	border-top: 1px solid var(--line);
+}
+
+.tally-reopen {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 5px;
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.tally-delete {
+	margin-left: auto;
+	color: var(--danger);
+}
+
+@media (max-width: 640px) {
+	.vote-bar-meta,
+	.timer-by {
+		display: none;
+	}
+}

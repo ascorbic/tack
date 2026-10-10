@@ -1,4 +1,5 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import { STAMPS, type StampEmoji } from "../shared/facilitation.ts";
 import { STICKY_COLORS, type StickyColor } from "./board.ts";
 import { GavelPaths } from "./decisions/icons.tsx";
 import { ListPaths } from "./widgets/icons.tsx";
@@ -13,7 +14,11 @@ export type Tool =
 	| "section"
 	| "connector"
 	| "decision"
-	| "widget";
+	| "widget"
+	/** Stamping shapes (#50). */
+	| "stamp"
+	/** Placing dot votes on shapes (#48), from a vote's bar. */
+	| "vote";
 
 export const TOOL_KEYS: Record<string, Tool> = {
 	v: "select",
@@ -25,6 +30,7 @@ export const TOOL_KEYS: Record<string, Tool> = {
 	x: "connector",
 	d: "decision",
 	w: "widget",
+	m: "stamp",
 };
 
 /** The MIME type for dragging a new sticky off the toolbar onto the canvas. */
@@ -41,6 +47,8 @@ interface ToolbarProps {
 	onAddWidget?: AddWidget;
 	/** The board's busiest repository, for ready-made lists: `owner/name`. */
 	suggestedRepo?: string | null;
+	stamp: StampEmoji;
+	onStamp: (stamp: StampEmoji) => void;
 }
 
 export function Toolbar({
@@ -51,9 +59,17 @@ export function Toolbar({
 	onAddCard,
 	onAddWidget,
 	suggestedRepo = null,
+	stamp,
+	onStamp,
 }: ToolbarProps) {
 	return (
 		<div className="toolbar-dock">
+			{tool === "stamp" && <StampOptions stamp={stamp} onStamp={onStamp} />}
+			{tool === "vote" && (
+				<ToolHint>
+					Click shapes to put your dots on them; click one of yours to take it back
+				</ToolHint>
+			)}
 			{tool === "sticky" && <StickyOptions color={stickyColor} onColor={onStickyColor} />}
 			{tool === "text" && (
 				<div className="toolbar-options">
@@ -116,6 +132,19 @@ export function Toolbar({
 						</g>
 					</ToolButton>
 				)}
+				<button
+					type="button"
+					className="tool tool-stamp"
+					aria-label="Stamp"
+					aria-pressed={tool === "stamp"}
+					data-tooltip="Stamp"
+					data-shortcut="M"
+					onClick={() => onTool("stamp")}
+				>
+					<span className="tool-stamp-emoji" aria-hidden="true">
+						{stamp}
+					</span>
+				</button>
 			</div>
 		</div>
 	);
@@ -188,6 +217,33 @@ function ToolHint({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="toolbar-options">
 			<span className="toolbar-hint">{children}</span>
+		</div>
+	);
+}
+
+function StampOptions({
+	stamp,
+	onStamp,
+}: {
+	stamp: StampEmoji;
+	onStamp: (stamp: StampEmoji) => void;
+}) {
+	return (
+		<div className="toolbar-options" role="radiogroup" aria-label="Stamp">
+			{STAMPS.map((s) => (
+				<button
+					key={s}
+					type="button"
+					role="radio"
+					aria-checked={s === stamp}
+					aria-label={`Stamp ${s}`}
+					className="stamp-choice"
+					onClick={() => onStamp(s)}
+				>
+					{s}
+				</button>
+			))}
+			<span className="toolbar-hint">Click shapes to stamp them; again to take it off</span>
 		</div>
 	);
 }
