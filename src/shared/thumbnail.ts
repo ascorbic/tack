@@ -17,6 +17,7 @@ import { shapesMap } from "./shapes.ts";
 /** Rendered sizes of shapes the document doesn't size, from styles.css. */
 const CARD = { width: 252, height: 128 };
 const ACTION = { width: 296, height: 104 };
+const WIDGET = { width: 360, height: 440 };
 const DECISION = { width: 320, height: 230 };
 const STICKY = 176;
 const TEXT_SIZES: Record<string, number> = { s: 14, m: 20, l: 34, xl: 56 };
@@ -109,15 +110,13 @@ function shapeBox(props: Record<string, unknown>, cardTone: (ref: string) => str
 		}
 		case "widget":
 			// A widget's tone is its kind, which picks how its body is drawn.
-			return sized
-				? {
-						kind: "widget",
-						x,
-						y,
-						...sized,
-						tone: typeof props.widget === "string" ? props.widget : "",
-					}
-				: null;
+			return {
+				kind: "widget",
+				x,
+				y,
+				...(sized ?? WIDGET),
+				tone: typeof props.widget === "string" ? props.widget : "",
+			};
 		case "action":
 			// An action item's tone says whether it's done (on the board; linked
 			// items' status needs the live issue).

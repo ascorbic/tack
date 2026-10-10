@@ -19,6 +19,8 @@ export interface Visitor {
 	 * at all before the GitHub App is set up (and on Previews).
 	 */
 	allowed: boolean;
+	/** Whether they're one of the instance's admins (who may delete anyone's templates). */
+	admin?: boolean;
 }
 
 /** The parts of a board that decide access. */

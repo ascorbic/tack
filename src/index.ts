@@ -1,6 +1,7 @@
 import { routePartykitRequest } from "partyserver";
 import { handleAuth } from "./server/auth/routes.ts";
 import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.ts";
+import { handleTemplates } from "./server/boards/templates.ts";
 import { handleClientError } from "./server/clientErrors.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
@@ -50,6 +51,10 @@ export default {
 		// Comment notifications: mentions and replies (the top bar's inbox).
 		const notifications = await handleNotifications(request, env);
 		if (notifications) return notifications;
+
+		// Templates, and carrying action items over between boards.
+		const templates = await handleTemplates(request, env);
+		if (templates) return templates;
 
 		// The board index, membership and visibility.
 		const boards = await handleBoards(request, env);

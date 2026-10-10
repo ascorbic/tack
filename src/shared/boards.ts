@@ -121,6 +121,34 @@ export interface BoardMembers {
 export interface CreateBoardRequest {
 	title?: string;
 	visibility?: Visibility;
+	/** Start from a template (#53): a built-in's `tack:{name}`, or a saved one's id. */
+	template?: string;
+	/** The repositories the template's widgets, inboxes and rules read, first one first. */
+	repos?: string[];
+	/** Carry the open action items over from this board (#52). */
+	carryFrom?: string;
+}
+
+/** What `POST /api/boards` answers: the new board, and what it started with. */
+export interface CreatedBoard extends BoardInfo {
+	/** Whether a template was laid out on it. */
+	seeded?: boolean;
+	/** How many action items were carried over to it. */
+	carried?: number;
+}
+
+/** `POST /api/boards/:id/carry`: carry its open action items (or just `shapes`) to another board. */
+export interface CarryRequest {
+	to: string;
+	shapes?: string[];
+}
+
+/** What a carry over did. */
+export interface CarryResponse {
+	carried: number;
+	/** Already on that board, so left out. */
+	skipped: number;
+	board: BoardInfo;
 }
 
 /** `PATCH /api/boards/:id` */
@@ -148,7 +176,8 @@ export type BoardError =
 	| "not_found"
 	| "invalid"
 	| "invalid_login"
-	| "owner_required";
+	| "owner_required"
+	| "too_large";
 
 export type BoardResult<T> =
 	| { ok: true; value: T }

@@ -34,7 +34,22 @@ import {
 	type SinceRequest,
 	isSinceRequest,
 } from "../shared/since.ts";
+import {
+	type CarriedItem,
+	type CarryResult,
+	actionState,
+	carryable,
+	placeCarried,
+} from "../shared/actionItems.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
+import {
+	type Extracted,
+	type InstantiateResult,
+	type TemplateContent,
+	extractTemplate,
+	instantiateTemplate,
+} from "../shared/templates.ts";
+import { readShapes } from "../shared/structure.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
 import type { WidgetRequest } from "../shared/widgets.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
@@ -108,6 +123,11 @@ const COMMENT_WINDOW_MS = 10_000;
 const COMMENT_CHUNK_BYTES = 256 * 1024;
 /** A signed-out digest goes back at most this far. */
 const SINCE_MAX_AGE_MS = 180 * 24 * 60 * 60_000;
+
+/** Transaction origin for action items carried over from another board: never undoable. */
+export const CARRY_ORIGIN = "carry";
+/** Most action items carried over at once. */
+const CARRY_MAX = 100;
 
 type Entry = Card | MissingCard;
 
@@ -947,6 +967,93 @@ export class Board extends YServer<Env> {
 	/** For tests and debugging over RPC only: the widget results cache, without results. */
 	widgetCache(): ReturnType<WidgetRunner["cached"]> {
 		return this.widgets?.cached() ?? [];
+	}
+
+	// --- Templates and carrying over (#53, #52) --------------------------------------
+
+	/**
+	 * Start a new board from a template (called by the Worker as the board is
+	 * made). Only an empty board is seeded, so a retried request can't lay a
+	 * template out twice. Returns what was written, or null if the board
+	 * already had shapes.
+	 */
+	async seed(input: {
+		template: string;
+		content: TemplateContent;
+		repos: string[];
+		by: { name: string; login?: string };
+	}): Promise<InstantiateResult | null> {
+		if (shapesMap(this.document).size > 0) return null;
+		const result = instantiateTemplate(this.document, input.content, {
+			repos: input.repos,
+			by: input.by,
+		});
+		this.writeSnapshot();
+		await this.updateIndex();
+		log.info("board.seeded", {
+			board: this.name,
+			template: input.template,
+			repos: input.repos.length,
+			...result,
+		});
+		return result;
+	}
+
+	/**
+	 * This board as a template (see `extractTemplate`), for saving it as one:
+	 * its content as JSON, and the repositories it reads.
+	 */
+	async templateContent(options: {
+		keepContent: boolean;
+	}): Promise<{ json: string; repos: Extracted["repos"] }> {
+		const { content, repos } = extractTemplate(this.document, options);
+		return { json: JSON.stringify(content), repos };
+	}
+
+	/**
+	 * The action items to carry over to another board: the open ones, or just
+	 * `only` of them. Linked items are open unless their issue is closed, as
+	 * this viewer may see it: an issue they can't read counts as open, so its
+	 * state never leaks to them.
+	 */
+	async carryOut(input: { userId: number | null; only?: string[] }): Promise<CarriedItem[]> {
+		const shapes = readShapes(this.document);
+		const linked = [...shapes.values()]
+			.flatMap((shape) => (shape.type === "action" && shape.ref ? [shape.ref] : []))
+			.flatMap((ref) => {
+				const card = this.cards.get(ref);
+				return card ? [card] : [];
+			});
+		const visible = new Map(
+			(await this.visibleTo(input.userId, linked)).map((card) => [card.key, card] as const),
+		);
+		const only = input.only ? new Set(input.only) : undefined;
+		return carryable(
+			shapes,
+			(shape) => actionState(shape, visible.get(shape.ref ?? "")),
+			only,
+		).slice(0, CARRY_MAX);
+	}
+
+	/** Put action items carried over from another board on this one (see `placeCarried`). */
+	async carryIn(input: {
+		items: CarriedItem[];
+		from: { board: string; title: string };
+		by?: string;
+	}): Promise<CarryResult> {
+		let result: CarryResult = { added: [], skipped: 0, section: null };
+		this.document.transact(() => {
+			result = placeCarried(this.document, input.items.slice(0, CARRY_MAX), input.from);
+		}, CARRY_ORIGIN);
+		if (result.added.length > 0) this.writeSnapshot();
+		log.info("actions.carried", {
+			board: this.name,
+			from: input.from.board,
+			by: input.by,
+			added: result.added.length,
+			skipped: result.skipped,
+		});
+		return result;
 	}
 
 	// --- Pushing (M2) --------------------------------------------------------------

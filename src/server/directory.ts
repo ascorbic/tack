@@ -18,6 +18,13 @@ import {
 	slugify,
 } from "../shared/boards.ts";
 import type { Mentionable, Notification, NotificationList } from "../shared/comments.ts";
+import type {
+	TemplateContent,
+	TemplateInfo,
+	TemplateList,
+	TemplateRepos,
+	TemplateSummary,
+} from "../shared/templates.ts";
 import { normaliseLogins } from "./auth/logins.ts";
 import {
 	type Policy,
@@ -102,6 +109,36 @@ interface MemberRow extends Record<string, SqlStorageValue> {
 	current_login: string | null;
 }
 
+interface TemplateRow extends Record<string, SqlStorageValue> {
+	id: string;
+	title: string;
+	description: string;
+	owner_id: number | null;
+	board_id: string | null;
+	content: string;
+	repos: string | null;
+	summary: string;
+	thumbnail: string | null;
+	collects: number;
+	created_at: number;
+}
+
+/** A template being saved: everything but its id, owner and when. */
+export interface TemplateInput {
+	board: string;
+	title: string;
+	description: string;
+	/** The content as JSON, already checked for size. */
+	content: string;
+	repos: TemplateRepos | null;
+	summary: TemplateSummary;
+	thumbnail: Thumbnail | null;
+	collectsActions: boolean;
+}
+
+/** Saved templates listed, newest first. */
+const TEMPLATES_LISTED = 100;
+
 interface PersonRow extends Record<string, SqlStorageValue> {
 	id: number;
 	login: string;
@@ -177,6 +214,19 @@ export class Directory extends DurableObject<Env> {
 				read_at INTEGER
 			);
 			CREATE INDEX IF NOT EXISTS notifications_user ON notifications (user_id, at);
+			CREATE TABLE IF NOT EXISTS templates (
+				id TEXT PRIMARY KEY,
+				title TEXT NOT NULL,
+				description TEXT NOT NULL,
+				owner_id INTEGER,
+				board_id TEXT,
+				content TEXT NOT NULL,
+				repos TEXT,
+				summary TEXT NOT NULL,
+				thumbnail TEXT,
+				collects INTEGER NOT NULL DEFAULT 0,
+				created_at INTEGER NOT NULL
+			);
 		`);
 	}
 
@@ -606,6 +656,133 @@ export class Directory extends DurableObject<Env> {
 			thumbnail ? JSON.stringify(thumbnail) : null,
 			id,
 		);
+	}
+
+	// ---------------------------------------------------------------------
+	// Templates (#53): saved per instance, for anyone on it to start from
+
+	/** Templates saved on this instance, newest first. Anyone who can make boards can use them. */
+	listTemplates(visitor: Visitor): BoardResult<TemplateList> {
+		this.touch(visitor);
+		if (!this.canCreate(visitor)) return this.denied(visitor);
+		const rows = this.sql
+			.exec<TemplateRow>(
+				"SELECT * FROM templates ORDER BY created_at DESC LIMIT ?",
+				TEMPLATES_LISTED,
+			)
+			.toArray();
+		return ok({ templates: rows.map((row) => this.templateInfo(row, visitor)), canSave: true });
+	}
+
+	/** A saved template's content, to make a board from. */
+	templateContent(
+		visitor: Visitor,
+		id: string,
+	): BoardResult<{ content: TemplateContent; repos: TemplateRepos | null; title: string }> {
+		if (!this.canCreate(visitor)) return this.denied(visitor);
+		const row = this.templateRow(id);
+		if (!row) return refuse("not_found");
+		return ok({
+			content: JSON.parse(row.content) as TemplateContent,
+			repos: row.repos ? (JSON.parse(row.repos) as TemplateRepos) : null,
+			title: row.title,
+		});
+	}
+
+	/**
+	 * Save a board as a template, for everyone on the instance. Only people
+	 * who can edit the board may: everyone on the instance will see its
+	 * structure (never its cards' data, which is fetched per viewer).
+	 */
+	saveTemplate(visitor: Visitor, input: TemplateInput): BoardResult<TemplateInfo> {
+		this.touch(visitor);
+		if (!this.canCreate(visitor)) return this.denied(visitor);
+		const board = this.row(input.board);
+		if (!board) return refuse("not_found");
+		const role = roleFor(this.policy(board), visitorKey(visitor));
+		if (!role) return this.denied(visitor);
+		if (role !== "owner" && role !== "editor") return refuse("forbidden");
+		const id = this.newTemplateId();
+		const now = Date.now();
+		this.sql.exec(
+			`INSERT INTO templates (id, title, description, owner_id, board_id, content, repos, summary, thumbnail, collects, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id,
+			input.title,
+			input.description,
+			visitor.user?.id ?? null,
+			input.board,
+			input.content,
+			input.repos ? JSON.stringify(input.repos) : null,
+			JSON.stringify(input.summary),
+			input.thumbnail ? JSON.stringify(input.thumbnail) : null,
+			input.collectsActions ? 1 : 0,
+			now,
+		);
+		log.info("template.saved", {
+			template: id,
+			board: input.board,
+			by: visitor.user?.login,
+			bytes: input.content.length,
+			shapes: input.summary.sections + input.summary.widgets + input.summary.stickies,
+		});
+		return ok(this.templateInfo(this.templateRow(id) as TemplateRow, visitor));
+	}
+
+	/** Delete a saved template: whoever saved it, or an admin. */
+	deleteTemplate(visitor: Visitor, id: string): BoardResult<{ deleted: true }> {
+		this.touch(visitor);
+		if (!this.canCreate(visitor)) return this.denied(visitor);
+		const row = this.templateRow(id);
+		if (!row) return refuse("not_found");
+		if (!this.canDeleteTemplate(row, visitor)) return refuse("owner_required");
+		this.sql.exec("DELETE FROM templates WHERE id = ?", id);
+		log.info("template.deleted", {
+			template: id,
+			by: visitor.user?.login,
+			moderated: row.owner_id !== null && row.owner_id !== visitor.user?.id,
+		});
+		return ok({ deleted: true });
+	}
+
+	private templateRow(id: string): TemplateRow | undefined {
+		return this.sql.exec<TemplateRow>("SELECT * FROM templates WHERE id = ?", id).toArray()[0];
+	}
+
+	private canDeleteTemplate(row: TemplateRow, visitor: Visitor): boolean {
+		// Templates saved without sign-in (Previews) belong to everyone.
+		if (row.owner_id === null) return visitor.allowed;
+		return row.owner_id === visitor.user?.id || visitor.admin === true;
+	}
+
+	private templateInfo(row: TemplateRow, visitor: Visitor): TemplateInfo {
+		const owner =
+			row.owner_id === null
+				? null
+				: this.sql.exec<PersonRow>("SELECT * FROM people WHERE id = ?", row.owner_id).toArray()[0];
+		return {
+			id: row.id,
+			title: row.title,
+			description: row.description,
+			builtIn: false,
+			repos: row.repos ? (JSON.parse(row.repos) as TemplateRepos) : null,
+			summary: JSON.parse(row.summary) as TemplateSummary,
+			thumbnail: row.thumbnail ? (JSON.parse(row.thumbnail) as Thumbnail) : null,
+			owner: owner
+				? { id: owner.id, login: owner.login, name: owner.name, avatarUrl: owner.avatar_url }
+				: null,
+			createdAt: row.created_at,
+			canDelete: this.canDeleteTemplate(row, visitor),
+			collectsActions: row.collects === 1,
+		};
+	}
+
+	private newTemplateId(): string {
+		for (;;) {
+			const bytes = crypto.getRandomValues(new Uint8Array(ID_LENGTH));
+			const id = Array.from(bytes, (byte) => ID_ALPHABET[byte % ID_ALPHABET.length]).join("");
+			if (!this.templateRow(id)) return id;
+		}
 	}
 
 	// ---------------------------------------------------------------------

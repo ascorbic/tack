@@ -1,7 +1,7 @@
 // The board index API, and the access check for live board connections.
 //
 //   GET    /api/boards                         the home page: recent, mine, shared, archived, open
-//   POST   /api/boards                         create a board { title?, visibility? }
+//   POST   /api/boards                         create a board { title?, visibility?, template?, repos?, carryFrom? }
 //   POST   /api/boards/legacy                  find or adopt a pre-index board { name } (`/?board=name`)
 //   GET    /api/boards/:id                     a board, and the viewer's role on it
 //   PATCH  /api/boards/:id                     rename, change visibility, archive { title?, visibility?, instanceRole?, archived? }
@@ -12,28 +12,26 @@
 //   GET    /api/boards/:id/people              who can be mentioned in comments
 
 import * as v from "valibot";
-import { BOARD_ID, type BoardError, type BoardResult, MAX_TITLE } from "../../shared/boards.ts";
+import { BOARD_ID, MAX_TITLE } from "../../shared/boards.ts";
 import { isCrossSite, json } from "../auth/http.ts";
-import { lookupRequest } from "../auth/session.ts";
 import { ACCESS_HEADER, type ConnectionAccess } from "../board.ts";
 import { log } from "../log.ts";
 import { directory } from "../namespaces.ts";
-import { type Visitor, visitorKey } from "./access.ts";
+import { visitorKey } from "./access.ts";
+import { STATUS, invalid, notAllowed, parse, respond, safeDecode, visitorFor } from "./http.ts";
+import { TemplateFields, createBoard } from "./templates.ts";
 
-const STATUS: Record<BoardError, number> = {
-	sign_in_required: 401,
-	forbidden: 403,
-	owner_required: 403,
-	not_found: 404,
-	invalid: 400,
-	invalid_login: 422,
-};
+export { visitorFor };
 
 const Title = v.pipe(v.string(), v.maxLength(MAX_TITLE * 4));
 const Visibility = v.picklist(["private", "instance", "public"]);
 const MemberRole = v.picklist(["editor", "viewer"]);
 
-const CreateBody = v.object({ title: v.optional(Title), visibility: v.optional(Visibility) });
+const CreateBody = v.object({
+	title: v.optional(Title),
+	visibility: v.optional(Visibility),
+	...TemplateFields,
+});
 const UpdateBody = v.object({
 	title: v.optional(Title),
 	visibility: v.optional(Visibility),
@@ -66,7 +64,7 @@ export async function handleBoards(request: Request, env: Env): Promise<Response
 		if (method === "POST") {
 			const body = await parse(request, CreateBody);
 			if (!body) return invalid();
-			return respond(await index.create(visitor, body), 201);
+			return respond(await createBoard(env, visitor, body), 201);
 		}
 		return notAllowed();
 	}
@@ -161,46 +159,4 @@ export async function authorizeBoardConnection(
 	// Encoded, as names needn't be Latin-1 and header values must be.
 	forwarded.headers.set(ACCESS_HEADER, encodeURIComponent(JSON.stringify(access)));
 	return forwarded;
-}
-
-/**
- * Who's making a request, for boards: signed in or not, and whether they
- * may use the instance (everyone may before setup, and on Previews).
- */
-export async function visitorFor(request: Request, env: Env): Promise<Visitor> {
-	if (!env.TACK_SECRET) return { user: null, allowed: true };
-	const { configured, session } = await lookupRequest(request, env);
-	return { user: session?.viewer ?? null, allowed: !configured || (session?.allowed ?? false) };
-}
-
-function respond<T>(result: BoardResult<T>, status = 200): Response {
-	if (result.ok) return json(result.value, { status });
-	return json(
-		{ error: result.error, ...(result.logins ? { logins: result.logins } : {}) },
-		{ status: STATUS[result.error] },
-	);
-}
-
-async function parse<S extends v.GenericSchema>(
-	request: Request,
-	schema: S,
-): Promise<v.InferOutput<S> | null> {
-	const body = v.safeParse(schema, await request.json().catch(() => null));
-	return body.success ? body.output : null;
-}
-
-function invalid(): Response {
-	return json({ error: "invalid" }, { status: 400 });
-}
-
-function notAllowed(): Response {
-	return json({ error: "method_not_allowed" }, { status: 405 });
-}
-
-function safeDecode(value: string): string | null {
-	try {
-		return decodeURIComponent(value);
-	} catch {
-		return null;
-	}
 }
