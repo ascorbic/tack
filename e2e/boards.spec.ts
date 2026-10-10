@@ -82,7 +82,10 @@ test.describe.serial("a board's life", () => {
 		await page.goto(boardUrl);
 		await expect(page.getByText("View only")).toBeVisible();
 		await expect(page.locator(".react-flow__renderer")).toBeVisible();
-		await expect(page.getByRole("toolbar", { name: "Tools" })).toHaveCount(0);
+		// Viewers can comment (#51), so they get the hand and the comment tool, and nothing else.
+		const tools = page.getByRole("toolbar", { name: "Tools" });
+		await expect(tools.getByRole("button", { name: "Comment" })).toBeVisible();
+		await expect(tools.getByRole("button")).toHaveCount(3);
 		// No tool shortcuts that would change the board: sections (F), connectors (X), stickies (S).
 		for (const key of ["f", "x", "s"]) {
 			await page.locator(".react-flow__pane").click({ position: { x: 400, y: 300 } });
