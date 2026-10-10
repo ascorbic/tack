@@ -816,17 +816,29 @@ function BacklinkFor({
 				if (isCard(card)) return card.visibility === "public";
 				return setup.publicRepos.has(repoKeyOf(key));
 			}}
+			boardId={services.boardId}
 			onStage={async (groups, note) => {
+				const byShape = new Map(nodes.map((n) => [n.id, n]));
+				// The section a card sits in, by name, if it has one.
+				const sectionOf = (shape: string) => {
+					const parent = byShape.get(shape)?.data.shape.parent;
+					const section = parent ? byShape.get(parent)?.data.shape : undefined;
+					return section?.type === "section" ? section.title?.trim() || null : null;
+				};
 				const comments: { key: string; body: string; shape: string }[] = [];
 				for (const group of groups) {
+					// Only uploaded when one was asked for and drawn.
 					const snapshotUrl = group.snapshot ? await services.uploadSnapshot(group.snapshot) : null;
-					const body = backlinkBody({
-						boardUrl: services.boardUrl(),
-						boardTitle: services.boardTitle(),
-						snapshotUrl,
-						note,
-					});
-					for (const item of group.items) comments.push({ key: item.key, body, shape: item.shape });
+					for (const item of group.items) {
+						const body = backlinkBody({
+							boardUrl: services.boardUrl(),
+							boardTitle: services.boardTitle(),
+							section: sectionOf(item.shape),
+							snapshotUrl,
+							note,
+						});
+						comments.push({ key: item.key, body, shape: item.shape });
+					}
 				}
 				stageComments(doc, comments, stagerFor(user));
 				onDone(`Staged ${count(comments.length, "backlink comment")}`);

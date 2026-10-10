@@ -234,10 +234,37 @@ test("a connector between issues becomes blocked-by", async ({ page }) => {
 	);
 });
 
+const uploads = (page: Page) =>
+	page.evaluate(
+		() => (window as unknown as { tackSnapshots: { bytes: number }[] }).tackSnapshots.length,
+	);
+
+test("backlinks are a link to the board, naming the card's section, by default", async ({
+	page,
+}) => {
+	await select(page, "Document every provider");
+	await page.keyboard.press("Alt+KeyK");
+	const panel = page.getByRole("dialog", { name: "Comment with a link to this board" });
+	const include = panel.getByRole("checkbox", { name: "Include a snapshot of the board" });
+	await expect(include).not.toBeChecked();
+	await expect(panel.locator(".backlink-snapshot img")).toHaveCount(0);
+	await panel.getByRole("button", { name: "Stage comment" }).click();
+	await expect(panel).toHaveCount(0);
+
+	const [comment] = (await changes(page)).filter((c) => c.op.kind === "item.comment");
+	expect(comment?.op.body).toBe(
+		`This is on [**Playground**](${new URL(page.url()).origin}/play) in Tack, in the **Docs for 5.0** section.`,
+	);
+	// Nothing was drawn or uploaded.
+	expect(await uploads(page)).toBe(0);
+	expect(await page.evaluate(() => "tackSnapshotDom" in window)).toBe(false);
+});
+
 test("backlinks with snapshots that hide other private repositories", async ({ page }) => {
 	await select(page, "Custom domains", "Rotate the signing keys");
 	await page.keyboard.press("Alt+KeyK");
 	const panel = page.getByRole("dialog", { name: "Comment with a link to this board" });
+	await panel.getByRole("checkbox", { name: "Include a snapshot of the board" }).check();
 	// One snapshot for the public repository's readers, one for the private one's.
 	await expect(panel.getByRole("tab")).toHaveCount(2);
 	await expect(panel.locator(".backlink-snapshot img")).toBeVisible({ timeout: 15_000 });
@@ -260,6 +287,14 @@ test("backlinks with snapshots that hide other private repositories", async ({ p
 	);
 	expect(sizes).toHaveLength(2);
 	expect(sizes.every((bytes) => bytes > 1000)).toBe(true);
+
+	// The choice is remembered for this board.
+	await page.keyboard.press("Alt+KeyK");
+	await expect(
+		page
+			.getByRole("dialog", { name: "Comment with a link to this board" })
+			.getByRole("checkbox", { name: "Include a snapshot of the board" }),
+	).toBeChecked();
 });
 
 test("cards without the app can't be changed", async ({ page }) => {
@@ -276,7 +311,7 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
 	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
-	await expect(page.locator(".action-popover")).toHaveCount(22);
+	await expect(page.locator(".action-popover")).toHaveCount(23);
 	await expect(page.locator(".backlink-snapshot img")).toHaveCount(2);
 	// New issues that start with labels and a milestone, the labels' list open.
 	const extras = page.locator("figure", { hasText: "With labels and a milestone" });

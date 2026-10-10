@@ -40,7 +40,40 @@ describe("snapshot audiences", () => {
 });
 
 describe("backlinkBody", () => {
-	it("links back to the board, with the snapshot", () => {
+	it("is a link to the board by default", () => {
+		expect(
+			backlinkBody({ boardUrl: "https://tack.example/b/abc/plan", boardTitle: "Planning" }),
+		).toBe("This is on [**Planning**](https://tack.example/b/abc/plan) in Tack.");
+	});
+
+	it("names the section the card is in", () => {
+		expect(
+			backlinkBody({
+				boardUrl: "https://tack.example/b/abc/plan",
+				boardTitle: "Planning",
+				section: " Up\nnext ",
+			}),
+		).toBe(
+			"This is on [**Planning**](https://tack.example/b/abc/plan) in Tack, in the **Up next** section.",
+		);
+		expect(backlinkBody({ boardUrl: "https://t/b/1", section: "Now" })).toBe(
+			"This is on [a Tack board](https://t/b/1), in the **Now** section.",
+		);
+	});
+
+	it("escapes Markdown in names, so they stay bold text", () => {
+		expect(
+			backlinkBody({
+				boardUrl: "https://t/b/1",
+				boardTitle: "**v2** <b>_plan_</b>",
+				section: "`code` ~x~",
+			}),
+		).toBe(
+			"This is on [**\\*\\*v2\\*\\* \\<b\\>\\_plan\\_\\</b\\>**](https://t/b/1) in Tack, in the **\\`code\\` \\~x\\~** section.",
+		);
+	});
+
+	it("links back to the board, with the snapshot when there is one", () => {
 		expect(
 			backlinkBody({
 				boardUrl: "https://tack.example/b/abc/plan",

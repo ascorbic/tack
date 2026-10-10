@@ -11,6 +11,8 @@ import type { User } from "../presence.ts";
 // the playground and gallery pass in their own.
 
 export interface WriteServices {
+	/** The board's id, for remembering choices made on it. */
+	boardId: string;
 	/** The board's shareable address, for backlinks. */
 	boardUrl(): string;
 	boardTitle(): string | null;
@@ -32,6 +34,7 @@ const SNAPSHOT_ERRORS: Record<string, string> = {
 /** Services for a live board, through the Worker's API. */
 export function liveServices(boardId: string): WriteServices {
 	return {
+		boardId,
 		boardUrl: () => location.origin + location.pathname,
 		boardTitle: () => document.title.replace(/ · Tack$/, "") || null,
 		// The shared repository endpoint (src/client/changes/api.ts).

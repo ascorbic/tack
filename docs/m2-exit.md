@@ -33,7 +33,7 @@ Push:
 
 11. **Changes** → **Review and push 12**. Check the previews (issue bodies, the ADR's file, and who'll be notified), keep **Push as: You**, and **Push 12 changes**. Wait for "All 12 changes are on GitHub". The four stickies become their issues' cards in place, "Resizing" gets a card of its own above its section, connected to it, the connector joins two of them, and the decision shows its pull request, "ADR 0002", as Open.
 12. Select the two sub-issues' cards ("Wobble on resize" and "Snap back after a drag"): **Labels**, add `performance`, **Stage**.
-13. Select all six cards (the seed, the parent and the four new ones), then **Comment with a link to this board** (⌥K). Wait for the snapshot preview, then **Stage 6 comments**.
+13. Select all six cards (the seed, the parent and the four new ones), then **Comment with a link to this board** (⌥K). Backlinks are only a link unless you ask for more, so tick **Include a snapshot of the board** (remembered for this board), wait for the preview, then **Stage 6 comments**.
 14. **Changes** → **Review and push 8** → **Push 8 changes**, and wait for them all to land.
 15. On GitHub, merge the ADR pull request. Within a few seconds the decision's record shows **Merged**, with no one touching the board.
 16. **Changes** → **History**: both pushes, by you, every change applied, each linking to what it wrote.
@@ -45,7 +45,7 @@ Push:
 - **Sub-issues**: "Resizing" lists "Wobble on resize" and "Snap back after a drag" as sub-issues, and each shows "Resizing" as its parent.
 - **Blocked-by**: "Cache the manifest" shows it's blocked by "Faster cold starts" under Relationships, and "Faster cold starts" that it's blocking.
 - **The ADR**: a pull request "ADR 0002: Store boards as Yjs documents" from `tack/adr-0002-store-boards-as-yjs-documents`, with one commit adding exactly `docs/decisions/0002-store-boards-as-yjs-documents.md`. The record starts `# 2. Store boards as Yjs documents`, its Status is "Accepted on" the day you decided it, with the votes, and its Links list the seed issue and the board. It's merged, and the file is on the default branch.
-- **Backlinks**: each of the six issues has one comment: "This is on **M2 exit…** in Tack.", linking to the board, with the snapshot image **rendering** (not a broken image: GitHub fetches it through its image proxy from the instance's `/snapshots/….png`). Clicking the image opens the board.
+- **Backlinks**: each of the six issues has one comment: "This is on **M2 exit…** in Tack." (with ", in the **…** section" for cards in a section), linking to the board, with the snapshot image **rendering** (not a broken image: GitHub fetches it through its image proxy from the instance's `/snapshots/….png`). Clicking the image opens the board.
 - **Attribution**: the issues, comments and pull request are yours, with the app's name beside them ("via Tack (…)"), not by the app's bot.
 - **Nothing twice**: no duplicate issues, comments or links anywhere. Reloading the board brings nothing back to the staged list.
 

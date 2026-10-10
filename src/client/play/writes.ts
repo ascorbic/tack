@@ -60,6 +60,7 @@ export function playServices(): WriteServices {
 	// For poking at from the console, and for the e2e tests.
 	Object.assign(window, { tackSnapshots: uploadedSnapshots });
 	return {
+		boardId: "play",
 		boardUrl: () => `${location.origin}/play`,
 		boardTitle: () => "Playground",
 		async repoMeta(repo) {

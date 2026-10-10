@@ -1,7 +1,7 @@
 import { repoKeyOf } from "./refs.ts";
 
-// Backlinks (#33): a comment on an item linking back to the board, with a
-// snapshot of the board around it.
+// Backlinks (#33): a comment on an item linking back to the board, and, if
+// the person asks for one, a snapshot of the board around it.
 //
 // A snapshot is public (GitHub has to fetch it), and its readers are the
 // item's audience: everyone, for an item in a public repository, or the
@@ -51,31 +51,46 @@ export function groupByAudience<T extends CardAudience>(items: readonly T[]): Ma
 	return groups;
 }
 
-/** Markdown-safe text for link labels: no brackets or newlines. */
+/**
+ * Markdown-safe text for bold link labels and names: on one line, with no
+ * brackets, and with emphasis, code and HTML characters escaped.
+ */
 function plain(text: string): string {
 	return text
 		.replace(/[[\]\r\n]+/g, " ")
 		.replace(/\s+/g, " ")
-		.trim();
+		.trim()
+		.replace(/[\\*_`~<>]/g, (char) => `\\${char}`);
 }
 
 export interface BacklinkInput {
 	boardUrl: string;
 	/** The board's title, when known. */
 	boardTitle?: string | null;
-	/** The snapshot's public URL, if there is one. */
+	/** The title of the section the item's card sits in, if it's in one. */
+	section?: string | null;
+	/** The snapshot's public URL, if there is one (snapshots are opt-in). */
 	snapshotUrl?: string | null;
 	/** Something to say first, if anything. */
 	note?: string;
 }
 
 /** A backlink comment's body, in Markdown. */
-export function backlinkBody({ boardUrl, boardTitle, snapshotUrl, note }: BacklinkInput): string {
+export function backlinkBody({
+	boardUrl,
+	boardTitle,
+	section,
+	snapshotUrl,
+	note,
+}: BacklinkInput): string {
 	const title = boardTitle ? plain(boardTitle) : "";
+	const where = section ? plain(section) : "";
 	const link = title ? `[**${title}**](${boardUrl})` : `[a Tack board](${boardUrl})`;
 	const parts: string[] = [];
 	if (note?.trim()) parts.push(note.trim());
-	parts.push(`This is on ${link}${title ? " in Tack" : ""}.`);
+	parts.push(
+		`This is on ${link}${title ? " in Tack" : ""}${where ? `, in the **${where}** section` : ""}.`,
+	);
 	if (snapshotUrl) parts.push(`[![The board around this item](${snapshotUrl})](${boardUrl})`);
 	return parts.join("\n\n");
 }

@@ -441,8 +441,9 @@ it("one session produces issues, labels, a merged ADR and backlinks, with no cop
 	);
 	expect(labels).toHaveLength(1);
 
-	// One snapshot (every card's in the same public repository), uploaded as
-	// the backlink panel does, and served publicly for GitHub to show.
+	// One snapshot (asked for: backlinks are only a link unless it is; every
+	// card's in the same public repository), uploaded as the backlink panel
+	// does, and served publicly for GitHub to show.
 	const uploaded = await api(mf, `/api/boards/${board}/snapshots`, alice, {
 		method: "POST",
 		body: PNG,

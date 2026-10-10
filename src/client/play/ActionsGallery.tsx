@@ -473,20 +473,28 @@ export default function ActionsGallery() {
 					<div className="gallery-grid actions-panels">
 						{(
 							[
-								["One snapshot", [WRITES_CARDS[0]], (_a: string) => swatch("#e5eefb")],
+								[
+									"Link only (the default)",
+									[WRITES_CARDS[0], WRITES_CARDS[1]],
+									(_a: string) => swatch("#e5eefb"),
+									false,
+								],
+								["One snapshot", [WRITES_CARDS[0]], (_a: string) => swatch("#e5eefb"), true],
 								[
 									"Two audiences, a private card hidden",
 									[WRITES_CARDS[0], WRITES_CARDS[4]],
 									(a: string) => swatch(a === "public" ? "#e5eefb" : "#f0e9fd"),
+									true,
 								],
-								["Drawing", [WRITES_CARDS[1]], () => new Promise<Blob>(() => {})],
+								["Drawing", [WRITES_CARDS[1]], () => new Promise<Blob>(() => {}), true],
 								[
 									"Couldn’t draw",
 									[WRITES_CARDS[2]],
 									() => Promise.reject(new Error("The snapshot came out too big to upload.")),
+									true,
 								],
 							] as const
-						).map(([label, cards, draw]) => (
+						).map(([label, cards, draw, snapshot]) => (
 							<figure key={label}>
 								<Panel wide>
 									<BacklinkPanel
@@ -504,6 +512,7 @@ export default function ActionsGallery() {
 										sizeOf={() => undefined}
 										isPublicItem={() => true}
 										draw={draw}
+										snapshot={snapshot}
 										onStage={async () => {}}
 									/>
 								</Panel>

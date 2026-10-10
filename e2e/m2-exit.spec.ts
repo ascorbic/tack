@@ -270,11 +270,15 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 	).toBe(true);
 	await expect(page.locator(`.react-flow__node[data-id="${parentCard.id}"] .card`)).toBeVisible();
 
-	// Backlinks on every card, the parent's included, with a snapshot of the board.
+	// Backlinks on every card, the parent's included, with a snapshot of the
+	// board (which is opt-in: they're only a link unless it's asked for).
 	await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
 	await select(page, await cards(page).all());
 	await page.keyboard.press("Alt+KeyK");
 	const backlinks = page.getByRole("dialog", { name: "Comment with a link to this board" });
+	const include = backlinks.getByRole("checkbox", { name: "Include a snapshot of the board" });
+	await expect(include).not.toBeChecked();
+	await include.check();
 	await expect(backlinks.locator(".backlink-snapshot img")).toBeVisible({ timeout: 15_000 });
 	await backlinks.getByRole("button", { name: "Stage 6 comments" }).click();
 	await expect(backlinks).toHaveCount(0);
