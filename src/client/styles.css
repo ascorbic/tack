@@ -563,6 +563,24 @@ button.primary:hover {
 	border: 1px solid var(--line);
 }
 
+/* The minimap steps back, letting the pointer through, when something under
+   it needs reaching (Minimap.tsx): it fades and settles a little into its
+   corner, and springs back once nothing needs it out of the way. */
+.react-flow__minimap {
+	transform-origin: 100% 100%;
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		scale var(--t-settle) var(--ease-spring),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.react-flow__minimap.minimap-dodging {
+	opacity: 0.16;
+	scale: 0.94;
+	box-shadow: none;
+	pointer-events: none;
+}
+
 .react-flow__controls-button {
 	width: 30px;
 	height: 30px;

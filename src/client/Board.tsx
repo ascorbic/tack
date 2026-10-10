@@ -3,7 +3,6 @@ import {
 	BackgroundVariant,
 	ControlButton,
 	Controls,
-	MiniMap,
 	type OnNodesChange,
 	ReactFlow,
 	SelectionMode,
@@ -57,6 +56,7 @@ import { FollowIndicator, ViewPublisher, useFollow } from "./Follow.tsx";
 import { Guides, useSnapping } from "./Guides.tsx";
 import { BoardContext } from "./DocContext.ts";
 import { isOffBoardTarget } from "./keys.ts";
+import { BoardMinimap } from "./Minimap.tsx";
 import { nodeTypes } from "./nodes.tsx";
 import { People } from "./People.tsx";
 import { type User, usePresence } from "./presence.ts";
@@ -676,7 +676,7 @@ export function Board({
 										?
 									</ControlButton>
 								</Controls>
-								<MiniMap pannable zoomable nodeClassName={minimapClass} />
+								<BoardMinimap pannable zoomable nodeClassName={minimapClass} />
 								<ZoomVariable />
 								<ConnectorLayer
 									doc={doc}
