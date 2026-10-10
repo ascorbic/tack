@@ -163,6 +163,10 @@ test("the widget tool adds a timeline, which opens its panel to be set up", asyn
 	await panel.getByLabel("What to follow").fill("repo:acme/imagekit");
 	await panel.getByLabel("What to follow").press("Enter");
 	await panel.getByRole("radio", { name: "Merged" }).click();
+	// The search it runs reads as chips, not a column of a character or two a line.
+	const runs = panel.getByLabel("The search it runs");
+	await expect(runs.locator(".widget-chip")).toHaveText(["repo:acme/imagekit", "is:pr", /^merged:/]);
+	expect((await runs.boundingBox())!.height).toBeLessThan(80);
 	await panel.getByRole("button", { name: "Done" }).click();
 	const merged = page
 		.locator(".react-flow__node-widget")

@@ -243,7 +243,7 @@ export function Segmented<T extends string | number>({
 	onChange,
 }: {
 	label: string;
-	options: { value: T; label: string }[];
+	options: { value: T; label: string; title?: string }[];
 	value: T;
 	disabled?: boolean;
 	onChange: (value: T) => void;
@@ -260,6 +260,8 @@ export function Segmented<T extends string | number>({
 					key={String(option.value)}
 					type="button"
 					role="radio"
+					title={option.title}
+					aria-label={option.title}
 					disabled={disabled}
 					aria-checked={option.value === value}
 					onClick={() => onChange(option.value)}

@@ -109,10 +109,16 @@
 	line-height: 1.4;
 }
 
+/* The search a timeline runs, range and all: chips that wrap, beside their icon. */
 .widget-config-query {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 3px;
+	min-width: 0;
+}
+
+.widget-config-query .widget-chip {
 	overflow-wrap: anywhere;
-	color: var(--ink-soft);
-	font-size: 11.5px;
 }
 
 .release-config-sections {

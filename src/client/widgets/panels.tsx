@@ -22,15 +22,15 @@ import {
 	timelineSearch,
 } from "../../shared/timeline.ts";
 import { ConfigSheet, Segmented } from "./ConfigPanel.tsx";
-import { refreshNote } from "./describe.ts";
-import { CheckIcon, RefreshIcon } from "./icons.tsx";
+import { ForgeField, QueryHelp } from "./QueryHelp.tsx";
+import { queryChips, refreshNote } from "./describe.ts";
+import { CheckIcon, RefreshIcon, SearchIcon } from "./icons.tsx";
+import { parseSearch } from "../../shared/search.ts";
 
 // Config panels for the timeline, release draft and dependency map (#43).
 // Searches and other text are committed on Enter or leaving the field, not
 // on every keystroke: each change runs the widget's queries again for
 // everyone looking.
-
-const HOSTS = ["github.com", "fake.tack"];
 
 const RANGE_LABELS: Record<TimelineRange, string> = {
 	"1w": "Week",
@@ -62,29 +62,6 @@ function useDraft(value: string, commit: (value: string) => void) {
 			},
 		},
 	};
-}
-
-function HostField({
-	id,
-	host,
-	onChange,
-}: {
-	id: string;
-	host: string;
-	onChange: (host: string) => void;
-}) {
-	return (
-		<label className="widget-field" htmlFor={id}>
-			<span className="widget-field-label">On</span>
-			<select id={id} value={host} onChange={(event) => onChange(event.target.value)}>
-				{[...new Set([host, ...HOSTS])].map((option) => (
-					<option key={option} value={option}>
-						{option}
-					</option>
-				))}
-			</select>
-		</label>
-	);
 }
 
 function Done({ onClick }: { onClick: () => void }) {
@@ -134,6 +111,7 @@ export function TimelineConfigPanel({
 					{...q.props}
 				/>
 			</label>
+			<QueryHelp q={q.value} host={config.host} onUse={(value) => onChange({ q: value })} />
 			{!q.value.trim() && suggestedRepo && (
 				<div className="widget-config-presets">
 					<button
@@ -194,7 +172,19 @@ export function TimelineConfigPanel({
 			{search && (
 				<ul className="widget-config-notes">
 					<li>
-						<span className="mono widget-config-query">{search.q}</span>
+						<SearchIcon size={14} />
+						<span className="widget-config-query" aria-label="The search it runs">
+							{queryChips(parseSearch(search.q)).map((chip, i) => (
+								<span
+									key={`${i}:${chip.text}`}
+									className="widget-chip mono"
+									data-tone={chip.tone}
+									data-negated={chip.negated || undefined}
+								>
+									{chip.text}
+								</span>
+							))}
+						</span>
 					</li>
 					<li>
 						<RefreshIcon size={14} />
@@ -215,7 +205,7 @@ export function TimelineConfigPanel({
 						onChange={(event) => onChange({ title: event.target.value })}
 					/>
 				</label>
-				<HostField id={`${id}-host`} host={config.host} onChange={(host) => onChange({ host })} />
+				<ForgeField value={config.host} onChange={(host) => onChange({ host })} />
 			</div>
 			<Done onClick={() => (q.flush(), onClose())} />
 		</ConfigSheet>
@@ -270,7 +260,7 @@ export function ReleaseConfigPanel({
 						{...repo.props}
 					/>
 				</label>
-				<HostField id={`${id}-host`} host={config.host} onChange={(host) => onChange({ host })} />
+				<ForgeField value={config.host} onChange={(host) => onChange({ host })} />
 			</div>
 			{!repo.value.trim() && suggestedRepo && (
 				<div className="widget-config-presets">
@@ -441,6 +431,7 @@ export function DependencyConfigPanel({
 							{...q.props}
 						/>
 					</label>
+					<QueryHelp q={q.value} host={config.host} onUse={(value) => onChange({ q: value })} />
 					{!q.value.trim() && suggestedRepo && (
 						<div className="widget-config-presets">
 							<button
@@ -485,7 +476,7 @@ export function DependencyConfigPanel({
 					/>
 				</div>
 				{config.source === "search" && (
-					<HostField id={`${id}-host`} host={config.host} onChange={(host) => onChange({ host })} />
+					<ForgeField value={config.host} onChange={(host) => onChange({ host })} />
 				)}
 			</div>
 			<label className="widget-field" htmlFor={`${id}-title`}>

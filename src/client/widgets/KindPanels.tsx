@@ -18,29 +18,20 @@ import type { MetaState } from "../actions/services.ts";
 import { ConfigSheet, Segmented } from "./ConfigPanel.tsx";
 import { queryChips, refreshNote } from "./describe.ts";
 import { CheckIcon, MilestoneIcon, RefreshIcon, WarnIcon } from "./icons.tsx";
+import { ForgeField, QueryHelp } from "./QueryHelp.tsx";
 
 // Config panels for the review queue, milestone and stale finder (#43).
 // Every change is written as it's made (they're small, and each runs the
 // widget's search again for everyone looking), except searches typed out
 // in full, which are committed on Enter or leaving the field, as a list's.
 
-const HOSTS = ["github.com", "fake.tack"];
 const LIMITS = [10, 30, 50, 100];
 
-function HostField({ value, onChange }: { value: string; onChange: (host: string) => void }) {
-	const id = useId();
-	return (
-		<label className="widget-field" htmlFor={id}>
-			<span className="widget-field-label">On</span>
-			<select id={id} value={value} onChange={(event) => onChange(event.target.value)}>
-				{[...new Set([value, ...HOSTS])].map((host) => (
-					<option key={host} value={host}>
-						{host}
-					</option>
-				))}
-			</select>
-		</label>
-	);
+/** A span as a segment says it, short enough not to wrap: "2w", "30d", "3mo". */
+function shortSpan(days: number): string {
+	if (days >= 60 && days % 30 === 0) return `${days / 30}mo`;
+	if (days < 28 && days % 7 === 0) return `${days / 7}w`;
+	return `${days}d`;
 }
 
 /** A text field that commits on Enter or blur, not on every keystroke. */
@@ -163,7 +154,7 @@ export function ReviewConfigPanel({
 						className="mono"
 						data-autofocus
 						value={repo.draft}
-						placeholder={suggestedRepo ?? "owner/name"}
+						placeholder="owner/name"
 						spellCheck={false}
 						onChange={(event) => repo.setDraft(event.target.value)}
 						onBlur={repo.commit}
@@ -212,7 +203,7 @@ export function ReviewConfigPanel({
 						onChange={(limit) => onChange({ limit })}
 					/>
 				</div>
-				<HostField value={config.host} onChange={(host) => onChange({ host })} />
+				<ForgeField value={config.host} onChange={(host) => onChange({ host })} />
 			</div>
 			<Done onClose={close} />
 		</ConfigSheet>
@@ -240,7 +231,9 @@ export function MilestoneConfigPanel({
 	onClose: () => void;
 }) {
 	const id = useId();
-	const repo = useDraft(config.repo, (value) =>
+	// Until it has its own, the board's busiest repository, as the widget itself offers.
+	const current = config.repo || suggestedRepo || "";
+	const repo = useDraft(current, (value) =>
 		onChange({ repo: value, ...(value !== config.repo ? { milestone: "" } : {}) }),
 	);
 	const milestones = meta.status === "ready" ? meta.meta.milestones : [];
@@ -271,7 +264,7 @@ export function MilestoneConfigPanel({
 			</label>
 			<div className="widget-field">
 				<span className="widget-field-label">Milestone</span>
-				{!config.repo ? (
+				{!current ? (
 					<p className="kind-hint">Name a repository to see its milestones.</p>
 				) : meta.status === "loading" || meta.status === "idle" ? (
 					<div className="milestone-picks" aria-busy="true">
@@ -296,7 +289,12 @@ export function MilestoneConfigPanel({
 									aria-checked={picked === milestone.title}
 									className="milestone-pick"
 									style={{ "--i": i } as CSSProperties}
-									onClick={() => onChange({ milestone: milestone.title })}
+									onClick={() =>
+										onChange({
+											milestone: milestone.title,
+											...(config.repo ? {} : { repo: current }),
+										})
+									}
 								>
 									<MilestoneIcon size={14} />
 									<strong>{milestone.title}</strong>
@@ -306,7 +304,7 @@ export function MilestoneConfigPanel({
 						})}
 					</div>
 				)}
-				{config.repo && meta.status === "unknown" && (
+				{current && meta.status === "unknown" && (
 					<input
 						aria-label="Milestone title"
 						value={config.milestone}
@@ -323,7 +321,7 @@ export function MilestoneConfigPanel({
 					options={[...new Set([...STALE_CHOICES, config.staleDays])]
 						.filter((d) => d >= STALE_DAYS.min && d <= STALE_DAYS.max)
 						.sort((a, b) => a - b)
-						.map((days) => ({ value: days, label: spanText(days) }))}
+						.map((days) => ({ value: days, label: shortSpan(days), title: spanText(days) }))}
 					value={config.staleDays}
 					onChange={(staleDays) => onChange({ staleDays })}
 				/>
@@ -340,7 +338,7 @@ export function MilestoneConfigPanel({
 						onKeyDown={(event) => event.key === "Enter" && close()}
 					/>
 				</label>
-				<HostField value={config.host} onChange={(host) => onChange({ host })} />
+				<ForgeField value={config.host} onChange={(host) => onChange({ host })} />
 			</div>
 			<Done onClose={close} />
 		</ConfigSheet>
@@ -355,6 +353,7 @@ export function StaleConfigPanel({
 	config,
 	presets,
 	labels,
+	login = null,
 	onChange,
 	onClose,
 }: {
@@ -363,6 +362,8 @@ export function StaleConfigPanel({
 	presets: { label: string; q: string }[];
 	/** Labels the repository has, to suggest. */
 	labels?: string[];
+	/** Who's editing it, signed in: offered in place of `@me`. */
+	login?: string | null;
 	onChange: (changes: Partial<StaleConfig>) => void;
 	onClose: () => void;
 }) {
@@ -432,6 +433,15 @@ export function StaleConfigPanel({
 					))}
 				</div>
 			)}
+			<QueryHelp
+				q={search.draft}
+				host={config.host}
+				login={login}
+				onUse={(q) => {
+					search.setDraft(q);
+					onChange({ q });
+				}}
+			/>
 			<div className="widget-field">
 				<span className="widget-field-label">Quiet for at least</span>
 				<Segmented
@@ -439,7 +449,7 @@ export function StaleConfigPanel({
 					options={[...new Set([...THRESHOLDS, config.days])]
 						.filter((d) => d >= STALE_THRESHOLD.min && d <= STALE_THRESHOLD.max)
 						.sort((a, b) => a - b)
-						.map((days) => ({ value: days, label: spanText(days) }))}
+						.map((days) => ({ value: days, label: shortSpan(days), title: spanText(days) }))}
 					value={config.days}
 					onChange={(days) => onChange({ days })}
 				/>
@@ -469,7 +479,7 @@ export function StaleConfigPanel({
 						))}
 					</datalist>
 				</label>
-				<HostField value={config.host} onChange={(host) => onChange({ host })} />
+				<ForgeField value={config.host} onChange={(host) => onChange({ host })} />
 			</div>
 			<label className="widget-field" htmlFor={`${id}-title`}>
 				<span className="widget-field-label">Title</span>

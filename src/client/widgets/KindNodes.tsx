@@ -133,7 +133,10 @@ const ACTION_KINDS: Record<StaleAction, OperationKind> = {
 };
 
 /** Ready-made searches for a stale finder, around the board's busiest repository. */
-export function stalePresets(repo: string | null): { label: string; q: string }[] {
+export function stalePresets(
+	repo: string | null,
+	login: string | null = null,
+): { label: string; q: string }[] {
 	const short = repo?.split("/").at(-1);
 	return [
 		...(repo
@@ -142,7 +145,8 @@ export function stalePresets(repo: string | null): { label: string; q: string }[
 					{ label: `Open pull requests in ${short}`, q: `repo:${repo} is:pr is:open` },
 				]
 			: []),
-		{ label: "Assigned to me", q: "is:open assignee:@me" },
+		// Named, so it's the same list for everyone (see `listPresets`).
+		{ label: "Assigned to me", q: `is:open assignee:${login ?? "@me"}` },
 	];
 }
 
@@ -158,7 +162,11 @@ export function StaleWidget({ id, shape, selected }: KindProps) {
 	const items = host.status.kind === "ready" ? (host.status.results.items?.items ?? []) : [];
 	const repos = useMemo(() => [...new Set(items.map((card) => repoKeyOf(card.key)))], [items]);
 	const metas = useRepoMetas(repos);
-	const presets = useMemo(() => stalePresets(suggested?.repo ?? null), [suggested?.repo]);
+	const login = board.user?.login ?? null;
+	const presets = useMemo(
+		() => stalePresets(suggested?.repo ?? null, login),
+		[suggested?.repo, login],
+	);
 
 	// What's staged on each item, as its row shows it.
 	const staged = useMemo(() => {
@@ -258,6 +266,7 @@ export function StaleWidget({ id, shape, selected }: KindProps) {
 				<StaleConfigPanel
 					config={config}
 					presets={presets}
+					login={login}
 					labels={[...metas.values()].flatMap((meta) =>
 						meta.status === "ready" ? meta.meta.labels.map((label) => label.name) : [],
 					)}
