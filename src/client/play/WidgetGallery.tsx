@@ -16,6 +16,7 @@ import { planDrop } from "../widgets/match.ts";
 import { WidgetPicker } from "../widgets/WidgetPicker.tsx";
 import "../widgets/widgets.css";
 import { LABELS } from "./fixtures.ts";
+import { RoadmapGallery } from "./RoadmapGallery.tsx";
 import { REPO, WIDGET_CARDS } from "./widgets.ts";
 
 // Every widget state (#37, #38, #39), for the gallery: a list not set up,
@@ -391,6 +392,8 @@ export default function WidgetGallery() {
 					</figure>
 				</div>
 			</section>
+
+			<RoadmapGallery />
 
 			<section>
 				<h2>Picker</h2>

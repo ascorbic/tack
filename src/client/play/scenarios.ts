@@ -20,6 +20,7 @@ import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 import { seedRelated } from "./related.ts";
 import { seedWrites } from "./writes.ts";
 import { IMAGEKIT, PEOPLE, failChange, stageAs } from "./push.ts";
+import { seedRoadmap } from "./roadmap.ts";
 import { seedWidgets } from "./widgets.ts";
 
 export interface Scenario {
@@ -522,6 +523,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"Live lists of a fake repository: drag rows out as cards, hover to find them, drop cards on a list to stage what makes them match, then push.",
 		seed: seedWidgets,
+	},
+	roadmap: {
+		name: "Timeline, release and dependencies",
+		description:
+			"A timeline of what's been opened, the next release's draft notes, and the 5.0 launch's dependency map: hover, drag items out as cards, click a cluster or an item, copy the notes.",
+		seed: seedRoadmap,
 	},
 	empty: {
 		name: "Empty",

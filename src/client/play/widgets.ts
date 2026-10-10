@@ -3,12 +3,21 @@ import type { Card } from "../../shared/cards.ts";
 import { matchSearch, parseSearch } from "../../shared/search.ts";
 import { addShape, nextZ, shapesMap } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
-import { addWidget, listConfig } from "../../shared/widgetRegistry.ts";
-import type { QueryError, SearchResult, WidgetMessage } from "../../shared/widgets.ts";
+import { boardQueryContext } from "../../shared/widgetContext.ts";
+import { addWidget, widgetFollowUps, widgetQueries } from "../../shared/widgetRegistry.ts";
+import type {
+	QueryError,
+	QueryResult,
+	SearchQuery,
+	SearchResult,
+	WidgetMessage,
+	WidgetQuery,
+} from "../../shared/widgets.ts";
 import { cardStore } from "../cardStore.ts";
 import { type WidgetTransport, widgetStore } from "../widgets/store.ts";
 import { PEOPLE, makeChecks, pullDetails } from "./ci.ts";
 import { LABELS, fixture } from "./fixtures.ts";
+import { RELEASE_PULLS, matchDates, relatedOf, releaseOf, stampTimes } from "./roadmap.ts";
 
 // Widgets in the playground (#37, #38, #39): a repository's worth of fake
 // issues and pull requests, searched in the browser with the same matcher
@@ -166,6 +175,8 @@ export const WIDGET_CARDS: Card[] = [
 	fixture({ item: "#408", title: "Video walkthrough for 5.0", updatedAt: T(9) }),
 ];
 
+stampTimes(WIDGET_CARDS);
+
 /** A new item in the fake repository, as when someone opens an issue. */
 export function addWidgetCard(card: Card): void {
 	WIDGET_CARDS.unshift(card);
@@ -198,15 +209,16 @@ export class SimulatedWidgets implements WidgetTransport {
 		private doc: Y.Doc,
 		private options: SimulatedWidgetOptions = {},
 	) {
-		for (const card of WIDGET_CARDS) if (!cardStore.get(card.key)) cardStore.set(card);
+		for (const card of [...WIDGET_CARDS, ...RELEASE_PULLS]) {
+			if (!cardStore.get(card.key)) cardStore.set(card);
+		}
 		const shapes = shapesMap(doc);
-		// A list's search changed: run it again.
+		// A widget's queries changed (its config, or the cards in a section it maps): run them again.
 		const observer = () => {
 			for (const id of this.watched) {
-				const shape = shapes.get(id);
-				const config = shape ? JSON.stringify(shape.get("config")) : "";
-				if (this.configs.get(id) !== config) {
-					this.configs.set(id, config);
+				const queries = this.queriesOf(id);
+				if (this.configs.get(id) !== queries) {
+					this.configs.set(id, queries);
 					this.answer(id);
 				}
 			}
@@ -225,7 +237,7 @@ export class SimulatedWidgets implements WidgetTransport {
 
 	/** Every item there is: the fake repository's, and any other card the board has data for. */
 	private items(): Card[] {
-		return WIDGET_CARDS.map((card) => {
+		return [...WIDGET_CARDS, ...RELEASE_PULLS].map((card) => {
 			const live = cardStore.get(card.key);
 			return live && !("missing" in live) ? live : card;
 		});
@@ -234,7 +246,7 @@ export class SimulatedWidgets implements WidgetTransport {
 	watch(ids: string[]): void {
 		for (const id of ids) {
 			this.watched.add(id);
-			this.configs.set(id, JSON.stringify(shapesMap(this.doc).get(id)?.get("config")));
+			this.configs.set(id, this.queriesOf(id));
 			this.answer(id);
 		}
 	}
@@ -276,15 +288,47 @@ export class SimulatedWidgets implements WidgetTransport {
 		this.timers.add(timer);
 	}
 
-	private results(id: string): WidgetMessage {
+	/** What a widget runs, as JSON, to tell when it changes. */
+	private queriesOf(id: string): string {
 		const shape = shapesMap(this.doc).get(id);
-		const config = listConfig({ config: shape?.get("config") });
-		const at = new Date().toISOString();
-		if (!config.q.trim()) return { type: "widget-data", id, results: {}, at };
-		return { type: "widget-data", id, results: { items: this.search(config.q, config.limit) }, at };
+		if (!shape) return "";
+		const widget = { widget: shape.get("widget") as string, config: shape.get("config") };
+		return JSON.stringify(widgetQueries(widget, boardQueryContext(this.doc)));
 	}
 
-	private search(q: string, limit: number): SearchResult | QueryError {
+	/** A widget's results, as the board's server would send them: its queries, then their follow-ups. */
+	private results(id: string): WidgetMessage {
+		const shape = shapesMap(this.doc).get(id);
+		const at = new Date().toISOString();
+		if (!shape) return { type: "widget-data", id, results: {}, at };
+		const widget = { widget: shape.get("widget") as string, config: shape.get("config") };
+		const results: WidgetMessage["results"] = {};
+		for (const [name, query] of Object.entries(
+			widgetQueries(widget, boardQueryContext(this.doc)),
+		)) {
+			results[name] = this.run(query);
+		}
+		for (const [name, query] of Object.entries(widgetFollowUps(widget, results))) {
+			results[name] = this.run(query);
+		}
+		return { type: "widget-data", id, results, at };
+	}
+
+	private run(query: WidgetQuery): QueryResult | QueryError {
+		const failed = this.failure();
+		if (failed) return failed;
+		const items = this.items();
+		switch (query.kind) {
+			case "search":
+				return this.search(query);
+			case "related":
+				return relatedOf(query.key, (key) => items.find((card) => card.key === key));
+			case "release":
+				return releaseOf(query.repo);
+		}
+	}
+
+	private failure(): QueryError | null {
 		if (this.mode === "rate_limited") {
 			return {
 				kind: "error",
@@ -296,6 +340,13 @@ export class SimulatedWidgets implements WidgetTransport {
 		if (this.mode === "error") {
 			return { kind: "error", reason: "error", message: "GitHub answered 502." };
 		}
+		return null;
+	}
+
+	private search(query: SearchQuery): SearchResult | QueryError {
+		const limit = query.limit ?? 50;
+		const dates = matchDates(query.q);
+		const q = dates.rest;
 		const parsed = parseSearch(q);
 		const viewer = this.options.viewer ?? null;
 		if (/@me\b/i.test(q) && !viewer) {
@@ -305,15 +356,18 @@ export class SimulatedWidgets implements WidgetTransport {
 				message: "Sign in to see what “@me” means for you.",
 			};
 		}
+		const sortKey = (card: Card) =>
+			(query.sort === "created" ? card.createdAt : undefined) ?? card.updatedAt;
 		const items = this.items()
 			.filter(
 				(card) =>
+					dates.test(card) &&
 					matchSearch(card, parsed, {
 						viewer,
 						milestoneOf: (c) => milestones.get(c.key) ?? null,
 					}) === "yes",
 			)
-			.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+			.sort((a, b) => (sortKey(a) < sortKey(b) ? 1 : -1));
 		return { kind: "search", total: items.length, items: items.slice(0, limit) };
 	}
 }
