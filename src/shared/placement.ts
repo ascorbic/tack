@@ -128,6 +128,20 @@ export function spotBelow(
 	);
 }
 
+/**
+ * Free space for a shape of `size` as near `ideal` (its top left) as there
+ * is, outside any section it would cross. For shapes that belong nowhere in
+ * particular, such as a card someone asked for in a comment (#58).
+ */
+export function spotNear(
+	shapes: ReadonlyMap<string, ShapeProps>,
+	ideal: Point,
+	size: Size = PLACED_CARD,
+	sizeOf?: SizeOf,
+): Point | null {
+	return nearestFree(ideal, size, obstaclesOf(shapes, sizeOf), () => 0);
+}
+
 const SEARCH_STEPS = 24;
 
 function nearestFree(
