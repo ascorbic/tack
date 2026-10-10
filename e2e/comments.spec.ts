@@ -64,7 +64,7 @@ test.describe("comments", () => {
 	test("the comment tool pins a comment to whatever's clicked, and it follows", async ({
 		page,
 	}) => {
-		await page.keyboard.press("m");
+		await page.keyboard.press("b");
 		await expect(page.locator(".canvas")).toHaveAttribute("data-tool", "comment");
 		const sticky = page.locator(".react-flow__node", { hasText: "Pairing on the Astro adapter" });
 		const box = (await sticky.boundingBox())!;
