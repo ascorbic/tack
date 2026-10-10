@@ -879,7 +879,7 @@ export function Board({
 									sizeOf={boxSize}
 									onPlaced={(id) => setSelected(new Set([id]))}
 								/>
-								<HighlightLayer doc={doc} nodes={nodes} sizeOf={boxSize} />
+								{!replay.state.open && <HighlightLayer doc={doc} nodes={nodes} sizeOf={boxSize} />}
 								<CommentLayer
 									nodes={nodes}
 									sizeOf={boxSize}
