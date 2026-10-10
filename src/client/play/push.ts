@@ -26,6 +26,7 @@ import {
 } from "../changes/describe.ts";
 import { linkWrittenDecisions } from "../../shared/decisions.ts";
 import { placeCard } from "../../shared/place.ts";
+import { makeRoomForCards } from "../../shared/swap.ts";
 import { scaledDuration } from "../motion.ts";
 import { avatar } from "./ci.ts";
 import { fakeMeta } from "./writes.ts";
@@ -236,6 +237,19 @@ export class SimulatedPush implements PushClient {
 		for (const change of ordered) {
 			this.write(change.id, { pushId, pushedBy, pushedAs: as, error: undefined, status: "staged" });
 		}
+		// As the Board object does: stickies spread out to make room for their cards.
+		this.doc.transact(
+			() =>
+				makeRoomForCards(
+					this.doc,
+					ordered.flatMap((change) =>
+						change.op.kind === "issue.create" && change.effect?.kind === "replace"
+							? change.effect.shapes
+							: [],
+					),
+				),
+			SERVER_ORIGIN,
+		);
 		const failing = new Map<string, string>();
 		if (this.mode === "some_fail") {
 			const others = ordered.filter((change) => !creates.has(change.op.kind));

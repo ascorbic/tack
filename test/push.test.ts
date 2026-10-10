@@ -303,6 +303,42 @@ describe("pushing", () => {
 		]);
 	});
 
+	it("pushes a sticky as it reads now, and makes room for the cards stickies become", async () => {
+		const { github, mf, alice, board, client, stage } = await setup();
+		const doc = client.doc;
+		addShape(doc, "a", { type: "sticky", x: 0, y: 0, z: "a1", text: "Faster cold starts" });
+		addShape(doc, "b", { type: "sticky", x: 200, y: 0, z: "a2", text: "Cache the manifest" });
+		await client.roundTrip();
+		for (const id of ["a", "b"]) {
+			const title = String(shapesMap(doc).get(id)?.get("text"));
+			await stage(
+				`new-${id}`,
+				{ kind: "issue.create", repo: REPO, title },
+				{ shapes: [id], effect: { kind: "replace", shapes: [id] } },
+			);
+		}
+		// Reworded after it was staged: the issue says what the sticky says now.
+		shapesMap(doc).get("b")?.set("text", "Cache the manifest for a day\nIt rarely changes");
+		await client.roundTrip();
+
+		expect(await push(mf, board, alice, ["new-a", "new-b"])).toMatchObject({ status: 202 });
+		await until(client, "new-a", "applied");
+		await until(client, "new-b", "applied");
+		const made = [13, 14].map((n) => github.item(WIDGETS, n));
+		expect(made.map((item) => ({ title: item?.title, body: item?.body || undefined }))).toEqual([
+			{ title: "Faster cold starts", body: undefined },
+			{ title: "Cache the manifest for a day", body: "It rarely changes" },
+		]);
+
+		// The second sticky moved over first, so the two cards sit side by side.
+		await eventually(() => !shapesMap(doc).has("a") && !shapesMap(doc).has("b"));
+		const xs = [...shapesMap(doc).values()]
+			.filter((shape) => shape.get("type") === "card")
+			.map((shape) => shape.get("x"))
+			.sort((p, q) => Number(p) - Number(q));
+		expect(xs).toEqual([0, 276]);
+	});
+
 	it("points a decision written back as a pull request at it, with no one's client involved", async () => {
 		const { mf, alice, board, client } = await setup();
 		const doc = client.doc;

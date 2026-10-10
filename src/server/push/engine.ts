@@ -44,6 +44,7 @@ import { linkActionItems } from "../../shared/actionItems.ts";
 import { linkWrittenDecisions } from "../../shared/decisions.ts";
 import { placeCard } from "../../shared/place.ts";
 import { shapesMap } from "../../shared/shapes.ts";
+import { makeRoomForCards } from "../../shared/swap.ts";
 import {
 	type ApplyResult,
 	type ForgeAdapter,
@@ -392,6 +393,9 @@ export class PushEngine {
 					change.delete("result");
 				}
 			}
+			// Stickies about to become cards spread out first, so the cards
+			// they turn into land clear of each other.
+			makeRoomForCards(doc, replacedBy(items));
 		}, PUSH_ORIGIN);
 		const logger = this.logger(pushId);
 		logger.info("push.started", {
@@ -1131,6 +1135,15 @@ export class PushEngine {
 	private logger(pushId: string): Logger {
 		return log.with({ board: this.host.name, push: pushId });
 	}
+}
+
+/** The stickies a push's new issues will replace with their cards. */
+function replacedBy(items: PlanItem[]): string[] {
+	return items.flatMap((item) =>
+		item.op?.kind === "issue.create" && item.change.effect?.kind === "replace"
+			? item.change.effect.shapes
+			: [],
+	);
 }
 
 function repositoriesOf(items: { repo: string | null }[]): string[] {
