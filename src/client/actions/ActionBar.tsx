@@ -90,6 +90,13 @@ import {
 	useServices,
 } from "./services.ts";
 import { snapshotRegion as snapshotRegionFor } from "./snapshot.ts";
+import type { SizeOf } from "../../shared/sections.ts";
+import { spreadStack, stackSelection } from "../../shared/stackEdits.ts";
+import { membersOf, nameState, stackName } from "../../shared/stacks.ts";
+import { readShapes } from "../../shared/structure.ts";
+import { GroupThese } from "../stacks/GroupThese.tsx";
+import { SparkIcon, SpreadIcon, StackIcon } from "../stacks/StackNode.tsx";
+import { stackStore, useStacks } from "../stacks/store.ts";
 import { undoToast } from "./toast.ts";
 import { useChangesUI } from "../changes/context.ts";
 import { MARK_DOT_ZOOM } from "../changes/StagedMarks.tsx";
@@ -123,6 +130,8 @@ interface ActionBarProps {
 	history: History;
 	requests: ActionRequests;
 	sizeOf: (id: string) => Size | undefined;
+	/** Shapes' boxes, for placing what the bar makes (stacks). */
+	boxSize?: SizeOf;
 }
 
 export interface Action {
@@ -175,7 +184,9 @@ export function ActionBar(props: ActionBarProps) {
 	);
 	const cardData = useCards(keys);
 	const kinds = useMemo(() => classify(selected, cardData), [selected, cardData]);
-	const { stickies, cards, cardNodes, sections, others } = kinds;
+	const { stickies, cards, cardNodes, sections, stacks, others } = kinds;
+	// Whether the board's AI suggestions are on, for Group these (#73).
+	const { ai } = useStacks();
 	// The connector between two selected issues (or stickies), for blocked-by.
 	const pairKey =
 		selected.length === 2 && stickies.length + cardNodes.length === 2
@@ -219,7 +230,7 @@ export function ActionBar(props: ActionBarProps) {
 		18 +
 		markRoom +
 		(selected.length >= 2 ? 52 : 0) +
-		(stickies.length + others.length > 0 ? 52 : 0) +
+		(stickies.length + stacks.length + others.length > 0 ? 52 : 0) +
 		// A section's title row, and the row of its tools that can wrap above it.
 		(sections.length === 1 && selected.length === 1 ? 82 : 0);
 
@@ -292,6 +303,51 @@ export function ActionBar(props: ActionBarProps) {
 				icon: <ParentIcon />,
 				text: onlySection || clustered ? "Parent issue" : undefined,
 				unavailable: onlySection ? undefined : faceDown,
+			});
+		}
+		// Stacks (#73): stickies into one, a selection into themed ones by AI,
+		// and a stack back out, or up as a parent issue.
+		const onlyStack = stacks.length === 1 && selected.length === 1 ? stacks[0] : undefined;
+		if (
+			stickies.length + stacks.length >= 2 &&
+			cardNodes.length + sections.length + others.length === 0 &&
+			[...stickies, ...stacks].every((n) => n.data.display === undefined)
+		) {
+			out.push({ id: "stackThese", label: "Stack these", icon: <StackIcon />, text: "Stack" });
+		}
+		if (ai === true && stickies.length >= 3 && selected.length === stickies.length) {
+			const readable = stickies.filter(
+				(s) => !s.data.shape.silent && (s.data.shape.text ?? "").trim() !== "",
+			);
+			out.push({
+				id: "groupThese",
+				label: "Group these into named stacks",
+				icon: <SparkIcon />,
+				text: "Group these",
+				unavailable:
+					readable.length < 3
+						? "Select at least three stickies with something written on them"
+						: undefined,
+			});
+		}
+		if (onlyStack) {
+			const shapes = readShapes(doc);
+			const members = membersOf(shapes, onlyStack.id);
+			out.push({
+				id: "parentIssue",
+				label: "Make a parent issue from this stack, its stickies as sub-issues",
+				icon: <ParentIcon />,
+				text: "Parent issue",
+				unavailable: members.some((id) => shapes.get(id)?.silent)
+					? "Face down until the reveal: reveal first to make issues"
+					: undefined,
+			});
+			out.push({
+				id: "unstack",
+				label: "Unstack: lay its stickies out where it is",
+				icon: <SpreadIcon />,
+				text: "Unstack",
+				quiet: true,
 			});
 		}
 		// Not a change to stage: it lays out what's already linked, so it's
@@ -385,11 +441,13 @@ export function ActionBar(props: ActionBarProps) {
 		cards,
 		cardNodes,
 		sections,
+		stacks,
 		others,
 		targets,
 		closable,
 		repos,
 		metas,
+		ai,
 	]);
 
 	/** Stickies to action items, in place: no panel, one undo step. */
@@ -408,12 +466,46 @@ export function ActionBar(props: ActionBarProps) {
 		);
 	};
 
+	/** Stickies (and stacks) into one stack where the first of them is: one undo step. */
+	const stackThese = () => {
+		const stack = transactLocal(doc, () =>
+			stackSelection(
+				doc,
+				selected.map((n) => n.id),
+				props.boxSize,
+			),
+		);
+		if (!stack) return;
+		store.getState().resetSelectedElements();
+		requestAnimationFrame(() => store.getState().addSelectedNodes([stack]));
+	};
+
+	/** A stack's stickies laid out where it is, for good: one undo step. */
+	const unstack = () => {
+		const stack = stacks[0];
+		if (!stack) return;
+		stackStore.setOpen(null);
+		const spread = transactLocal(doc, () => spreadStack(doc, stack.id, props.boxSize));
+		if (spread.length === 0) return;
+		store.getState().resetSelectedElements();
+		requestAnimationFrame(() => store.getState().addSelectedNodes(spread));
+		toast(`Unstacked ${count(spread.length, "sticky", "stickies")}`);
+	};
+
+	/** What the bar does at once, without a panel. */
+	const immediate: Partial<Record<ActionCommand, () => void>> = {
+		toActions: makeActionItems,
+		stackThese,
+		unstack,
+	};
+
 	useEffect(
 		() =>
 			requests.register((id) => {
 				const action = actions.find((a) => a.id === id);
 				if (!action || action.unavailable) return false;
-				if (id === "toActions") makeActionItems();
+				const run = immediate[id];
+				if (run) run();
 				else setOpen((current) => (current === id ? null : id));
 				return true;
 			}),
@@ -702,6 +794,27 @@ export function ActionBar(props: ActionBarProps) {
 						onDone={close}
 					/>
 				) : null;
+			case "groupThese":
+				return (
+					<GroupThese
+						doc={doc}
+						stickies={stickies.map((s) => ({
+							id: s.id,
+							text: s.data.shape.text ?? "",
+							color: s.data.shape.color,
+						}))}
+						sizeOf={props.boxSize}
+						onClose={close}
+						onMade={(made, grouped) => {
+							setOpen(null);
+							store.getState().resetSelectedElements();
+							requestAnimationFrame(() => store.getState().addSelectedNodes(made));
+							toast(
+								`Made ${count(made.length, "stack")} of ${count(grouped, "sticky", "stickies")}`,
+							);
+						}}
+					/>
+				);
 			case "carryOver": {
 				const items = openActionItems(
 					doc,
@@ -784,7 +897,8 @@ export function ActionBar(props: ActionBarProps) {
 							if (action.unavailable) return;
 							// From the keyboard (no pointer): come back here when the panel closes.
 							returnTo.current = event.detail === 0 ? event.currentTarget : null;
-							if (action.id === "toActions") makeActionItems();
+							const run = immediate[action.id];
+							if (run) run();
 							else setOpen((was) => (was === action.id ? null : action.id));
 						}}
 					/>
@@ -803,7 +917,8 @@ export function ActionBar(props: ActionBarProps) {
 							open === "backlink" ||
 							open === "parentIssue" ||
 							open === "expandRelated" ||
-							open === "carryOver"
+							open === "carryOver" ||
+							open === "groupThese"
 						}
 					>
 						{panel()}
@@ -993,10 +1108,13 @@ function ParentPanel({
 	onDone: (message: string) => void;
 }) {
 	const section = kinds.sections.length === 1 && selected.length === 1 ? kinds.sections[0] : null;
-	// A section's contents at any depth, or the selection itself.
+	// A stack (#73): its stickies are the sub-issues, and its name the title.
+	const stack = kinds.stacks.length === 1 && selected.length === 1 ? kinds.stacks[0] : null;
+	// A section's contents at any depth, a stack's stickies, or the selection itself.
 	const items = useMemo((): ChildPreview[] => {
 		const shapes = shapesMap(doc);
 		let ids = selected.map((n) => n.id);
+		if (stack) ids = membersOf(readShapes(doc), stack.id);
 		if (section) {
 			const links = new Map(
 				[...shapes].map(([id, s]) => [
@@ -1035,7 +1153,7 @@ function ParentPanel({
 			}
 			return [];
 		});
-	}, [doc, selected, section]);
+	}, [doc, selected, section, stack]);
 
 	// The repository most of the cards are in, or the last one used.
 	const cardRepos = items.flatMap((i) => ("card" in i.input ? [repoKeyOf(i.input.card.key)] : []));
@@ -1088,8 +1206,14 @@ function ParentPanel({
 
 	return (
 		<ParentIssuePanel
-			title={section ? sectionTitle(doc, section.id) : ""}
-			from={section ? "this section" : "the selection"}
+			title={
+				section
+					? sectionTitle(doc, section.id)
+					: stack && nameState(stack.data.shape) !== "none"
+						? (stackName(stack.data.shape) ?? "")
+						: ""
+			}
+			from={section ? "this section" : stack ? "this stack" : "the selection"}
 			items={previews}
 			repos={options}
 			host={hostOf(options)}
@@ -1102,8 +1226,13 @@ function ParentPanel({
 					{
 						repo,
 						title,
-						shapes: section ? [section.id] : selected.map((n) => n.id),
-						// Its card goes above the section, or above its sub-issues.
+						shapes: section
+							? [section.id]
+							: stack
+								? [stack.id, ...items.map((i) => i.input.shape)]
+								: selected.map((n) => n.id),
+						// Its card goes above the section, or above its sub-issues
+						// (a stack spreads out as its stickies become cards).
 						near: section ? [section.id] : "children",
 					},
 					items.map((i) => i.input),

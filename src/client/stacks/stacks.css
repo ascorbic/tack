@@ -135,6 +135,12 @@
 	transform-origin: 50% 0;
 }
 
+/* Zoomed out, a long name is cut short rather than growing over its
+   neighbours: however big it's drawn, it's no wider than the stack and a bit. */
+.stack-label .stack-name {
+	max-width: min(240px, calc(260px / min(var(--unzoom, 1), 3)));
+}
+
 .stack-name-row {
 	display: inline-flex;
 	align-items: center;
@@ -405,7 +411,290 @@
 	stroke: none;
 }
 
+/* "Group these" ------------------------------------------------------------ */
+
+/* Each proposed stack's colour, in the panel: the section palette's ink,
+   readable on any paper. On the board, Board sets --proposal itself. */
+.group-row[data-color="blue"] {
+	--proposal: var(--section-blue-ink);
+}
+.group-row[data-color="orange"] {
+	--proposal: var(--section-orange-ink);
+}
+.group-row[data-color="green"] {
+	--proposal: var(--section-green-ink);
+}
+.group-row[data-color="purple"] {
+	--proposal: var(--section-purple-ink);
+}
+.group-row[data-color="red"] {
+	--proposal: var(--section-red-ink);
+}
+.group-row[data-color="yellow"] {
+	--proposal: var(--section-yellow-ink);
+}
+
+/* On the board: each proposed stack's stickies ringed in its colour, numbered. */
+.react-flow__node.stack-proposed .sticky {
+	outline: 3px solid var(--proposal, var(--accent));
+	outline-offset: 5px;
+	transition: outline-color var(--t-base) var(--ease-out);
+	animation: proposal-in calc(420ms * var(--motion)) var(--ease-spring) backwards;
+	animation-delay: calc(var(--proposal-i, 0) * 40ms * var(--motion));
+}
+
+.react-flow__node.stack-proposed::after {
+	content: var(--proposal-label);
+	position: absolute;
+	top: -14px;
+	left: -14px;
+	display: grid;
+	place-items: center;
+	min-width: 26px;
+	height: 26px;
+	padding: 0 6px;
+	border: 2px solid var(--surface);
+	border-radius: 13px;
+	background: var(--proposal, var(--accent));
+	color: var(--surface);
+	font: 700 13px/1 var(--font-ui);
+	box-shadow: var(--shadow-hover);
+	transform: scale(min(var(--unzoom, 1), 3));
+	transform-origin: 30% 30%;
+	pointer-events: none;
+	animation: proposal-badge-in calc(420ms * var(--motion)) var(--ease-spring) backwards;
+	animation-delay: calc(var(--proposal-i, 0) * 40ms * var(--motion));
+}
+
+@keyframes proposal-in {
+	from {
+		outline-offset: 14px;
+		outline-color: transparent;
+	}
+}
+
+@keyframes proposal-badge-in {
+	from {
+		opacity: 0;
+		scale: 0.4;
+	}
+}
+
+.group-title {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.group-title .stack-icon-spark {
+	color: var(--accent);
+}
+
+.group-thinking {
+	display: grid;
+	gap: 12px;
+	margin-top: 4px;
+}
+
+.group-thinking-row {
+	display: grid;
+	gap: 6px;
+	animation: notice-in var(--t-base) var(--ease-out) backwards;
+	animation-delay: calc(var(--i, 0) * 120ms * var(--motion));
+}
+
+.group-thinking-row .action-skeleton {
+	height: 18px;
+}
+
+.group-thinking-chips {
+	display: flex;
+	gap: 6px;
+}
+
+.group-thinking-chips span {
+	width: 30%;
+	height: 22px;
+	border-radius: 6px;
+	background: var(--skeleton);
+}
+
+.group-list {
+	display: grid;
+	gap: 10px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.group-row {
+	padding: 8px 8px 10px;
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--proposal, var(--accent));
+	border-radius: 10px;
+	background: var(--surface);
+	animation: preview-in var(--t-settle) var(--ease-spring) both;
+}
+
+.group-row[data-thin] {
+	opacity: 0.6;
+}
+
+.group-row-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.group-number {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 10px;
+	background: var(--proposal, var(--accent));
+	color: var(--surface);
+	font: 700 11px/1 var(--font-ui);
+}
+
+.group-name {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	padding: 0 6px;
+	border: 1px solid transparent;
+	border-radius: 7px;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+}
+
+.group-name:hover {
+	background: var(--hover);
+}
+
+.group-name:focus-within {
+	border-color: var(--accent);
+	background: var(--surface);
+}
+
+.group-spark {
+	font-size: 12px;
+}
+
+.group-name input {
+	flex: 1;
+	min-width: 0;
+	height: 26px;
+	padding: 0;
+	border: 0;
+	outline: none;
+	background: transparent;
+	color: var(--ink);
+	font: 640 14px/18px var(--font-ui);
+}
+
+.group-drop,
+.group-chip button {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+}
+
+.group-drop:hover,
+.group-chip button:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.group-drop svg,
+.group-chip svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+}
+
+.group-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 6px 0 0 26px;
+	padding: 0;
+	list-style: none;
+}
+
+.group-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+	padding: 2px 2px 2px 6px;
+	border-radius: 6px;
+	background: var(--well);
+	color: var(--ink-soft);
+	font-size: 12px;
+	animation: preview-in var(--t-base) var(--ease-spring) both;
+}
+
+.group-chip-paper {
+	flex: none;
+	width: 9px;
+	height: 9px;
+	border-radius: 2px;
+	background: var(--sticky);
+	box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+}
+
+.group-chip-text {
+	min-width: 0;
+	max-width: 230px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.group-chip button {
+	width: 18px;
+	height: 18px;
+}
+
+.group-thin,
+.group-left {
+	margin: 6px 0 0 26px;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.group-left {
+	margin: 10px 0 0;
+}
+
+.group-these .action-foot {
+	justify-content: flex-end;
+}
+
+.group-these .action-foot .action-secondary:first-child {
+	margin-right: auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
+	.react-flow__node.stack-proposed .sticky,
+	.react-flow__node.stack-proposed::after {
+		animation: none;
+	}
+
 	.stack-name[data-waiting] .stack-name-text {
 		animation: none;
 		color: var(--muted);

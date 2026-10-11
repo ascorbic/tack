@@ -21,6 +21,9 @@ export type ActionCommand = Extract<
 	| "expandRelated"
 	| "toActions"
 	| "carryOver"
+	| "stackThese"
+	| "groupThese"
+	| "unstack"
 >;
 
 /**
@@ -80,16 +83,26 @@ export interface SelectionKinds {
 	/** Loaded cards. */
 	cards: SelectedCard[];
 	sections: ShapeNode[];
+	/** Stacks of stickies (#73). */
+	stacks: ShapeNode[];
 	/** Text and anything else that can't take part. */
 	others: ShapeNode[];
 }
 
 export function classify(nodes: readonly ShapeNode[], cards: Map<string, Entry>): SelectionKinds {
-	const out: SelectionKinds = { stickies: [], cardNodes: [], cards: [], sections: [], others: [] };
+	const out: SelectionKinds = {
+		stickies: [],
+		cardNodes: [],
+		cards: [],
+		sections: [],
+		stacks: [],
+		others: [],
+	};
 	for (const node of nodes) {
 		const shape = node.data.shape;
 		if (shape.type === "sticky") out.stickies.push(node);
 		else if (shape.type === "section") out.sections.push(node);
+		else if (shape.type === "stack") out.stacks.push(node);
 		else if (shape.type === "card" && shape.ref) {
 			out.cardNodes.push(node);
 			const card = cards.get(shape.ref);

@@ -128,6 +128,7 @@ import { leaveStack, stackUp, reorderInStack } from "../shared/stackEdits.ts";
 import { STACK_SIZE, STICKY, memberAt, nearestSlot, openLayout } from "../shared/stacks.ts";
 import { contains } from "../shared/geometry.ts";
 import { stackStore, useStacks } from "./stacks/store.ts";
+import { PROPOSAL_COLORS } from "./stacks/GroupThese.tsx";
 import { useStackDrop } from "./stacks/useStackDrop.ts";
 import { type StackView, readStacks } from "./stacks/view.ts";
 import { addWidget, widgetDefinition } from "../shared/widgetRegistry.ts";
@@ -528,6 +529,11 @@ export function Board({
 				)
 			: null;
 		const { target, armed, dragged } = stackDrop.state;
+		const proposalOf = new Map<string, { n: number; color: string }>();
+		(stackUI.proposal ?? []).forEach((group, i) => {
+			const color = PROPOSAL_COLORS[i % PROPOSAL_COLORS.length] as string;
+			for (const id of group.ids) proposalOf.set(id, { n: i + 1, color });
+		});
 		/** A stack's node data: what's in it and how it shows, the same object until that changes. */
 		const stackDataFor = (data: ShapeNode["data"], view: StackView): ShapeNode["data"] => {
 			const key = [
@@ -667,20 +673,28 @@ export function Board({
 			if (armed && dragged.includes(base.id)) {
 				className = `${className ?? ""} stack-joining`.trim();
 			}
+			// "Group these" being previewed: its stickies ringed and numbered.
+			const proposed = proposalOf.get(base.id);
+			if (proposed) className = `${className ?? ""} stack-proposed`.trim();
 			const morph = display.morphing.get(base.id);
 			if (morph !== undefined) className = `${className ?? ""} display-morph`.trim();
 			const shown = stackView ? stackDataFor(base.data, stackView) : base.data;
 			const data = kind ? displayDataFor(shown, kind) : shown;
 			const style =
-				remoteColor || morph !== undefined || index !== undefined || stackIndex >= 0
+				remoteColor || morph !== undefined || index !== undefined || stackIndex >= 0 || proposed
 					? ({
 							...(remoteColor && { "--drag-color": remoteColor }),
 							...(morph !== undefined && { "--morph-i": Math.min(morph, 16) }),
 							...(index !== undefined && { "--display-i": Math.min(index, 24) }),
 							...(stackIndex >= 0 && { "--stack-i": Math.min(stackIndex, 24) }),
+							...(proposed && {
+								"--proposal": `var(--section-${proposed.color}-ink)`,
+								"--proposal-label": `"${proposed.n}"`,
+								"--proposal-i": proposed.n - 1,
+							}),
 						} as React.CSSProperties)
 					: undefined;
-			const styleKey = `${remoteColor ?? ""}|${morph ?? ""}|${index ?? ""}|${stackIndex}`;
+			const styleKey = `${remoteColor ?? ""}|${morph ?? ""}|${index ?? ""}|${stackIndex}|${proposed?.n ?? ""}`;
 
 			const cached = merged.current.get(base.id)?.out;
 			if (
@@ -732,6 +746,7 @@ export function Board({
 		presence.overrides,
 		pulsing,
 		stackUI.open,
+		stackUI.proposal,
 		stackLayout,
 		stackDrop.state,
 		gathering,
@@ -1711,9 +1726,11 @@ export function Board({
 											}
 											return;
 										}
-										// Clicking a stack spreads it open, here (#73).
+										// Clicking a stack spreads it open, here (#73); its name
+										// just selects it, to rename.
 										if (
 											node.type === "stack" &&
+											!(event.target as Element | null)?.closest?.(".stack-label") &&
 											tool === "select" &&
 											!event.shiftKey &&
 											!event.metaKey &&
@@ -1858,6 +1875,7 @@ export function Board({
 											history={history}
 											requests={actionRequests}
 											sizeOf={sizeOf}
+											boxSize={boxSize}
 										/>
 									)}
 									{ghost && (

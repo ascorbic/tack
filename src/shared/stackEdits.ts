@@ -254,6 +254,8 @@ export function setStackName(doc: Y.Doc, stack: string, name: string): void {
 export interface ProposedStack {
 	name: string;
 	ids: string[];
+	/** A person wrote (or changed) the name, so it's theirs, not a suggestion. */
+	named?: boolean;
 }
 
 export interface PlannedStack extends ProposedStack {
@@ -287,7 +289,7 @@ export function planGrouping(
 			continue;
 		}
 		const name = cleanName(stack.name);
-		groups.push({ name, ids });
+		groups.push({ name, ids, ...(stack.named && name ? { named: true } : {}) });
 		for (const id of ids) grouped.add(id);
 	}
 	// What's left on the board: everything but the stickies being stacked, and the stacks so far.
@@ -316,7 +318,8 @@ export function planGrouping(
 
 /**
  * Make the planned stacks, each named with its proposed name as a
- * suggestion (✨), as one transaction. Returns the new stacks' ids.
+ * suggestion (✨), or as a person's name if they wrote it (`named`), as one
+ * transaction. Returns the new stacks' ids.
  */
 export function applyGrouping(
 	doc: Y.Doc,
@@ -357,7 +360,9 @@ export function applyGrouping(
 			// Which section it's in, from where it landed; its stickies follow.
 			commitMoves(doc, new Map([[stack, planned.at]]), sizeOf, { raise: false });
 			const texts = namingTexts(readShapes(doc), ids);
-			if (planned.name && texts.length > 0) {
+			if (planned.named && planned.name) {
+				map.get(stack)?.set("title", planned.name);
+			} else if (planned.name && texts.length > 0) {
 				map.get(stack)?.set("suggested", { title: planned.name, hash: stackHash(texts) });
 			}
 			made.push(stack);

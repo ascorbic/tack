@@ -29,11 +29,13 @@ export interface StackSnapshot {
 	ai: boolean | null;
 	/** The stack spread open here, if any: one at a time. */
 	open: string | null;
+	/** "Group these" stacks being previewed here, before they're made: the board marks their stickies. */
+	proposal: readonly ProposedStack[] | null;
 }
 
 class StackStore {
 	channel: StackChannel | null = null;
-	private snapshot: StackSnapshot = { ai: null, open: null };
+	private snapshot: StackSnapshot = { ai: null, open: null, proposal: null };
 	private listeners = new Set<() => void>();
 	private waiting = new Map<
 		string,
@@ -58,6 +60,11 @@ class StackStore {
 		if (this.snapshot.open !== id) this.set({ open: id });
 	}
 
+	/** Show (or with null, stop showing) proposed stacks on the board. */
+	setProposal(proposal: readonly ProposedStack[] | null): void {
+		if (this.snapshot.proposal !== proposal) this.set({ proposal });
+	}
+
 	/** Whether suggestions are on, as the playground's pretend server says. */
 	setAi(enabled: boolean | null): void {
 		if (this.snapshot.ai !== enabled) this.set({ ai: enabled });
@@ -70,7 +77,7 @@ class StackStore {
 			resolve({ ok: false, reason: "offline" });
 			this.waiting.delete(request);
 		}
-		this.set({ ai: null, open: null });
+		this.set({ ai: null, open: null, proposal: null });
 	}
 
 	apply(message: StackMessage): void {
@@ -123,7 +130,7 @@ export function isStackMessage(message: { type?: unknown }): message is StackMes
 export function groupFailure(reason: GroupFailure): string {
 	switch (reason) {
 		case "off":
-			return "AI suggestions are off on this Tack: an admin can turn them on at /setup";
+			return "AI suggestions are off on this Tack, so there’s nothing to ask: stack them up by hand";
 		case "too_few":
 			return "Select at least three stickies with something written on them";
 		case "limited":

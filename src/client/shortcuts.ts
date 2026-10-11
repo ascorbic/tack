@@ -105,6 +105,9 @@ export type CommandId =
 	| "expandRelated"
 	| "toActions"
 	| "carryOver"
+	| "stackThese"
+	| "groupThese"
+	| "unstack"
 	| "shortcuts";
 
 const arrow = (key: string, shift: boolean): KeyCombo[] => [{ key, shift }];
@@ -431,6 +434,28 @@ export const SHORTCUTS: Shortcut[] = [
 		group: "Issues",
 		combos: [{ code: "KeyO", alt: true, shift: false }],
 		keywords: "carry over action items next retro copy open",
+	},
+	// Stacks (#73): stickies in a stack, as people theme a session.
+	{
+		id: "stackThese",
+		label: "Stack the selected stickies",
+		group: "Arrange",
+		combos: [{ code: "KeyG", alt: true, shift: false }],
+		keywords: "stack pile group cluster theme stickies",
+	},
+	{
+		id: "groupThese",
+		label: "Group these into named stacks (AI)",
+		group: "Arrange",
+		combos: [{ code: "KeyG", alt: true, shift: true }],
+		keywords: "group these stack cluster theme ai suggest sort",
+	},
+	{
+		id: "unstack",
+		label: "Unstack: lay a stack's stickies out",
+		group: "Arrange",
+		combos: [{ code: "KeyU", alt: true, shift: false }],
+		keywords: "unstack spread ungroup stack stickies",
 	},
 	{
 		id: "zoomIn",
