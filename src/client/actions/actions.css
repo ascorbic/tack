@@ -70,6 +70,18 @@
 	color: var(--accent-hover);
 }
 
+/* Spelled out only so it's clear, not because it's the main thing to do. */
+.selection-action[data-text][data-quiet] {
+	padding: 0 10px 0 8px;
+	color: var(--ink-soft);
+	font-weight: 580;
+}
+
+.selection-action[data-text][data-quiet]:hover:not([aria-disabled="true"]) {
+	background: var(--hover);
+	color: var(--ink);
+}
+
 .selection-action:active:not([aria-disabled="true"]) {
 	transform: scale(0.94);
 }

@@ -125,6 +125,8 @@ export interface Action {
 	icon: ReactNode;
 	/** Shown beside the icon: the main actions are spelled out. */
 	text?: string;
+	/** Spelled out because the icon alone isn't obvious, not because it's the main action. */
+	quiet?: boolean;
 	/** Why it can't be done, if it can't. */
 	unavailable?: string;
 }
@@ -287,17 +289,28 @@ export function ActionBar(props: ActionBarProps) {
 			};
 			const anyOpen = closable.some((c) => c.card.state !== "closed");
 			const anyClosed = closable.some((c) => c.card.state === "closed");
+			// With room (one or two cards), the two least obvious say what they are.
+			const roomy = cardNodes.length <= 2;
+			const closeLabel =
+				anyOpen && !anyClosed ? "Close" : !anyOpen && anyClosed ? "Reopen" : "Close or reopen";
 			const triage: Action[] = [
 				{ id: "labels", label: "Labels", icon: <LabelIcon /> },
 				{ id: "milestone", label: "Milestone", icon: <MilestoneIcon /> },
 				{ id: "assign", label: "Assign", icon: <PersonIcon /> },
 				{
 					id: "closeReopen",
-					label:
-						anyOpen && !anyClosed ? "Close" : !anyOpen && anyClosed ? "Reopen" : "Close or reopen",
+					label: closeLabel,
 					icon: <CloseIssueIcon />,
+					...(roomy
+						? { text: closeLabel === "Close or reopen" ? "Close…" : closeLabel, quiet: true }
+						: {}),
 				},
-				{ id: "backlink", label: "Comment with a link to this board", icon: <BacklinkIcon /> },
+				{
+					id: "backlink",
+					label: "Comment with a link to this board",
+					icon: <BacklinkIcon />,
+					...(roomy ? { text: "Backlink", quiet: true } : {}),
+				},
 			];
 			const merged =
 				!none && closable.length === 0
@@ -769,6 +782,7 @@ export function ActionButton({
 			type="button"
 			className="selection-action"
 			data-text={action.text ? true : undefined}
+			data-quiet={action.quiet || undefined}
 			aria-label={action.unavailable ? `${action.label}: ${action.unavailable}` : action.label}
 			aria-expanded={action.unavailable ? undefined : pressed}
 			aria-haspopup={action.unavailable ? undefined : "dialog"}

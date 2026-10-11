@@ -86,10 +86,13 @@ export const ReopenIcon = () => (
 	</Icon>
 );
 
+/** A comment (a speech bubble) with a link in it: a backlink to the board. */
 export const BacklinkIcon = () => (
 	<Icon>
-		<path d="M6.8 9.2a2.8 2.8 0 0 0 4 0l2-2a2.8 2.8 0 0 0-4-4l-.7.7" />
-		<path d="M9.2 6.8a2.8 2.8 0 0 0-4 0l-2 2a2.8 2.8 0 0 0 4 4l.7-.7" />
+		<path d="M3.2 2.8h9.6c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H7.6L4.6 13.6v-2.2H3.2c-.7 0-1.2-.5-1.2-1.2V4c0-.7.5-1.2 1.2-1.2z" />
+		<path d="M7.6 6.2l.5-.5a1.3 1.3 0 0 1 1.8 1.8l-.5.5" />
+		<path d="M8.4 8l-.5.5a1.3 1.3 0 0 1-1.8-1.8l.5-.5" />
+		<path d="M7.3 7.9l1.4-1.4" />
 	</Icon>
 );
 
