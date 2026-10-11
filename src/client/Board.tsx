@@ -1689,7 +1689,13 @@ export function Board({
 							<RowGhost />
 							<Toasts store={toasts} />
 							<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
-							<ExportDialog doc={doc} exporter={exporter} selected={selected} toasts={toasts} />
+							<ExportDialog
+								doc={doc}
+								exporter={exporter}
+								selected={selected}
+								toasts={toasts}
+								name={name}
+							/>
 							<PanelBoundary name="Changes">
 								<ChangesPanel />
 							</PanelBoundary>

@@ -61,7 +61,11 @@ export function download(blob: Blob, name: string): void {
 	setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
-/** The board's title, for file names: the tab's title without the app's name. */
-export function boardTitle(): string {
-	return document.title.replace(/\s*·\s*Tack$/, "").trim() || "Board";
+/**
+ * The board's title, for file names: the tab's title without the app's
+ * name, which the board page keeps current; else what the board's called.
+ */
+export function boardTitle(fallback: string): string {
+	const match = /^(.*\S)\s*·\s*Tack$/.exec(document.title);
+	return match?.[1] ?? (fallback.trim() || "Board");
 }

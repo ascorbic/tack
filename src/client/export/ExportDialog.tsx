@@ -76,11 +76,14 @@ export function ExportDialog({
 	exporter,
 	selected,
 	toasts,
+	name,
 }: {
 	doc: Y.Doc;
 	exporter: BoardExporter;
 	selected: ReadonlySet<string>;
 	toasts: ToastStore;
+	/** What the board's called, where the page's title doesn't say (the playground). */
+	name: string;
 }) {
 	const request = useExportRequest();
 	const headingId = useId();
@@ -108,6 +111,7 @@ export function ExportDialog({
 					doc={doc}
 					exporter={exporter}
 					hasSelection={selected.size > 0}
+					name={name}
 					initialFormat={request?.format}
 					headingId={headingId}
 					toasts={toasts}
@@ -131,6 +135,7 @@ function ExportPanel({
 	headingId,
 	toasts,
 	onClose,
+	name,
 }: {
 	doc: Y.Doc;
 	exporter: BoardExporter;
@@ -139,6 +144,7 @@ function ExportPanel({
 	headingId: string;
 	toasts: ToastStore;
 	onClose: () => void;
+	name: string;
 }) {
 	const [prefs, setPrefs] = useState(() => {
 		const loaded = loadPrefs();
@@ -157,7 +163,7 @@ function ExportPanel({
 	};
 	const { format, scale, background } = prefs;
 	const image = format !== "json";
-	const title = boardTitle();
+	const title = boardTitle(name);
 
 	const { draw } = exporter;
 	// The preview: drawn when the dialog opens, and again when what's drawn changes.
