@@ -3,8 +3,9 @@ import { expect, openScenario, test } from "./fixtures.ts";
 // AI (#64) on the playground's "AI" board, with the pretend model that
 // answers in the browser: asking for a widget, previewed live and placed;
 // summarising a section into a text block; drafting a decision linked to
-// its cards; and each undone in one step. On a real board without Workers AI
-// (the dev server), nothing about it is offered.
+// its cards; and each undone in one step. On a real board the dev server's
+// stand-in answers, through the Worker's route; with AI suggestions off,
+// nothing about it is offered.
 
 const run = Date.now().toString(36);
 
@@ -41,14 +42,14 @@ test("ask for a widget in words, see it previewed, and place it", async ({ page 
 
 test("asking again after a failure, and going back to pick one", async ({ page }) => {
 	await openScenario(page, "ai");
-	await page.getByRole("radiogroup", { name: "AI answers" }).getByText("Unusable").click();
+	await page.getByRole("radiogroup", { name: "AI suggestions" }).getByText("Failing").click();
 	await page.getByRole("button", { name: "Widget", exact: true }).click();
 	const picker = page.getByRole("group", { name: "Widgets" });
 	await picker.getByLabel("Ask for a widget: describe it").fill("Something clever");
 	await page.keyboard.press("Enter");
 	const ask = page.getByRole("group", { name: "Ask for a widget" });
-	await expect(ask.getByText("The AI didn’t come up with anything usable")).toBeVisible();
-	await page.getByRole("radiogroup", { name: "AI answers" }).getByText("Live").click();
+	await expect(ask.getByText("The AI didn’t answer. Try again?")).toBeVisible();
+	await page.getByRole("radiogroup", { name: "AI suggestions" }).getByText("On").click();
 	await ask.getByRole("button", { name: "Try again" }).click();
 	await expect(ask.getByRole("button", { name: "Place on board" })).toBeVisible();
 	await ask.getByLabel("Describe a widget").press("Escape");
@@ -97,18 +98,43 @@ test("draft a decision from a section, linked to its cards", async ({ page }) =>
 	await expect(decisions).toHaveCount(0);
 });
 
-test("AI isn't offered where the instance doesn't have it", async ({ page }) => {
+test("with AI suggestions off, none of it is offered", async ({ page }) => {
+	await openScenario(page, "ai");
+	await page.getByRole("radiogroup", { name: "AI suggestions" }).getByText("Off").click();
+	await page.getByRole("button", { name: "Widget", exact: true }).click();
+	const picker = page.getByRole("group", { name: "Widgets" });
+	await expect(picker.getByRole("button", { name: /^List/ })).toBeVisible();
+	await expect(picker.getByLabel("Ask for a widget: describe it")).toHaveCount(0);
+	await page.keyboard.press("Escape");
+	await page.locator(".section-title", { hasText: "Retro" }).click({ position: { x: 12, y: 8 } });
+	const bar = page.getByRole("toolbar", { name: "Stage changes" });
+	await expect(bar.getByRole("button", { name: "Make a parent issue" })).toBeVisible();
+	await expect(bar.getByRole("button", { name: "Summarise with AI" })).toHaveCount(0);
+});
+
+test("on a real board, the Worker drafts a summary with local dev's stand-in", async ({ page }) => {
 	await page.goto(
 		`/auth/dev?login=e2e-ai-${run}&return_to=${encodeURIComponent(`/?board=e2e-ai-${run}`)}`,
 	);
 	await expect(page).toHaveURL(/\/b\/e2e-ai-/, { timeout: 15_000 });
-	const me = await page.evaluate(() => fetch("/api/me").then((r) => r.json()));
-	expect(me.ai).toMatchObject({ state: "unavailable" });
-	await page.locator(".react-flow__renderer").click({ position: { x: 300, y: 300 } });
-	await page.keyboard.press("w");
-	const picker = page.getByRole("group", { name: "Widgets" });
-	await expect(picker.getByRole("button", { name: /^List/ })).toBeVisible();
-	await expect(picker.getByLabel("Ask for a widget: describe it")).toHaveCount(0);
+	await expect(page.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	for (const [text, x] of [
+		["Search is slow", 300],
+		["Cache search results?", 560],
+	] as const) {
+		await page.keyboard.press("s");
+		await page.locator(".react-flow__pane").click({ position: { x, y: 260 } });
+		await page.keyboard.type(text);
+		await page.keyboard.press("Escape");
+		await page.keyboard.press("Escape");
+	}
+	await expect(page.locator(".react-flow__node-sticky")).toHaveCount(2);
+	await page.keyboard.press("ControlOrMeta+a");
+	await page.keyboard.press("Alt+Shift+KeyS");
+	const summary = page.getByRole("dialog").getByLabel("Summary");
+	await expect(summary).toHaveValue(/2 notes/, { timeout: 15_000 });
+	await page.keyboard.press("ControlOrMeta+Enter");
+	await expect(page.locator(".react-flow__node-text")).toHaveCount(1);
 });
 
 test("the gallery shows every AI state", async ({ page }) => {

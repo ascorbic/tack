@@ -34,7 +34,7 @@ import { SCENARIOS } from "./scenarios.ts";
 import { SimulatedStacks, type StackAiMode } from "./stacks.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
 import { playServices } from "./writes.ts";
-import { type PlayAiMode, playAi } from "./ai.ts";
+import { playAi } from "./ai.ts";
 import { ChangeControls } from "./ChangeControls.tsx";
 import { pastPushes, SimulatedPush } from "./push.ts";
 import { SimulatedWidgets, WIDGET_CARDS, type WidgetMode, addWidgetCard } from "./widgets.ts";
@@ -142,7 +142,10 @@ export default function Playground() {
 			if (playAi.widgets === widgets) playAi.widgets = null;
 		};
 	}, [sim, widgets]);
-	const [aiMode, setAiMode] = useState<PlayAiMode>(playAi.mode);
+	// The same switch as stacks' names: slow or failing answers, or off (#64).
+	useEffect(() => {
+		playAi.mode = stackAi === "slow" ? "slow" : stackAi === "failing" ? "failed" : "live";
+	}, [stackAi]);
 	const [widgetMode, setWidgetMode] = useState<WidgetMode>("live");
 	const [widgetNote, setWidgetNote] = useState<string | null>(null);
 	useEffect(() => {
@@ -711,7 +714,9 @@ export default function Playground() {
 						</div>
 						<p className="play-hint">
 							A stand-in model names stacks from their stickies’ words. Hold a dragged sticky over
-							another to stack them; select three or more and Group these.
+							another to stack them; select three or more and Group these. It also proposes widgets
+							(W, then describe one), and summarises (⌥⇧S) or drafts a decision (⌥⇧D) from what’s
+							selected.
 						</p>
 					</div>
 
@@ -788,38 +793,6 @@ export default function Playground() {
 						<p className="play-hint">
 							{widgetNote ??
 								"W picks a widget. Drag rows out as cards; drop cards on a list to stage what makes them match, then push from Changes."}
-						</p>
-					</div>
-
-					<div className="play-section">
-						<h2 className="play-label">AI</h2>
-						<div className="segmented" role="radiogroup" aria-label="AI answers">
-							{(
-								[
-									["live", "Live"],
-									["slow", "Slow"],
-									["unusable", "Unusable"],
-									["rate_limited", "Limited"],
-									["failed", "Failing"],
-								] as const
-							).map(([mode, label]) => (
-								<label key={mode} data-checked={aiMode === mode}>
-									<input
-										type="radio"
-										name="ai-mode"
-										checked={aiMode === mode}
-										onChange={() => {
-											playAi.mode = mode;
-											setAiMode(mode);
-										}}
-									/>
-									{label}
-								</label>
-							))}
-						</div>
-						<p className="play-hint">
-							A pretend AI, made up from keywords in your browser: W then describe a widget, or
-							select a few stickies or a section and summarise (⌥⇧S) or draft a decision (⌥⇧D).
 						</p>
 					</div>
 

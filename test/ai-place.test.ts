@@ -11,7 +11,7 @@ import { boxOf } from "../src/shared/sections.ts";
 import { addShape, nextZ, readShape, shapesMap } from "../src/shared/shapes.ts";
 import { addSection, readShapes } from "../src/shared/structure.ts";
 import { describeConfig, leftOutInWords, widgetSuggestions } from "../src/client/ai/describe.ts";
-import { draftDecision, proposeWidget, summarise } from "../src/client/play/ai.ts";
+import { draftDecision, proposeWidget, summarise } from "../src/shared/fakeBoardAi.ts";
 
 function board(): { doc: Y.Doc; selected: string[] } {
 	const doc = new Y.Doc();
