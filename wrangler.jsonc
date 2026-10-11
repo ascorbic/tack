@@ -42,7 +42,8 @@
 	},
 	"vars": {
 		"TACK_COMMAND_ALIAS": "",
-		"TACK_AI": "on"
+		"TACK_AI": "on",
+		"TACK_EMAIL_FROM": ""
 	},
 	"secrets": {
 		"required": [

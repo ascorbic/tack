@@ -41,6 +41,12 @@ export interface WorkerOptions {
 	 * for none. `bindings: { TACK_AI: "off" }` turns suggestions off.
 	 */
 	ai?: FakeAi | null;
+	/**
+	 * Answers what the Worker emails (digests, #68) in place of Email
+	 * Service, e.g. a `FakeEmail`'s `fetch`. Without it, email is off, as on
+	 * an instance that hasn't set it up.
+	 */
+	email?: (request: Request) => Response | Promise<Response>;
 }
 
 type ModuleType = "ESModule" | "CompiledWasm" | "Data" | "Text";
@@ -92,6 +98,8 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 			TACK_COMMAND_ALIAS: "tack",
 			// AI suggestions on, as in production, asking the fake below (#73).
 			TACK_AI: "workers-ai",
+			// Email (#68) is off unless a test fakes it (`email`).
+			TACK_EMAIL_FROM: options.email ? "Tack <tack@tack.test>" : "",
 			...(options.devAuth ? { TACK_DEV_AUTH: "1" } : {}),
 			...(options.clock ? { TACK_TEST_CLOCK: "1" } : {}),
 			...options.bindings,
@@ -99,6 +107,7 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 		serviceBindings: {
 			...(ai ? { AI: { name: "fake-ai", entrypoint: "FakeAi" } } : {}),
 			...(options.assets ? { ASSETS: options.assets } : {}),
+			...(options.email ? { TACK_TEST_EMAIL: options.email } : {}),
 		},
 		...(options.outboundService ? { outboundService: options.outboundService } : {}),
 	};

@@ -9,6 +9,12 @@ function realAiInDev(): boolean {
 	return env?.TACK_DEV_AI === "workers-ai";
 }
 
+// Weekly digests by email (#68) go out through Cloudflare Email Service,
+// from this address: "Tack <tack@example.com>", on a domain onboarded to
+// Email Service's sending (see the self-hosting docs, "Email"). Empty turns
+// email off, and leaves out the binding, so new instances deploy without it.
+const EMAIL_FROM = "";
+
 // Previews don't inherit production settings, so this returns the complete
 // config for each. Each Preview gets its own isolated Durable Object
 // namespaces automatically. Previews get no secrets: webhooks only go to
@@ -72,6 +78,13 @@ export default defineConfig(({ isPreview, mode }) => ({
 			...(mode !== "development" || realAiInDev()
 				? { AI: bindings.ai(realAiInDev() ? { dev: { remote: true } } : undefined) }
 				: {}),
+			// Digest emails (#68): who they're from, and Email Service's binding.
+			// Dev always has both, to try it locally: Miniflare keeps what's
+			// sent (the local explorer shows it).
+			TACK_EMAIL_FROM: bindings.text(
+				EMAIL_FROM || (mode === "development" ? "Tack <tack@example.com>" : ""),
+			),
+			...(EMAIL_FROM || mode === "development" ? { TACK_EMAIL: bindings.sendEmail() } : {}),
 			// The one secret an instance needs. A declared secret is required: the
 			// first deploy fails without it (give it with `--secrets-file`, or the
 			// Deploy to Cloudflare button asks for it), and later deploys keep it.
