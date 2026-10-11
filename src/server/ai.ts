@@ -54,6 +54,8 @@ export interface ModelRequest {
 	system: string;
 	/** What to work on: keep people's text in here, as data, never in `system`. */
 	user: string;
+	/** Turns after it, if any: an answer, and what was wrong with it (#64). */
+	followUp?: readonly { role: "system" | "user" | "assistant"; content: string }[];
 	/** A JSON schema the answer must follow, and its name. */
 	schema: object;
 	schemaName: string;
@@ -75,6 +77,7 @@ export async function askModel(env: Env, request: ModelRequest): Promise<unknown
 		messages: [
 			{ role: "system", content: request.system },
 			{ role: "user", content: request.user },
+			...(request.followUp ?? []),
 		],
 		response_format: {
 			type: "json_schema",
