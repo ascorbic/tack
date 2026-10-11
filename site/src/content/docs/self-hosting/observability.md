@@ -46,7 +46,8 @@ Event names are dotted, with identifiers in the context rather than the name, so
 | `timer.`, `spotlight.`, `silent.`, `facilitation.` | Facilitation                                                                           | `silent.refused`, `facilitation.failed`                                    |
 | `history.`                                         | Board history: thinning and trimming                                                   | `history.trimmed`, `history.failed`                                        |
 | `command.`                                         | Comment commands from GitHub                                                           | `command.done` (the outcome), `command.failed`, `command.limited`          |
-| `comment.`, `since.`                               | Comments, notifications and digests                                                    | `comment.failed`, `since.failed`                                           |
+| `comment.`, `since.`                               | Comments, notifications and Since you were here                                        | `comment.failed`, `since.failed`                                           |
+| `digest.`, `email.`                                | Weekly digests: turned on, posted, emailed, subscriptions                              | `digest.discussion.failed`, `digest.email.failed` (with a code)            |
 | `client.error`                                     | Errors in people's browsers                                                            | See below                                                                  |
 
 The full list is in [AGENTS.md](https://github.com/ascorbic/tack/blob/main/AGENTS.md#observability), under Observability.
