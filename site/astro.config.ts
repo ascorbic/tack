@@ -3,7 +3,7 @@ import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
 
 export default defineConfig({
-	site: "https://tack-docs.ascorbic.workers.dev",
+	site: "https://tack.social",
 	integrations: [
 		starlight({
 			title: "Tack",

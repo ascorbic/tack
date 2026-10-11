@@ -39,10 +39,17 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 		/>
 		<div class="tk-sticky tk-sticky-hero tk-brand" aria-hidden="true">
 			<span class="tk-sticky-pin"><BrandMark size={30} /></span>
-			Nothing changes on GitHub until you push.
+			<span class="tk-sticky-text">Turn the winners into issues, then push them all at once</span>
+			<span class="tk-sticky-foot">
+				<span class="tk-sticky-author"><span class="tk-dot" style="--c: #b4467a"></span>Priya</span>
+				<span class="tk-votes"><span></span><span></span><span></span></span>
+			</span>
 		</div>
 		<div class="tk-sticky tk-sticky-small tk-sticky-pink" aria-hidden="true">
-			Tack (Swedish): <em>thanks</em>
+			<span class="tk-sticky-text">Decide on the new search before 1.0?</span>
+			<span class="tk-sticky-foot">
+				<span class="tk-sticky-author"><span class="tk-dot" style="--c: #2f6fd6"></span>Kai</span>
+			</span>
 		</div>
 	</div>
 </div>
@@ -175,6 +182,50 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 		line-height: 1.2;
 		letter-spacing: -0.01em;
 		transition: transform var(--tk-t-settle) var(--tk-ease-spring);
+	}
+
+	.tk-sticky {
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+	}
+
+	.tk-sticky-foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		font-family: var(--tk-font-ui, inherit);
+		font-size: 0.72rem;
+		font-weight: 600;
+		opacity: 0.8;
+	}
+
+	.tk-sticky-author {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+
+	.tk-dot {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background: var(--c);
+	}
+
+	/* Three dot votes, as on a board. */
+	.tk-votes {
+		display: inline-flex;
+	}
+
+	.tk-votes span {
+		width: 0.85rem;
+		height: 0.85rem;
+		margin-inline-start: -0.25rem;
+		border-radius: 50%;
+		border: 2px solid var(--tk-sticky-yellow);
+		background: #6d5bd0;
 	}
 
 	.tk-sticky-hero {
