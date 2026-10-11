@@ -463,7 +463,8 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
 	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
-	await expect(page.locator(".action-popover")).toHaveCount(27);
+	// 27, and Group these' four (#73).
+	await expect(page.locator(".action-popover")).toHaveCount(31);
 	// Parent issues over what already has one: add to it, move them, or leave them.
 	const already = page.locator("figure", { hasText: "Already a parent issue" });
 	await expect(already.getByText("#5 and #6 are already sub-issues of #4 Resizing.")).toBeVisible();
