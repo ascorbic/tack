@@ -1100,9 +1100,18 @@ function BacklinkFor({
 			];
 		});
 		const publicRepos = new Set(boardCards.filter((c) => c.public).map((c) => repoKeyOf(c.key)));
-		return { selection, visible, boardCards, publicRepos };
+		// What's around it, so the frame takes neighbours in whole. Sections are
+		// backdrops, but their titles above them aren't cut either.
+		const shapes = nodes.map((node) => {
+			const box = boxOf(node);
+			return node.type === "section" ? { ...box, y: box.y - 36, width: 220, height: 32 } : box;
+		});
+		return { selection, visible, boardCards, publicRepos, shapes };
 	});
-	const region = useMemo(() => snapshotRegionFor(setup.selection, setup.visible), [setup]);
+	const region = useMemo(
+		() => snapshotRegionFor(setup.selection, setup.visible, setup.shapes),
+		[setup],
+	);
 
 	return (
 		<BacklinkPanel

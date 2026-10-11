@@ -2,6 +2,8 @@ import { domToBlob } from "modern-screenshot";
 import { SNAPSHOT_MAX_BYTES, SNAPSHOT_MAX_SIDE } from "../../shared/backlinks.ts";
 import type { Rect } from "../snapping.ts";
 
+export { SNAPSHOT_FRAME, SNAPSHOT_PADDING, snapshotRegion } from "./snapshotFrame.ts";
+
 // Board snapshots for backlinks (#33), rendered in the browser.
 //
 // We draw the canvas's own DOM, with modern-screenshot (MIT): it clones the
@@ -79,6 +81,7 @@ export function atRest(root: Element): void {
 function stage(
 	viewport: HTMLElement,
 	flow: HTMLElement,
+	size: { width: number; height: number },
 ): { copy: HTMLElement; dispose: () => void } {
 	const chain: HTMLElement[] = [];
 	for (let element = viewport.parentElement; element; element = element.parentElement) {
@@ -112,8 +115,10 @@ function stage(
 		position: "fixed",
 		left: "-200vw",
 		top: "0",
-		width: `${flow.clientWidth}px`,
-		height: `${flow.clientHeight}px`,
+		// At least as big as the image: drawn larger than the board is on
+		// screen, a tall region would otherwise be cut off at the bottom.
+		width: `${Math.max(flow.clientWidth, size.width)}px`,
+		height: `${Math.max(flow.clientHeight, size.height)}px`,
 		overflow: "hidden",
 		pointerEvents: "none",
 	});
@@ -121,8 +126,6 @@ function stage(
 	return { copy, dispose: () => root.remove() };
 }
 
-/** Space around the selection, in board units. */
-export const SNAPSHOT_PADDING = 160;
 /** The image's longest side, in CSS pixels, before device scaling. */
 const TARGET_SIDE = 1400;
 
@@ -137,29 +140,6 @@ export interface SnapshotRequest {
 	hideLinked?: (key: string) => boolean;
 	/** Sizes of hidden nodes, so placeholders keep their shape. */
 	sizeOf?: (id: string) => { width: number; height: number } | undefined;
-}
-
-/** The region to draw: the selection, padded, kept within what's on screen. */
-export function snapshotRegion(selection: Rect, visible: Rect): Rect {
-	const padded = {
-		x: selection.x - SNAPSHOT_PADDING,
-		y: selection.y - SNAPSHOT_PADDING,
-		width: selection.width + SNAPSHOT_PADDING * 2,
-		height: selection.height + SNAPSHOT_PADDING * 2,
-	};
-	// Shapes off screen aren't rendered at all (React Flow culls them), so
-	// stay within the visible area, but never cut into the selection itself.
-	const x0 = Math.min(selection.x, Math.max(padded.x, visible.x));
-	const y0 = Math.min(selection.y, Math.max(padded.y, visible.y));
-	const x1 = Math.max(
-		selection.x + selection.width,
-		Math.min(padded.x + padded.width, visible.x + visible.width),
-	);
-	const y1 = Math.max(
-		selection.y + selection.height,
-		Math.min(padded.y + padded.height, visible.y + visible.height),
-	);
-	return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 
 function themeColor(name: string, fallback: string): string {
@@ -228,7 +208,7 @@ export async function renderSnapshot(request: SnapshotRequest): Promise<Blob> {
 		if (import.meta.env.DEV) Object.assign(window, { tackSnapshotDom: clone.outerHTML });
 	};
 
-	const { copy, dispose } = stage(viewport, request.flow);
+	const { copy, dispose } = stage(viewport, request.flow, { width, height });
 	try {
 		const maxScale = SNAPSHOT_MAX_SIDE / Math.max(width, height);
 		const scales = [Math.min(2, window.devicePixelRatio || 1, maxScale), Math.min(1, maxScale)];
