@@ -90,8 +90,14 @@ test("a shape that can't be drawn says so in its place, and the board carries on
 }) => {
 	await openScenario(page, "sections");
 	await expect(page.getByText("Drop Node 18 support", { exact: true })).toBeVisible();
-	const cards = page.locator(".react-flow__node-card");
-	const count = await cards.count();
+	const has412 = () =>
+		page.evaluate(() => {
+			const { doc } = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } })
+				.tackPlayground;
+			return [...doc.getMap<import("yjs").Map<unknown>>("shapes").values()].some((shape) =>
+				String(shape.get("ref")).endsWith("#412"),
+			);
+		});
 
 	// A malformed card from the forge: its title isn't text.
 	const breakCard = () =>
@@ -128,6 +134,6 @@ test("a shape that can't be drawn says so in its place, and the board carries on
 	// Or it can be deleted.
 	await breakCard();
 	await broken.getByRole("button", { name: "Delete" }).click();
-	await expect(cards).toHaveCount(count - 1);
+	await expect.poll(has412).toBe(false);
 	await expect(broken).toHaveCount(0);
 });

@@ -221,9 +221,13 @@ test("? opens a searchable shortcut sheet", async ({ page }) => {
 	const rows = sheet.locator(".sheet-row");
 	await expect(rows).toHaveCount(5);
 	// Results from one group use both columns, rather than leaving one empty.
-	const lefts = new Set<number>();
-	for (const row of await rows.all()) lefts.add(Math.round((await row.boundingBox())!.x));
-	expect(lefts.size).toBe(2);
+	await expect
+		.poll(async () => {
+			const lefts = new Set<number>();
+			for (const row of await rows.all()) lefts.add(Math.round((await row.boundingBox())!.x));
+			return lefts.size;
+		})
+		.toBe(2);
 	await page.keyboard.press("Escape");
 	await expect(sheet).toHaveCount(0);
 });
