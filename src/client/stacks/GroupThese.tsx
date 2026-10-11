@@ -36,6 +36,7 @@ export function GroupThese({
 	sizeOf,
 	onMade,
 	onClose,
+	preview,
 }: {
 	doc: Y.Doc;
 	/** The selected stickies, as they read now. */
@@ -44,6 +45,8 @@ export function GroupThese({
 	/** The stacks made, and how many stickies went into them. */
 	onMade: (stacks: string[], stickies: number) => void;
 	onClose: () => void;
+	/** For the gallery: this answer (or "thinking", none yet), never asking. */
+	preview?: GroupAnswer | "thinking";
 }) {
 	const [answer, setAnswer] = useState<GroupAnswer | null>(null);
 	const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -55,6 +58,12 @@ export function GroupThese({
 
 	// Ask (again, for Try again), and show what came back.
 	useEffect(() => {
+		if (preview) {
+			const shown = preview === "thinking" ? null : preview;
+			setAnswer(shown);
+			if (shown?.ok) setDrafts(shown.stacks.map((stack, key) => ({ ...stack, key })));
+			return;
+		}
 		let live = true;
 		setAnswer(null);
 		void stackStore.group(ids).then((result) => {
@@ -65,13 +74,13 @@ export function GroupThese({
 		return () => {
 			live = false;
 		};
-	}, [ids, attempt]);
+	}, [ids, attempt, preview]);
 
 	// The board shows what's proposed, as it's tweaked; nothing once it closes.
 	const proposal = useMemo(() => drafts.filter((draft) => draft.ids.length >= 2), [drafts]);
 	useEffect(() => {
-		stackStore.setProposal(answer?.ok ? proposal : null);
-	}, [answer, proposal]);
+		if (!preview) stackStore.setProposal(answer?.ok ? proposal : null);
+	}, [answer, proposal, preview]);
 	useEffect(() => () => stackStore.setProposal(null), []);
 
 	const edit = (key: number, change: (draft: Draft) => Draft) =>

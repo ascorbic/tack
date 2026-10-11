@@ -701,3 +701,21 @@
 		background: none;
 	}
 }
+
+/* The galleries (play/StackGallery.tsx) ------------------------------------ */
+
+.gallery-grid.stacks {
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.gallery-stack-open {
+	grid-column: 1 / -1;
+}
+
+.gallery-stack-tray {
+	position: relative;
+}
+
+.gallery-stack-member {
+	position: absolute;
+}

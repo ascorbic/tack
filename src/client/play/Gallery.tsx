@@ -30,6 +30,7 @@ import {
 	reviewed,
 } from "./ci.ts";
 import { DecisionGallery } from "./DecisionGallery.tsx";
+import { StackGallery } from "./StackGallery.tsx";
 import { ACCESS_GALLERY, GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
 import { PROVENANCE_GALLERY } from "./related.ts";
 
@@ -606,6 +607,8 @@ function Sections({
 					</figure>
 				</div>
 			</section>
+
+			<StackGallery />
 
 			<DecisionGallery />
 

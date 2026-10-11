@@ -40,6 +40,7 @@ import { ToastStore } from "../Toasts.tsx";
 import { History } from "../undo.ts";
 import { RELATED_CARDS, relatedFor } from "./related.ts";
 import { fakeMeta, playServices, WRITES_CARDS } from "./writes.ts";
+import { GroupTheseGallery } from "./StackGallery.tsx";
 
 // Every state of the selection actions (#32, #33): the bars, each picker
 // and panel, and the warnings. `/play/actions`.
@@ -683,6 +684,8 @@ export default function ActionsGallery() {
 						</div>
 					</section>
 				)}
+
+				<GroupTheseGallery key={`group${round}`} />
 
 				<section key={`blocked${round}`}>
 					<h2>Blocked by</h2>
