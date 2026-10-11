@@ -51,7 +51,7 @@ For spotlight, timers, emotes and the rest, see [Running a session](/facilitatio
 
 ## When the connection drops
 
-The pill in the top bar says **Synced** while the board's in step with everyone else. If the connection drops, keep working: your edits are kept on this device, the pill counts them (**Offline · 3 edits waiting**), and they're sent as soon as the connection's back, even if you reload the page in the meantime. Closing the tab while edits are waiting asks first.
+A green dot beside the board's title says it's in step with everyone else. If the connection drops, words take its place (**Reconnecting…**). Keep working: your edits are kept on this device, and the top bar counts them (**Offline · 3 edits waiting**), and they're sent as soon as the connection's back, even if you reload the page in the meantime. Closing the tab while edits are waiting asks first.
 
 ## Light and dark
 
