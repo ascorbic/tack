@@ -115,18 +115,32 @@ const CUSTOM_MIN = 1;
 const CUSTOM_MAX = 480;
 const CUSTOM_DEFAULT = 3;
 
-/** `ms: "custom"` is however many minutes are chosen. */
-const ENDINGS: { label: string; ms: number | null | "custom" }[] = [
-	{ label: "When it’s closed", ms: null },
-	{ label: "In 2 minutes", ms: 2 * MINUTE },
-	{ label: "In 5 minutes", ms: 5 * MINUTE },
-	{ label: "In 10 minutes", ms: 10 * MINUTE },
-	{ label: "Custom", ms: "custom" },
-	{ label: "In an hour", ms: 3_600_000 },
-	{ label: "Tomorrow", ms: 86_400_000 },
-	{ label: "In 3 days", ms: 3 * 86_400_000 },
-	{ label: "In a week", ms: 7 * 86_400_000 },
+/**
+ * When a vote closes, in two groups: a few minutes in the room (with a
+ * custom length last), or over days. `ms: "custom"` is however many minutes
+ * are chosen. `chip` is the short label in the dialog.
+ */
+const ENDINGS: {
+	label: string;
+	chip: string;
+	ms: number | null | "custom";
+	group: "session" | "days";
+}[] = [
+	{ label: "When it’s closed", chip: "When it’s closed", ms: null, group: "session" },
+	{ label: "In 2 minutes", chip: "2 min", ms: 2 * MINUTE, group: "session" },
+	{ label: "In 5 minutes", chip: "5 min", ms: 5 * MINUTE, group: "session" },
+	{ label: "In 10 minutes", chip: "10 min", ms: 10 * MINUTE, group: "session" },
+	{ label: "Custom", chip: "Custom", ms: "custom", group: "session" },
+	{ label: "In an hour", chip: "In an hour", ms: 3_600_000, group: "days" },
+	{ label: "Tomorrow", chip: "Tomorrow", ms: 86_400_000, group: "days" },
+	{ label: "In 3 days", chip: "In 3 days", ms: 3 * 86_400_000, group: "days" },
+	{ label: "In a week", chip: "In a week", ms: 7 * 86_400_000, group: "days" },
 ];
+
+const ENDING_GROUPS = [
+	{ id: "session", caption: "During the session" },
+	{ id: "days", caption: "Over days" },
+] as const;
 
 /** Setting up a vote: dots each, when it ends, and whether results wait. */
 export function StartVoteDialog({
@@ -265,41 +279,56 @@ export function StartVoteForm({
 					</button>
 				</span>
 			</div>
-			<fieldset className="vote-start-row">
+			<fieldset className="vote-start-row vote-closes">
 				<legend className="vote-start-label">Closes</legend>
-				<span className="vote-choices">
-					{ENDINGS.map((option, i) => (
-						<label key={option.label} data-checked={ending === i}>
-							<input
-								type="radio"
-								name={`${id}-ending`}
-								checked={ending === i}
-								onChange={() => setEnding(i)}
-							/>
-							{option.label}
-						</label>
-					))}
-				</span>
-				{chosen === "custom" && (
-					<label className="vote-custom">
-						In
-						<input
-							type="number"
-							min={CUSTOM_MIN}
-							max={CUSTOM_MAX}
-							step={1}
-							value={minutes}
-							aria-label="Minutes until the vote closes"
-							onChange={(event) => {
-								const value = Math.round(Number(event.target.value));
-								if (Number.isFinite(value)) {
-									setMinutes(Math.min(CUSTOM_MAX, Math.max(CUSTOM_MIN, value)));
-								}
-							}}
-						/>
-						{minutes === 1 ? "minute" : "minutes"}
-					</label>
-				)}
+				{ENDING_GROUPS.map((group) => (
+					<div key={group.id} className="vote-closes-group">
+						<span className="vote-closes-caption" id={`${id}-${group.id}`}>
+							{group.caption}
+						</span>
+						<span className="vote-choices" role="radiogroup" aria-labelledby={`${id}-${group.id}`}>
+							{ENDINGS.map((option, i) =>
+								option.group !== group.id ? null : (
+									<label
+										key={option.label}
+										data-checked={ending === i}
+										data-custom={option.ms === "custom" || undefined}
+									>
+										<input
+											type="radio"
+											name={`${id}-ending`}
+											checked={ending === i}
+											onChange={() => setEnding(i)}
+										/>
+										{option.ms === "custom" && ending === i ? (
+											<>
+												<input
+													className="vote-custom-minutes"
+													autoFocus
+													type="number"
+													min={CUSTOM_MIN}
+													max={CUSTOM_MAX}
+													step={1}
+													value={minutes}
+													aria-label="Minutes until the vote closes"
+													onChange={(event) => {
+														const value = Math.round(Number(event.target.value));
+														if (Number.isFinite(value)) {
+															setMinutes(Math.min(CUSTOM_MAX, Math.max(CUSTOM_MIN, value)));
+														}
+													}}
+												/>
+												min
+											</>
+										) : (
+											option.chip
+										)}
+									</label>
+								),
+							)}
+						</span>
+					</div>
+				))}
 			</fieldset>
 			<label className="vote-toggle">
 				<input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />

@@ -32,7 +32,13 @@ jobs:
       - name: Build docs
         run: pnpm --filter site build
   e2e:
+    # Split across runners: each shard runs a quarter of the suite in parallel.
+    name: e2e (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -59,7 +65,7 @@ jobs:
         if: steps.browsers.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
       - name: E2E
-        run: pnpm e2e ${{ inputs.update-snapshots && '--update-snapshots' || '' }}
+        run: pnpm e2e --shard=${{ matrix.shard }}/4 ${{ inputs.update-snapshots && '--update-snapshots' || '' }}
         env:
           # Pixel comparison is opt-in; the manual update-snapshots run turns it on.
           VISUAL: ${{ inputs.update-snapshots && '1' || '' }}
@@ -67,7 +73,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-results
+          name: e2e-results-${{ matrix.shard }}
           path: |
             e2e/test-results/
             e2e/report/
@@ -76,5 +82,5 @@ jobs:
         if: inputs.update-snapshots
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-linux-baselines
+          name: e2e-linux-baselines-${{ matrix.shard }}
           path: e2e/**/*-linux.png

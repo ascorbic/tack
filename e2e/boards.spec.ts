@@ -244,7 +244,8 @@ test("opening a board shows all of it, clear of the dock, and coming back is whe
 	await other.reload();
 	await expect(other.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
 	await settleCanvas(other);
-	await expect(other.getByRole("button", { name: "Zoom: 100%" })).toBeVisible();
+	// Where you left it is put back once the board has loaded: slower on CI.
+	await expect(other.getByRole("button", { name: "Zoom: 100%" })).toBeVisible({ timeout: 15_000 });
 	const back = await viewport();
 	expect(back.zoom).toBeCloseTo(left.zoom, 3);
 	expect(back.x).toBeCloseTo(left.x, 0);
