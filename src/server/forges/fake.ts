@@ -46,6 +46,19 @@ function createdNumber(kind: "issue" | "pull"): number {
 	return kind === "pull" ? n + 1 : n;
 }
 
+/**
+ * A synthetic issue's parent: n/10, where both are issues (see
+ * `fakeRelated`). Items `apply` made have none.
+ */
+export function fakeParent(n: number): number | null {
+	if (n >= CREATED_FROM || !isIssue(n)) return null;
+	const parent = Math.floor(n / 10);
+	return parent >= 1 && isIssue(parent) ? parent : null;
+}
+
+const fakeTitle = (n: number) =>
+	`Synthetic card ${n}: a reasonably long title so it wraps onto two lines`;
+
 export function fakeCard(repo: string, n: number): Card {
 	const item = `#${n}`;
 	const common: Pick<
@@ -76,10 +89,22 @@ export function fakeCard(repo: string, n: number): Card {
 		};
 	}
 	const state = STATES[n % STATES.length] ?? "open";
+	const parent = fakeParent(n);
+	const kind = state === "merged" || state === "draft" ? "pull" : "issue";
 	return {
 		...common,
-		kind: state === "merged" || state === "draft" ? "pull" : "issue",
-		title: `Synthetic card ${n}: a reasonably long title so it wraps onto two lines`,
+		kind,
+		...(kind === "issue"
+			? {
+					parent: parent
+						? {
+								key: itemKey({ host: "fake.tack", repo, item: `#${parent}` }),
+								title: fakeTitle(parent),
+							}
+						: null,
+				}
+			: {}),
+		title: fakeTitle(n),
 		state,
 		stateReason: state === "closed" ? "completed" : null,
 		labels: LABELS.slice(0, (n % 3) + 1),
@@ -243,8 +268,8 @@ export function fakeRelated(repo: string, n: number): RelatedResult {
 		numbers.add(m);
 	};
 	if (isIssue(n)) {
-		const parent = Math.floor(n / 10);
-		if (parent >= 1 && isIssue(parent)) {
+		const parent = fakeParent(n);
+		if (parent) {
 			result.parent = key(parent);
 			numbers.add(parent);
 		}

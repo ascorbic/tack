@@ -73,6 +73,8 @@ export interface GitHubIssueLike {
 	additions?: number;
 	deletions?: number;
 	changed_files?: number;
+	/** Issues: the API URL of its parent issue, where GitHub says (null: none). */
+	parent_issue_url?: string | null;
 }
 
 interface GitHubRepository {
@@ -96,6 +98,9 @@ interface WebhookPayload {
 	check_suite?: WithPulls;
 	workflow_run?: WithPulls;
 	sha?: string;
+	/** `sub_issues` events: the sub-issue and its repository. */
+	sub_issue?: GitHubIssueLike;
+	sub_issue_repo?: GitHubRepository;
 }
 
 /** The `owner/repo` part of an API or web URL, if it has one. */
@@ -181,8 +186,20 @@ export function normaliseIssue(
 						: null,
 				}
 			: {}),
+		...(!isPull && issue.parent_issue_url !== undefined
+			? { parent: parentFromUrl(issue.parent_issue_url) }
+			: {}),
 		...(issue.node_id ? { nodeId: issue.node_id } : {}),
 		...(isPull ? { pull: basicPullDetails(issue) } : {}),
+	};
+}
+
+/** A parent issue from its API URL (`…/repos/o/r/issues/4`): REST says where, not what. */
+function parentFromUrl(url: string | null): Card["parent"] {
+	const match = /\/repos\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)$/.exec(url ?? "");
+	if (!match) return null;
+	return {
+		key: itemKey({ host: HOST, repo: (match[1] ?? "").toLowerCase(), item: `#${match[2]}` }),
 	};
 }
 
@@ -365,6 +382,16 @@ function refetchFor(event: string, payload: WebhookPayload) {
 		if (run?.head_sha) commits.add(run.head_sha);
 	} else if (event === "status") {
 		if (payload.sha) commits.add(payload.sha);
+	} else if (event === "sub_issues") {
+		// A parent added or taken away: the sub-issue's card says which it
+		// has, read again in full (the payload's issue may not say). Each
+		// repository involved hears about it, so only one's own.
+		const sub = payload.sub_issue;
+		const own =
+			payload.sub_issue_repo?.id === undefined
+				? repoFromUrl(sub?.repository_url) === payload.repository?.full_name.toLowerCase()
+				: payload.sub_issue_repo.id === payload.repository?.id;
+		if (sub && own) items.add(`#${sub.number}`);
 	}
 	return items.size + commits.size > 0 ? { items: [...items], commits: [...commits] } : undefined;
 }

@@ -1030,6 +1030,17 @@ function keepDetails(existing: Card, incoming: Card): Card {
 		const logins = existing.thumbsUp.logins.slice(0, incoming.thumbsUp.count);
 		card = { ...card, thumbsUp: { count: incoming.thumbsUp.count, logins } };
 	}
+	// Payloads that don't say which parent an issue has: keep what the last
+	// full fetch said (a `sub_issues` delivery refetches when it changes).
+	if (incoming.parent === undefined && existing.parent !== undefined && incoming.kind === "issue") {
+		card = { ...card, parent: existing.parent };
+	} else if (
+		incoming.parent &&
+		!incoming.parent.title &&
+		existing.parent?.key === incoming.parent.key
+	) {
+		card = { ...card, parent: existing.parent };
+	}
 	const before = existing.pull;
 	const after = incoming.pull;
 	if (!before || !after || after.detail !== "basic" || before.detail !== "full") return card;

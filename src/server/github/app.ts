@@ -64,10 +64,13 @@ const PERMISSIONS = {
 // `installation` and `installation_repositories` aren't listed: GitHub
 // always sends them to apps and rejects them as subscribable events.
 // `issue_comment` is for comment commands (#58): apps set up before it was
-// added need it turned on in the app's settings.
+// added need it turned on in the app's settings, as do `sub_issues` (which
+// parent issue each card has), without which cards catch up on their next
+// full fetch.
 const EVENTS = [
 	"issues",
 	"issue_comment",
+	"sub_issues",
 	"pull_request",
 	"pull_request_review",
 	"check_run",

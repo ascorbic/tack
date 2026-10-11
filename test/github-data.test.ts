@@ -262,6 +262,35 @@ describe("pull requests", () => {
 		]);
 	});
 
+	it("says which parent issue each issue has, and reads it again when a sub_issues event says it changed", async () => {
+		const github = fakeGitHub();
+		const mf = worker(github);
+		const board = await openBoard(mf, "parents");
+		board.add(ISSUE, "github.com/acme/widgets#9");
+		expect((await board.card(ISSUE)).parent).toBeNull();
+
+		// #9 becomes #7's parent on GitHub.
+		github.subIssues.set(`${ID}#9`, [github.databaseId(ID, 7)]);
+		const issue = (n: number) => ({
+			number: n,
+			title: github.item(ID, n)?.title,
+			state: "open",
+			html_url: `https://github.com/acme/widgets/issues/${n}`,
+			repository_url: "https://api.github.com/repos/acme/widgets",
+			updated_at: T0,
+		});
+		const result = await deliver(mf, "sub_issues", {
+			action: "sub_issue_added",
+			parent_issue: issue(9),
+			parent_issue_repo: REPOSITORY,
+			sub_issue: issue(7),
+			sub_issue_repo: REPOSITORY,
+		});
+		expect(result).toMatchObject({ refetching: ["#7"] });
+		const card = await board.until(ISSUE, (c) => c.parent?.key === "github.com/acme/widgets#9");
+		expect(card.parent).toEqual({ key: "github.com/acme/widgets#9", title: "Unrelated" });
+	});
+
 	it("picks up review decisions after a review", async () => {
 		const github = fakeGitHub();
 		const mf = worker(github);

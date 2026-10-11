@@ -46,6 +46,7 @@ export const FRAGMENTS = `
 fragment TackIssue on Issue {${COMMON}
 	issueState: state
 	stateReason
+	parent { number title repository { nameWithOwner } }
 }
 fragment TackPull on PullRequest {${COMMON}
 	pullState: state
@@ -120,6 +121,8 @@ export interface GqlIssue extends Common {
 	__typename: "Issue";
 	issueState: "OPEN" | "CLOSED";
 	stateReason: string | null;
+	/** The issue it's a sub-issue of. Absent from older fixtures. */
+	parent?: { number: number; title: string; repository: { nameWithOwner: string } } | null;
 }
 
 interface StateCount {
@@ -414,6 +417,20 @@ export function normaliseGqlIssue(node: GqlIssue): Card {
 		kind: "issue",
 		state: node.issueState === "OPEN" ? "open" : "closed",
 		stateReason: node.stateReason?.toLowerCase() ?? null,
+		...(node.parent !== undefined
+			? {
+					parent: node.parent
+						? {
+								key: itemKey({
+									host: HOST,
+									repo: node.parent.repository.nameWithOwner.toLowerCase(),
+									item: `#${node.parent.number}`,
+								}),
+								title: node.parent.title,
+							}
+						: null,
+				}
+			: {}),
 	};
 }
 

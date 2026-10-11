@@ -44,6 +44,12 @@ export interface Card {
 	 */
 	milestone?: CardMilestone | null;
 	/**
+	 * Issues: the issue it's a sub-issue of, where the forge said: null for
+	 * none. Absent means unknown (REST payloads that don't say, older cached
+	 * cards, fixtures), never "no parent". `title` where the forge gave it.
+	 */
+	parent?: CardParent | null;
+	/**
 	 * The forge's global id for the item (a GraphQL node id on GitHub), for
 	 * batched refetches. Absent when the forge has none or it wasn't fetched.
 	 */
@@ -63,6 +69,12 @@ export interface Card {
 	 * private: the server only sends it to viewers who can read the repository.
 	 */
 	visibility?: "public" | "private";
+}
+
+export interface CardParent {
+	/** The parent's item key. */
+	key: string;
+	title?: string;
 }
 
 export interface CardMilestone {

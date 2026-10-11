@@ -1137,6 +1137,38 @@ export class FakeGitHub {
 		return { name: known?.name ?? name, color: known?.color ?? "ededed" };
 	}
 
+	/** The parent of an issue (by database id), by database id, if it has one. */
+	parentOf(id: number): number | null {
+		const parent = [...this.subIssues].find(([, children]) => children.includes(id))?.[0];
+		if (!parent) return null;
+		const [repoId, number] = parent.split("#").map(Number);
+		return this.databaseId(repoId ?? 0, number ?? 0);
+	}
+
+	/** An issue's parent, its parent's parent, and so on, by database id. */
+	private ancestorsOf(id: number): number[] {
+		const out: number[] = [];
+		for (let at = this.parentOf(id); at !== null && !out.includes(at); at = this.parentOf(at)) {
+			out.push(at);
+		}
+		return out;
+	}
+
+	/** Everything blocking an issue (by database id), directly or through others. */
+	private blockersOf(id: number): number[] {
+		const out = new Set<number>();
+		const visit = (at: number) => {
+			const key = `${Math.floor(at / 1_000_000)}#${at % 1_000_000}`;
+			for (const blocker of this.blockedBy.get(key) ?? []) {
+				if (out.has(blocker)) continue;
+				out.add(blocker);
+				visit(blocker);
+			}
+		};
+		visit(id);
+		return [...out];
+	}
+
 	private issueByDatabaseId(id: number) {
 		const repo = this.repos.get(Math.floor(id / 1_000_000));
 		const item = repo && this.items.get(`${repo.id}#${id % 1_000_000}`);
@@ -1651,8 +1683,21 @@ export class FakeGitHub {
 			},
 		};
 		if (item.kind === "issue") {
+			const parentId = this.parentOf(this.databaseId(repo.id, item.number));
+			const parentRepo =
+				parentId === null ? undefined : this.repos.get(Math.floor(parentId / 1_000_000));
+			const parentItem =
+				parentId === null ? undefined : this.items.get(`${parentRepo?.id}#${parentId % 1_000_000}`);
 			return {
 				...common,
+				parent:
+					parentRepo && parentItem
+						? {
+								number: parentItem.number,
+								title: parentItem.title,
+								repository: { nameWithOwner: parentRepo.name },
+							}
+						: null,
 				issueState: item.state === "closed" ? "CLOSED" : "OPEN",
 				stateReason:
 					item.state === "closed" ? (item.stateReason ?? "completed").toUpperCase() : null,
