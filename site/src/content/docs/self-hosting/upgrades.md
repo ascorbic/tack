@@ -19,6 +19,8 @@ That works whether your copy is a fork or the repository the [Deploy to Cloudfla
 
 There's nothing to run by hand: boards and storage upgrade themselves, as below. Read the changes before you upgrade all the same.
 
+A board's JSON export (or a [backup on GitHub](/boards/export/#backing-up-to-github)) is versioned and read by newer versions of Tack, so it's a good way to keep a copy before a big upgrade.
+
 **Never change `TACK_SECRET`.** It encrypts the app's credentials and everyone's tokens: a new one can't read them, and setup can't be run again.
 
 ## How boards are upgraded

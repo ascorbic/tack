@@ -43,7 +43,7 @@ Not yet. Tack's core is forge-neutral, and other forges are planned, but GitHub 
 
 ## Can I export a board?
 
-Not yet: export (images, and board files to import elsewhere) is planned. You can copy shapes between boards, and pasting them into another app gives plain text: stickies' text and cards' links.
+Yes: as a PNG or SVG (the whole board, or what's selected), or as JSON to import into a new board, here or on another Tack. A board's owner can also have Tack back it up to a branch on GitHub. See [Export, import and backups](/boards/export/). You can also copy shapes between boards, and pasting them into another app gives plain text: stickies' text and cards' links.
 
 ## Is there an API?
 
