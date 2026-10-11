@@ -89,6 +89,7 @@ They only ever get what anyone may see:
 - Widgets and inboxes only show results from public repositories, and searching from the card tool, and **Expand related**, only find public items.
 - **What's new** only lists GitHub activity on public repositories' cards, and the push history says no more about a change to a private repository than "A change to a private repository" (this goes for signed-in people who can't read the repository too).
 - History replays the board's own content (stickies, sections, connectors and where cards are), never card data.
+- Mentions in comments show the board's members by name, but signed-out visitors aren't told who else has been looking at the board.
 
 Everything else on a public board is public: stickies, text, sections, decisions, comments, and the board's history. Silent mode's hidden text is the exception: it never leaves its author's browser before the reveal, so nobody else can see it, signed in or not.
 

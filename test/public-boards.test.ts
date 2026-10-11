@@ -17,7 +17,7 @@ import { addShape, nextZ, shapesMap } from "../src/shared/shapes.ts";
 import type { SinceEvent } from "../src/shared/since.ts";
 import { type BoardClient, connectBoard, eventually } from "./board-client.ts";
 import { FakeGitHub, type FakeUser } from "./fake-github.ts";
-import { boardStub, instanceStub, signInWithGitHub, startWorker } from "./harness.ts";
+import { boardStub, instanceStub, signIn, signInWithGitHub, startWorker } from "./harness.ts";
 
 const ORIGIN = "http://localhost";
 const PUBLIC_ID = 1;
@@ -427,6 +427,18 @@ describe("everything else a signed-out visitor gets from a public board", () => 
 			`/api/boards/${board.id}/search?host=github.com&q=${encodeURIComponent("repo:acme/secret roadmap")}`,
 		);
 		expect(await search.text()).not.toContain(SECRET_TITLE);
+
+		// Who can be mentioned: the board's members, never who's been looking at it.
+		const visitor = await signIn(mf, "nosy-neighbour");
+		await open(mf, board.id, visitor);
+		const people = (await (await get(mf, `/api/boards/${board.id}/people`)).json()) as {
+			people: { login: string }[];
+		};
+		expect(people.people.map((person) => person.login)).toEqual(["alice"]);
+		const forAlice = (await (
+			await get(mf, `/api/boards/${board.id}/people`, { cookie: alice })
+		).json()) as { people: { login: string }[] };
+		expect(forAlice.people.map((person) => person.login)).toContain("nosy-neighbour");
 
 		// History: the document over time, which never holds card data.
 		const timeline = await get(mf, `/api/boards/${board.id}/history`);

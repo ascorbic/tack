@@ -412,7 +412,10 @@ export class Directory extends DurableObject<Env> {
 		const row = this.row(id);
 		if (!row) return refuse("not_found");
 		if (!roleFor(this.policy(row), visitorKey(visitor))) return this.denied(visitor);
-		return ok({ people: this.mentionableRows(id) });
+		// Signed out (on a public board): its members, for showing mentions by
+		// name, but not who's been looking at it lately (#56).
+		const people = this.mentionableRows(id);
+		return ok({ people: visitor.user ? people : people.filter((person) => person.role !== null) });
 	}
 
 	/** For the board's object: mentionable logins (lowercase) and their ids. */
