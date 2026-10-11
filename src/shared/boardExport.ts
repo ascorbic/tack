@@ -5,8 +5,16 @@ import { isDate } from "./actionItems.ts";
 import { type CreatedBoard, MAX_TITLE, type Visibility } from "./boards.ts";
 import { type PreparedPlan, preparedMap, readPrepared, readStep } from "./prepared.ts";
 import { parseKey } from "./refs.ts";
-import { type RuleAction, type RuleTrigger, readRule, rulesMap } from "./rules.ts";
+import {
+	type RuleAction,
+	type RuleTrigger,
+	readRule,
+	rulesMap,
+	scopeRepos,
+	setScopeRepos,
+} from "./rules.ts";
 import { type ShapeType, shapesMap } from "./shapes.ts";
+import { TEMPLATE_REPOS_MAX, cleanRepos } from "./templates.ts";
 
 // A board as a file (#59): its shapes (cards, stickies, text, sections,
 // connectors, decisions, widgets, action items), rules and prepared
@@ -77,6 +85,11 @@ export interface BoardExport {
 	shapes: ExportedShape[];
 	rules: ExportedRule[];
 	prepared: ExportedStep[];
+	/**
+	 * The repositories the board was made for (from a template), whose items
+	 * its rules may place: `github.com/owner/name`. Absent if there are none.
+	 */
+	repos?: string[];
 }
 
 /** What an export left out, to say so. */
@@ -217,6 +230,7 @@ export function exportBoard(
 			shapes,
 			rules,
 			prepared,
+			...(scopeRepos(doc).length ? { repos: scopeRepos(doc) } : {}),
 		},
 		omitted,
 	};
@@ -406,6 +420,9 @@ const ExportSchema = v.object({
 	exportedAt: v.optional(Instant),
 	shapes: v.pipe(v.array(ShapeSchema), v.maxLength(BOARD_EXPORT_MAX_SHAPES)),
 	rules: v.optional(v.pipe(v.array(RuleSchema), v.maxLength(500)), []),
+	repos: v.optional(
+		v.pipe(v.array(v.pipe(v.string(), v.maxLength(300))), v.maxLength(TEMPLATE_REPOS_MAX)),
+	),
 	prepared: v.optional(v.pipe(v.array(StepSchema), v.maxLength(200)), []),
 });
 
@@ -642,6 +659,9 @@ export function importBoard(
 			if (readRule(rulesMap(doc).get(id))) result.rules++;
 			else rulesMap(doc).delete(id);
 		}
+
+		// Rules may place items from the repositories it was made for, as on the board exported.
+		setScopeRepos(doc, cleanRepos(data.repos), IMPORT_ORIGIN);
 
 		const prepared = preparedMap(doc);
 		for (const step of data.prepared) {

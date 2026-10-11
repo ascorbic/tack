@@ -15,7 +15,7 @@ import {
 } from "../src/shared/boardExport.ts";
 import { castVote } from "../src/shared/decisions.ts";
 import { preparedMap, readPrepared } from "../src/shared/prepared.ts";
-import { addRule, listRules } from "../src/shared/rules.ts";
+import { addRule, listRules, scopeRepos, setScopeRepos } from "../src/shared/rules.ts";
 import { addShape, shapesMap } from "../src/shared/shapes.ts";
 import { readShapes } from "../src/shared/structure.ts";
 
@@ -368,5 +368,21 @@ describe("importing a board", () => {
 		expect([...shapes.values()].find((s) => s.type === "decision")).not.toHaveProperty(
 			"supersededBy",
 		);
+	});
+
+	it("keeps the repositories a board was made for, so its rules place the same items", () => {
+		const doc = board();
+		setScopeRepos(doc, ["github.com/acme/app"], "template");
+		const { data } = exportBoard(doc, { title: "Retro" });
+		expect(data.repos).toEqual(["github.com/acme/app"]);
+		const read = readBoardExport(
+			serialiseExport({ ...data, repos: ["github.com/acme/app", "not a repo"] }),
+		);
+		expect(read.ok).toBe(true);
+		if (!read.ok) return;
+		const copy = new Y.Doc();
+		importBoard(copy, read.data, { by: BY, newId: counter() });
+		expect(scopeRepos(copy)).toEqual(["github.com/acme/app"]);
+		expect(exportBoard(new Y.Doc(), { title: "Empty" }).data).not.toHaveProperty("repos");
 	});
 });
