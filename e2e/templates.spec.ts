@@ -44,7 +44,7 @@ test.describe("action items on the playground", () => {
 
 		await plan.getByRole("button", { name: "Link an issue, or make one" }).click();
 		const issue = page.getByRole("dialog", { name: "Issue" });
-		await issue.getByRole("combobox", { name: "Issue" }).fill("#431");
+		await issue.getByRole("textbox", { name: "Issue" }).fill("#431");
 		await issue.getByRole("button", { name: "Link", exact: true }).click();
 		await expect(plan.getByRole("button", { name: /^Linked to #431/ })).toBeVisible();
 		await expect(page.locator(".toast[data-leaving=false]")).toContainText("Linked to #431");
