@@ -47,7 +47,7 @@ import {
 } from "./icons.tsx";
 import { ChangePreview } from "./Preview.tsx";
 import { ForgeError, IncludeToggle, StagedBy, StagerAvatar, StatusGlyph } from "./parts.tsx";
-import { type PushState, useLeftOut, usePushState } from "./session.ts";
+import { type PushState, useLeftOut, usePushState, useUnwritableLeftOut } from "./session.ts";
 import { useChangeList } from "./store.ts";
 
 // The push sheet: review exactly what will be written and who'll hear about
@@ -135,6 +135,7 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 	const changes = useChangeList(ui.store);
 	const index = useMemo(() => indexChanges(changes), [changes]);
 	const state = usePushState(ui.session);
+	useUnwritableLeftOut(ui.session, ui.meta, changes, index);
 	const leftOut = useLeftOut(ui.session);
 	const repos = useMemo(
 		() => [...new Set(groupByRepo(changes, index).map((group) => group.repo))].filter(Boolean),

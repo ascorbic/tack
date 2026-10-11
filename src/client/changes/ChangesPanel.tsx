@@ -30,7 +30,7 @@ import {
 	RetryIcon,
 } from "./icons.tsx";
 import { ForgeError, StagedBy, StatusGlyph } from "./parts.tsx";
-import { unstage, useLeftOut, usePushState } from "./session.ts";
+import { unstage, useLeftOut, usePushState, useUnwritableLeftOut } from "./session.ts";
 import { useChangeList } from "./store.ts";
 
 /** How many landed changes the panel keeps showing; the rest are in the history. */
@@ -60,6 +60,7 @@ function PanelBody({ ui, leaving }: { ui: ChangesUI; leaving: boolean }) {
 	const landed = changes
 		.filter((change) => change.status === "applied")
 		.sort((a, b) => ((a.updatedAt ?? "") < (b.updatedAt ?? "") ? 1 : -1));
+	useUnwritableLeftOut(ui.session, ui.meta, changes, index);
 	const leftOut = useLeftOut(ui.session);
 	const included = pending.filter((change) => isPushable(change) && !leftOut.has(change.id));
 	const groups = groupByRepo(pending, index);

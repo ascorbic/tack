@@ -239,6 +239,22 @@ describe("staging edits", () => {
 		expect(Y.encodeStateAsUpdate(doc)).toEqual(before);
 	});
 
+	it("leaves out what can't go yet by default, but never against a choice", () => {
+		const { doc, create, close } = board();
+		const session = new PushSession(null);
+		const index = indexChanges(listChanges(doc));
+		// Ticked back in by this person: a default doesn't take it out again.
+		session.setIncluded([close], false, index);
+		session.setIncluded([close], true, index);
+		expect(session.leaveOutByDefault([close, create], index)).toContain(create);
+		expect(session.leftOut().has(close)).toBe(false);
+		expect(session.leftOut().has(create)).toBe(true);
+		// Put back, it stays put back.
+		session.setIncluded([create], true, index);
+		expect(session.leaveOutByDefault([create], index)).toEqual([]);
+		expect(session.leftOut().has(create)).toBe(false);
+	});
+
 	it("forgets what was left out once it's pushed", async () => {
 		const { doc, create, close } = board();
 		const session = new PushSession({
