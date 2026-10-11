@@ -15,14 +15,14 @@ Every card remembers how it arrived:
 | Placed by a [rule](/automation/rules/)                                                 | A spark          | "Placed by rule: Pull requests beside their issues" |
 | Asked for in a [comment on GitHub](/automation/comment-commands/)                      | An @             | "Added from GitHub by @kai", linking to the comment |
 
-Point at the glyph, or select the card, to read it.
+The glyph is tinted by what brought the card: blue for an inbox, amber for a rule, violet for a list, green for a comment. Point at it, or select the card, to read it.
 
 ## When a card stops matching
 
 What happens when the item no longer matches depends on how the card arrived:
 
 - **Placed by a person, from a widget, or asked for in a comment**: nothing. A widget only ever copies, and a comment counts as its author placing the card.
-- **From an inbox or a rule**: the card is **marked**, with a dashed edge and a band: "No longer matches the “Triage” inbox". It's never moved or removed.
+- **From an inbox or a rule**: the card is **marked**, with a dashed edge and a band that says why, when the card shows it: "No longer matches: closed", or "labelled bug", or "not assigned to kai" (point at it for which inbox or rule). It's never moved or removed.
 
 The band offers:
 

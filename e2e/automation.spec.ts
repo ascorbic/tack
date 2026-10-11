@@ -102,8 +102,9 @@ test.describe("inbox frames", () => {
 	});
 
 	test("a card that stops matching is marked, never moved", async ({ page }) => {
-		// Already on the board: one sorted card was relabelled since.
+		// Already on the board: one sorted card was relabelled since, and the band says so.
 		await expect(page.locator(".card-unmatched")).toHaveCount(1);
+		await expect(page.locator(".card-unmatched")).toContainText(/No longer matches: labelled \S+/i);
 		const before = await shapes(page);
 		await play(page, "Label an issue").click();
 		await expect(page.locator(".card-unmatched")).toHaveCount(2);

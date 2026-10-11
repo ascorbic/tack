@@ -326,7 +326,7 @@ function LiveCard({
 				{origin && <ProvenanceBadge origin={origin} />}
 				{liveness && <Liveness state={liveness} repo={card.repo} />}
 			</div>
-			{unmatched && <UnmatchedBand unmatched={unmatched} />}
+			{unmatched && <UnmatchedBand unmatched={unmatched} card={card} />}
 		</article>
 	);
 }

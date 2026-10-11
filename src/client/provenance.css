@@ -20,6 +20,28 @@
 		padding var(--t-settle) var(--ease-settle);
 }
 
+/* Tinted by what brought it, so it's noticed: an inbox's blue, a rule's amber,
+   a list's violet, a comment's green; the chip it opens into keeps the tint. */
+.provenance[data-via="inbox"] {
+	--via: var(--accent);
+}
+
+.provenance[data-via="rule"] {
+	--via: var(--pending);
+}
+
+.provenance[data-via="list"] {
+	--via: var(--merged);
+}
+
+.provenance[data-via="comment"] {
+	--via: var(--open);
+}
+
+.provenance[data-via] {
+	color: color-mix(in srgb, var(--via) 80%, var(--muted));
+}
+
 .card-foot .provenance + .liveness {
 	margin-left: 0;
 }
@@ -66,7 +88,7 @@
 .provenance:focus-visible,
 .card[data-selected="true"] .provenance {
 	padding: 0 7px 0 6px;
-	background: var(--chip);
+	background: color-mix(in srgb, var(--via, var(--muted)) 12%, var(--chip));
 	color: var(--ink-soft);
 }
 
@@ -155,6 +177,29 @@ a.provenance:hover .provenance-label > span {
 	line-height: 22px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* With a reason, it takes two short lines rather than cutting the reason off. */
+.card-unmatched-text:has(.card-unmatched-why) {
+	display: -webkit-box;
+	line-height: 14px;
+	white-space: normal;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+}
+
+.card-unmatched-text:has(.card-unmatched-why) > [aria-hidden] {
+	display: contents;
+}
+
+.card-unmatched-why::before {
+	content: "";
+	display: block;
+}
+
+.card-unmatched-why {
+	font-weight: 450;
 }
 
 .card-unmatched-actions {

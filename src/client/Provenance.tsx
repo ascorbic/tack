@@ -4,9 +4,12 @@ import {
 	describeProvenance,
 	keepCard,
 	provenanceOf,
+	provenanceQuery,
 	provenanceSourceName,
 	unmatchedSince,
 } from "../shared/provenance.ts";
+import type { Card } from "../shared/cards.ts";
+import { whyUnmatched } from "../shared/search.ts";
 import type { ShapeProps } from "../shared/shapes.ts";
 import type { Provenance } from "../shared/widgets.ts";
 import { deleteShapes } from "./board.ts";
@@ -33,6 +36,8 @@ export interface CardOrigin {
 export interface CardUnmatched {
 	/** "No longer matches the “Triage” inbox". */
 	text: string;
+	/** The search it stopped matching, to say why. */
+	query?: string | null;
 	/** Absent on boards you can't edit. */
 	onKeep?: () => void;
 	onRemove?: () => void;
@@ -61,9 +66,12 @@ export function useCardProvenance(
 	const name = useSyncExternalStore(subscribe, () =>
 		tracked && doc ? provenanceSourceName(doc, provenance) : null,
 	);
+	const since = unmatchedSince(shape);
+	const query = useSyncExternalStore(subscribe, () =>
+		since && tracked && doc ? provenanceQuery(doc, provenance) : null,
+	);
 	const text = describeProvenance(provenance, name);
 	if (!text || provenance.via === "manual") return { origin: null, unmatched: null };
-	const since = unmatchedSince(shape);
 	return {
 		origin: {
 			via: provenance.via,
@@ -74,6 +82,7 @@ export function useCardProvenance(
 			since && doc
 				? {
 						text: text.unmatched,
+						query,
 						...(readOnly
 							? {}
 							: {
@@ -155,7 +164,9 @@ export function ProvenanceBadge({ origin }: { origin: CardOrigin }) {
 }
 
 /** Along a card's foot: it no longer matches, so people decide. */
-export function UnmatchedBand({ unmatched }: { unmatched: CardUnmatched }) {
+export function UnmatchedBand({ unmatched, card }: { unmatched: CardUnmatched; card?: Card }) {
+	// Why, when the card says: "closed", "not labelled bug".
+	const why = card && unmatched.query ? whyUnmatched(card, unmatched.query) : null;
 	return (
 		<div className="card-unmatched" role="status">
 			<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
@@ -163,9 +174,24 @@ export function UnmatchedBand({ unmatched }: { unmatched: CardUnmatched }) {
 				<path d="M2 14 14 2" className="strike" />
 			</svg>
 			{/* Too narrow to name the inbox or rule: the glyph above does, and the tooltip. */}
-			<span className="card-unmatched-text" title={unmatched.text}>
-				<span aria-hidden="true">No longer matches</span>
-				<span className="visually-hidden">{unmatched.text}</span>
+			<span
+				className="card-unmatched-text"
+				title={why ? `${unmatched.text}: ${why}` : unmatched.text}
+			>
+				<span aria-hidden="true">
+					No longer matches
+					{why && (
+						<span className="card-unmatched-why">
+							<span className="visually-hidden">: </span>
+							{why[0]?.toUpperCase()}
+							{why.slice(1)}
+						</span>
+					)}
+				</span>
+				<span className="visually-hidden">
+					{unmatched.text}
+					{why ? `: ${why}` : ""}
+				</span>
 			</span>
 			{unmatched.onKeep && (
 				<span className="card-unmatched-actions">

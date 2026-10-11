@@ -245,3 +245,18 @@ function hostOf(url: string): string {
 		return "";
 	}
 }
+
+/** The search behind a card an inbox or a matching rule brought, to say why it stopped matching. */
+export function provenanceQuery(doc: Y.Doc, provenance: Provenance): string | null {
+	const read = (value: unknown): string | null => {
+		const plain = value instanceof Y.Map ? value.toJSON() : value;
+		const q = (plain as { query?: { q?: unknown } } | undefined)?.query?.q;
+		return typeof q === "string" && q.trim() ? q : null;
+	};
+	if (provenance.via === "inbox") return read(shapesMap(doc).get(provenance.source)?.get("inbox"));
+	if (provenance.via === "rule") {
+		const rule = doc.getMap<unknown>("rules").get(provenance.source);
+		return rule instanceof Y.Map ? read(rule.get("trigger")) : null;
+	}
+	return null;
+}

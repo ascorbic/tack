@@ -12,6 +12,7 @@ import {
 	queryRepos,
 	searchScope,
 	unsupportedForRules,
+	whyUnmatched,
 } from "../src/shared/search.ts";
 import * as Y from "yjs";
 
@@ -326,5 +327,34 @@ describe("planMatch", () => {
 			{ kind: "item.labels", target: { key: card().key }, add: ["bug"] },
 			{ kind: "item.milestone", target: { key: card().key }, milestone: "v2" },
 		]);
+	});
+});
+
+describe("whyUnmatched", () => {
+	it("says what changed, closed first", () => {
+		expect(whyUnmatched(card({ state: "closed" }), "repo:acme/widgets is:open")).toBe("closed");
+		expect(whyUnmatched(card({ state: "closed" }), "repo:acme/widgets is:open label:bug")).toBe(
+			"closed, not labelled bug",
+		);
+		expect(whyUnmatched(card(), "repo:acme/widgets no:label")).toBe("labelled docs");
+		expect(whyUnmatched(card(), "repo:acme/widgets assignee:ana")).toBe("not assigned to ana");
+		const two = card({
+			labels: [
+				{ name: "bug", color: "" },
+				{ name: "provider", color: "" },
+			],
+		});
+		expect(whyUnmatched(two, "repo:acme/widgets no:label")).toBe("labelled bug, provider");
+	});
+
+	it("says merged for a pull request that can't be reopened", () => {
+		expect(
+			whyUnmatched(card({ kind: "pull", state: "merged" }), "repo:acme/widgets is:pr is:open"),
+		).toBe("merged");
+	});
+
+	it("has nothing to say when it still matches, or when it's words", () => {
+		expect(whyUnmatched(card(), "repo:acme/widgets is:open")).toBeNull();
+		expect(whyUnmatched(card(), "repo:acme/widgets wobbly sprockets")).toBeNull();
 	});
 });

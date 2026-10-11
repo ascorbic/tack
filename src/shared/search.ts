@@ -683,3 +683,37 @@ export function planMatch(
 	}
 	return edits.length === 0 ? { status: "matches" } : { status: "changes", steps, edits };
 }
+
+/**
+ * Why a card doesn't match a search any more, in a few words for the "No
+ * longer matches" band: "closed", "not labelled bug", "assigned to kai".
+ * Worked out from what would make it match again; null when that isn't
+ * clear (words, or something the card doesn't carry).
+ */
+export function whyUnmatched(card: Card, q: string): string | null {
+	const parsed = parseSearch(q);
+	const plan = planMatch(card, parsed);
+	if (plan.status === "matches") return null;
+	if (plan.status === "impossible") {
+		// Merged can't be undone, so it's never a step: say so plainly.
+		const wantsOpen = parsed.terms.some(
+			(term) => !term.negated && term.key === "is" && lower(term.value) === "open",
+		);
+		return card.state === "merged" && wantsOpen ? "merged" : null;
+	}
+	const of = (kind: MatchStep["kind"]) =>
+		plan.steps.filter((step) => step.kind === kind).map((step) => step.label.replace(/^@/, ""));
+	const reasons: string[] = [];
+	// Closed (or reopened) first: it's the commonest reason, and the biggest.
+	if (of("open").length) reasons.push(card.state === "merged" ? "merged" : "closed");
+	if (of("close").length) reasons.push("reopened");
+	if (of("remove-label").length) reasons.push(`labelled ${of("remove-label").join(", ")}`);
+	if (of("add-label").length) reasons.push(`not labelled ${of("add-label").join(", ")}`);
+	if (of("unassign").length) reasons.push(`assigned to ${of("unassign").join(", ")}`);
+	if (of("assign").length) reasons.push(`not assigned to ${of("assign").join(", ")}`);
+	if (of("milestone").length) {
+		reasons.push(card.milestone ? `moved to ${card.milestone.title}` : "no milestone");
+	}
+	const unique = [...new Set(reasons)];
+	return unique.length === 0 ? null : unique.slice(0, 2).join(", ");
+}
