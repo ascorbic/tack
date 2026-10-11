@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
 import type { AccessUpdateResponse, Me, SetupInfo } from "../src/shared/auth.ts";
 import { appName } from "../src/server/github/app.ts";
+import { DEFAULT_FORGE_HOSTS } from "../src/shared/refs.ts";
 import { FakeGitHub, type FakeUser } from "./fake-github.ts";
 import { instanceStub, repoStub, startWorker } from "./harness.ts";
 
@@ -209,6 +210,7 @@ describe("setup", () => {
 			allowed: true,
 			signIn: "ready",
 			devAuth: false,
+			forges: DEFAULT_FORGE_HOSTS,
 		});
 	});
 

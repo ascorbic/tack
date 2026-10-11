@@ -88,6 +88,7 @@ import { CardHistory, ChangeLog, Visits } from "./since.ts";
 import { loadSnapshot, storeSnapshot } from "./snapshots.ts";
 import { realTime } from "./testClock.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
+import { configureForges } from "./forges/config.ts";
 import { type RunnerTiming, WidgetRunner } from "./widgets/runner.ts";
 import { type AiPrepareInput, type AiPrepared, BoardAi } from "./ai/board.ts";
 import type { AiLimits } from "./ai/limits.ts";
@@ -265,6 +266,12 @@ export class Board extends YServer<Env> {
 		} finally {
 			this.connecting--;
 		}
+	}
+
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		// Which forge hosts keys may name: this object may be in an isolate of its own.
+		configureForges(env);
 	}
 
 	override async onStart(): Promise<void> {

@@ -121,6 +121,15 @@ export function bucketOf(authorization: string | null | undefined): string {
 	return `t:${fnv1a(token)}`;
 }
 
+/**
+ * Limits are per forge (#65): GitLab limiting anonymous calls says nothing
+ * about GitHub's. GitHub's buckets keep their plain names.
+ */
+export function hostBucket(host: string, bucket: string): string {
+	const github = host === "api.github.com" || host === "github.com" || host.endsWith(".github.com");
+	return github ? bucket : `${host.toLowerCase()}/${bucket}`;
+}
+
 /** A short, non-reversible name for a token: the gate never keeps tokens themselves. */
 function fnv1a(text: string): string {
 	let hash = 0x811c9dc5;
@@ -214,7 +223,7 @@ export function gatedResponse(retryAt: number, resource: string, now = Date.now(
 export async function forgeFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
 	const url = typeof input === "string" ? new URL(input) : input;
 	const headers = new Headers(init.headers);
-	const bucket = bucketOf(headers.get("authorization"));
+	const bucket = hostBucket(url.host, bucketOf(headers.get("authorization")));
 	const resource = resourceOf(url);
 	const blocked = gate.blockedUntil(bucket, resource);
 	if (blocked !== null) return gatedResponse(blocked, resource);

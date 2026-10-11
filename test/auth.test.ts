@@ -1,6 +1,7 @@
 import type { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import type { Me } from "../src/shared/auth.ts";
+import { DEFAULT_FORGE_HOSTS } from "../src/shared/refs.ts";
 import { decrypt, encrypt, sign, unsign } from "../src/server/auth/crypto.ts";
 import { devUserId } from "../src/server/auth/logins.ts";
 import { TACK_SECRET, instanceStub, signIn, startWorker } from "./harness.ts";
@@ -62,6 +63,7 @@ describe("without TACK_SECRET (Previews)", () => {
 			allowed: true,
 			signIn: "unavailable",
 			devAuth: false,
+			forges: DEFAULT_FORGE_HOSTS,
 		});
 		const setup = await mf.dispatchFetch(`${ORIGIN}/api/setup`);
 		expect(await setup.json()).toEqual({ status: "unavailable" });
@@ -140,6 +142,7 @@ describe("sessions", () => {
 			allowed: true,
 			signIn: "unconfigured",
 			devAuth: true,
+			forges: DEFAULT_FORGE_HOSTS,
 		});
 	});
 

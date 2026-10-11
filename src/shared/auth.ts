@@ -1,6 +1,8 @@
 // Identity and setup types shared by the server's `/api/me` and `/api/setup`
 // routes and the client.
 
+import type { ForgeHost } from "./refs.ts";
+
 export interface Person {
 	/** GitHub user id (negative for dev sign-in users). */
 	id: number;
@@ -24,6 +26,12 @@ export interface Me {
 	signIn: SignInStatus;
 	/** Whether `/auth/dev` fake sign-in is on (local development only). */
 	devAuth: boolean;
+	/**
+	 * The forge hosts this instance serves besides GitHub (#65): the
+	 * defaults and any it's configured with, for reading links to them.
+	 * Absent for people who aren't allowed here (they keep the defaults).
+	 */
+	forges?: ForgeHost[];
 }
 
 /** Who may use the instance, besides its admins. Logins are lowercase. */

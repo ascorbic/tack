@@ -79,12 +79,15 @@ export default defineConfig(({ isPreview, mode }) => ({
 			// secrets that aren't declared), so a new instance doesn't need them:
 			// GITHUB_WEBHOOK_SECRET, a second webhook secret (apps set up by hand,
 			// test webhooks); GITHUB_TOKEN, for reading public repositories
-			// without the app. TACK_DEV_AUTH is fake sign-in (`/auth/dev`): never
-			// set it in production.
+			// without the app; TACK_FORGES, the forges besides GitHub (GitLab,
+			// Forgejo, Tangled) with their tokens and webhook secrets, as JSON
+			// (src/server/forges/config.ts). TACK_DEV_AUTH is fake sign-in
+			// (`/auth/dev`): never set it in production.
 			...(mode === "development"
 				? {
 						GITHUB_WEBHOOK_SECRET: bindings.secret(),
 						GITHUB_TOKEN: bindings.secret(),
+						TACK_FORGES: bindings.secret(),
 						TACK_DEV_AUTH: bindings.secret(),
 					}
 				: {}),

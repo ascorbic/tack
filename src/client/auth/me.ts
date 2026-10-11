@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { Me, Person } from "../../shared/auth.ts";
 import { boardIdFromPath } from "../../shared/boards.ts";
+import { setForgeHosts } from "../../shared/refs.ts";
 import { setFlash } from "../flash.ts";
 import { COLORS, type User } from "../presence.ts";
 
@@ -29,7 +30,10 @@ function set(next: MeState): void {
 async function load(): Promise<void> {
 	try {
 		const response = await fetch("/api/me", { headers: { accept: "application/json" } });
-		set({ status: "ready", me: response.ok ? ((await response.json()) as Me) : OFFLINE });
+		const me = response.ok ? ((await response.json()) as Me) : OFFLINE;
+		// Links to the instance's own forges (a self-hosted GitLab, say) read as cards.
+		if (me.forges) setForgeHosts(me.forges);
+		set({ status: "ready", me });
 	} catch {
 		set({ status: "ready", me: OFFLINE });
 	}

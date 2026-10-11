@@ -31,6 +31,7 @@ import type { Viewer } from "./identity.ts";
 import { log } from "./log.ts";
 import { boards, repos } from "./namespaces.ts";
 import { setTestClock, testClockEnabled } from "./testClock.ts";
+import { configureForges } from "./forges/config.ts";
 
 const DAY = 24 * 60 * 60_000;
 export const SESSION_TTL = 30 * DAY;
@@ -139,6 +140,8 @@ export class Instance extends DurableObject<Env> {
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
+		// Which forge hosts keys may name: this object may be in an isolate of its own.
+		configureForges(env);
 		this.sql.exec(`
 			CREATE TABLE IF NOT EXISTS settings (
 				key TEXT PRIMARY KEY,

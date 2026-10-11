@@ -17,6 +17,7 @@ import { handleRelated } from "./server/related.ts";
 import { handleSnapshots } from "./server/snapshots.ts";
 import { handleWebhook } from "./server/webhooks.ts";
 import { isCrossSite } from "./server/auth/http.ts";
+import { configureForges } from "./server/forges/config.ts";
 import { log } from "./server/log.ts";
 import { withSecurityHeaders } from "./server/securityHeaders.ts";
 
@@ -115,11 +116,14 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
+		// Which forge hosts keys may name: GitHub's, and those TACK_FORGES configures.
+		configureForges(env);
 		// CSP and the other security headers on everything the Worker answers.
 		return withSecurityHeaders(request, await route(request, env, ctx));
 	},
 
 	async scheduled(_controller, env, ctx): Promise<void> {
+		configureForges(env);
 		// GitHub doesn't retry failed webhook deliveries; ask it to. Logged as
 		// `github.redelivery`.
 		ctx.waitUntil(redeliverFailedWebhooks(env));

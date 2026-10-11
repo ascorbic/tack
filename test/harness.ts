@@ -85,6 +85,8 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 		bindings: {
 			GITHUB_WEBHOOK_SECRET: "test-secret",
 			GITHUB_TOKEN: "",
+			// The forges besides GitHub (#65): the defaults, unless a test configures some.
+			TACK_FORGES: "",
 			TACK_SECRET,
 			// An alias, so tests cover one (production's default is none).
 			TACK_COMMAND_ALIAS: "tack",

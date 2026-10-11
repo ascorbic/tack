@@ -1,12 +1,19 @@
 // Forge-neutral references to issues, pull requests and their equivalents.
 //
 // Keys are `{host}/{repo path}{item}`, where `item` uses the forge's own
-// reference syntax: `#100` on GitHub (issues and PRs share numbers),
-// `!12` for a GitLab merge request. Examples:
+// reference syntax: `#100` on GitHub and Forgejo (issues and pull requests
+// share numbers), `!12` for a GitLab merge request or a Tangled pull
+// (Tangled numbers issues and pulls separately). Examples:
 //   github.com/ascorbic/unpic#100
 //   gitlab.com/group/subgroup/project!12
+//   codeberg.org/forgejo/forgejo#7
+//   tangled.org/tangled.org/core#775
 
-export type ForgeId = "github" | "fake";
+export type ForgeId = "github" | "fake" | "gitlab" | "forgejo" | "tangled";
+
+/** The forges an instance can be configured with, besides GitHub and the test forge. */
+export const CONFIGURABLE_FORGES = ["gitlab", "forgejo", "tangled"] as const;
+export type ConfigurableForge = (typeof CONFIGURABLE_FORGES)[number];
 
 export interface ItemRef {
 	forge: ForgeId;
@@ -35,31 +42,82 @@ export function isRepoPath(path: string): boolean {
 	);
 }
 
-/** Hosts served by each forge adapter. Self-hosted instances get added here. */
-const HOSTS: Record<string, ForgeId> = {
-	"github.com": "github",
-	"fake.tack": "fake",
-};
+/** A forge host: which adapter serves it, and what copy calls it. */
+export interface ForgeHost {
+	/** Lowercase, e.g. `gitlab.com` or a self-hosted `git.example.com`. */
+	host: string;
+	forge: ForgeId;
+	/** What copy calls it: `GitLab`, `Codeberg`. Absent: its host. */
+	name?: string;
+}
+
+/** Always there, whatever the instance's configuration says. */
+const CORE_HOSTS: readonly ForgeHost[] = [
+	{ host: "github.com", forge: "github", name: "GitHub" },
+	{ host: "fake.tack", forge: "fake", name: "the test forge" },
+];
+
+/**
+ * Public forges every instance knows out of the box (reading public
+ * repositories anonymously), unless its configuration turns them off.
+ * Self-hosted ones are added by the configuration (`TACK_FORGES`, see
+ * src/server/forges/config.ts).
+ */
+export const DEFAULT_FORGE_HOSTS: readonly ForgeHost[] = [
+	{ host: "gitlab.com", forge: "gitlab", name: "GitLab" },
+	{ host: "codeberg.org", forge: "forgejo", name: "Codeberg" },
+	{ host: "tangled.org", forge: "tangled", name: "Tangled" },
+];
+
+/** A host name, with a port if it needs one: nothing that could be a path or a scheme. */
+export const HOST_RE =
+	/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/;
+
+/** Old hosts whose links still work, read as the host they moved to. */
+const HOST_ALIASES: Record<string, string> = { "tangled.sh": "tangled.org" };
+
+/** Hosts served by each forge adapter: the core ones, then the defaults or the configured list. */
+let HOSTS = new Map<string, ForgeHost>();
+
+/**
+ * Which hosts this instance serves besides GitHub and the test forge: the
+ * server sets them from its configuration, the client from `/api/me`. They
+ * replace the defaults (a configuration lists those itself, unless it turns
+ * them off). GitHub and the test forge can't be replaced.
+ */
+export function setForgeHosts(hosts: readonly ForgeHost[]): void {
+	const next = new Map<string, ForgeHost>();
+	for (const entry of CORE_HOSTS) next.set(entry.host, entry);
+	for (const entry of hosts) {
+		const host = entry.host.toLowerCase();
+		if (HOST_RE.test(host) && !CORE_HOSTS.some((core) => core.host === host)) {
+			next.set(host, { ...entry, host });
+		}
+	}
+	HOSTS = next;
+}
+
+setForgeHosts(DEFAULT_FORGE_HOSTS);
+
+/** Every host this instance serves, GitHub first. */
+export function forgeHosts(): ForgeHost[] {
+	return [...HOSTS.values()];
+}
 
 /** The forge used for bare `owner/repo#123` references. */
 export const DEFAULT_HOST = "github.com";
 
 export function forgeForHost(host: string): ForgeId | null {
-	return HOSTS[host.toLowerCase()] ?? null;
+	return HOSTS.get(host.toLowerCase())?.forge ?? null;
 }
 
-/** What copy calls each forge's hosts. Others go by their host. */
-const FORGE_NAMES: Record<string, string> = {
-	"github.com": "GitHub",
-	"fake.tack": "the test forge",
-};
-
 /**
- * What to call a forge in copy, by its host: `GitHub`, `the test forge`,
- * or a self-hosted instance's host. Mid-sentence; see `sentenceCase`.
+ * What to call a forge in copy, by its host: `GitHub`, `GitLab`, `the test
+ * forge`, or a self-hosted instance's name or host. Mid-sentence; see
+ * `sentenceCase`.
  */
 export function forgeName(host: string): string {
-	return FORGE_NAMES[host.toLowerCase()] ?? host.toLowerCase();
+	return HOSTS.get(host.toLowerCase())?.name ?? host.toLowerCase();
 }
 
 /**
@@ -99,6 +157,15 @@ export function itemOf(key: string): string | null {
 	return KEY_RE.exec(key)?.[3] ?? null;
 }
 
+/**
+ * Whether a repository path suits its forge: GitLab nests projects in
+ * groups, Forgejo and Tangled are always `owner/name` (so a key can't name
+ * another of their API paths with more segments).
+ */
+function fitsForge(forge: ForgeId, repo: string): boolean {
+	return forge === "forgejo" || forge === "tangled" ? repo.split("/").length === 2 : true;
+}
+
 /** Parse a repository key, `{host}/{repo path}`, on a known forge. */
 export function parseRepoKey(
 	repoKey: string,
@@ -108,7 +175,7 @@ export function parseRepoKey(
 	const host = repoKey.slice(0, slash);
 	const forge = forgeForHost(host);
 	const repo = repoKey.slice(slash + 1);
-	return forge && isRepoPath(repo) ? { forge, host, repo } : null;
+	return forge && isRepoPath(repo) && fitsForge(forge, repo) ? { forge, host, repo } : null;
 }
 
 /** Parse a canonical item key back into a reference. */
@@ -117,16 +184,53 @@ export function parseKey(key: string): ItemRef | null {
 	if (!match) return null;
 	const [, host = "", repo = "", item = ""] = match;
 	const forge = forgeForHost(host);
-	return forge && isRepoPath(repo) ? { forge, host, repo, item } : null;
+	return forge && isRepoPath(repo) && fitsForge(forge, repo) ? { forge, host, repo, item } : null;
 }
 
+/** A link: its host, and its path without the leading slash, query or fragment. */
+const LINK_RE = /^(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+(?::\d{1,5})?)\/([^?#\s]+)(?:[?#]\S*)?$/i;
+
 /**
- * An item's page on a forge we know: `https://github.com/o/r/issues/1` or
- * `/pull/1/files`, with or without `www.` or TLS, and the test forge's own
- * shape (`https://fake.tack/o/r/1`) as well as GitHub's, so it demos the same.
+ * An item's page on each forge, as a path (after the host). Each gives the
+ * repository and the forge-native item reference. GitHub's pages always say
+ * which kind (a bare number is a repository's subpath); the test forge's
+ * own shape (`fake.tack/o/r/1`) works as well as GitHub's, so it demos the same.
  */
-const URL_RE =
-	/^(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+)\/([\w.-]+\/[\w.-]+)\/(?:(?:issues|pulls?)\/)?(\d+)(?:[/?#].*)?$/i;
+const PAGE_PATHS: Record<ForgeId, (path: string) => { repo: string; item: string } | null> = {
+	github: (path) => {
+		const m = /^([\w.-]+\/[\w.-]+)\/(?:issues|pulls?)\/(\d+)(?:\/.*)?$/i.exec(path);
+		return m ? { repo: m[1] ?? "", item: `#${m[2]}` } : null;
+	},
+	fake: (path) => {
+		const m = /^([\w.-]+\/[\w.-]+)\/(?:(?:issues|pulls?)\/)?(\d+)(?:\/.*)?$/i.exec(path);
+		return m ? { repo: m[1] ?? "", item: `#${m[2]}` } : null;
+	},
+	// Forgejo and Gitea: `/owner/repo/issues/7`, `/owner/repo/pulls/7/files`.
+	forgejo: (path) => {
+		const m = /^([\w.-]+\/[\w.-]+)\/(?:issues|pulls)\/(\d+)(?:\/.*)?$/i.exec(path);
+		return m ? { repo: m[1] ?? "", item: `#${m[2]}` } : null;
+	},
+	// GitLab: `/group/sub/project/-/issues/12`, `/-/merge_requests/12/diffs`,
+	// `/-/work_items/12`, and the older paths without `-/`.
+	gitlab: (path) => {
+		const m =
+			/^((?:[\w.-]+\/)+?[\w.-]+)\/(?:-\/)?(issues|work_items|merge_requests)\/(\d+)(?:\/.*)?$/i.exec(
+				path,
+			);
+		if (!m) return null;
+		return {
+			repo: m[1] ?? "",
+			item: `${m[2]?.toLowerCase() === "merge_requests" ? "!" : "#"}${m[3]}`,
+		};
+	},
+	// Tangled: `/handle/repo/issues/12` (once `/@handle/…`), and pulls, numbered separately.
+	tangled: (path) => {
+		const m = /^@?([\w.-]+\/[\w.-]+)\/(issues|pulls)\/(\d+)(?:\/.*)?$/i.exec(path);
+		if (!m) return null;
+		return { repo: m[1] ?? "", item: `${m[2]?.toLowerCase() === "pulls" ? "!" : "#"}${m[3]}` };
+	},
+};
+
 const SHORT_RE = /^([\w.-]+\/[\w.-]+)#(\d+)$/;
 
 /**
@@ -136,12 +240,15 @@ const SHORT_RE = /^([\w.-]+\/[\w.-]+)#(\d+)$/;
 export function parseRef(input: string): ItemRef | null {
 	const text = input.trim();
 
-	const url = URL_RE.exec(text);
-	const urlHost = url?.[1]?.toLowerCase() ?? "";
-	const urlForge = forgeForHost(urlHost);
-	// GitHub's pages for an item always say which kind: a bare number is a repository's subpath.
-	if (url && urlForge && (urlForge !== "github" || /\/(issues|pulls?)\/\d/i.test(text))) {
-		return { forge: urlForge, host: urlHost, repo: url[2] ?? "", item: `#${url[3]}` };
+	const link = LINK_RE.exec(text);
+	if (link) {
+		const given = link[1]?.toLowerCase() ?? "";
+		const host = HOST_ALIASES[given] ?? given;
+		const forge = forgeForHost(host);
+		const page = forge ? PAGE_PATHS[forge](link[2] ?? "") : null;
+		if (forge && page && isRepoPath(page.repo)) {
+			return { forge, host, repo: page.repo, item: page.item };
+		}
 	}
 
 	const short = SHORT_RE.exec(text);

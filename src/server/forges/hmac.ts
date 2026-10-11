@@ -1,5 +1,6 @@
-// HMAC-SHA256 webhook signatures, as used by GitHub and Forgejo
-// (`X-Hub-Signature-256: sha256=<hex>`).
+// HMAC-SHA256 webhook signatures, as used by GitHub
+// (`X-Hub-Signature-256: sha256=<hex>`) and Forgejo (bare hex), and GitLab's
+// shared secret, compared in constant time.
 
 const encoder = new TextEncoder();
 
@@ -27,6 +28,31 @@ export async function verifySignature(
 		await importKey(secret, "verify"),
 		expected,
 		encoder.encode(body),
+	);
+}
+
+/** Forgejo and Gitea sign with the same HMAC, as bare hex (`X-Forgejo-Signature: <hex>`). */
+export function verifyHexSignature(
+	secret: string,
+	body: string,
+	signature: string | null,
+): Promise<boolean> {
+	return verifySignature(secret, body, signature ? `sha256=${signature.trim()}` : null);
+}
+
+/**
+ * Whether a shared secret sent as is (GitLab's `X-Gitlab-Token`) is the one
+ * we hold, compared in constant time: HMAC both and let `verify` compare.
+ */
+export async function sameSecret(expected: string, given: string | null): Promise<boolean> {
+	if (given === null) return false;
+	const key = await importKey("tack-compare", "sign");
+	const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(expected));
+	return crypto.subtle.verify(
+		"HMAC",
+		await importKey("tack-compare", "verify"),
+		mac,
+		encoder.encode(given),
 	);
 }
 

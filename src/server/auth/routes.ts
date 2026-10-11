@@ -8,6 +8,7 @@
 //   GET  /api/me                   who's signed in, and what they can do
 
 import type { Me } from "../../shared/auth.ts";
+import { publicForgeHosts } from "../forges/config.ts";
 import { log } from "../log.ts";
 import { instance } from "../namespaces.ts";
 import { clearCookie, readCookie, serializeCookie } from "./cookies.ts";
@@ -72,15 +73,20 @@ async function me(request: Request, env: Env): Promise<Response> {
 			allowed: true,
 			signIn: "unavailable",
 			devAuth,
+			forges: publicForgeHosts(env),
 		} satisfies Me);
 	}
 	const { configured, session } = await lookupRequest(request, env);
+	const allowed = !configured || (session?.allowed ?? false);
 	return json({
 		viewer: session?.viewer ?? null,
 		admin: session?.admin ?? false,
-		allowed: !configured || (session?.allowed ?? false),
+		allowed,
 		signIn: configured ? "ready" : "unconfigured",
 		devAuth,
+		// The forges this instance serves (#65), for reading links to them: only
+		// for people allowed here, as a self-hosted forge's name is the instance's business.
+		...(allowed ? { forges: publicForgeHosts(env) } : {}),
 	} satisfies Me);
 }
 
