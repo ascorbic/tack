@@ -24,6 +24,10 @@ export default defineConfig(({ isPreview, mode }) => ({
 				"/setup/install",
 				"/setup/installed",
 				"/snapshots/*",
+				// Board images, link preview images, and public boards' meta tags (#56, #57).
+				"/embed/*",
+				"/og/*",
+				"/b/*",
 			],
 		},
 		env: {
@@ -31,6 +35,9 @@ export default defineConfig(({ isPreview, mode }) => ({
 			Repo: bindings.durableObject({ worker: "tack", exportName: "Repo" }),
 			Instance: bindings.durableObject({ worker: "tack", exportName: "Instance" }),
 			Directory: bindings.durableObject({ worker: "tack", exportName: "Directory" }),
+			// The app's own files, for serving public boards' pages with their
+			// link preview meta tags (src/server/embeds/routes.ts).
+			ASSETS: bindings.assets(),
 			// Short names the app also answers to in comment commands (#58),
 			// besides its GitHub App slug: `@tack add to roadmap`. Comma-separated;
 			// empty for the slug alone. Empty by default: a short alias like `tack`

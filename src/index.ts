@@ -4,6 +4,7 @@ import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.t
 import { handlePeople } from "./server/boards/people.ts";
 import { handleTemplates } from "./server/boards/templates.ts";
 import { handleClientError } from "./server/clientErrors.ts";
+import { handleEmbeds } from "./server/embeds/routes.ts";
 import { handleExports } from "./server/exports.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
@@ -21,7 +22,7 @@ export { Instance } from "./server/instance.ts";
 export { Repo } from "./server/repo.ts";
 
 export default {
-	async fetch(request, env): Promise<Response> {
+	async fetch(request, env, ctx): Promise<Response> {
 		const url = new URL(request.url);
 
 		const webhook = /^\/webhooks\/([a-z]+)$/.exec(url.pathname);
@@ -54,6 +55,11 @@ export default {
 		// Board snapshots for backlink comments: uploads, and the public images.
 		const snapshot = await handleSnapshots(request, env);
 		if (snapshot) return snapshot;
+
+		// Public boards outside Tack: images for READMEs, link preview images,
+		// and boards' pages with their link preview meta tags.
+		const embed = await handleEmbeds(request, env, ctx);
+		if (embed) return embed;
 
 		// Comment notifications: mentions and replies (the top bar's inbox).
 		const notifications = await handleNotifications(request, env);

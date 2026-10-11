@@ -66,6 +66,16 @@ export interface CommandBoard {
 	pending: number;
 }
 
+/** What a public board shows the world: see `Directory.publicBoard`. */
+export interface PublicBoard {
+	id: string;
+	slug: string;
+	title: string;
+	archived: boolean;
+	/** When it last changed (saved, renamed), epoch ms. */
+	updatedAt: number;
+}
+
 /** A comment notification from a board's object. */
 export interface NoticeInput {
 	userId: number;
@@ -365,6 +375,23 @@ export class Directory extends DurableObject<Env> {
 				},
 			];
 		});
+	}
+
+	/**
+	 * A public board's title and address, for its link preview and images
+	 * (#56, #57). Null for every other board, and for boards that don't
+	 * exist, alike: nothing about a board that isn't public gets out.
+	 */
+	publicBoard(id: string): PublicBoard | null {
+		const row = this.row(id);
+		if (!row || row.visibility !== "public") return null;
+		return {
+			id: row.id,
+			slug: row.slug,
+			title: row.title,
+			archived: row.archived_at !== null,
+			updatedAt: row.updated_at,
+		};
 	}
 
 	/** The access policy for a board, for its Durable Object. */

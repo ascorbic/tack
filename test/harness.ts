@@ -1,6 +1,8 @@
 // Runs the built Worker in Miniflare, from Node. `global-setup.ts` builds it
 // once per test run; each test file gets its own Miniflare instance.
 
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { Miniflare, type Request, type Response, convertV4MiniflareOptions } from "miniflare";
 import { compatibilityDate, compatibilityFlags } from "../compatibility.ts";
 import type { Board } from "../src/server/board.ts";
@@ -9,7 +11,8 @@ import type { Instance } from "../src/server/instance.ts";
 import type { Repo } from "../src/server/repo.ts";
 import type { FakeGitHub, FakeUser } from "./fake-github.ts";
 
-export const BUNDLE = ".cloudflare/output/v0/workers/default/bundle/index.js";
+const BUNDLE_DIR = ".cloudflare/output/v0/workers/default/bundle";
+export const BUNDLE = `${BUNDLE_DIR}/index.js`;
 
 /** The `TACK_SECRET` test Workers run with, unless overridden. */
 export const TACK_SECRET = "test-tack-secret";
@@ -25,13 +28,43 @@ export interface WorkerOptions {
 	persist?: string;
 	/** Let the test move the Worker's clock (`TACK_TEST_CLOCK=1`), with `setClock()`. */
 	clock?: boolean;
+	/**
+	 * Answers the Worker's `ASSETS` binding (the app's own files), e.g. with
+	 * an `index.html`. Without it, the binding isn't there at all.
+	 */
+	assets?: (request: Request) => Response | Promise<Response>;
+}
+
+type ModuleType = "ESModule" | "CompiledWasm" | "Data" | "Text";
+
+let modules: { type: ModuleType; path: string }[] | null = null;
+
+/**
+ * Every module of the built Worker: its JavaScript (the entry first), and
+ * the WebAssembly and data modules its build output lists.
+ */
+function bundleModules(): { type: ModuleType; path: string }[] {
+	if (modules) return modules;
+	const config = JSON.parse(readFileSync(join(BUNDLE_DIR, "..", "worker.config.json"), "utf8")) as {
+		manifest?: { modules?: Record<string, { type: string }> };
+	};
+	const listed = Object.entries(config.manifest?.modules ?? {}).map(([path, { type }]) => ({
+		type: (type === "wasm" ? "CompiledWasm" : type === "data" ? "Data" : "Text") as ModuleType,
+		path: join(BUNDLE_DIR, path),
+	}));
+	const scripts = readdirSync(BUNDLE_DIR, { recursive: true, encoding: "utf8" })
+		.filter((path) => path.endsWith(".js") && path !== "index.js" && !path.startsWith(".vite"))
+		.map((path) => ({ type: "ESModule" as const, path: join(BUNDLE_DIR, path) }));
+	modules = [{ type: "ESModule", path: BUNDLE }, ...scripts, ...listed];
+	return modules;
 }
 
 export function startWorker(options: WorkerOptions = {}): Miniflare {
 	return new Miniflare(
 		convertV4MiniflareOptions({
-			modules: true,
-			scriptPath: BUNDLE,
+			// The bundle, and its chunks, WebAssembly and fonts (board images) beside it.
+			modules: bundleModules(),
+			modulesRoot: BUNDLE_DIR,
 			compatibilityDate,
 			compatibilityFlags,
 			durableObjects: {
@@ -51,6 +84,7 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 				...options.bindings,
 			},
 			...(options.outboundService ? { outboundService: options.outboundService } : {}),
+			...(options.assets ? { serviceBindings: { ASSETS: options.assets } } : {}),
 			...(options.persist ? { resourcePersistencePath: options.persist } : {}),
 		}),
 	);

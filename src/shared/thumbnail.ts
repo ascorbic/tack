@@ -149,7 +149,7 @@ function explicitSize(props: Record<string, unknown>): { width: number; height: 
 }
 
 /** Roughly how much room a text block takes: wrapped lines of average-width glyphs. */
-function textSize(props: Record<string, unknown>): {
+export function textSize(props: Record<string, unknown>): {
 	width: number;
 	height: number;
 	lines: number;
