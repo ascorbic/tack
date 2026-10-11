@@ -26,7 +26,7 @@ Moving away from a selection clears it, so <kbd>Delete</kbd> never removes somet
 ## With a screen reader
 
 - **The board** is a region named "Board", described by a summary of what's on it: how many sections, stickies and cards, then each section and what's in it. It stays current as the board changes.
-- **Each shape** says what it is and what it says: "sticky note, Ship the docs, by Kai, in Went well"; "card, imagekit #412: Netlify ignores quality, open issue"; "section, To improve, 3 sticky notes". A face-down sticky in silent mode says only who wrote it (and, if it's yours, your words and that they're hidden).
+- **Each shape** says what it is and what it says: "sticky note, Ship the docs, by Kai, in Went well"; "card, unpic #412: Portside ignores quality, open issue"; "section, To improve, 3 sticky notes". A face-down sticky in silent mode says only who wrote it (and, if it's yours, your words and that they're hidden).
 - **Other people's changes** are announced politely, gathered up a few seconds at a time so a busy session isn't a stream of chatter: "Others added 2 stickies, moved 1 card".
 - **Nudges** are announced once they settle ("Moved 1 sticky note 10 right"), and so is a push that's still going after you close the push sheet ("Pushing 3 changes", "Push finished"). Toasts are announced as they appear.
 

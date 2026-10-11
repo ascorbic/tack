@@ -13,7 +13,7 @@ Select one or more cards and choose **Comment with a link to this board** (<kbd>
 
 Your note, if you wrote one, then:
 
-> This is on **Imagekit 5.0 planning** in Tack, in the **Now** section.
+> This is on **unpic 5.0 planning** in Tack, in the **Now** section.
 
 The board's name links to the board. The section is only mentioned if the card is in a titled section.
 

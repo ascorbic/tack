@@ -7,7 +7,7 @@ Reviewer area: the widget picker (W) and all seven widget kinds, inbox frames, r
 The individual pieces are unusually well made. The drag interactions are FigJam-grade: dragging a row out as a card, dragging an inbox item into a section with a tilt, drop-to-match with a staged-change preview, and Expand related laying out a whole web with one Undo. Every widget state (loading, empty, rate-limited, stale, signed-out, zoomed-out) has been designed, and dark mode holds up. The weak points are around those pieces rather than in them:
 
 - **Floating panels position badly.** Config panels and the inbox editor open off-screen or under the toolbar, especially at 1280x800. A facilitator configuring a widget live will hit this within minutes.
-- **Search queries are the only way in.** Every widget, inbox and rule starts from a raw GitHub search string. Presets help, but a plain-language query like "bugs in imagekit" silently returns nothing (or, on github.com, a search of all of GitHub). There is no "did you mean" and no label or milestone picker.
+- **Search queries are the only way in.** Every widget, inbox and rule starts from a raw GitHub search string. Presets help, but a plain-language query like "bugs in unpic" silently returns nothing (or, on github.com, a search of all of GitHub). There is no "did you mean" and no label or milestone picker.
 - **Inbox trays, rules and lists overlap as concepts.** Trays also cover neighbouring sections.
 
 Of the seven kinds, list, review queue, milestone and stale finder earn their space on a planning board. Timeline and release draft are mostly decoration for a planning session.
@@ -50,7 +50,7 @@ Fix: add one row: "W: add a live list of issues".
 ### 2. Writing search queries (list, stale, timeline, dependency map, inbox, rules)
 
 **Major (Blocker if non-maintainers will set widgets up): Non-experts can't write the queries, and failure is silent.**
-I typed "bugs in imagekit" into a new list. Tack correctly shows chips (bugs / in / imagekit) and warns that drop-to-match can't work. It then runs it as a full-text search "everywhere you can see". The widget says "Nothing matches, yet. New matches show up here as they happen." That is wrong: nothing will ever show up. On github.com it would instead return random results from all of public GitHub. The panel knows the board's busiest repository (`suggestedRepo`) and the repo's labels, but offers no correction.
+I typed "bugs in unpic" into a new list. Tack correctly shows chips (bugs / in / unpic) and warns that drop-to-match can't work. It then runs it as a full-text search "everywhere you can see". The widget says "Nothing matches, yet. New matches show up here as they happen." That is wrong: nothing will ever show up. On github.com it would instead return random results from all of public GitHub. The panel knows the board's busiest repository (`suggestedRepo`) and the repo's labels, but offers no correction.
 Evidence: `shots/automation/list-query-naive-typing.png`, `shots/automation/list-query-naive-result.png`
 Fix, in priority order:
 
@@ -80,7 +80,7 @@ Fix: list only configured forges (hide the field when there's one), and label it
 **Polish: Raw GitHub error text.**
 "The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them." This is GitHub's message verbatim.
 Evidence: `shots/automation/gallery-list-states.png`
-Fix: translate the common cases, e.g. "Can't see `acme/imagekit`: it doesn't exist, or it's private to you."
+Fix: translate the common cases, e.g. "Can't see `acme/unpic`: it doesn't exist, or it's private to you."
 
 ### 3. Widget config panels
 
@@ -169,7 +169,7 @@ Evidence: `shots/automation/roadmap-overview.png`, `shots/automation/timeline-ho
 Fix: add a legend (issue/PR × state) and support click-to-place (as the dependency map does). Consider making "Opened vs closed per week" bars the default, which answers "are we keeping up?". Otherwise drop it from the picker for the session.
 
 **Minor: The hover tooltip is clipped by the widget header.**
-The top line ("imagekit #440 · Opened 13 d ago") is cut off.
+The top line ("unpic #440 · Opened 13 d ago") is cut off.
 Evidence: `shots/automation/timeline-hover.png`
 Fix: render the tooltip in a portal, or flip it below the dot near the top edge.
 
@@ -239,7 +239,7 @@ Evidence: `shots/automation/rules-panel.png`, `shots/automation/rule-fired-activ
 Fix: in the rule composer, add "Prefer to review them first? Make the section an inbox instead". In the inbox editor, add "Place automatically" as a toggle that creates the rule. Better still, merge them: an inbox with an "auto-place" switch.
 
 **Minor: The composer starts with a duplicate rule and gives no feedback.**
-"New rule" pre-fills `repo:acme/imagekit is:issue is:open label:bug` → "New bugs", identical to an existing rule. There's no duplicate warning and no live match count (unlike the inbox editor). "Matching items / Linked pull requests" is jargon for the two kinds, and "appears" is vague (opened? labelled later?).
+"New rule" pre-fills `repo:acme/unpic is:issue is:open label:bug` → "New bugs", identical to an existing rule. There's no duplicate warning and no live match count (unlike the inbox editor). "Matching items / Linked pull requests" is jargon for the two kinds, and "appears" is vague (opened? labelled later?).
 Evidence: `shots/automation/rules-composer.png`
 Fix: start empty or use an unused preset, warn on duplicates, and add the live count. Rename the tabs "Search matches" / "Pull requests for cards", and spell out "appears" as "is opened or starts matching".
 

@@ -24,7 +24,7 @@ Screenshots are in `shots/writeback/`. File names start with `p-`/`q-`/`d-`/`b-`
 ### 1. Staged changes vs. later edits to the board
 
 **1.1 Editing a sticky after staging doesn't change the staged issue, and the edit is lost on push. Blocker.**
-What I did: selected "A provider playground", ⌥I, ↵ (staged). Then I double-clicked the sticky and changed it to "A provider playground with live preview". The sticky shows the new text and still carries its "New issue in imagekit" mark. The Changes panel still says _Create issue "A provider playground"_. On push, the issue is created with the old title and the sticky is _replaced_ by that issue's card, so the edit disappears from the board as well. Nothing warns about any of this. In a live session, people fix typos and sharpen wording on stickies all the time, often just after the facilitator has staged them.
+What I did: selected "A provider playground", ⌥I, ↵ (staged). Then I double-clicked the sticky and changed it to "A provider playground with live preview". The sticky shows the new text and still carries its "New issue in unpic" mark. The Changes panel still says _Create issue "A provider playground"_. On push, the issue is created with the old title and the sticky is _replaced_ by that issue's card, so the edit disappears from the board as well. Nothing warns about any of this. In a live session, people fix typos and sharpen wording on stickies all the time, often just after the facilitator has staged them.
 Evidence: `shots/writeback/e-01-edited-after-stage.png`, `shots/writeback/e-02-panel-after-edit.png`.
 Fix: for `issue.create` changes whose effect replaces a sticky, read the title and body from the sticky when the push is planned, not when the change is staged. Alternatively, rewrite the staged op on every text change in the same transaction. Either way, show the current text in the panel and sheet, and add a small "edited since staged" note on the row so the reviewer knows.
 
@@ -52,12 +52,12 @@ On `demo/app`, which has no assignable people, ⌥P / Assign opens a panel that 
 Fix: disable the button with the reason in its tooltip, the way merged PRs already get "Merged pull requests can't be closed or reopened" (`rb-06-merged-pr-bar.png`, which is nicely done).
 
 **2.5 Unwritable repositories are handled well. Keep.**
-Selecting the `lovell/sharp` card (no app installed) shows the whole bar greyed out, with "Tack can't write to these yet: install the app" on every button and an "Install the app" link in the bar (`b-01-unwritable-card-bar.png`, `g-actions-bars-and-panels.png`). That's clear and honest.
+Selecting the `pixelmill/pixelmill` card (no app installed) shows the whole bar greyed out, with "Tack can't write to these yet: install the app" on every button and an "Install the app" link in the bar (`b-01-unwritable-card-bar.png`, `g-actions-bars-and-panels.png`). That's clear and honest.
 
 ### 3. Sticky → issue (Make issues panel)
 
 **3.1 The repository field looks empty when a repository is picked. Major.**
-The combobox shows the chosen repository as grey placeholder-style text ("acme/imagekit"), with no label. The actual choice is a small tick at the end of a list row underneath (`p-02-alt-i-panel.png`, `rb-01-make-issues.png`). First-time readers will think nothing is picked, or that the field is disabled. The full list of repositories is also always expanded, which pushes the extras and preview down.
+The combobox shows the chosen repository as grey placeholder-style text ("acme/unpic"), with no label. The actual choice is a small tick at the end of a list row underneath (`p-02-alt-i-panel.png`, `rb-01-make-issues.png`). First-time readers will think nothing is picked, or that the field is disabled. The full list of repositories is also always expanded, which pushes the extras and preview down.
 Fix: show the selected repository as a solid "chip" value with a "Change" affordance, and collapse the list until the field is focused or typed in. Add a visible "Repository" label.
 
 **3.2 Pasting a GitHub URL isn't accepted. Minor.**
@@ -69,7 +69,7 @@ The preview lists titles, with "+ description" when there's a body, but nothing 
 Fix: make the preview rows editable inline (writing back to the sticky), and expand "+ description" on click.
 
 **3.4 The extras pickers (labels, milestone, assignees) are excellent. Keep.**
-The pills open their picker in place, keyboard filtering works ("enh" ↵ picked _enhancement_), and the chosen values replace the pill label (`p-04-labels-after-enter.png`, `p-05-milestone-pill.png`). The toast confirms "Staged 3 issues for acme/imagekit, with a label" with Undo. Fields the repository doesn't support are simply not offered (no Assignees on `demo/app`).
+The pills open their picker in place, keyboard filtering works ("enh" ↵ picked _enhancement_), and the chosen values replace the pill label (`p-04-labels-after-enter.png`, `p-05-milestone-pill.png`). The toast confirms "Staged 3 issues for acme/unpic, with a label" with Undo. Fields the repository doesn't support are simply not offered (no Assignees on `demo/app`).
 
 **3.5 The popover background lets the canvas show through. Polish.**
 At 94% opacity with backdrop blur, sticky text behind the panel is faintly visible through form fields (`n-02-typed-owner-repo.png`: the sticky's letters show through under the repo field and preview).
@@ -115,7 +115,7 @@ Fix: when two cards (or a card and a staged sticky) are selected and connected, 
 ### 7. Staged marks on shapes
 
 **7.1 Too many marks, and they collide. Major.**
-Each staged change adds its own pill above the shape ("New issue in imagekit", "Sub-issue of 'Docs for 5.0'", "Blocks #377"), a label pill below ("+ enhancement"), and a tilted ghost card behind stickies. Pills from neighbouring shapes overlap each other and the shapes above (`p-20-after-blocked.png`: the _Write the migration guide_ sticky has two pills stacked on its top edge, and "+ enhancement" under _Benchmarks in CI_ is hidden behind _Codemods for 5.0_). The ghost card reads as a rendering glitch rather than "this will become a card". With 40 staged stickies the board turns into a field of identical green pills (`m-03-40-staged-1280.png`).
+Each staged change adds its own pill above the shape ("New issue in unpic", "Sub-issue of 'Docs for 5.0'", "Blocks #377"), a label pill below ("+ enhancement"), and a tilted ghost card behind stickies. Pills from neighbouring shapes overlap each other and the shapes above (`p-20-after-blocked.png`: the _Write the migration guide_ sticky has two pills stacked on its top edge, and "+ enhancement" under _Benchmarks in CI_ is hidden behind _Codemods for 5.0_). The ghost card reads as a rendering glitch rather than "this will become a card". With 40 staged stickies the board turns into a field of identical green pills (`m-03-40-staged-1280.png`).
 Fix: one combined mark per shape ("New issue · sub-issue of Docs · +enhancement"), truncated, with the details on hover. Collapse marks to a small coloured dot below about 60% zoom. Drop the ghost card, or animate it in only on hover.
 
 **7.2 Failure is clearly marked. Keep.**
@@ -165,7 +165,7 @@ The ring fills, with a red arc for failures (`rb-17b-ring-zoom.png`). Rows go Wa
 
 **10.2 Raw forge errors are shown as-is. Major.**
 `friendlyError` only adds a full stop, so GitHub's own wording reaches people. The changes gallery shows "Resource not accessible by integration." under a failed assignment (`g-changes-panels.png`, third panel). The fake forge's "refused this, as asked ('[fail]')" is fine for tests, but real GitHub 403, 404, 410 and 422 messages are jargon.
-Fix: map the common cases to plain language plus an action. For example: "Tack's app doesn't have permission to assign people in acme/imagekit. Ask an org owner to accept the new permissions." Also "Issues are turned off in this repository", "Label 'x' doesn't exist (create it?)", "Rate limited, retrying in 40s". Keep the raw text behind a "Details" toggle.
+Fix: map the common cases to plain language plus an action. For example: "Tack's app doesn't have permission to assign people in acme/unpic. Ask an org owner to accept the new permissions." Also "Issues are turned off in this repository", "Label 'x' doesn't exist (create it?)", "Rate limited, retrying in 40s". Keep the raw text behind a "Details" toggle.
 
 **10.3 Pace at scale. Minor.**
 Forty creates took 44 s (one write a second, `m-06-pushing-40-1280.png`). The progress view and "you can close this" cover it, but with 8 people watching, a line like "about 40 s left" would stop people wondering whether it's stuck.

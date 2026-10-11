@@ -26,7 +26,7 @@ Discussions, releases, milestones, commits and code links aren't cards. Pasting 
 
 ## What a card shows
 
-- **The head**: an icon for the kind and state, the repository's name and number (`imagekit #412`), and the state: **Open**, **Closed**, **Merged**, **Draft** or **Not planned**.
+- **The head**: an icon for the kind and state, the repository's name and number (`unpic #412`), and the state: **Open**, **Closed**, **Merged**, **Draft** or **Not planned**.
 - **The title**. Clicking a card selects it, as with any shape; clicking the title of a card that's already selected opens the item on GitHub, and so does <kbd>⌘</kbd>-clicking it (<kbd>Ctrl</kbd> on Windows and Linux). The **↗** beside the state opens it straight away.
 - Up to four **labels**, in their colours.
 - **The foot**: up to three assignees, the comment count, the reaction count, where the card came from (see [Where cards come from](/automation/provenance/)), and whether it's live.

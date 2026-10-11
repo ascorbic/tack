@@ -29,7 +29,7 @@ interface Shot {
 }
 
 const SHOTS: Shot[] = [
-	{ name: "planning", title: "Imagekit 5.0 planning", url: "/play?scenario=planning" },
+	{ name: "planning", title: "unpic 5.0 planning", url: "/play?scenario=planning" },
 	{ name: "roadmap", title: "Release 5.0", url: "/play?scenario=roadmap" },
 	{ name: "tracking", title: "Maintainer dashboard", url: "/play?scenario=tracking" },
 	{ name: "widgets", title: "Maintainer dashboard", url: "/play?scenario=widgets" },
@@ -65,7 +65,7 @@ const SHOTS: Shot[] = [
 	},
 	{
 		name: "changes",
-		title: "Imagekit 5.0 planning",
+		title: "unpic 5.0 planning",
 		url: "/play?scenario=push",
 		prepare: async (page) => {
 			await page.getByRole("button", { name: /^Changes/ }).click();
@@ -74,7 +74,7 @@ const SHOTS: Shot[] = [
 	},
 	{
 		name: "push",
-		title: "Imagekit 5.0 planning",
+		title: "unpic 5.0 planning",
 		url: "/play?scenario=push",
 		prepare: async (page) => {
 			await page.getByRole("button", { name: /^Changes/ }).click();
@@ -90,7 +90,7 @@ const SHOTS: Shot[] = [
 		},
 	},
 	// Staged changes on the board: the marks on each shape.
-	{ name: "writes", title: "Imagekit 5.0 planning", url: "/play?scenario=push" },
+	{ name: "writes", title: "unpic 5.0 planning", url: "/play?scenario=push" },
 	{ name: "decisions", title: "Architecture decisions", url: "/play?scenario=decisions" },
 	{ name: "sections", title: "Roadmap", url: "/play?scenario=sections" },
 	{ name: "lists", title: "Roadmap", url: "/play?scenario=lists" },

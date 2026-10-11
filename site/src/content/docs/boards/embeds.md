@@ -75,7 +75,7 @@ If the board stops being public, its images stop at once: they answer `404`, as 
 When a public board's link is pasted into Slack, Discord, a GitHub comment or a social site, it unfurls with:
 
 - the board's title
-- a description of what's on it, like "A board with 12 cards, 8 stickies and 3 sections from withastro/astro, on Tack." (naming only public repositories)
+- a description of what's on it, like "A board with 12 cards, 8 stickies and 3 sections from ascorbic/cirrus, on Tack." (naming only public repositories)
 - a 1200 × 630 image of the board under its title (`/og/{board}.png`)
 
 Boards that aren't public unfurl as plain "Tack", without their title: a private board's link says nothing about it.

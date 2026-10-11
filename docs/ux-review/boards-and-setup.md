@@ -26,7 +26,7 @@ Fix: on `/setup`, list the installations and their repositories, each with live/
 **1.2 Minor: the "Not live" copy reads as broken, and its tooltip heading doesn't match the chip.**
 The chip says "Not live". The tooltip heading says "Updates while the board is open", which describes a mode, not a problem. The body then says "changes show up within a minute or so, and Tack can't make changes there". The serious part (no write-back) is buried in a subordinate clause.
 Evidence: `shots/boards-and-setup/67-card-not-live.png`.
-Fix: label the chip by what people get ("Updates every minute") and give the tooltip a heading that names the consequence ("Read-only: the Tack app isn't on lovell/sharp"). Add the install action, and say who can install it ("Ask an org owner to install…" when the viewer isn't one).
+Fix: label the chip by what people get ("Updates every minute") and give the tooltip a heading that names the consequence ("Read-only: the Tack app isn't on pixelmill/pixelmill"). Add the install action, and say who can install it ("Ask an org owner to install…" when the viewer isn't one).
 
 **1.3 Polish: the private placeholder works well.**
 "This is in a private repository you can't see on GitHub, so its details stay hidden" with "Got access? Check again" is clear, honest and actionable (`shots/boards-and-setup/68-card-private.png`). Keep it. The "can't read acme/vault. If it's private, install the app on it" variant (`shots/boards-and-setup/69-card-missing-installable.png`) is fine, but "Install the app" offers every viewer an action only an org owner can complete.
