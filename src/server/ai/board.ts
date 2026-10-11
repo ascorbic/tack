@@ -2,6 +2,8 @@ import type * as Y from "yjs";
 import type { AiItem, AiLeftOut, AiTask, WidgetContext } from "../../shared/ai.ts";
 import { collectItems, selectedCardKeys, widgetContext } from "../../shared/aiContext.ts";
 import type { Card, MissingCard } from "../../shared/cards.ts";
+import { parseKey } from "../../shared/refs.ts";
+import type { ShapeProps } from "../../shared/shapes.ts";
 import { readShapes } from "../../shared/structure.ts";
 import { AiBudget } from "./limits.ts";
 
@@ -49,11 +51,16 @@ export class BoardAi {
 	async prepare(input: AiPrepareInput): Promise<AiPrepared> {
 		const spent = this.budget.spend(input.who);
 		if (!spent.ok) return spent;
-		if (input.task === "widget") {
-			return { ok: true, task: "widget", context: widgetContext(this.host.doc, input.login) };
-		}
 		await this.host.settled();
 		const shapes = readShapes(this.host.doc);
+		if (input.task === "widget") {
+			const context = widgetContext(this.host.doc, input.login);
+			const hidden = await this.hiddenRepos(shapes, input);
+			const repos = context.repos.filter(
+				(repo) => !hidden.has(`${context.host}/${repo}`.toLowerCase()),
+			);
+			return { ok: true, task: "widget", context: { ...context, repos } };
+		}
 		const ids = input.shapes ?? [];
 		const entries = this.host.cards(selectedCardKeys(shapes, ids));
 		const visible = new Map(
@@ -68,4 +75,41 @@ export class BoardAi {
 		});
 		return { ok: true, task: input.task, items, leftOut };
 	}
+
+	/**
+	 * Repositories (`host/owner/name`, lowercase) the board's cards come from
+	 * that the asker can't read (or, on a public board, that aren't public):
+	 * a widget request isn't told their names, even though the document has
+	 * them, since nothing the model's sent should be anything they couldn't
+	 * read themselves.
+	 */
+	private async hiddenRepos(
+		shapes: ReadonlyMap<string, ShapeProps>,
+		input: AiPrepareInput,
+	): Promise<Set<string>> {
+		const keys = new Set<string>();
+		for (const shape of shapes.values()) {
+			if (shape.type === "card" && shape.ref) keys.add(shape.ref);
+		}
+		const entries = await this.host.visibleTo(input.userId, this.host.cards([...keys]));
+		const hidden = new Set<string>();
+		const readable = new Set<string>();
+		for (const entry of entries) {
+			const repo = repoOf(entry.key);
+			if (!repo) continue;
+			const isHidden =
+				"missing" in entry
+					? entry.reason === "private"
+					: input.publicOnly && entry.visibility !== "public";
+			(isHidden ? hidden : readable).add(repo);
+		}
+		for (const repo of readable) hidden.delete(repo);
+		return hidden;
+	}
+}
+
+/** An item key's repository, `host/owner/name`, lowercase. */
+function repoOf(key: string): string | null {
+	const parsed = parseKey(key);
+	return parsed ? `${parsed.host}/${parsed.repo}`.toLowerCase() : null;
 }

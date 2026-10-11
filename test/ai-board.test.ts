@@ -470,6 +470,16 @@ describe("summaries and decisions", () => {
 			expect(eddies.body).toMatchObject({ read: 1, leftOut: { private: 1 } });
 			expect(ai.sent).not.toContain(SECRET_TITLE);
 			expect(ai.sent).not.toContain("acme/secret");
+
+			// Asking for a widget isn't told the repository's name either.
+			ai.reset();
+			expect((await ask(mf, id, eddie, { task: "widget", prompt: "Open bugs" })).status).toBe(200);
+			expect(ai.sent).toContain("acme/widgets");
+			expect(ai.sent).not.toContain("acme/secret");
+			ai.reset();
+			await ask(mf, id, alice, { task: "widget", prompt: "Open bugs" });
+			if (visibility === "private") expect(ai.sent).toContain("acme/secret");
+			else expect(ai.sent).not.toContain("acme/secret");
 		}
 	});
 });
