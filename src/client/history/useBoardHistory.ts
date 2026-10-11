@@ -17,6 +17,7 @@ const NOUNS: Record<string, [string, string]> = {
 	connector: ["connector", "connectors"],
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
+	pile: ["pile", "piles"],
 };
 
 /** "Brought back 2 stickies", "Restored a copy of a section". */

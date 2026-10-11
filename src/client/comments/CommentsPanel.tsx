@@ -11,7 +11,8 @@ import {
 } from "../../shared/comments.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
 import { shortRef } from "../../shared/rules.ts";
-import { shapesMap } from "../../shared/shapes.ts";
+import { pileName } from "../../shared/piles.ts";
+import { type ShapeProps, shapesMap } from "../../shared/shapes.ts";
 import { relativeTime } from "../boards/api.ts";
 import { cardStore } from "../cardStore.ts";
 import { Avatar } from "../People.tsx";
@@ -58,6 +59,10 @@ export function threadPlace(doc: Y.Doc | null, thread: CommentThread): string {
 	if (type === "action") {
 		const text = (shape.get("text") as string | undefined)?.trim();
 		return text ? `on “${excerpt(text, 32)}”` : "on an action item";
+	}
+	if (type === "pile") {
+		const name = pileName(shape.toJSON() as ShapeProps);
+		return name ? `on the “${excerpt(name, 32)}” pile` : "on a pile";
 	}
 	if (type === "text") return "on some text";
 	return "on the board";

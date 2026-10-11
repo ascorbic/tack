@@ -620,6 +620,14 @@ a.brand {
 	vector-effect: non-scaling-stroke;
 }
 
+/* The papers under a pile's top sticky: the same colour, a shade back. */
+.thumb-pile-under {
+	stroke: rgb(0 0 0 / 9%);
+	stroke-width: 1;
+	vector-effect: non-scaling-stroke;
+	filter: brightness(0.92);
+}
+
 .thumb-text rect {
 	fill: var(--ink-soft);
 	opacity: 0.5;

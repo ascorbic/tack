@@ -93,7 +93,15 @@ export interface Actor {
 	system?: SystemKind;
 }
 
-export type SystemKind = "push" | "rule" | "reveal" | "timer" | "repair" | "inbox" | "server";
+export type SystemKind =
+	| "push"
+	| "rule"
+	| "reveal"
+	| "timer"
+	| "repair"
+	| "inbox"
+	| "naming"
+	| "server";
 
 export type ChangeOp = "add" | "edit" | "remove";
 
@@ -995,6 +1003,7 @@ const NOUNS: Record<string, [string, string]> = {
 	connector: ["connector", "connectors"],
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
+	pile: ["pile", "piles"],
 };
 
 const MOVE_KEYS = new Set(["x", "y", "parent", "z"]);
@@ -1106,6 +1115,7 @@ const SYSTEM_VERBS: Partial<Record<SystemKind, string>> = {
 	timer: "updated the timer",
 	repair: "tidied up connectors",
 	push: "updated push statuses",
+	naming: "suggested names for piles",
 };
 
 /** A step in a sentence, without the name: "added 3 stickies". */

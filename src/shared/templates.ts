@@ -230,6 +230,8 @@ const NOT_REFERENCES = new Set([
 	"host",
 	"q",
 	"source",
+	// A pile's suggested name and the hash of what it was made from.
+	"suggested",
 ]);
 
 /** Strings that are a template's shape ids (connector ends, parents, sections), pointed at their copies. */
@@ -568,7 +570,7 @@ export function summarise(content: TemplateContent): TemplateSummary {
 
 /** A template's sketch, for its card. Placeholders show as they are: nothing's filled in yet. */
 export function templateThumbnail(content: TemplateContent): Thumbnail | null {
-	return sketch(Object.values(content.shapes));
+	return sketch(Object.entries(content.shapes).map(([id, shape]) => ({ ...shape, id })));
 }
 
 /** Whether a board made from this content has a section to carry action items into. */

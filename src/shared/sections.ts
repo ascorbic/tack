@@ -1,4 +1,5 @@
 import { type Rect, area, centre, contains } from "./geometry.ts";
+import { PILE_SIZE } from "./piles.ts";
 import type { ShapeProps } from "./shapes.ts";
 import { widgetSize } from "./widgetRegistry.ts";
 
@@ -34,6 +35,7 @@ export const NOMINAL_SIZE: Partial<Record<ShapeProps["type"], Size>> = {
 	decision: { w: 320, h: 230 },
 	widget: { w: 360, h: 440 },
 	action: { w: 296, h: 104 },
+	pile: PILE_SIZE,
 };
 
 /** A shape's rendered size where known (e.g. measured by the client). */
@@ -51,6 +53,8 @@ export function boxOf(id: string, shape: ShapeProps, sizeOf?: SizeOf): Rect {
 	}
 	// Widgets are sized like sections: by their own w and h.
 	if (shape.type === "widget") return { x: shape.x, y: shape.y, ...widgetSize(shape) };
+	// Piles are always a stack's size, whatever an open one draws (piles.ts).
+	if (shape.type === "pile") return { x: shape.x, y: shape.y, ...PILE_SIZE };
 	const size = sizeOf?.(id) ?? NOMINAL_SIZE[shape.type] ?? { w: 0, h: 0 };
 	return { x: shape.x, y: shape.y, w: size.w, h: size.h };
 }

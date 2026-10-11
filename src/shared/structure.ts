@@ -12,6 +12,7 @@ import {
 	sortOf,
 } from "./display.ts";
 import { type Point, type Rect, area, centre, contains, intersects } from "./geometry.ts";
+import { isPiled, memberAt, pileMembers } from "./piles.ts";
 import {
 	SECTION_DEFAULT,
 	SECTION_MIN,
@@ -100,6 +101,8 @@ function reparent(doc: Y.Doc, ids: Iterable<string>, always: boolean, sizeOf?: S
 	for (const id of ordered) {
 		const shape = shapes.get(id);
 		if (!shape || shape.type === "connector") continue;
+		// A piled sticky is wherever its pile is (see below).
+		if (isPiled(shapes, id)) continue;
 		const current = structure.parentOf.get(id) ?? null;
 		// A list's rows stay in it until they're dropped somewhere else: their
 		// free-form positions are hidden, so they say nothing about where they are.
@@ -109,6 +112,12 @@ function reparent(doc: Y.Doc, ids: Iterable<string>, always: boolean, sizeOf?: S
 		const changed = container !== current || structure.broken.has(id);
 		const target = map.get(id);
 		if (always || changed) target?.set("parent", container);
+		// A pile's stickies are in whichever section it's in.
+		if (changed && shape.type === "pile") {
+			for (const member of pileMembers(shapes).get(id) ?? []) {
+				map.get(member)?.set("parent", container);
+			}
+		}
 		if (changed) {
 			// Its place in the old section's order means nothing in the new one.
 			if (target?.has("order")) target.delete("order");
@@ -189,6 +198,15 @@ export function commitMoves(
 				follow(child, delta);
 			}
 		};
+		// A pile's stickies are where its top sticky is drawn, wherever it goes;
+		// a piled sticky moved on its own stays with its pile.
+		const members = pileMembers(before);
+		for (const id of moved) {
+			const pile = before.get(id)?.pile;
+			if (isPiled(before, id) && typeof pile === "string" && !movedSet.has(pile)) {
+				positions.delete(id);
+			}
+		}
 		const sectionMoves: { from: Rect; to: Rect; delta: Point }[] = [];
 		for (const id of moved) {
 			const shape = before.get(id) as ShapeProps;
@@ -198,6 +216,12 @@ export function commitMoves(
 			const from = boxOf(id, shape);
 			sectionMoves.push({ from, to: { ...from, x: to.x, y: to.y }, delta });
 			if (delta.x !== 0 || delta.y !== 0) follow(id, delta);
+		}
+
+		for (const [pile, list] of members) {
+			const at = positions.get(pile);
+			if (!at) continue;
+			for (const member of list) positions.set(member, memberAt(at));
 		}
 
 		const map = shapesMap(doc);
@@ -240,6 +264,19 @@ export function commitMoves(
 
 		// Containment: what was dropped, then anything a moved section now covers.
 		reparent(doc, moved, true, sizeOf);
+		// Moved piles write where their stickies are, which section, and that
+		// they're in the pile, all together, so a concurrent drag out of the
+		// pile either wins whole or loses whole (see piles.ts).
+		const after = readShapes(doc);
+		for (const [pile, list] of members) {
+			if (!positions.has(pile)) continue;
+			const parent = after.get(pile)?.parent;
+			for (const member of list) {
+				const shape = map.get(member);
+				shape?.set("parent", typeof parent === "string" ? parent : null);
+				shape?.set("pile", pile);
+			}
+		}
 		if (sectionMoves.length > 0) {
 			const covered = overlapping(
 				readShapes(doc),
@@ -343,6 +380,12 @@ export function removeShapes(doc: Y.Doc, ids: Iterable<string>, sizeOf?: SizeOf)
 	doc.transact(() => {
 		const shapes = readShapes(doc);
 		const doomed = doomedBy(shapes, ids);
+		// Piles that lose stickies without going themselves: one left dissolves.
+		const thinned = new Set<string>();
+		for (const id of doomed) {
+			const pile = shapes.get(id)?.pile;
+			if (isPiled(shapes, id) && typeof pile === "string" && !doomed.has(pile)) thinned.add(pile);
+		}
 		// What was staged from them goes with them, in the same transaction,
 		// so one Undo brings both back (see `changesMadeFrom`).
 		const unstaged = changesMadeFrom(doc, doomed);
@@ -369,20 +412,67 @@ export function removeShapes(doc: Y.Doc, ids: Iterable<string>, sizeOf?: SizeOf)
 			if (toGone) connector?.set("to", looseEnd(end.point));
 		}
 		for (const id of doomed) map.delete(id);
+		if (thinned.size > 0) settlePiles(doc, thinned, sizeOf);
 	});
 }
 
 /**
+ * Piles that may have lost stickies: one left with a single sticky
+ * dissolves back into it (the sticky lands where the pile's top sticky
+ * was, and connectors to the pile go to it), and one left with none goes.
+ * Returns how many it settled.
+ */
+export function settlePiles(doc: Y.Doc, piles: Iterable<string>, sizeOf?: SizeOf): number {
+	let settled = 0;
+	doc.transact(() => {
+		const map = shapesMap(doc);
+		for (const pile of new Set(piles)) {
+			const shapes = readShapes(doc);
+			const shape = shapes.get(pile);
+			if (shape?.type !== "pile") continue;
+			const members = pileMembers(shapes).get(pile) ?? [];
+			if (members.length >= 2) continue;
+			settled++;
+			const [last] = members;
+			if (last === undefined) {
+				removeShapes(doc, [pile], sizeOf);
+				continue;
+			}
+			const sticky = map.get(last);
+			const at = memberAt(shape);
+			sticky?.set("pile", null);
+			sticky?.set("x", at.x);
+			sticky?.set("y", at.y);
+			sticky?.set("parent", typeof shape.parent === "string" ? shape.parent : null);
+			for (const [id, other] of shapes) {
+				if (other.type !== "connector") continue;
+				for (const which of ["from", "to"] as const) {
+					const end = other[which];
+					if (isEnd(end) && end.shape === pile) map.get(id)?.set(which, { ...end, shape: last });
+				}
+			}
+			map.delete(pile);
+		}
+	});
+	return settled;
+}
+
+/**
  * What deleting `ids` deletes: the shapes, everything inside sections among
- * them, and connectors whose ends are both bound to those.
+ * them, the stickies in piles among them, and connectors whose ends are
+ * both bound to those.
  */
 function doomedBy(shapes: ReadonlyMap<string, ShapeProps>, ids: Iterable<string>): Set<string> {
 	const structure = readStructure(shapes);
+	const members = pileMembers(shapes);
 	const doomed = new Set<string>();
 	for (const id of ids) {
 		if (!shapes.has(id)) continue;
 		doomed.add(id);
 		for (const inside of descendantsOf(structure, id)) doomed.add(inside);
+	}
+	for (const id of doomed) {
+		for (const member of members.get(id) ?? []) doomed.add(member);
 	}
 	for (const [id, shape] of shapes) {
 		if (shape.type !== "connector" || doomed.has(id)) continue;
@@ -423,17 +513,22 @@ export function addConnector(
 }
 
 /**
- * What copying `ids` should take: sections bring what's in them, and
- * connectors come along when every shape they're attached to is copied.
+ * What copying `ids` should take: sections bring what's in them, piles
+ * their stickies, and connectors come along when every shape they're
+ * attached to is copied.
  */
 export function copyClosure(doc: Y.Doc, ids: Iterable<string>): string[] {
 	const shapes = readShapes(doc);
 	const structure = readStructure(shapes);
+	const members = pileMembers(shapes);
 	const out = new Set<string>();
 	for (const id of ids) {
 		if (!shapes.has(id)) continue;
 		out.add(id);
 		for (const inside of descendantsOf(structure, id)) out.add(inside);
+	}
+	for (const id of out) {
+		for (const member of members.get(id) ?? []) out.add(member);
 	}
 	for (const [id, shape] of shapes) {
 		if (shape.type !== "connector" || out.has(id)) continue;
@@ -473,9 +568,25 @@ export function settlePasted(
 				}
 				continue;
 			}
+			// A sticky copied out of a pile without it is a sticky of its own.
+			const pile = shape.get("pile");
+			if (pile !== undefined && (typeof pile !== "string" || !pasted.has(pile))) {
+				shape.delete("pile");
+			}
 			const parent = shape.get("parent");
 			if (typeof parent !== "string" || !pasted.has(parent)) place.push(id);
 		}
 		reparent(doc, place, true, sizeOf);
+		// Stickies pasted in a pile are in whichever section it landed in.
+		const shapes = readShapes(doc);
+		for (const [pile, members] of pileMembers(shapes)) {
+			if (!pasted.has(pile)) continue;
+			const parent = shapes.get(pile)?.parent;
+			for (const member of members) {
+				if (shapes.get(member)?.parent !== parent) {
+					map.get(member)?.set("parent", typeof parent === "string" ? parent : null);
+				}
+			}
+		}
 	});
 }

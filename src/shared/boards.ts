@@ -41,8 +41,8 @@ export interface Thumbnail {
 /**
  * `[kind, x, y, width, height, tone]`. The tone is a sticky's colour, a
  * card's state, a frame's colour, how many lines a text block has, a
- * widget's kind, or `done` for an action item that's ticked. Clients draw
- * kinds they don't know as nothing.
+ * widget's kind, `done` for an action item that's ticked, or a pile's top
+ * sticky's colour. Clients draw kinds they don't know as nothing.
  */
 export type ThumbnailShape = [
 	kind: ThumbnailKind,
@@ -53,7 +53,7 @@ export type ThumbnailShape = [
 	tone: string,
 ];
 
-export type ThumbnailKind = "card" | "sticky" | "text" | "frame" | "widget" | "action";
+export type ThumbnailKind = "card" | "sticky" | "text" | "frame" | "widget" | "action" | "pile";
 
 export const THUMBNAIL_SIZE = 1000;
 /** Thumbnails keep the largest shapes, up to this many. */

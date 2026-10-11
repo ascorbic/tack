@@ -2,6 +2,7 @@ import { generateNKeysBetween } from "fractional-indexing";
 import type * as Y from "yjs";
 import type { CardState } from "./cards.ts";
 import { type Point, type Rect, contains } from "./geometry.ts";
+import { isPiled, pileName } from "./piles.ts";
 import { PLACE_GAP, spotInSection } from "./placement.ts";
 import { SECTION_DEFAULT, type SizeOf, type Structure, boxOf, readStructure } from "./sections.ts";
 import { type ShapeProps, readShape, shapesMap } from "./shapes.ts";
@@ -189,6 +190,7 @@ export function titleOf(shape: ShapeProps, card?: SortableCard): string {
 	if (shape.type === "sticky" || shape.type === "text" || shape.type === "action") {
 		return shape.text ?? "";
 	}
+	if (shape.type === "pile") return pileName(shape) ?? "";
 	return shape.title ?? "";
 }
 
@@ -288,7 +290,11 @@ function layoutSection(
 	nested: boolean,
 ): number {
 	const children = (structure.children.get(id) ?? []).filter(
-		(child) => !options.exclude?.has(child) && shapes.get(child)?.type !== "connector",
+		(child) =>
+			!options.exclude?.has(child) &&
+			shapes.get(child)?.type !== "connector" &&
+			// A piled sticky shows as part of its pile's row (piles.ts).
+			!isPiled(shapes, child),
 	);
 	const order = sortItems(
 		shapes,

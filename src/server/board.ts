@@ -537,7 +537,7 @@ export class Board extends YServer<Env> {
 				(event) =>
 					event.target === shapes ||
 					[...event.changes.keys.keys()].some(
-						(key) => key === "parent" || key === "from" || key === "to",
+						(key) => key === "parent" || key === "pile" || key === "from" || key === "to",
 					),
 			);
 			if (relevant) this.scheduleRepair();

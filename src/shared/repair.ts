@@ -2,9 +2,10 @@ import * as Y from "yjs";
 import { isDate, isOwner } from "./actionItems.ts";
 import { isAnchor, isEnd } from "./connectors.ts";
 import { readVotes } from "./decisions.ts";
+import { memberAt, pileMembers, pileOf } from "./piles.ts";
 import { readStructure } from "./sections.ts";
 import { shapesMap } from "./shapes.ts";
-import { readShapes } from "./structure.ts";
+import { readShapes, settlePiles } from "./structure.ts";
 import { widgetDefinition, widgetSize } from "./widgetRegistry.ts";
 
 // The repair pass. Concurrent edits can leave references between shapes
@@ -37,6 +38,12 @@ export interface RepairResult {
 	 * this code would have written, dropped.
 	 */
 	actions: number;
+	/**
+	 * Piles fixed up (piles.ts): a sticky's `pile` pointing at nothing
+	 * cleared, a pile left with one sticky dissolved or with none removed,
+	 * or stickies put back where (and in the section) their pile is.
+	 */
+	piles: number;
 }
 
 /** How many things a repair fixed, in total. */
@@ -47,7 +54,8 @@ export function repairCount(result: RepairResult): number {
 		result.removed +
 		result.decisions +
 		result.widgets +
-		result.actions
+		result.actions +
+		result.piles
 	);
 }
 
@@ -59,8 +67,10 @@ export function repairBoard(doc: Y.Doc): RepairResult {
 		decisions: 0,
 		widgets: 0,
 		actions: 0,
+		piles: 0,
 	};
 	doc.transact(() => {
+		result.piles = repairPiles(doc);
 		const shapes = readShapes(doc);
 		const map = shapesMap(doc);
 
@@ -149,6 +159,62 @@ export function repairBoard(doc: Y.Doc): RepairResult {
 		}
 	}, REPAIR_ORIGIN);
 	return result;
+}
+
+/**
+ * Piles after concurrent edits: two people piling the same sticky at once
+ * leave one pile without it, someone deletes a pile as someone else drops
+ * a sticky on it, or moves it while someone drags a sticky out (piles.ts).
+ */
+function repairPiles(doc: Y.Doc): number {
+	let fixed = 0;
+	const map = shapesMap(doc);
+	let shapes = readShapes(doc);
+	// A `pile` on anything but a sticky, or pointing at something that isn't a
+	// pile. (Null is a sticky that's left its pile: set, never deleted, so it
+	// resolves against a concurrent move of the pile as x, y and parent do.)
+	for (const [id, shape] of shapes) {
+		const value = map.get(id)?.get("pile");
+		if (value === undefined || value === null) continue;
+		if (shape.type === "sticky" && pileOf(shapes, id) !== null) continue;
+		map.get(id)?.set("pile", null);
+		fixed++;
+	}
+	shapes = readShapes(doc);
+	const thin = [...shapes].filter(
+		([id, shape]) => shape.type === "pile" && (pileMembers(shapes).get(id)?.length ?? 0) < 2,
+	);
+	if (thin.length > 0) {
+		fixed += settlePiles(
+			doc,
+			thin.map(([id]) => id),
+		);
+		shapes = readShapes(doc);
+	}
+	// Stickies where their pile is, in its section.
+	for (const [pile, members] of pileMembers(shapes)) {
+		const shape = shapes.get(pile);
+		if (!shape) continue;
+		const at = memberAt(shape);
+		const parent = typeof shape.parent === "string" ? shape.parent : null;
+		for (const id of members) {
+			const member = shapes.get(id);
+			const target = map.get(id);
+			if (!member || !target) continue;
+			let moved = false;
+			if (member.x !== at.x || member.y !== at.y) {
+				target.set("x", at.x);
+				target.set("y", at.y);
+				moved = true;
+			}
+			if ((member.parent ?? null) !== parent) {
+				target.set("parent", parent);
+				moved = true;
+			}
+			if (moved) fixed++;
+		}
+	}
+	return fixed;
 }
 
 /** The transaction origin for repairs, so observers can ignore their own writes. */

@@ -18,7 +18,8 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | key          | shapes             | meaning                                       |
 // | ------------ | ------------------ | --------------------------------------------- |
 // | type         | all                | `card`, `sticky`, `text`, `section`,          |
-// |              |                    | `connector`, `decision`, `widget` or `action` |
+// |              |                    | `connector`, `decision`, `widget`, `action`   |
+// |              |                    | or `pile`                                     |
 // | x, y         | all but connectors | top-left corner, absolute; 0 on connectors    |
 // | z            | all                | fractional index for stacking order           |
 // | parent       | all but connectors | id of the containing section, or null         |
@@ -36,7 +37,8 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | author       | sticky, decision,  | who made it (who proposed a decision)         |
 // |              | action             |                                               |
 // | w, h         | section, widget    | size (cards and stickies size to content)     |
-// | title        | section, decision  | the section's name; the decision's title      |
+// | title        | section, decision, | the section's name; the decision's title; a   |
+// |              | pile               | pile's name as a person wrote it (piles.ts)   |
 // | from, to     | connector          | each end, see `ConnectorEnd`                  |
 // | label        | connector          | text at the middle of the line                |
 // | route        | connector          | `curved` (default), `straight` or `elbow`     |
@@ -86,6 +88,13 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              |                    | `changes`, which links it once it's made      |
 // | carried      | action             | where it was carried over from                |
 // |              |                    | (`CarriedFrom`: board, title, shape, when)    |
+// | pile         | sticky             | id of the pile it's in (piles.ts), or null    |
+// |              |                    | once it's left one; its x, y and parent       |
+// |              |                    | follow the pile's while it's in one           |
+// | suggested    | pile               | a name suggested from its stickies' text      |
+// |              |                    | (`PileSuggestion`: title, and a hash of the   |
+// |              |                    | text it was made from), written only by the   |
+// |              |                    | server, so it never overwrites `title`        |
 //
 // Beside `shapes`, the document has these root maps:
 //
@@ -129,7 +138,8 @@ export type ShapeType =
 	| "connector"
 	| "decision"
 	| "widget"
-	| "action";
+	| "action"
+	| "pile";
 
 /** Where a decision stands. */
 export type DecisionStatus = "proposed" | "decided" | "superseded";
@@ -170,6 +180,13 @@ export interface CarriedFrom {
 	at: string;
 }
 
+/** A pile's suggested name (piles.ts): what it was, and the contents it was made from. */
+export interface PileSuggestion {
+	title: string;
+	/** A hash of the visible text it was made from (`pileHash`). */
+	hash: string;
+}
+
 export interface ShapeProps {
 	type: ShapeType;
 	/** Top-left corner in board coordinates. Unused (0) on connectors. */
@@ -196,7 +213,7 @@ export interface ShapeProps {
 	/** Sections: size. */
 	w?: number;
 	h?: number;
-	/** Sections and decisions: the title. */
+	/** Sections and decisions: the title. Piles: their name, as a person wrote it. */
 	title?: string;
 	/** Connectors: where each end is. */
 	from?: ConnectorEnd;
@@ -256,6 +273,10 @@ export interface ShapeProps {
 	issue?: string;
 	/** Action items: where it was carried over from. */
 	carried?: CarriedFrom;
+	/** Stickies: the pile it's in, if any (piles.ts). Null once it's left one. */
+	pile?: string | null;
+	/** Piles: a name suggested from its stickies, written by the server. */
+	suggested?: PileSuggestion;
 }
 
 /**

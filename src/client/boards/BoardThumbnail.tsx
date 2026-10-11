@@ -89,6 +89,36 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 					style={{ fill: `var(--sticky-${tone || "yellow"}, var(--sticky-yellow))` }}
 				/>
 			);
+		case "pile": {
+			// A stack: two papers peeking out behind the top sticky.
+			const step = Math.max(1, width * 0.05);
+			const fill = { fill: `var(--sticky-${tone || "yellow"}, var(--sticky-yellow))` };
+			return (
+				<g className="thumb-pile">
+					{[2, 1].map((n) => (
+						<rect
+							key={n}
+							className="thumb-pile-under"
+							x={x + step * n}
+							y={y + step * n}
+							width={width - step * 2}
+							height={height - step * 2}
+							rx={r * 0.5}
+							style={fill}
+						/>
+					))}
+					<rect
+						className="thumb-sticky"
+						x={x}
+						y={y}
+						width={width - step * 2}
+						height={height - step * 2}
+						rx={r * 0.5}
+						style={fill}
+					/>
+				</g>
+			);
+		}
 		case "card": {
 			const line = height * 0.11;
 			return (
