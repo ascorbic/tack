@@ -446,6 +446,34 @@ describe("the access table: routes", () => {
 			},
 		});
 		expect(signed.status).toBe(200);
+		// Other forges (#65): only from a host with a webhook secret configured
+		// (none here, so none at all; test/forges-worker.test.ts has the rest),
+		// and Tangled sends none.
+		const gitlab = await mf.dispatchFetch(`${ORIGIN}/webhooks/gitlab`, {
+			method: "POST",
+			body: JSON.stringify({
+				object_kind: "issue",
+				project: { id: 1, path_with_namespace: "a/b", web_url: "https://gitlab.com/a/b" },
+				object_attributes: { iid: 1 },
+			}),
+			headers: { "x-gitlab-token": "" },
+		});
+		expect(gitlab.status).toBe(403);
+		const forgejoBody = JSON.stringify({
+			issue: { number: 1 },
+			repository: { id: 1, full_name: "a/b", html_url: "https://codeberg.org/a/b" },
+		});
+		const forgejo = await mf.dispatchFetch(`${ORIGIN}/webhooks/forgejo`, {
+			method: "POST",
+			body: forgejoBody,
+			headers: { "x-forgejo-signature": (await sign("guess", forgejoBody)).slice(7) },
+		});
+		expect(forgejo.status).toBe(403);
+		const tangled = await mf.dispatchFetch(`${ORIGIN}/webhooks/tangled`, {
+			method: "POST",
+			body: "{}",
+		});
+		expect(tangled.status).toBe(404);
 	});
 });
 
