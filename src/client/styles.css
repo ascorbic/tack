@@ -4695,6 +4695,44 @@ kbd {
 	font-size: 12.5px;
 }
 
+/* On a phone the controls fold into a pill, to leave the board to try. */
+.play-fold {
+	display: none;
+}
+
+/* Bottom left, above the phone's dock, clear of the top bar's pills. */
+.app[data-phone] .play-panel {
+	top: auto;
+	right: auto;
+	bottom: calc(92px + env(safe-area-inset-bottom));
+	left: 14px;
+	width: min(300px, calc(100% - 28px));
+	max-height: 70%;
+	padding-top: 10px;
+}
+
+.app[data-phone] .play-fold {
+	display: block;
+	height: 32px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 9px;
+	background: var(--surface-muted);
+	color: var(--ink-soft);
+	font-weight: 620;
+	cursor: pointer;
+}
+
+.app[data-phone] .play-panel[data-folded] {
+	width: auto;
+	padding: 4px;
+	border-radius: 13px;
+}
+
+.play-panel[data-folded] > :not(.play-fold) {
+	display: none;
+}
+
 .play-section {
 	padding-top: 10px;
 }

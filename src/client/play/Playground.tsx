@@ -6,6 +6,7 @@ import { Board } from "../Board.tsx";
 import { cardStore } from "../cardStore.ts";
 import type { Status } from "../activity.ts";
 import { localUser } from "../presence.ts";
+import { useDevice } from "../touch/device.ts";
 import { ThemeToggle } from "../ThemeToggle.tsx";
 import {
 	checkFailed,
@@ -217,6 +218,9 @@ export default function Playground() {
 	const [people, setPeople] = useState<RemotePerson[]>([]);
 	const [motion, setMotion] = useState<Motion>("normal");
 	const [autoplay, setAutoplay] = useState(false);
+	// On a phone the controls fold away, to leave the board to try (#67).
+	const { phone } = useDevice();
+	const [controlsOpen, setControlsOpen] = useState(false);
 	const [structureNote, setStructureNote] = useState<string | null>(null);
 	const [pen, setPen] = useState<PenMode>("off");
 	const [penStats, setPenStats] = useState<string | null>(null);
@@ -559,12 +563,29 @@ export default function Playground() {
 				readOnly={viewOnly}
 				push={push}
 				historySource={boardHistory}
+				// A phone sees all of a scenario at first, as a real board opens.
 				fitOnLoad={
-					scenario.startsWith("template-") || scenario === "actions" || scenario === "stacks"
+					scenario.startsWith("template-") ||
+					scenario === "actions" ||
+					scenario === "stacks" ||
+					phone
 				}
 			>
 				<PenProbe doc={sim.doc} mode={pen} onStats={setPenStats} />
-				<aside className="play-panel" aria-label="Playground controls" data-chrome>
+				<aside
+					className="play-panel"
+					aria-label="Playground controls"
+					data-chrome
+					data-folded={(phone && !controlsOpen) || undefined}
+				>
+					<button
+						type="button"
+						className="play-fold"
+						aria-expanded={controlsOpen}
+						onClick={() => setControlsOpen((open) => !open)}
+					>
+						Playground
+					</button>
 					<div className="play-section">
 						<label className="play-label" htmlFor="scenario">
 							Scenario

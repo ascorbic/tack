@@ -1,0 +1,43 @@
+/* The phones and tablets gallery (/play/mobile). Each state sits in a
+   phone-sized frame, with a sketch of a board behind its sheet. */
+
+.mobile-gallery-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
+	gap: 32px 24px;
+	align-items: start;
+}
+
+.mobile-gallery-phone {
+	position: relative;
+	overflow: hidden;
+	max-width: 390px;
+	border: 1px solid var(--line-strong);
+	border-radius: 28px;
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 20px 20px;
+	box-shadow: var(--shadow-rest);
+}
+
+/* A few stickies, so the sheet has a board to rise over. */
+.mobile-gallery-board {
+	position: absolute;
+	inset: 0;
+	background:
+		linear-gradient(var(--sticky-yellow), var(--sticky-yellow)) 28px 36px / 92px 92px no-repeat,
+		linear-gradient(var(--sticky-pink), var(--sticky-pink)) 136px 52px / 92px 92px no-repeat,
+		linear-gradient(var(--sticky-blue), var(--sticky-blue)) 244px 30px / 92px 92px no-repeat;
+	opacity: 0.85;
+}
+
+.mobile-gallery-phone .multi-select {
+	top: 60px;
+}
+
+.mobile-gallery-ring {
+	top: 96px;
+	left: 50%;
+	animation-iteration-count: infinite;
+	animation-duration: calc(1400ms * var(--motion));
+}
