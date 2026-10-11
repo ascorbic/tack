@@ -143,7 +143,7 @@ test("a clicked row, or Enter on one, adds its card beside the list, then shows 
 
 	// A click is a button press, not a drag: the card lands beside the list.
 	const netlify = row(bugs, "Netlify provider");
-	await expect(netlify).toHaveAttribute("role", "button");
+	await expect(netlify.locator(".widget-row-main")).toHaveAttribute("role", "button");
 	await netlify.click();
 	await expect.poll(async () => (await cards()).length).toBe(before + 1);
 	const card = (await shapes(page)).find((s) => s.ref === "fake.tack/acme/imagekit#430");

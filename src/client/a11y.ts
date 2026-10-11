@@ -45,9 +45,19 @@ export function useScrollFocusable<T extends HTMLElement>(
 				update();
 			});
 			mutations.observe(el, { childList: true, subtree: true });
+			// Contents that animate in, and fonts arriving, change what overflows too.
+			el.addEventListener("animationend", update);
+			el.addEventListener("transitionend", update);
+			let live = true;
+			void document.fonts?.ready.then(() => {
+				if (live) update();
+			});
 			cleanup.current = () => {
+				live = false;
 				resize.disconnect();
 				mutations.disconnect();
+				el.removeEventListener("animationend", update);
+				el.removeEventListener("transitionend", update);
 			};
 		},
 		[forward],
