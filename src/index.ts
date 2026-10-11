@@ -5,6 +5,7 @@ import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.t
 import { handlePeople } from "./server/boards/people.ts";
 import { handleTemplates } from "./server/boards/templates.ts";
 import { handleClientError } from "./server/clientErrors.ts";
+import { handleDigests } from "./server/digestRoutes.ts";
 import { handleEmbeds } from "./server/embeds/routes.ts";
 import { handleExports } from "./server/exports.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
@@ -42,6 +43,13 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 	const webhook = /^\/webhooks\/([a-z]+)$/.exec(url.pathname);
 	if (webhook?.[1] && request.method === "POST") {
 		return handleWebhook(request, env, webhook[1]);
+	}
+
+	// One-click unsubscribing from a digest email (RFC 8058): mail clients
+	// post it from wherever they are. The token in the address is the only
+	// authority it carries (no cookie is read), so another site can't forge it.
+	if (url.pathname === "/api/digests/unsubscribe" && request.method === "POST") {
+		return (await handleDigests(request, env)) ?? new Response("Not found", { status: 404 });
 	}
 
 	const upgrade = request.headers.get("upgrade")?.toLowerCase() === "websocket";
@@ -96,6 +104,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 	// Importing boards from their JSON, and backing them up to a branch (#59).
 	const exported = await handleExports(request, env);
 	if (exported) return exported;
+
+	// Weekly digests: settings, subscriptions, and the links in their emails (#68).
+	const digests = await handleDigests(request, env);
+	if (digests) return digests;
 
 	// Templates, and carrying action items over between boards.
 	const templates = await handleTemplates(request, env);

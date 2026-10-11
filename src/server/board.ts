@@ -50,6 +50,12 @@ import {
 import { isStackRequest } from "../shared/stackNamer.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import type { BackupSettings, BackupStatus } from "../shared/backups.ts";
+import type {
+	DigestError,
+	DigestSettings,
+	DigestSubscription,
+	DigestView,
+} from "../shared/digests.ts";
 import { type BoardExport, type ImportResult, importBoard } from "../shared/boardExport.ts";
 import {
 	type Extracted,
@@ -73,6 +79,7 @@ import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "../shared/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
 import { Backups } from "./backups.ts";
+import { Digests } from "./digests.ts";
 import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
 import { Facilitation } from "./facilitation.ts";
 import { type Commenter, CommentsService } from "./comments.ts";
@@ -243,6 +250,8 @@ export class Board extends YServer<Env> {
 	private migration: MigrationReport | null = null;
 	/** Backups of the board's JSON to a branch, if its owner turned them on (#59). */
 	private backups: Backups | null = null;
+	/** Weekly digests, if its owner turned them on (#68). */
+	private digests: Digests | null = null;
 	/** Presence client ids, by the connection that speaks for them (see awareness.ts). */
 	private awarenessOwners = new Map<number, string>();
 	/** And the other way: the client ids each connection speaks for. */
@@ -400,6 +409,25 @@ export class Board extends YServer<Env> {
 		});
 		this.cardHistory = new CardHistory(sql);
 		this.visits = new Visits(sql);
+		this.digests = new Digests({
+			name: this.name,
+			env: this.env,
+			doc: this.document,
+			sql,
+			route: (repoKey) => this.route(repoKey),
+			card: (key) => this.cards.get(key),
+			edits: (since) => this.changeLog?.since(since, null) ?? { edits: [], more: 0 },
+			cardActivity: (since) => this.cardHistory?.since(since, cardRefs(this.document)) ?? [],
+			audit: () => this.pushes?.audit() ?? [],
+			knownPublic: (repoKey) => this.knownPublic(repoKey),
+			canRead: (userId, repoKey) => this.canRead(userId, repoKey),
+			settle: async () => {
+				if (this.syncing) {
+					await Promise.race([this.syncing, new Promise((resolve) => setTimeout(resolve, 1_500))]);
+				}
+			},
+			alarmAt: (at) => this.alarmAt(at),
+		});
 		watchCardRefs(this.document, () => void this.syncSubscriptions(), {
 			wait: SYNC_WAIT_MS,
 			maxWait: SYNC_MAX_WAIT_MS,
@@ -773,6 +801,7 @@ export class Board extends YServer<Env> {
 	/** Called by the Directory when the board is renamed, so everyone's title updates. */
 	renamed(title: string, slug: string): void {
 		this.backups?.renamed(title);
+		this.digests?.renamed(title);
 		this.broadcastCustomMessage(
 			JSON.stringify({ type: "renamed", title, slug } satisfies BoardMessage),
 		);
@@ -1518,6 +1547,7 @@ export class Board extends YServer<Env> {
 	override async onAlarm(): Promise<void> {
 		await this.pushEngine().run();
 		await this.backups?.runIfDue();
+		await this.digests?.runIfDue();
 	}
 
 	/**
@@ -1581,6 +1611,70 @@ export class Board extends YServer<Env> {
 	/** For tests: what the alarm does for backups, now (a backup if one's due). */
 	async runBackups(): Promise<void> {
 		await this.backupService().runIfDue();
+	}
+
+	// --- Weekly digests (#68) --------------------------------------------------------
+
+	/** The digest dialog, for someone signed in who can open the board (checked by the Worker). */
+	async digestView(viewer: {
+		userId: number;
+		canManage: boolean;
+		canEdit: boolean;
+	}): Promise<DigestView> {
+		return this.digestService().view(viewer);
+	}
+
+	/** Turn digests on or change them, for its owner, as checked by the Worker. */
+	async configureDigest(input: {
+		settings: DigestSettings;
+		title: string;
+		origin: string;
+		by: { id: number; login: string; name?: string };
+		repoPublic: boolean | null;
+	}): Promise<void> {
+		await this.digestService().configure(input);
+	}
+
+	disableDigest(by: string): void {
+		this.digestService().disable(by);
+	}
+
+	/** Someone asks for the digest by email: a confirmation goes to the address. */
+	async subscribeDigest(input: {
+		userId: number;
+		login: string;
+		email: string;
+		origin: string;
+	}): Promise<{ ok: true; value: DigestSubscription } | { ok: false; error: DigestError }> {
+		return this.digestService().subscribe(input);
+	}
+
+	/** Stop someone's digest: theirs from the board, or from a link with its nonce. */
+	unsubscribeDigest(userId: number, nonce?: string): { title: string } | null {
+		return this.digestService().unsubscribe(userId, nonce);
+	}
+
+	/** A confirmation link was followed. */
+	confirmDigest(
+		userId: number,
+		nonce: string,
+	): { title: string; path: string; schedule: string } | null {
+		return this.digestService().confirm(userId, nonce);
+	}
+
+	/** For tests: what the alarm does for digests, now (the week's, if it's due). */
+	async runDigests(): Promise<void> {
+		await this.digestService().runIfDue();
+	}
+
+	/** For tests: shorten the wait before a failed digest is tried again. */
+	async digestTiming(timing: { retryMs: number }): Promise<void> {
+		this.digestService().retryMs = timing.retryMs;
+	}
+
+	private digestService(): Digests {
+		if (!this.digests) throw new Error("Board not started");
+		return this.digests;
 	}
 
 	private backupService(): Backups {

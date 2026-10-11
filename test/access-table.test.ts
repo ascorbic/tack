@@ -326,6 +326,62 @@ const ROWS: Row[] = [
 		request: (a) => call(a, "DELETE", `/api/boards/${privateBoard}/backup`),
 	},
 	{
+		route: "GET /api/boards/:id/digest",
+		allowed: privateReaders,
+		request: (a) => call(a, "GET", `/api/boards/${privateBoard}/digest`),
+	},
+	{
+		route: "PUT /api/boards/:id/digest",
+		allowed: ["owner"],
+		// Nowhere to send it: the owner gets past the check to a 400.
+		request: (a) =>
+			call(a, "PUT", `/api/boards/${privateBoard}/digest`, {
+				discussion: null,
+				email: false,
+				weekday: 1,
+				hour: 9,
+				timeZone: "UTC",
+			}),
+		refusedAs: [401, 403],
+	},
+	{
+		route: "DELETE /api/boards/:id/digest",
+		allowed: ["owner"],
+		request: (a) => call(a, "DELETE", `/api/boards/${privateBoard}/digest`),
+	},
+	{
+		route: "PUT /api/boards/:id/digest/subscription",
+		allowed: privateReaders,
+		// Email isn't set up here: people let in get past the check to a 409.
+		request: (a) =>
+			call(a, "PUT", `/api/boards/${privateBoard}/digest/subscription`, {
+				email: "someone@example.com",
+			}),
+		refusedAs: [401, 403],
+	},
+	{
+		route: "PUT /api/boards/:id/digest/subscription (public board)",
+		// People not allowed on the instance can see a public board, not get email from it.
+		allowed: instanceUsers,
+		request: (a) =>
+			call(a, "PUT", `/api/boards/${publicBoard}/digest/subscription`, {
+				email: "someone@example.com",
+			}),
+		refusedAs: [401, 403],
+	},
+	{
+		route: "DELETE /api/boards/:id/digest/subscription",
+		allowed: privateReaders,
+		request: (a) => call(a, "DELETE", `/api/boards/${privateBoard}/digest/subscription`),
+	},
+	{
+		route: "POST /api/digests/confirm, /api/digests/unsubscribe",
+		// Whoever holds a token from an email: without one, everyone gets the same 410.
+		allowed: everyone,
+		request: (a) => call(a, "POST", "/api/digests/confirm", { token: "nope" }),
+		refusedAs: [401, 403],
+	},
+	{
 		route: "GET /api/boards/:id/history/segment",
 		allowed: privateReaders,
 		request: (a) => call(a, "GET", `/api/boards/${privateBoard}/history/segment?step=0`),
