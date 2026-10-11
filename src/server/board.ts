@@ -50,6 +50,13 @@ import {
 	extractTemplate,
 	instantiateTemplate,
 } from "../shared/templates.ts";
+import {
+	BOARD_SCHEMA,
+	type MigrationReport,
+	type SchemaReport,
+	boardSchema,
+	migrateBoard,
+} from "../shared/schema.ts";
 import { readShapes } from "../shared/structure.ts";
 import { cardRefs, shapesMap } from "../shared/shapes.ts";
 import type { WidgetRequest } from "../shared/widgets.ts";
@@ -200,6 +207,10 @@ export class Board extends YServer<Env> {
 	private commentBudget = new Map<string, { count: number; until: number }>();
 	/** The document kept over time, with who changed what (#47). */
 	private history: HistoryLog | null = null;
+	/** Whether the document was new when this object started (nothing was saved yet). */
+	private fresh = false;
+	/** What bringing the document up to the current format did on load (#55). */
+	private migration: MigrationReport | null = null;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -227,8 +238,13 @@ export class Board extends YServer<Env> {
 			this.routes.set(row.repo_key, JSON.parse(row.identity) as RepoIdentity);
 		}
 		await super.onStart();
+		// A new board is stamped with the current format before history starts,
+		// so the stamp is part of where its history begins; an existing one is
+		// migrated with history recording, so an upgrade shows up there as Tack's.
+		if (this.fresh) this.migrate();
 		// Before anything else writes to the document, so every write is recorded.
 		this.history = this.startHistory();
+		if (!this.fresh) this.migrate();
 		this.pushes = new PushEngine({
 			name: this.name,
 			env: this.env,
@@ -340,6 +356,63 @@ export class Board extends YServer<Env> {
 		return loadSnapshot(this.ctx.storage, token);
 	}
 
+	// --- Format versions (#55) -------------------------------------------------------
+
+	/**
+	 * Bring the document up to the current format (see shared/schema.ts). A
+	 * migration that fails is logged and leaves the board as it was: it's
+	 * tried again next time the board loads.
+	 */
+	private migrate(): void {
+		let report: MigrationReport;
+		try {
+			report = migrateBoard(this.document);
+		} catch (error) {
+			log.error("board.migrate.failed", { board: this.name, error });
+			return;
+		}
+		this.migration = report;
+		const context = { board: this.name, from: report.from, to: report.to };
+		if (report.newer) log.warn("board.migrate.newer", { ...context, current: BOARD_SCHEMA });
+		if (report.failed) {
+			const { version, name, error } = report.failed;
+			log.error("board.migrate.failed", { ...context, version, migration: name, error });
+		}
+		if (report.applied.length === 0) return;
+		log.info("board.migrated", {
+			...context,
+			fresh: this.fresh,
+			applied: report.applied.map(({ name, changed }) => `${name}:${changed}`),
+		});
+		// Keep the upgrade even if the object is evicted before the debounced save.
+		if (!this.fresh) {
+			try {
+				this.writeSnapshot();
+			} catch {
+				// Logged as board.save.failed; the debounced save tries again.
+			}
+		}
+	}
+
+	/** For tests and support: the document's format version, and what loading it migrated. */
+	async schemaReport(): Promise<SchemaReport> {
+		const report = this.migration;
+		const migration = report && {
+			from: report.from,
+			to: report.to,
+			applied: report.applied,
+			newer: report.newer,
+			...(report.failed && {
+				failed: {
+					version: report.failed.version,
+					name: report.failed.name,
+					error: String(report.failed.error),
+				},
+			}),
+		};
+		return { schema: boardSchema(this.document), current: BOARD_SCHEMA, migration };
+	}
+
 	// --- History (M4, #47) ---------------------------------------------------------
 
 	private startHistory(): HistoryLog | null {
@@ -436,6 +509,7 @@ export class Board extends YServer<Env> {
 			.exec<{ chunk: ArrayBuffer }>("SELECT chunk FROM snapshot ORDER BY seq")
 			.toArray();
 		if (rows.length === 0) {
+			this.fresh = true;
 			log.info("board.load", { board: this.name, bytes: 0, chunks: 0 });
 			return;
 		}

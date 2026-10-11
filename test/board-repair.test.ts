@@ -13,6 +13,7 @@ afterAll(() => mf.dispose());
 // Just enough of the y-protocols sync wire format to talk to the board
 // without a provider: [messageSync, type, varUint8Array].
 const MESSAGE_SYNC = 0;
+const SYNC_STEP_1 = 0;
 const SYNC_STEP_2 = 1;
 const SYNC_UPDATE = 2;
 
@@ -66,6 +67,14 @@ async function connect(board: string, doc: Y.Doc) {
 		const length = readVarUint(bytes, at);
 		Y.applyUpdate(doc, bytes.slice(at.i, at.i + length), "server");
 	});
+	// Ask for what the board already has (a new board's format stamp, at
+	// least), as a provider does: the server's later updates build on it.
+	const step1: number[] = [];
+	const vector = Y.encodeStateVector(doc);
+	writeVarUint(step1, MESSAGE_SYNC);
+	writeVarUint(step1, SYNC_STEP_1);
+	writeVarUint(step1, vector.length);
+	socket.send(new Uint8Array([...step1, ...vector]));
 	return socket;
 }
 

@@ -357,7 +357,8 @@ export function topZ(doc: Y.Doc, except?: string): string | null {
 
 const validZ = new Map<string, boolean>();
 
-function isValidZ(z: string): boolean {
+/** Whether `z` is a key fractional-indexing can build on (see the `z-keys` migration). */
+export function isValidZ(z: string): boolean {
 	let valid = validZ.get(z);
 	if (valid === undefined) {
 		try {

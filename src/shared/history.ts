@@ -992,6 +992,8 @@ const OTHER_WORDS: Record<string, string> = {
 	facilitation: "set the timer",
 	rules: "changed rules",
 	ruleLog: "",
+	// The format's version, moved on by a migration (schema.ts).
+	meta: "upgraded the board",
 };
 
 const VERB_ORDER = [
