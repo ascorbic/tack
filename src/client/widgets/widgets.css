@@ -132,7 +132,89 @@
 	gap: 4px;
 	margin: 4px 0 0;
 	overflow: hidden;
+	border-radius: 6px;
+	outline: none;
 	mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+}
+
+.widget-query:focus-visible {
+	box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* The whole search, under the header, while you point at its chips (or focus them). */
+.widget-query-peek {
+	position: absolute;
+	top: calc(100% - 4px);
+	left: 10px;
+	right: 10px;
+	z-index: 6;
+	display: grid;
+	gap: 6px;
+	padding: 8px 10px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	box-shadow: var(--shadow-lifted);
+	opacity: 0;
+	visibility: hidden;
+	translate: 0 -3px;
+	cursor: default;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		translate var(--t-quick) var(--ease-out),
+		visibility 0s linear var(--t-quick);
+}
+
+.widget-query-wrap:hover .widget-query-peek,
+.widget-query-wrap:focus-within .widget-query-peek {
+	opacity: 1;
+	visibility: visible;
+	translate: 0 0;
+	transition-delay: 280ms, 280ms, 0s;
+}
+
+.widget-query-wrap:focus-within .widget-query-peek {
+	transition-delay: 0s;
+}
+
+/* A bridge up to the chips, so moving the pointer down to it doesn't close it. */
+.widget-query-peek::before {
+	content: "";
+	position: absolute;
+	right: 0;
+	bottom: 100%;
+	left: 0;
+	height: 16px;
+}
+
+.widget-query-peek p {
+	margin: 0;
+	color: var(--ink);
+	font-size: 11.5px;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+	user-select: text;
+}
+
+.widget-query-peek-actions {
+	display: flex;
+	gap: 12px;
+	font-size: 12px;
+}
+
+.widget-query-peek-actions :is(button, a) {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent);
+	font: inherit;
+	font-weight: 560;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.widget-query-peek-actions :is(button, a):hover {
+	text-decoration: underline;
 }
 
 .widget-chip {

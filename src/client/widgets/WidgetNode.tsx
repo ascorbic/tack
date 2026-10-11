@@ -154,6 +154,7 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 			<ListView
 				title={title}
 				q={config.q}
+				host={config.host}
 				status={status}
 				selected={selected}
 				readOnly={readOnly}

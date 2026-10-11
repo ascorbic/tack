@@ -1,4 +1,10 @@
-import { type PointerEvent as ReactPointerEvent, type ReactNode, useMemo } from "react";
+import {
+	type PointerEvent as ReactPointerEvent,
+	type ReactNode,
+	useId,
+	useMemo,
+	useState,
+} from "react";
 import type { Card } from "../../shared/cards.ts";
 import type { MatchStep } from "../../shared/search.ts";
 import { mightMiss } from "../../shared/queryHelp.ts";
@@ -12,6 +18,7 @@ import {
 	SkeletonRows,
 	WidgetEmpty,
 	WidgetFoot,
+	copyText,
 	useNow,
 } from "./chrome.tsx";
 import { type Motion, rowActivation, useRowMotion } from "./rows.tsx";
@@ -47,6 +54,8 @@ export type DropPreview =
 export interface ListViewProps {
 	title: string;
 	q: string;
+	/** The forge it searches, for "Open on GitHub". */
+	host?: string;
 	status: ListStatus;
 	selected?: boolean;
 	readOnly?: boolean;
@@ -81,6 +90,7 @@ export interface ListViewProps {
 export function ListView(props: ListViewProps) {
 	const { status, title, q, selected, enter, refreshing, readOnly, drop } = props;
 	const chips = useMemo(() => queryChips(parseSearch(q)), [q]);
+	const queryId = useId();
 	const result = status.kind === "ready" ? status.result : null;
 	const total = result?.total ?? null;
 	const stale = status.kind === "ready" && status.stale;
@@ -104,19 +114,22 @@ export function ListView(props: ListViewProps) {
 						{title}
 					</h3>
 					{chips.length > 0 && (
-						<p className="widget-query" title={q}>
-							{mentionsMe(q) && <PersonalChip />}
-							{chips.map((chip, i) => (
-								<span
-									key={`${i}:${chip.text}`}
-									className="widget-chip mono"
-									data-tone={chip.tone}
-									data-negated={chip.negated || undefined}
-								>
-									{chip.text}
-								</span>
-							))}
-						</p>
+						<div className="widget-query-wrap">
+							<p className="widget-query" tabIndex={0} aria-describedby={queryId}>
+								{mentionsMe(q) && <PersonalChip />}
+								{chips.map((chip, i) => (
+									<span
+										key={`${i}:${chip.text}`}
+										className="widget-chip mono"
+										data-tone={chip.tone}
+										data-negated={chip.negated || undefined}
+									>
+										{chip.text}
+									</span>
+								))}
+							</p>
+							<QueryPeek id={queryId} q={q} host={props.host} />
+						</div>
 					)}
 				</div>
 				{total !== null && <Count value={total} />}
@@ -462,5 +475,39 @@ function Footer({
 				? `${shown} of ${result.total}`
 				: `${shown} ${shown === 1 ? "match" : "matches"}`}
 		</WidgetFoot>
+	);
+}
+
+/**
+ * The whole search, for when the header's chips are cut off: on hover or
+ * focus, with Copy and, on GitHub, a way to run it there. Useful to viewers,
+ * who can't open the settings.
+ */
+function QueryPeek({ id, q, host }: { id: string; q: string; host?: string }) {
+	const [copied, setCopied] = useState(false);
+	const url =
+		host === undefined || host === "github.com"
+			? `https://github.com/issues?q=${encodeURIComponent(q)}`
+			: null;
+	return (
+		<div className="widget-query-peek nodrag nopan" id={id} role="tooltip">
+			<p className="mono">{q}</p>
+			<span className="widget-query-peek-actions">
+				<button
+					type="button"
+					onClick={async () => {
+						setCopied(await copyText(q));
+						setTimeout(() => setCopied(false), 1400);
+					}}
+				>
+					{copied ? "Copied" : "Copy"}
+				</button>
+				{url && (
+					<a href={url} target="_blank" rel="noreferrer">
+						Open on GitHub
+					</a>
+				)}
+			</span>
+		</div>
 	);
 }

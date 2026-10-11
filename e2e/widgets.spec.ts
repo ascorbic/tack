@@ -337,3 +337,15 @@ test("a short widget's empty state fits, without its illustration", async ({ pag
 	});
 	expect(fits).toBe(true);
 });
+
+test("a list's whole search shows when you point at its chips, to copy or run on GitHub", async ({
+	page,
+}) => {
+	const bugs = list(page, "Open bugs");
+	await bugs.locator(".widget-query").hover();
+	const peek = bugs.getByRole("tooltip");
+	await expect(peek).toBeVisible();
+	const q = (await shapes(page)).find((s) => s.config?.title === "Open bugs")?.config?.q ?? "";
+	await expect(peek).toContainText(q);
+	await expect(peek.getByRole("button", { name: "Copy" })).toBeVisible();
+});
