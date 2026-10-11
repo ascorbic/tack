@@ -1,0 +1,25 @@
+/* /play/ai: AI's states (#64), each where it sits on the board. */
+
+.ai-gallery .gallery-grid.ai-gallery-asks {
+	grid-template-columns: repeat(auto-fill, minmax(min(740px, 100%), 1fr));
+}
+
+.ai-gallery .gallery-grid.ai-gallery-drafts {
+	grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
+}
+
+.ai-gallery .ai-gallery-bars figure {
+	display: grid;
+	justify-items: start;
+	gap: 10px;
+}
+
+/* The tray floats over the board above the tool dock: here, on its own. */
+.ai-gallery-tray {
+	display: flex;
+	justify-content: flex-start;
+}
+
+.ai-gallery-tray .toolbar-options {
+	animation: none;
+}

@@ -27,6 +27,7 @@ const routes: Record<string, ComponentType> = {
 				"/play/auth": lazy(() => import("./play/AuthGallery.tsx")),
 				"/play/boards": lazy(() => import("./play/BoardsGallery.tsx")),
 				"/play/actions": lazy(() => import("./play/ActionsGallery.tsx")),
+				"/play/ai": lazy(() => import("./play/AiGallery.tsx")),
 				"/play/changes": lazy(() => import("./play/ChangesGallery.tsx")),
 				"/play/inbox": lazy(() => import("./play/InboxGallery.tsx")),
 				"/play/widgets": lazy(() => import("./play/WidgetGallery.tsx")),

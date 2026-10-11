@@ -34,6 +34,7 @@ import { SCENARIOS } from "./scenarios.ts";
 import { SimulatedStacks, type StackAiMode } from "./stacks.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
 import { playServices } from "./writes.ts";
+import { type PlayAiMode, playAi } from "./ai.ts";
 import { ChangeControls } from "./ChangeControls.tsx";
 import { pastPushes, SimulatedPush } from "./push.ts";
 import { SimulatedWidgets, WIDGET_CARDS, type WidgetMode, addWidgetCard } from "./widgets.ts";
@@ -132,6 +133,16 @@ export default function Playground() {
 			widgets.destroy();
 		};
 	}, [widgets]);
+	// AI (#64) answers in the browser, over the board and these widgets.
+	useEffect(() => {
+		playAi.doc = sim.doc;
+		playAi.widgets = widgets;
+		return () => {
+			if (playAi.doc === sim.doc) playAi.doc = null;
+			if (playAi.widgets === widgets) playAi.widgets = null;
+		};
+	}, [sim, widgets]);
+	const [aiMode, setAiMode] = useState<PlayAiMode>(playAi.mode);
 	const [widgetMode, setWidgetMode] = useState<WidgetMode>("live");
 	const [widgetNote, setWidgetNote] = useState<string | null>(null);
 	useEffect(() => {
@@ -154,6 +165,9 @@ export default function Playground() {
 	);
 	// Widgets' `@me` is you, while you're signed in.
 	useEffect(() => widgets.setViewer(user.login ?? null), [widgets, user.login]);
+	useEffect(() => {
+		playAi.login = user.login ?? null;
+	}, [user.login]);
 	// Who's pushing is read when a push starts.
 	const pusher = useRef(user);
 	pusher.current = user;
@@ -774,6 +788,38 @@ export default function Playground() {
 						<p className="play-hint">
 							{widgetNote ??
 								"W picks a widget. Drag rows out as cards; drop cards on a list to stage what makes them match, then push from Changes."}
+						</p>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">AI</h2>
+						<div className="segmented" role="radiogroup" aria-label="AI answers">
+							{(
+								[
+									["live", "Live"],
+									["slow", "Slow"],
+									["unusable", "Unusable"],
+									["rate_limited", "Limited"],
+									["failed", "Failing"],
+								] as const
+							).map(([mode, label]) => (
+								<label key={mode} data-checked={aiMode === mode}>
+									<input
+										type="radio"
+										name="ai-mode"
+										checked={aiMode === mode}
+										onChange={() => {
+											playAi.mode = mode;
+											setAiMode(mode);
+										}}
+									/>
+									{label}
+								</label>
+							))}
+						</div>
+						<p className="play-hint">
+							A pretend AI, made up from keywords in your browser: W then describe a widget, or
+							select a few stickies or a section and summarise (⌥⇧S) or draft a decision (⌥⇧D).
 						</p>
 					</div>
 

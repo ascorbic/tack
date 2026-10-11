@@ -18,6 +18,7 @@ import {
 	PULL_GALLERY,
 	fixture,
 } from "./fixtures.ts";
+import { playAi } from "./ai.ts";
 import { RELATED_CARDS, playRelated } from "./related.ts";
 
 // Writing back (M2) in the playground: a board to try the selection actions
@@ -85,6 +86,8 @@ export function playServices(): WriteServices {
 			return url;
 		},
 		related: playRelated,
+		// AI answers in the browser (#64), with modes the playground sets.
+		ai: playAi,
 		// The card tool's search, over the playground's own cards.
 		async searchItems(host, q) {
 			await new Promise((resolve) => setTimeout(resolve, 300));

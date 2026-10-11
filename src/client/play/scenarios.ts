@@ -25,6 +25,7 @@ import type { Stager } from "../../shared/changes.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 import { seedRelated } from "./related.ts";
 import { seedWrites } from "./writes.ts";
+import { seedAi } from "./ai.ts";
 import { UNPIC, PEOPLE, failChange, stageAs } from "./push.ts";
 import { seedRoadmap } from "./roadmap.ts";
 import { seedStacks } from "./stacks.ts";
@@ -540,6 +541,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		seed(doc) {
 			seedDecisions(doc);
 		},
+	},
+	ai: {
+		name: "AI",
+		description:
+			"A pretend AI that answers in your browser: W then describe a widget to see one proposed and previewed; select the Retro section (or a few stickies) and press ⌥⇧S to summarise, or ⌥⇧D to draft a decision from the search discussion.",
+		seed: seedAi,
 	},
 	writes: {
 		name: "Write back",

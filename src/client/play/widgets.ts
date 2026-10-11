@@ -4,6 +4,7 @@ import { matchSearch, parseSearch } from "../../shared/search.ts";
 import { addShape, nextZ, shapesMap } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
 import { boardQueryContext } from "../../shared/widgetContext.ts";
+import { widgetPreviewId } from "../../shared/ai.ts";
 import { addWidget, widgetFollowUps, widgetQueries } from "../../shared/widgetRegistry.ts";
 import type {
 	QueryError,
@@ -316,12 +317,33 @@ export class SimulatedWidgets implements WidgetTransport {
 		return JSON.stringify(widgetQueries(widget, boardQueryContext(this.doc)));
 	}
 
+	/**
+	 * Run what a widget would with this config, for the preview of one the
+	 * AI proposed (#64), answered under `widgetPreviewId(id)` as the board's
+	 * server answers `widget-preview`.
+	 */
+	preview(id: string, widget: string, config: unknown): void {
+		const delay = this.mode === "slow" ? 2400 : 260 + Math.random() * 260;
+		const timer = setTimeout(() => {
+			this.timers.delete(timer);
+			widgetStore.apply(this.resultsFor(widgetPreviewId(id), { widget, config }));
+		}, delay);
+		this.timers.add(timer);
+	}
+
 	/** A widget's results, as the board's server would send them: its queries, then their follow-ups. */
 	private results(id: string): WidgetMessage {
 		const shape = shapesMap(this.doc).get(id);
 		const at = new Date().toISOString();
 		if (!shape) return { type: "widget-data", id, results: {}, at };
-		const widget = { widget: shape.get("widget") as string, config: shape.get("config") };
+		return this.resultsFor(id, {
+			widget: shape.get("widget") as string,
+			config: shape.get("config"),
+		});
+	}
+
+	private resultsFor(id: string, widget: { widget: string; config: unknown }): WidgetMessage {
+		const at = new Date().toISOString();
 		const results: WidgetMessage["results"] = {};
 		for (const [name, query] of Object.entries(
 			widgetQueries(widget, boardQueryContext(this.doc)),
