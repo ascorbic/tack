@@ -10,17 +10,18 @@ A [decision](/boards/decisions/) that's been decided can be written back to GitH
 ## The dialog
 
 - **Write it as**: **ADR pull request** ("Adds record 0002 for review"), or **Discussion post** ("Announces it for comment"; off if the repository has Discussions turned off).
-- **Repository**: the repositories of the decision's linked cards come first.
-- **Context**, **Decision** and **Consequences**: start from the decision's body and title. A preview of the record sits beside them.
+- **Repository**: the repositories of the decision's linked cards come first. Type, or paste a link, for another.
+- **Folder**, for a pull request: where the repository already keeps its records (`docs/decisions`, `docs/adr`, `adr` and the other usual places, by which has numbered records in it), or `docs/decisions`. Click it in the path to change it; Tack remembers the folder you choose for each repository.
+- **Context**, **Decision** and **Consequences**: start from the decision's body and title. They're written onto the decision as you type, so nothing is lost if you cancel or the push fails, and the decision on the board shows its consequences. A preview of the record sits beside them.
 - For a Discussion, the **Category**: one called something like "Decisions", "ADR" or "RFC" if there is one, then "Announcements", then "General".
 
 **Stage write-back** stages it with the board's other changes. The decision shows "ADR 0002 · Staged", then "Pushing…" and "Confirming…" while it's pushed.
 
 ## ADR pull requests
 
-The record is a Markdown file in the repository's `docs/decisions/` directory, in the layout adr-tools uses:
+The record is a Markdown file in the repository's records folder (`docs/decisions/` unless it keeps them elsewhere), in the layout adr-tools uses:
 
-- **Path**: `docs/decisions/NNNN-title-in-words.md`, numbered one more than the highest record already in `docs/decisions` on the default branch. Records staged on the same board count too, so two decisions pushed together don't collide.
+- **Path**: `docs/decisions/NNNN-title-in-words.md`, numbered one more than the highest record already in the folder on the default branch. Records staged on the same board count too, so two decisions pushed together don't collide.
 - **Branch**: `tack/adr-NNNN-title-in-words`, from the default branch, with one commit adding that one file.
 - **Pull request**: "ADR NNNN: Title", saying which board it was decided on, and listing the linked items.
 

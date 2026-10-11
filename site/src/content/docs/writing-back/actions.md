@@ -7,7 +7,9 @@ sidebar:
 
 Select something and the bar under the selection offers what you can do with it. Every action only **stages** changes: nothing is written until someone [pushes](/writing-back/pushing/). Each panel says so: "Not written until pushed."
 
-Actions only appear for what the repository's forge supports, and are disabled with "Tack can't write to these yet: install the app" for repositories without the [GitHub App](/self-hosting/github-app/).
+Actions only appear for what the repository's forge supports. Ones that can't do anything say why instead of opening: "Tack can't write to these yet: install the app" for repositories without the [GitHub App](/self-hosting/github-app/), "Nobody can be assigned in acme/app", "Merged pull requests can't be closed or reopened".
+
+**From the keyboard**: <kbd>Tab</kbd> from a selected shape (or <kbd>F6</kbd>) moves to the bar, the arrow keys move along it, <kbd>Enter</kbd> opens an action, and <kbd>Esc</kbd> goes back to the shape. In every panel, <kbd>⌘</kbd> <kbd>Enter</kbd> stages.
 
 | Action                                                        | Key                                    | Select                                   | Writes                                |
 | ------------------------------------------------------------- | -------------------------------------- | ---------------------------------------- | ------------------------------------- |
@@ -17,7 +19,7 @@ Actions only appear for what the repository's forge supports, and are disabled w
 | [Milestone](#labels-assignees-and-milestone)                  | <kbd>⌥</kbd> <kbd>M</kbd>              | Cards                                    | The milestone                         |
 | [Assign](#labels-assignees-and-milestone)                     | <kbd>⌥</kbd> <kbd>P</kbd>              | Cards                                    | Assignees added and removed           |
 | [Close or reopen](#close-or-reopen)                           | <kbd>⌥</kbd> <kbd>C</kbd>              | Cards                                    | State, with a reason                  |
-| [Blocked by](#blocked-by)                                     | <kbd>⌥</kbd> <kbd>B</kbd>              | A connector between two issues           | A blocked-by dependency               |
+| [Blocked by](#blocked-by)                                     | <kbd>⌥</kbd> <kbd>B</kbd>              | A connector, or the two issues it joins  | A blocked-by dependency               |
 | [Comment with a link to this board](/writing-back/backlinks/) | <kbd>⌥</kbd> <kbd>K</kbd>              | Cards                                    | A comment, optionally with a snapshot |
 | [Write back](/writing-back/decision-records/)                 |                                        | A decided decision                       | An ADR pull request, or a Discussion  |
 
@@ -28,7 +30,8 @@ On Windows and Linux, <kbd>⌥</kbd> is <kbd>Alt</kbd>. [Expand related](/boards
 Select stickies, then **Make issue** (or **Make N issues**).
 
 - **The first line is the title**, and the rest is the body. A leading heading mark, bullet or checkbox is dropped from the title. Titles over 256 characters are cut at a word, and the whole line kept at the top of the body.
-- **Repository**: the board's repositories come first, with how many cards each has, then ones you've used lately. Type `owner/repo` for another.
+- **Repository**: the chosen one shows with how many of its cards are on the board; **Change** (or typing) lists the board's repositories, then ones you've used lately. Type `owner/repo`, or paste a link to a repository or anything in it, for another.
+- **The titles** are listed, and can be reworded in place: what you type goes back onto the sticky. **+ description** shows an issue's body, and **Show all** lists every one.
 - **Start with**: optionally pick **Labels**, a **Milestone** and **Assignees** to create the issues with, so they need no second push.
 - Stickies that are already staged, or empty, are left out: "1 already staged, 1 empty sticky left out."
 
@@ -49,7 +52,7 @@ Select a section on its own (**Parent issue**), or several stickies and cards, t
 Select one or more cards.
 
 - **Labels** (<kbd>⌥</kbd> <kbd>L</kbd>) and **Assign** (<kbd>⌥</kbd> <kbd>P</kbd>) show a checklist. A box is ticked if every selected item has it, dashed if some do. Only what you toggle changes: "+2 −1 on 3 items". With cards from several repositories, only the labels (or people) every one of them has are offered.
-- **Milestone** (<kbd>⌥</kbd> <kbd>M</kbd>) picks one of the repository's open milestones, or **No milestone**.
+- **Milestone** (<kbd>⌥</kbd> <kbd>M</kbd>) picks one of the repository's open milestones, starting on the items' current one (ticked), or **No milestone**, last in the list.
 
 ## Close or reopen
 
@@ -64,7 +67,7 @@ Pull requests close without a reason, and merged pull requests can't be closed o
 
 ## Blocked by
 
-Select a connector between two issues and choose **Blocked by** in its toolbar (<kbd>⌥</kbd> <kbd>B</kbd>). The arrow points from the blocker to what it blocks: "#377 will be marked as blocked by #412". **Swap** turns it round.
+Select a connector between two issues and choose **Blocked by** in its toolbar (<kbd>⌥</kbd> <kbd>B</kbd>), or select the two issues it joins and choose **Blocked by** in their bar. The arrow points from the blocker to what it blocks: "#377 will be marked as blocked by #412". **Swap** turns it round.
 
 Both ends need to be issues (or stickies already staged as issues: "Make “…” an issue first, then link it"). Pull requests can't block or be blocked.
 

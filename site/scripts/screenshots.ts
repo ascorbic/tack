@@ -89,7 +89,8 @@ const SHOTS: Shot[] = [
 			await page.waitForTimeout(800);
 		},
 	},
-	{ name: "writes", title: "Imagekit 5.0 planning", url: "/play?scenario=writes" },
+	// Staged changes on the board: the marks on each shape.
+	{ name: "writes", title: "Imagekit 5.0 planning", url: "/play?scenario=push" },
 	{ name: "decisions", title: "Architecture decisions", url: "/play?scenario=decisions" },
 	{ name: "sections", title: "Roadmap", url: "/play?scenario=sections" },
 	{ name: "lists", title: "Roadmap", url: "/play?scenario=lists" },

@@ -20,7 +20,9 @@ The sheet groups the changes by repository, then by kind: new issues, pull reque
 
 - **Previews** show exactly what will be written: each issue's title, body, labels, assignees and milestone; each comment; a pull request's branch and files. Markdown is shown as it'll read on GitHub.
 - **Notifications**: each repository says roughly how many people its changes will notify ("Notifies ~40 people"). New issues, pull requests, discussions, comments and closing or reopening notify the repository's watchers; labels, milestones and links are quiet. People being assigned hear about it too.
-- **Switches** leave a change, or a whole group, out of this push. Leaving out a new issue also leaves out the changes about it.
+- **Switches** leave a change, or a whole group, out of your push. It's your choice alone, for this push: nobody else's push changes. Leaving out a new issue also leaves out the changes about it. Changes to repositories without the [GitHub App](/self-hosting/github-app/) start left out, since they'd be refused; tick them back in once it's installed.
+- **Corrections**: a new issue's title and description can be reworded in place, and its labels, milestone and assignees changed with the same pickers as Make issues. Words that came from a sticky are written back to the sticky, so the board and the issue agree. Issues with no description read as one compact line.
+- **Where it came from**: new issues made from stickies or sections end with a short line linking back to the board, naming the section and who wrote the sticky ("From _EmDash planning_ › Plugin API, an idea by @priya"), since GitHub shows whoever pushed as the author. It's on by default, with a switch in the sheet, remembered for each board, and the previews show it.
 - Each change says what happens on the board afterwards, such as "On the board, its sticky turns into the new card".
 
 ## Pushing as yourself or the bot
@@ -41,12 +43,12 @@ Choose **Push N changes** (<kbd>⌘</kbd> <kbd>Enter</kbd>).
 | Sign in to push                                 | Pushing writes as a person, so Tack needs to know who you are     | **Sign in with GitHub**                                        |
 | You can stage but not push here                 | GitHub says you can't write to the repository                     | Someone with write access can push, or leave those changes out |
 | Install the app on these repos                  | The [GitHub App](/self-hosting/github-app/) isn't installed there | **Install the app**, or leave them out                         |
-| A change needs an issue that isn't in this push | A change refers to a new issue you left out                       | **Include it**                                                 |
+| A change needs an issue that isn't in this push | A change refers to a new issue you left out; the sheet names both | **Include it**                                                 |
 | Couldn't start the push                         | Another push is still going, or the changes changed meanwhile     | Try again: nothing is ever sent twice                          |
 
 ## Progress and confirmation
 
-Tack writes one change at a time, a second apart, in dependency order (new issues before the changes about them). You can close the sheet: the push carries on, and the changes panel follows along. Everyone on the board sees it.
+Tack writes one change at a time, a second apart, in dependency order (new issues before the changes about them), though the sheet lists them in the order you reviewed them. A longer push says roughly how long it has left ("About 40 s left"). You can close the sheet: the push carries on, and the changes panel follows along. Everyone on the board sees it.
 
 Each change goes **Waiting its turn** → **Sending…** → **Sent, waiting for GitHub to confirm** → **On GitHub**, linking to what it wrote. When they're all done: "All N changes are on GitHub".
 
@@ -54,12 +56,12 @@ Each change goes **Waiting its turn** → **Sending…** → **Sent, waiting for
 
 Changes no card shows (milestones, sub-issues, blocked-by, comments, discussions) are done when GitHub accepts them.
 
-When it's done, the board catches up by itself: stickies turn into their issues' cards in place, a parent issue's card lands above its section connected to its sub-issues, and a decision shows its pull request.
+When it's done, the board catches up by itself: stickies turn into their issues' cards in place, a parent issue's card lands above its section connected to its sub-issues, and a decision shows its pull request. Cards are wider than stickies, so as a push starts, rows of stickies about to become cards spread out just enough for each card to fit, and sections grow to keep them: a pushed brainstorm doesn't turn into a pile of overlapping cards.
 
 ## Failures and retries
 
 - **Rate limits, timeouts and GitHub outages** are waited out and retried, in order, for up to eight attempts. A rate limit that won't lift within 70 minutes fails instead.
-- **Refusals** (no permission, an item that's gone) fail that change, with GitHub's reason, and changes that needed it fail too.
+- **Refusals** (no permission, an item that's gone) fail that change, and changes that needed it fail too. The reason is in plain words, with what to do ("Tack's GitHub App doesn't have permission to assign people in acme/app. An owner of the repository may need to accept the app's new permissions"); **Details** shows what GitHub said itself.
 - A failed change stays in the changes panel. **Retry** pushes it again (as you or as the bot, whichever it was pushed as before), or unstage it to let it go.
 
 Tack never writes anything twice. A change being pushed or already done is never pushed again, and a retried create first looks for what an unanswered earlier attempt made.

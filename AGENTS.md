@@ -168,6 +168,20 @@ A section can show what's in it as cards (free-form, as placed), as a list of co
 - **Silent mode** works as it does on stickies: a face-down sticky's row shows its author and nothing else (its text isn't in the document), yours show your own text marked as hidden, and a sticky made by clicking or dropping into a silent list joins the session as usual. Stamps and dot votes are counted inline on rows and mini cards rather than hung off them.
 - **Not yet**: lists and grids can't be resized (switch to cards to resize: their width comes from the section's), connectors pass over rows rather than routing around them (the connector layer's one stacking context), and a grid's mini cards are all one size.
 
+## Staged changes and pushing
+
+What's staged follows the board, and each push is its pusher's own (docs/ux-review/writeback.md):
+
+- **Staged issues follow their stickies.** An `issue.create` that replaces a sticky reads its title and body from the sticky until it's pushed (`followSticky` in `src/shared/changes.ts`; the push plan reads it too), and is marked `drift` (`edited`, `deleted`, `empty`) for the panel and sheet. Deleting a shape unstages what was made from it and what refers to that, in the same undo step. Words edited in the push sheet go back onto the sticky (`editStagedIssue`).
+- **Inclusion is per push, not shared.** `PushSession.leftOut` is this person's choice in the push sheet; nothing about it is in the document. Changes to repositories without the app are left out by default, once each (`useUnwritableLeftOut`, `leaveOutByDefault`): a choice made by hand always wins.
+- **Batches**: changes staged by one action share `batch` (in board reading order) and fold into one row in the panel (`batchRows`).
+- **Marks on shapes** (`StagedMarks.tsx`): one mark per shape summing up everything on it, opening into a list on hover or focus, a dot below `MARK_DOT_ZOOM`; the ghost card behind a sticky shows only while it's pointed at, selected, picked out or being pushed. The action bar clears the marks when it sits above the selection.
+- **Failures** are in plain words (`explain` in `github-write.ts`, worded for whoever pushed: you or the app); what GitHub said is kept as `errorDetail` (and `detail` in push history), behind Details (`ForgeError`).
+- **After a push**: rows of stickies spread out so the wider cards fit (`makeRoomForCards` in `src/shared/swap.ts`, run as a push starts), and new issues can say where they came from (`src/shared/credit.ts`, a switch in the sheet, on by default).
+- **The action bar** is a roving-tabindex toolbar: Tab from a selected shape or F6 reaches it; arrow keys inside any `[role=toolbar]` aren't board nudges (`commands.ts`). ⌘↵ stages from any `Popover` (its first enabled `.action-primary`). Unavailable actions are `aria-disabled` with their reason, not `disabled`.
+- **Decisions**: what the write-back dialog edits lives on the decision (`text`, `outcome`, `consequences`; `setDecisionRecord`), written as people type. Records go in the folder the repository already uses (`ADR_DIRS`, `detectRecordDir`, `recordDir` in `adr.ts`), editable in the dialog and remembered per repository in the browser.
+- **Backlink snapshots** are framed by `snapshotFrame.ts` (neighbours whole, even padding, section titles kept); the off-screen copy is at least the image's size.
+
 ## Testing
 
 - Unit tests run in Node. Integration tests use `startWorker()` from `test/harness.ts`: `mf.dispatchFetch()` for HTTP, and `repoStub()`/`instanceStub()` (or `mf.getDurableObjectNamespace()`) for Durable Object RPC.

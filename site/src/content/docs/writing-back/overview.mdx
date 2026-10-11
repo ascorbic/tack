@@ -10,13 +10,13 @@ import Screenshot from "../../../components/Screenshot.astro";
 Moving things on a board never changes GitHub. Only **pending changes** do, and they go through three steps:
 
 1. **Stage.** An action on the board (making issues from stickies, adding a label, linking a blocked-by) stages a change. The change shows on the shapes it's about and in the changes panel, for everyone on the board. Nothing is written yet.
-2. **Review.** Someone opens the push sheet, reads what will be written (issue bodies, labels, files, how many people will be notified), and leaves out anything that shouldn't go.
+2. **Review.** Someone opens the push sheet, reads what will be written (issue bodies, labels, files, how many people will be notified), corrects anything that's wrong, and leaves out anything that shouldn't go.
 3. **Push.** Tack writes the changes one at a time, and confirms each one when GitHub shows it.
 
 <Screenshot
 	name="writes"
-	alt="Stickies with ghost issue cards behind them, cards with staged labels hanging under them, and flags such as Will close, Blocked by #418 and New pull request."
-	caption="Staged changes on the board: ghost cards behind stickies that will become issues, labels being added, and flags for everything else."
+	alt="Stickies and cards, each with one mark above it summing up what's staged on it, such as New issue in imagekit · +enhancement, Will close · Will comment, and Blocked by #418 · +@priya."
+	caption="Staged changes on the board: one mark per shape, summing up everything staged on it."
 />
 
 ## Who can do what
@@ -27,16 +27,19 @@ Moving things on a board never changes GitHub. Only **pending changes** do, and 
 
 ## Staging
 
-Every action is one undo step, and shows a toast with **Undo**: "Staged 2 issues for acme/app, with 1 label", "Staged: #377 blocked by #412". The [built-in actions](/writing-back/actions/) are the full list.
+Every action is one undo step, and shows a toast with **Undo** saying what was staged on what: "Staged 2 issues for acme/app, with 1 label", "Staged +docs on #412", "Staged closing #412 as completed", "Staged: #377 blocked by #412". The [built-in actions](/writing-back/actions/) are the full list.
 
-Staged changes show on the board:
+Staged changes show on the board as **one mark above each shape**, summing up everything staged on it: "New issue in imagekit · Sub-issue of #412 · +enhancement", "Will close · Will comment", "+@kai · → v5.0". It's cut short at the shape's width, with a count when there's more than one change. Point at it (or tab to it) to see each change, with its labels and status, and click one to find it in the panel. Below 60% zoom the marks shrink to dots in their colour, so a staged brainstorm doesn't bury the board.
 
-- a **ghost card** behind a sticky that will become an issue, and a dashed card above a section that will become a parent issue
-- **label chips** under a card for labels being added (+) or removed (−)
-- **flags** for the rest: "Will close as not planned", "+@kai", "→ v5.0", "Sub-issue of #412", "Blocked by #418", "Will comment", "New pull request"
-- an **outline** around anything with changes, red if one failed
+There's also an **outline** around anything with changes (red if one failed), a dashed card above a section that will become a parent issue, and, while you point at a sticky that will become an issue (or select it, or it's being pushed), the card it'll become, peeking out from behind it.
 
-Click a flag to find its change in the panel.
+## Staged changes follow the board
+
+A staged change is about the shapes on the board, as they are when it's pushed, not as they were when it was staged:
+
+- **Reword a sticky** after staging it, and its issue is pushed with the new words. Its row in the panel and the push sheet says "Edited since it was staged".
+- **Delete a shape** a change was made from, and the change is unstaged with it, in the same undo step: "Deleted a sticky and unstaged its issue". Undo brings both back. Changes that refer to it (a sub-issue link to its issue, say) go too.
+- A sticky emptied meanwhile is left out of a push until it says something again.
 
 Staging is careful about duplicates and dependencies:
 
@@ -46,18 +49,19 @@ Staging is careful about duplicates and dependencies:
 
 ## The changes panel
 
-Choose **Changes** in the top bar. Its badge counts what's waiting, and turns red if something failed.
+Choose **Changes** in the top bar. Its badge counts what's waiting, and a red dot on the tray says something failed.
 
 <Screenshot
 	name="changes"
 	alt="The changes panel beside the board: staged changes grouped by repository, each with who staged it and when, one failed with a Retry button, and Review and push 10 at the bottom."
 />
 
-The panel lists the changes waiting to go, grouped by repository, each with who staged it and when. Click a change to see its shapes on the board.
+The panel lists the changes waiting to go, grouped by repository, in the order they were staged (what one action staged together, in reading order on the board), each with who staged it and when. Click a change to see its shapes on the board.
 
-- **The switch** beside a change leaves it out of the next push, without unstaging it.
+- What one action staged together reads as **one row** ("40 new issues from stickies") that opens to show each. It opens by itself when one of them fails or is picked out on the board.
 - **×** unstages it (with Undo).
-- **Failed** changes show why, with **Retry**.
+- **Failed** changes say why in plain words, with **Retry**. **Details** shows what GitHub said itself.
+- What goes in a push is chosen in the [push sheet](/writing-back/pushing/#reviewing), by whoever pushes: the panel is everyone's list, and nobody can quietly take something out of someone else's push.
 - Changes being pushed show "Sending…" or "Sent, waiting for GitHub to confirm", and the latest few that landed show under **On GitHub**, linking to what they wrote.
 - **History** opens the board's [push history](/writing-back/pushing/#push-history).
 - **Review and push** opens the [push sheet](/writing-back/pushing/).
