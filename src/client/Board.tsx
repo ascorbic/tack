@@ -379,7 +379,7 @@ export function Board({
 				nodes: ids.map((id) => ({ id })),
 				padding: 0.6,
 				maxZoom: 1.1,
-				duration: 420,
+				duration: scaledDuration(420),
 			});
 		},
 		[flow, follow.stop],

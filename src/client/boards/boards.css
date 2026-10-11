@@ -1027,7 +1027,7 @@ a.brand {
 }
 
 .board-title[data-saving] {
-	animation: title-saving 1.2s ease-in-out infinite;
+	animation: title-saving calc(1200ms * var(--motion)) ease-in-out infinite;
 }
 
 @keyframes title-saving {
@@ -1512,7 +1512,7 @@ a.brand {
 }
 
 .invite-preview li[data-checking] .avatar {
-	animation: title-saving 1.2s ease-in-out infinite;
+	animation: title-saving calc(1200ms * var(--motion)) ease-in-out infinite;
 }
 
 .invite-preview li[data-tone="bad"] {
@@ -1655,7 +1655,7 @@ a.brand {
 	min-height: 40px;
 	background: linear-gradient(90deg, var(--skeleton), var(--skeleton-shine), var(--skeleton));
 	background-size: 200% 100%;
-	animation: shimmer 1.4s linear infinite;
+	animation: shimmer calc(1400ms * var(--motion)) linear infinite;
 }
 
 @keyframes shimmer {
@@ -2103,7 +2103,7 @@ a.brand {
 }
 
 .share-repos li[data-state="loading"] .share-repo-glyph svg {
-	animation: title-saving 1.2s ease-in-out infinite;
+	animation: title-saving calc(1200ms * var(--motion)) ease-in-out infinite;
 }
 
 .share-repo-name {
