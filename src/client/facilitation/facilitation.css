@@ -2544,6 +2544,13 @@ fieldset.vote-start-row {
 	cursor: pointer;
 }
 
+/* A section's body usually lets clicks through to the canvas (for marquee
+   selection); while picking, anywhere in one picks it. */
+.canvas[data-picking] .react-flow__node-section {
+	pointer-events: all !important;
+	cursor: pointer;
+}
+
 .canvas[data-picking] .section {
 	border-style: dashed;
 	border-color: color-mix(in srgb, var(--accent) 65%, transparent);
