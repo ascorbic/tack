@@ -1,74 +1,107 @@
 ---
 title: Deploy Tack
-description: Run your own Tack on Cloudflare, with a GitHub App you own.
+description: Run your own Tack on Cloudflare, with a GitHub App you own, from the Deploy to Cloudflare button or your own machine.
 sidebar:
   order: 1
 ---
 
 import { Steps } from "@astrojs/starlight/components";
 
-Tack runs as **one Cloudflare Worker** on your account, with a **GitHub App you own**. There's no hosted Tack: every instance is someone's own.
+Tack runs as **one Cloudflare Worker** on your account, with a **GitHub App you own**. There's no hosted Tack: every instance is someone's own. Getting one running takes about fifteen minutes: deploy it, give it a secret, then let `/setup` walk you through the rest.
 
 You'll need:
 
 - a Cloudflare account
 - a GitHub account (and, if your team's repositories belong to an organisation, to be able to create GitHub Apps for it)
-- Node.js 22 or later and pnpm 10, to deploy from your machine
+- to deploy from your machine instead of the button: Node.js 22 or later and pnpm 10
 
 ## What gets deployed
 
-Everything is declared in [`cloudflare.config.ts`](https://github.com/ascorbic/tack/blob/main/cloudflare.config.ts), read by the [`cf` CLI](https://www.npmjs.com/package/cf). There's no Wrangler configuration.
+Everything is declared in [`cloudflare.config.ts`](https://github.com/ascorbic/tack/blob/main/cloudflare.config.ts), read by the [`cf` CLI](https://www.npmjs.com/package/cf). Tack doesn't use Wrangler.
 
 - **A Worker** named `tack`, serving the app's static files and its API.
-- **Four Durable Objects**, all with SQLite storage: one per board, one per repository, and two singletons (the instance's GitHub App, users and sessions; and the board index).
+- **Four Durable Objects**, all with SQLite storage: one per board, one per repository, and two singletons (the instance's GitHub App, users and sessions; and the board index). Nothing to create beforehand: they're made as they're used.
 - **A cron trigger**, every ten minutes, that asks GitHub to redeliver webhooks that failed to arrive.
 - **Workers Logs**, for [observability](/self-hosting/observability/).
-- **Secrets**: `TACK_SECRET`, and two optional ones. See [Secrets](#secrets).
+- **One secret, `TACK_SECRET`**, and two optional ones. See [Secrets](#secrets).
 
-## Deploy
+## Deploy with the button
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ascorbic/tack)
 
 <Steps>
 
-1. **Get the code.** Fork [ascorbic/tack](https://github.com/ascorbic/tack) (so you can deploy from Workers Builds and pull in updates), and clone it.
+1. **Choose Deploy to Cloudflare** above, and sign in to Cloudflare. It asks to connect your GitHub (or GitLab) account, and makes a new repository there with Tack's code, which it deploys from.
+
+2. **Keep the name `tack`** for the Worker (see [the button's limits](#the-buttons-limits)). Name the new repository whatever you like.
+
+3. **`TACK_SECRET`**: the button asks for it. Generate one and paste it in:
+
+   ```sh
+   openssl rand -base64 32
+   ```
+
+   Keep a copy somewhere safe (a password manager), and **never change it**: it encrypts the GitHub App's credentials and everyone's stored tokens, and signs sessions.
+
+4. **Build settings**: keep the deploy command it fills in from Tack's `package.json` (it runs `pnpm run deploy`, which builds Tack and deploys it with `cf`). If it fills in a build command too, that's harmless. Under advanced settings, set the **non-production branch deploy command** to `pnpm run deploy:preview`, which gives each branch a [Preview](#previews), or turn non-production builds off.
+
+5. **Create and deploy.** Workers Builds builds and deploys it, and from then on deploys every push to the new repository's `main`.
+
+6. Carry on with [After deploying](#after-deploying).
+
+</Steps>
+
+### The button's limits
+
+- **It makes a copy, not a fork.** The new repository isn't linked to `ascorbic/tack` on GitHub, so taking a new version is pulling it in yourself: see [Upgrading](/self-hosting/upgrades/).
+- **The Worker is called `tack`.** `cf` deploys the name in `cloudflare.config.ts`, not the one in the button's form. To use another, change `name` and each Durable Object binding's `worker` in `cloudflare.config.ts`, then run `pnpm run wrangler-config` (below) and push.
+- **It reads `wrangler.jsonc`.** The button only reads a Wrangler configuration to see what a Worker needs, so the repository has one, generated from `cloudflare.config.ts` by `pnpm run wrangler-config`. Nothing else uses it, and Tack's tests fail if it's out of date. Don't edit it by hand.
+- **It asks for `TACK_SECRET` only.** The optional secrets can be added later, in the dashboard.
+- **From a fork**: the button works from any public repository on GitHub or GitLab. To deploy your own fork (with your changes), point the button's `url` at it: `https://deploy.workers.cloudflare.com/?url=https://github.com/<you>/tack`.
+- **If the first build fails** saying required secrets haven't been set, add `TACK_SECRET` to the Worker under Workers & Pages → `tack` → Settings → Variables and secrets, then retry the build.
+
+## Deploy from your machine
+
+<Steps>
+
+1. **Get the code.** Fork [ascorbic/tack](https://github.com/ascorbic/tack) (so you can pull in updates), clone it, and install:
 
    ```sh
    git clone https://github.com/<you>/tack.git
    cd tack
    pnpm install
-   ```
-
-2. **Deploy the Worker.** Either from your machine:
-
-   ```sh
    pnpm exec cf auth login   # or set CLOUDFLARE_API_TOKEN
-   pnpm run deploy
    ```
 
-   `pnpm run deploy` builds Tack and deploys it with `cf deploy`. Note the `run`: `pnpm deploy` is a different, built-in pnpm command.
-
-   Or, better, connect your fork to [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) in the Cloudflare dashboard, so every push to `main` deploys:
-   - deploy command for `main`: `pnpm run deploy`
-   - deploy command for other branches: `pnpm run deploy:preview`, which gives each branch a [Preview](#previews) with its own URL
-
-3. **Choose the address you'll keep.** The GitHub App is created for the address you set it up on: its sign-in callback and webhook URL point there. If you'll use a custom domain, add it to the Worker now, and do the rest from that domain rather than `workers.dev`.
-
-4. **Set `TACK_SECRET`.** Generate a long random value, and add it as a secret on the Worker:
+2. **Deploy it the first time, with its secret.** A new Worker needs `TACK_SECRET` from the start, so give it with the first deploy, from a file git ignores:
 
    ```sh
-   openssl rand -base64 32
-   pnpm exec cf workers secrets update TACK_SECRET
+   echo "TACK_SECRET=$(openssl rand -base64 32)" > .env.secrets
+   pnpm run deploy --secrets-file .env.secrets
    ```
 
-   Or in the dashboard: Workers & Pages → tack → Settings → Variables and secrets. Keep it safe, and **don't change it**: it encrypts the GitHub App's credentials and everyone's stored tokens, and signs sessions.
+   Copy the secret from `.env.secrets` somewhere safe, then delete the file. `pnpm run deploy` builds Tack and deploys it with `cf deploy`. Note the `run`: `pnpm deploy` is a different, built-in pnpm command.
 
-5. **Create the GitHub App.** Visit `/setup` on your instance straight away, and follow [Set up the GitHub App](/self-hosting/github-app/). Whoever completes setup becomes the instance's first admin. Until then, every home page says the instance isn't set up yet, and anyone who can reach it can open and edit its boards, so don't leave it waiting.
+3. **Deploy again** with plain `pnpm run deploy`: secrets stay with the Worker. Or, better, connect the Worker to your fork in the dashboard (Workers & Pages → `tack` → Settings → Builds), so every push deploys:
+   - deploy command: `pnpm run deploy`
+   - non-production branch deploy command: `pnpm run deploy:preview`, which gives each branch a [Preview](#previews)
 
-6. **Install the app** on the repositories you plan with, and **decide who can use the instance**. See [Install on repositories](/self-hosting/github-app/#install-on-repositories) and [Who can use it](/self-hosting/access/).
+</Steps>
+
+## After deploying
+
+<Steps>
+
+1. **Choose the address you'll keep.** The GitHub App is created for the address you set it up on: its sign-in callback and webhook URL point there. If you'll use a custom domain, add it to the Worker now (Workers & Pages → `tack` → Settings → Domains & Routes), and do the rest from that domain rather than `workers.dev`.
+
+2. **Visit `/setup` straight away.** Its checklist walks through what's left, checking each step as you go: the secret, the GitHub App, webhooks arriving, where the app is installed, and who can use the instance. Follow [Set up the GitHub App](/self-hosting/github-app/). Whoever completes setup becomes the instance's first admin.
+
+3. **Install the app** on the repositories you plan with, and **decide who can use the instance**. See [Install on repositories](/self-hosting/github-app/#install-on-repositories) and [Who can use it](/self-hosting/access/).
 
 </Steps>
 
 :::caution[Do setup straight away]
-Until setup is complete, `/setup` is open to anyone who can reach your instance, and whoever completes it becomes the admin. Set `TACK_SECRET` and run setup as soon as you've deployed.
+Until setup is complete, `/setup` is open to anyone who can reach your instance, and whoever completes it becomes the admin, and anyone can open and edit its boards. Run setup as soon as you've deployed.
 :::
 
 ## Secrets
@@ -79,7 +112,7 @@ Until setup is complete, `/setup` is open to anyone who can reach your instance,
 | `GITHUB_WEBHOOK_SECRET` | No               | A second webhook secret, tried after the one the app was created with. For apps set up by hand, and for sending test webhooks locally                                                                           |
 | `GITHUB_TOKEN`          | No               | A GitHub token for reading public repositories without the app, so they're not limited to GitHub's anonymous rate limit. Never used for writes                                                                  |
 
-Settings that aren't secret are bindings in `cloudflare.config.ts`. There's one so far: `TACK_COMMAND_ALIAS`, short names the app also answers to in [comment commands](/automation/comment-commands/#aliases).
+Add or change one with `pnpm exec cf workers secrets update <NAME>`, or in the dashboard (Workers & Pages → `tack` → Settings → Variables and secrets). Deploys keep them. Everything else you can configure is in [Configuration](/self-hosting/configuration/).
 
 ## Previews
 
@@ -88,5 +121,6 @@ Workers Builds deploys a Preview for each branch other than `main`, each with it
 ## Next
 
 - [Set up the GitHub App](/self-hosting/github-app/)
+- [Configuration](/self-hosting/configuration/)
 - [Who can use it](/self-hosting/access/)
 - [Costs and limits](/self-hosting/costs/)

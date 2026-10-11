@@ -16,18 +16,19 @@ pnpm dev
 
 ## Secrets locally
 
-Create `.dev.vars` (it's ignored by git):
+Copy `.dev.vars.example` to `.dev.vars` (it's ignored by git), and fill it in:
 
 ```sh
 TACK_SECRET=<any random string>
 TACK_DEV_AUTH=1   # fake sign-in, local only
+GITHUB_WEBHOOK_SECRET=<any string>   # optional, for sending test webhooks
 ```
 
 With `TACK_DEV_AUTH=1`, `/auth/dev?login=octocat` signs you in as a fake user, on localhost only. Add `&admin=1` for an admin, `&allow=1` to put them on the access list, `&orgs=a,b` to pretend they're in allowed organisations, and `&name=` for a display name. Fake users have no GitHub token, so they can't push to GitHub or read private repositories. `TACK_DEV_AUTH` is only read by the dev server: never set it in production.
 
 ## A GitHub App for local development
 
-You can run `/setup` on localhost to create a GitHub App for development. Sign-in and installation tokens work, but GitHub can't reach your machine, so the app's webhook starts switched off ("Cards still load; live updates need a public URL").
+You can run `/setup` on localhost to create a GitHub App for development. Sign-in and installation tokens work, but GitHub can't reach your machine, so the app's webhook starts switched off ("Cards still load; live updates need a public URL"), and `/setup`'s webhook check says "Off while local".
 
 To try webhooks, send one yourself, signed with `GITHUB_WEBHOOK_SECRET` from `.dev.vars`:
 

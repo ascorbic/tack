@@ -45,12 +45,15 @@ sidebar:
 : Private repositories need the app installed, even for people who can read them.
 
 **Cards stopped updating**
-: For live repositories, check the app's recent deliveries on GitHub (above). In the logs, look for `webhook.rejected` (a signature that doesn't match: was the app's webhook secret changed?) and `webhook.failed`.
+: For live repositories, open **Webhooks** on `/setup`: it asks GitHub how its latest deliveries went, and says what to do ([Webhooks](/self-hosting/github-app/#webhooks)). In the logs, look for `webhook.rejected` (a signature that doesn't match: was the app's webhook secret changed?) and `webhook.failed`.
 
 ## Signing in and setup
 
 **"Tack needs a secret first"**, or "Sign-in isn't available here"
-: The Worker has no `TACK_SECRET`. Set one: see [Deploy Tack](/self-hosting/deploy/#secrets). Previews never have one.
+: The Worker has no `TACK_SECRET`. Set one: `/setup` offers one with the command to set it, and see [Deploy Tack](/self-hosting/deploy/#secrets). Previews never have one.
+
+**A deploy fails: "The following required secrets have not been set: TACK_SECRET"**
+: A new Worker needs its secret from the first deploy. Deploy with `pnpm run deploy --secrets-file .env.secrets` (see [Deploy from your machine](/self-hosting/deploy/#deploy-from-your-machine)), or add `TACK_SECRET` under Workers & Pages → `tack` → Settings → Variables and secrets and deploy again.
 
 **"This Tack is invite-only"**
 : You're not on the instance's access list. Ask an admin to add you, or an organisation you're in. Added to an organisation recently? **Check again** signs you in afresh, which rechecks it.

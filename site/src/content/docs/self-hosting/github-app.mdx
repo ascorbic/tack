@@ -13,7 +13,7 @@ Tack talks to GitHub through a GitHub App that you own. `/setup` creates it from
 
 <Steps>
 
-1. Visit `/setup` on your instance. If it says "Tack needs a secret first", set [`TACK_SECRET`](/self-hosting/deploy/#secrets) and come back.
+1. Visit `/setup` on your instance. If it says "Tack needs a secret first", set [`TACK_SECRET`](/self-hosting/deploy/#secrets): the page offers one, made in your browser (it never leaves it), with the command to set it. Then choose **I've set it: check again**.
 
 2. **Who owns the app?** Choose **My account**, or **An organisation** and type its login. Choose the account that owns the repositories you'll plan with: GitHub only lets a private app be installed on the account that owns it.
 
@@ -61,8 +61,34 @@ To change which repositories the app is installed on later, open **App settings*
 
 ## After setup
 
-`/setup` stays as the instance's settings page, for admins: **Install on repositories**, **App settings** (the app on GitHub), **Where it's installed**, and [who can use the instance](/self-hosting/access/).
+`/setup` stays as the instance's settings page, for admins: **Install on repositories**, **App settings** (the app on GitHub), **Webhooks**, **Where it's installed**, and [who can use the instance](/self-hosting/access/). Admins also find it in the account menu, as **Instance settings**.
 
-**Where it's installed** lists every account the app is installed on, the repositories each covers, and whether Tack can push there: "Live · Tack can push", "Live, read-only" (the account hasn't accepted the permissions Tack asks for), or "Suspended". Before a planning session, check every repository you'll plan with is listed and can be pushed to. Admins also find it in the account menu, as **Instance settings**.
+### The checklist
+
+At the top of `/setup`, a checklist says where the instance stands, one step at a time: **Secret**, **GitHub App**, **Webhooks**, **Repositories** and **People**. Each step is checked when the page opens, and links to its part of the page. A step with a **!** is worth a look, and one with a **×** needs fixing; the next thing to do is ringed. "All set" means webhooks are arriving, every repository the app is installed on can be pushed to, and people besides the admins can sign in.
+
+Before a planning session, open `/setup` and check it says All set, and that every repository you'll plan with is under **Where it's installed**.
+
+### Webhooks
+
+**Webhooks** asks GitHub how its latest deliveries to the instance went (from the app's delivery log, so it sees the ones that never arrived) and whether the app sends them to this instance's address:
+
+| It says                   | What it means, and what to do                                                                                                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Arriving**              | The latest delivery reached Tack. Ones that failed recently are redelivered by the cron trigger                                                                                                                          |
+| **Waiting for the first** | Nothing's been delivered yet. GitHub sends a delivery when something happens in a repository the app is installed on: open an issue to try it. If nothing arrives, check the webhook is **Active** in the app's settings |
+| **Not arriving**          | GitHub couldn't connect. Check the instance answers at the webhook's address: a custom domain that doesn't resolve yet, or a Worker that isn't deployed                                                                  |
+| **Refused**               | Tack refused the delivery: its signature didn't match. The webhook secret in the app's settings must be the one Tack was set up with; if you changed it there, set the same value as `GITHUB_WEBHOOK_SECRET`             |
+| **Failing**               | Tack answered with an error. The [logs](/self-hosting/observability/) say why: look for `webhook.failed`                                                                                                                 |
+| **Going elsewhere**       | The app sends its webhooks to another address, as after moving to a custom domain. Change the **Webhook URL** in the app's settings to `https://your-instance/webhooks/github`                                           |
+| **Off while local**       | The instance is on your machine, where GitHub can't reach it. See [Local development](/self-hosting/local-development/)                                                                                                  |
+
+**Check again** asks GitHub afresh.
+
+### Where it's installed
+
+**Where it's installed** lists every account the app is installed on, the repositories each covers, and whether Tack can push there: "Live · Tack can push", "Live, read-only" (the account hasn't accepted the permissions Tack asks for), or "Suspended".
+
+Below them, **On boards, without the app** lists repositories Tack has looked for the app on (cards on boards, mostly) and not found it. Their cards still show if they're public, but don't update live, and Tack can't push to them: install the app on any you'll plan with.
 
 There's one app per instance: setup can't be run again once it's done.

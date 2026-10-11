@@ -20,10 +20,13 @@ import { isValidZ, shapesMap } from "./shapes.ts";
 //
 // - Append it with the next version; never edit or reorder a released one.
 // - Make it idempotent: run on a document already in the new format, it
-//   changes nothing (and returns 0). A client still running the old version
-//   can write old-format data after a migration, and the stamp is in a
-//   document editors can write to, so a migration may meet the same board
-//   again.
+//   changes nothing (and returns 0). One that throws partway is run again
+//   on the next load, and the stamp is in a document editors can write to
+//   (a client could drop it), so a migration may meet the same board again.
+// - Expect old-format data after it too: a tab still running the old
+//   version writes the old way until it reloads, and the stamp says the
+//   board's already migrated. Readers stay tolerant of the old format for
+//   at least a release; a later migration can sweep up what's left.
 // - Write only what needs changing: every write leaves a tombstone, and is
 //   sent to everyone on the board.
 // - Never throw for malformed data: skip what you can't read, as readers do.
