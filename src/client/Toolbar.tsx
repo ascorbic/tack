@@ -4,7 +4,6 @@ import { STICKY_COLORS, type StickyColor } from "./board.ts";
 import { type AddOutcome, CardPicker, type CardScope } from "./CardPicker.tsx";
 import type { QueryError, SearchResult } from "../shared/widgets.ts";
 import { GavelPaths } from "./decisions/icons.tsx";
-import { ListPaths } from "./widgets/icons.tsx";
 import { type AddWidget, WidgetPicker } from "./widgets/WidgetPicker.tsx";
 
 export type Tool =
@@ -207,9 +206,10 @@ export function Toolbar({
 				</ToolButton>
 				{onAddWidget && (
 					<ToolButton tool="widget" active={tool} onTool={onTool} label="Widget" shortcut="W">
-						<g transform="translate(2 2)">
-							<ListPaths />
-						</g>
+						{/* A live panel: a frame with a header, and a line that moves. */}
+						<rect x="3" y="3.5" width="14" height="13" rx="2.6" />
+						<path d="M3 7.5h14" />
+						<path d="m6 13.2 2.4-2.6 2.1 1.6 3.4-3.4" />
 					</ToolButton>
 				)}
 				<button

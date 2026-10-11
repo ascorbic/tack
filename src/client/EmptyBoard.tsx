@@ -14,6 +14,7 @@ const HINTS: Hint[] = [
 	{ keys: ["C"], label: "Find an issue or PR", tool: "card" },
 	{ keys: ["S"], label: "Add a sticky", tool: "sticky" },
 	{ keys: ["T"], label: "Write some text", tool: "text" },
+	{ keys: ["W"], label: "Add a live list of issues", tool: "widget" },
 	{ keys: ["/"], label: "Chat by your cursor" },
 ];
 

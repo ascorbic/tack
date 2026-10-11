@@ -131,6 +131,8 @@ test("every sticky, text and presence state renders", async ({ page }) => {
 	await expect(
 		section("Empty board").getByRole("heading", { name: "A blank board" }),
 	).toBeVisible();
+	// Widgets are what Tack does that a whiteboard doesn't: the guide says so.
+	await expect(section("Empty board")).toContainText("Add a live list of issues");
 });
 
 const DECISIONS: [caption: string, status: string][] = [
