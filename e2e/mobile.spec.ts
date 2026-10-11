@@ -182,6 +182,19 @@ test.describe("on a phone", () => {
 		await expect(page.getByRole("dialog", { name: "Card" })).toHaveCount(0);
 	});
 
+	test("tapping a stack shows its stickies, top first", async ({ page }) => {
+		await openScenario(page, "stacks");
+		const { tap } = await fingers(page);
+		await tap(await shapeOnScreen(page, "stack"));
+		const sheet = page.getByRole("dialog", { name: "Shape" });
+		await expect(sheet).toBeVisible();
+		await expect(sheet.locator(".phone-sheet-kind")).toHaveText("Stack");
+		const list = sheet.getByRole("list", { name: /stacked stickies/ });
+		await expect(list.getByRole("listitem").first()).toBeVisible();
+		// Looking doesn't spread it open, as a click would.
+		await expect(page.locator(".stack-tray")).toHaveCount(0);
+	});
+
 	test("dot votes and stamps from the sheet", async ({ page }) => {
 		await openScenario(page, "vote");
 		await sticky(page, "A provider playground").tap();

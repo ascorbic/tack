@@ -5,6 +5,7 @@ import type { CommentAuthor, CommentThread, CommentsYou } from "../../shared/com
 import { addDecision, castVote } from "../../shared/decisions.ts";
 import { type DotVote, placeDot, readVotes, startVote } from "../../shared/dotvotes.ts";
 import { toggleStamp } from "../../shared/facilitation.ts";
+import { membersOf } from "../../shared/stacks.ts";
 import { type ShapeProps, addShape, nextZ, readShape, shapesMap } from "../../shared/shapes.ts";
 import type { ShapeNode, StickyColor } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
@@ -78,6 +79,22 @@ function seed(): { doc: Y.Doc; ids: Record<string, string>; vote: DotVote } {
 		x: 400,
 		y: 0,
 	});
+	put("stack", { type: "stack", title: "Onboarding", x: 600, y: 0 });
+	[
+		["A first-run tour", "yellow"],
+		["Sample boards to start from", "pink"],
+		["Fewer steps to sign in", "green"],
+	].forEach(([text, color], i) =>
+		put(`stacked${i}`, {
+			type: "sticky",
+			text,
+			color: color as StickyColor,
+			author: [PRIYA, KAI, TOM][i],
+			stack: ids.stack,
+			x: 612,
+			y: 12,
+		}),
+	);
 	put("card", { type: "card", ref: PLANNING_CARDS[0]?.key ?? "", x: 0, y: 300 });
 	put("action", {
 		type: "action",
@@ -112,12 +129,31 @@ function seed(): { doc: Y.Doc; ids: Record<string, string>; vote: DotVote } {
 
 function nodeOf(doc: Y.Doc, id: string): ShapeNode {
 	const shape = readShape(shapesMap(doc).get(id) as Y.Map<unknown>);
-	return {
+	const node = {
 		id,
 		type: shape.type,
 		position: { x: shape.x, y: shape.y },
 		data: { id, shape },
 	} as ShapeNode;
+	if (shape.type === "stack") {
+		// What the board hands a stack: its stickies, top first.
+		const all = new Map(
+			[...shapesMap(doc).entries()].map(([key, map]) => [key, readShape(map as Y.Map<unknown>)]),
+		);
+		node.data = {
+			...node.data,
+			stack: {
+				members: membersOf(all, id).map((member) => ({
+					id: member,
+					shape: all.get(member) as ShapeProps,
+				})),
+				open: false,
+				receiving: false,
+				fed: 0,
+			},
+		};
+	}
+	return node;
 }
 
 function thread(id: string, shape: string, messages: [CommentAuthor, string, number][]) {
@@ -278,6 +314,9 @@ export default function MobileGallery() {
 						</Phone>
 						<Phone label="With comments" state="comments">
 							{sheet("hand", { store: stores.threads })}
+						</Phone>
+						<Phone label="A stack: its stickies, top first" state="stack">
+							{sheet("stack")}
 						</Phone>
 						<Phone label="An action item" state="action">
 							{sheet("action")}

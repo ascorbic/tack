@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import type * as Y from "yjs";
 import { type VoteChoice, castVote, statusOf, tally } from "../../shared/decisions.ts";
 import { type DotVote, ballotOf, dotsLeft, voteFor } from "../../shared/dotvotes.ts";
@@ -21,6 +21,7 @@ import { Avatar } from "../People.tsx";
 import type { User } from "../presence.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import { silentOf } from "../../shared/silent.ts";
+import { stackName } from "../../shared/stacks.ts";
 
 // What a phone shows when you tap a shape (#67): the shape itself, big
 // enough to read; its votes (a dot vote around it, or a decision's own);
@@ -36,6 +37,7 @@ const TYPE_NAMES: Record<string, string> = {
 	decision: "Decision",
 	widget: "Widget",
 	action: "Action item",
+	stack: "Stack",
 };
 
 export interface ShapeSheetProps {
@@ -67,6 +69,8 @@ export function ShapeHeading({ node }: { node: ShapeNode }) {
 		detail = shape.author?.name ?? null;
 	} else if (shape.type === "section") {
 		detail = shape.title?.trim() || "Untitled";
+	} else if (shape.type === "stack") {
+		detail = stackName(shape);
 	}
 	return (
 		<span className="phone-sheet-title">
@@ -173,6 +177,8 @@ function ShapeFace({
 			);
 		case "section":
 			return null;
+		case "stack":
+			return <StackFace node={node} />;
 		case "widget": {
 			const config = shape.config as { title?: unknown } | undefined;
 			const title = typeof config?.title === "string" ? config.title : "";
@@ -190,6 +196,42 @@ function ShapeFace({
 				</div>
 			);
 	}
+}
+
+/** A stack (#73): its stickies, top first, each to read. */
+function StackFace({ node }: { node: ShapeNode }) {
+	const members = node.data.stack?.members ?? [];
+	const texts = useSilentTexts();
+	if (members.length === 0) {
+		return (
+			<div className="phone-sheet-plain">
+				<p className="phone-sheet-plain-text">
+					<em>An empty stack</em>
+				</p>
+			</div>
+		);
+	}
+	return (
+		<ol className="phone-sheet-stack" aria-label={`${members.length} stacked stickies`}>
+			{members.map(({ id, shape }, i) => {
+				const session = silentOf(shape);
+				const mine = session !== null && texts.has(id);
+				const faceDown = session !== null && !mine;
+				const text = (mine ? texts.get(id) : shape.text) ?? "";
+				return (
+					<li
+						key={id}
+						className="phone-sheet-stack-item"
+						data-color={shape.color ?? "yellow"}
+						data-font={shape.font}
+						style={{ "--i": i } as CSSProperties}
+					>
+						{faceDown ? "Face down until it’s revealed" : text || <em>Empty</em>}
+					</li>
+				);
+			})}
+		</ol>
+	);
 }
 
 /** A decision: what was decided, and agreeing or disagreeing while it's proposed. */

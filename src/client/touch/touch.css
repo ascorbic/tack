@@ -336,6 +336,55 @@
 	text-decoration-color: var(--muted);
 }
 
+/* A stack's stickies, top first, overlapping a little as they do on the board. */
+.phone-sheet-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.phone-sheet-stack-item {
+	padding: 14px 16px;
+	border-radius: 4px 4px 14px 4px;
+	background: var(--sticky, var(--sticky-yellow));
+	color: var(--sticky-ink);
+	box-shadow: var(--sticky-shadow);
+	font-size: 17px;
+	font-weight: 520;
+	line-height: 1.32;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+	animation: phone-sheet-stack-in calc(320ms * var(--motion)) var(--ease-spring) both;
+	animation-delay: calc(min(var(--i, 0), 8) * 30ms * var(--motion));
+}
+
+.phone-sheet-stack-item:nth-child(odd) {
+	transform: rotate(-0.5deg);
+}
+
+.phone-sheet-stack-item:nth-child(even) {
+	transform: rotate(0.4deg);
+}
+
+.phone-sheet-stack-item[data-font="hand"] {
+	font-family: var(--font-hand);
+}
+
+.phone-sheet-stack-item em {
+	color: var(--muted);
+	font-style: normal;
+}
+
+@keyframes phone-sheet-stack-in {
+	from {
+		opacity: 0;
+		translate: 0 -12px;
+	}
+}
+
 .phone-sheet-meta {
 	margin: 8px 0 0;
 	color: var(--ink-soft);

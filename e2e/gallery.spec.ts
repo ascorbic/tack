@@ -503,6 +503,7 @@ test("every phone and tablet state renders", async ({ page }) => {
 		"decision",
 		"face-down",
 		"comments",
+		"stack",
 		"action",
 		"view-only",
 		"thread",
@@ -510,6 +511,10 @@ test("every phone and tablet state renders", async ({ page }) => {
 	]) {
 		await expect(state(name).getByRole("dialog")).toBeVisible();
 	}
+	await expect(state("stack").getByRole("list", { name: "3 stacked stickies" })).toContainText(
+		"Sample boards to start from",
+	);
+	await expect(state("stack")).toContainText("Onboarding");
 	await expect(state("sticky-vote").getByRole("region", { name: "Dot vote" })).toContainText(
 		"2 dots left",
 	);
