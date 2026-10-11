@@ -12,7 +12,7 @@ import { Avatar } from "../People.tsx";
 import { AuthPage } from "./AccessGate.tsx";
 import { Installations } from "./Installations.tsx";
 import { Checklist, SecretHelp, WebhookCheck } from "./SetupChecks.tsx";
-import { type Loaded, configuredSteps, firstSteps } from "./setupChecks.ts";
+import { type Loaded, configuredSteps, firstSteps, isReady } from "./setupChecks.ts";
 import "./auth.css";
 import { GitHubMark } from "./GitHubMark.tsx";
 import { personUser, signInHref } from "./me.ts";
@@ -239,6 +239,8 @@ function Configured({
 		status: "loading",
 	});
 	const [access, setAccess] = useState(info.access);
+	const steps = configuredSteps(webhooks, installations, info.access && access);
+	const ready = info.admin && isReady(steps);
 	return (
 		<AuthPage wide>
 			{params.has("created") && (
@@ -261,18 +263,37 @@ function Configured({
 					</span>
 				</div>
 			)}
-			<h1 id="setup-app">{info.app.name}</h1>
-			<p className="auth-lead">
-				This instance’s GitHub App. Install it on repositories to make their cards live (and private
-				repositories visible); public repositories work without it.
-			</p>
-			{info.admin && (
-				<Checklist steps={configuredSteps(webhooks, installations, info.access && access)} />
+			{ready ? (
+				<div className="setup-ready" role="status">
+					<h1 id="setup-app">Tack is ready</h1>
+					<p className="auth-lead">
+						Make a board and bring in issues from the repositories you installed it on. You can come
+						back here any time to check webhooks, install on more repositories, or let other people
+						in.
+					</p>
+					<div className="auth-actions">
+						<a className="auth-button primary" href="/">
+							Open your boards
+						</a>
+						<a className="auth-button" href="#setup-people">
+							Let other people in
+						</a>
+					</div>
+				</div>
+			) : (
+				<>
+					<h1 id="setup-app">{info.app.name}</h1>
+					<p className="auth-lead">
+						This instance’s GitHub App. Install it on repositories to make their cards live (and
+						private repositories visible); public repositories work without it.
+					</p>
+				</>
 			)}
+			{info.admin && <Checklist steps={steps} />}
 			<div className="auth-actions">
-				<a className="auth-button primary" href={info.app.installUrl}>
+				<a className={`auth-button${ready ? "" : " primary"}`} href={info.app.installUrl}>
 					<GitHubMark size={18} />
-					Install on repositories
+					{ready ? "Install on more repositories" : "Install on repositories"}
 				</a>
 				<a className="auth-button" href={info.app.htmlUrl}>
 					App settings
@@ -295,6 +316,9 @@ function Configured({
 			)}
 
 			<h2 id="setup-people">Who can use this instance</h2>
+			<p className="auth-note">
+				Optional. Admins can always sign in; add people or whole organisations to let them in too.
+			</p>
 			{!info.viewer && (
 				<>
 					<p className="auth-note">Sign in as an admin to manage access.</p>

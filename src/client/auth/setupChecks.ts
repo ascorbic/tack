@@ -100,13 +100,28 @@ function peopleStep(access: AccessSettings | null): SetupStep {
 		access.orgs.length > 0 ? count(access.orgs.length, "org") : null,
 	].filter(Boolean);
 	if (access.users.length === 0 && access.orgs.length === 0) {
-		return { ...step, detail: `${parts[0]}, nobody else yet`, tone: "todo" };
+		// Optional: an instance just for its admins works as it is.
+		return { ...step, detail: "Optional: only admins so far", tone: "todo" };
 	}
 	return { ...step, detail: parts.join(" · "), tone: "done" };
 }
 
 function count(n: number, one: string, many = `${one}s`): string {
 	return `${n} ${n === 1 ? one : many}`;
+}
+
+/**
+ * Whether the instance is ready to use: the secret, the app, webhooks
+ * arriving and the app installed somewhere. Who else can use it is optional.
+ */
+export function isReady(steps: readonly SetupStep[]): boolean {
+	const tone = (id: SetupStep["id"]) => steps.find((step) => step.id === id)?.tone;
+	return (
+		tone("secret") === "done" &&
+		tone("app") === "done" &&
+		tone("webhooks") === "done" &&
+		(tone("repositories") === "done" || tone("repositories") === "warn")
+	);
 }
 
 /** The step to look at first: the first that isn't done. */

@@ -1450,3 +1450,14 @@
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
+
+/* Setup done: the page leads with what to do now. */
+.setup-ready {
+	display: grid;
+	gap: 4px;
+	animation: pop-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.setup-ready .auth-actions {
+	margin-top: 10px;
+}

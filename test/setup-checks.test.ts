@@ -14,6 +14,8 @@ import {
 	firstSteps,
 	focusStep,
 	generateSecret,
+	isReady,
+	type SetupStep,
 } from "../src/client/auth/setupChecks.ts";
 import { assessWebhooks, isLocalOrigin, webhookUrl } from "../src/server/github/webhookHealth.ts";
 
@@ -125,7 +127,7 @@ describe("the setup checklist", () => {
 
 	it("nudges toward adding people while only admins can sign in", () => {
 		const lonely = steps(health(), { installations: [installation()] }, access());
-		expect(lonely.people).toMatchObject({ tone: "todo", detail: "1 admin, nobody else yet" });
+		expect(lonely.people).toMatchObject({ tone: "todo", detail: "Optional: only admins so far" });
 	});
 
 	it("waits while things are checked, and says when they couldn't be", () => {
@@ -210,5 +212,24 @@ describe("a new secret", () => {
 		expect(atob(secret)).toHaveLength(32);
 		expect(generateSecret()).not.toBe(secret);
 		expect(generateSecret((bytes) => bytes.fill(255))).toBe(btoa("\xff".repeat(32)));
+	});
+});
+
+describe("isReady", () => {
+	const done = (id: SetupStep["id"]): SetupStep => ({ id, label: id, detail: "", tone: "done" });
+	it("is ready once the app's installed and webhooks arrive, whoever else can use it", () => {
+		const steps = [done("secret"), done("app"), done("webhooks"), done("repositories")];
+		expect(isReady([...steps, { ...done("people"), tone: "todo" }])).toBe(true);
+		expect(isReady([...steps.slice(0, 3), { ...done("repositories"), tone: "current" }])).toBe(
+			false,
+		);
+		expect(
+			isReady([
+				done("secret"),
+				done("app"),
+				{ ...done("webhooks"), tone: "fail" },
+				done("repositories"),
+			]),
+		).toBe(false);
 	});
 });
