@@ -741,6 +741,12 @@ button.primary:hover {
 		animation: tools-in var(--t-base) var(--ease-spring);
 	}
 
+	/* The Facilitate menu opened by its keys (⇧F, ⇧T) brings the folded
+	   tools with it, so it never opens inside a hidden menu. */
+	.topbar-tools:has(.facilitate-button[aria-expanded="true"]) {
+		display: flex;
+	}
+
 	/* In the menu, every tool says what it is. */
 	.topbar-tools .topbar-label {
 		position: static;
@@ -751,14 +757,17 @@ button.primary:hover {
 		clip: auto;
 	}
 
-	.topbar .topbar-tools button {
+	/* The tools themselves, not what's in a menu one of them opens. */
+	.topbar .topbar-tools > button,
+	.topbar .topbar-tools > * > button {
 		justify-content: flex-start;
 		width: 100%;
 		border-color: transparent;
 		background: none;
 	}
 
-	.topbar .topbar-tools button:hover {
+	.topbar .topbar-tools > button:hover,
+	.topbar .topbar-tools > * > button:hover {
 		background: var(--hover);
 	}
 }
