@@ -1301,14 +1301,16 @@ button.issue-preview-body[aria-expanded="true"] {
 	line-height: 1.35;
 }
 
-/* Each sub-issue says what happens to it, and fades if it's left where it is. */
-.issue-preview li[data-fate] {
-	transition: opacity var(--t-base) var(--ease-out);
+/* Each sub-issue says what happens to it. One left where it is steps back,
+   by its colour rather than fading, so it stays readable. */
+.issue-preview li[data-fate] .issue-preview-title {
+	transition: color var(--t-base) var(--ease-out);
 }
 
-.issue-preview li[data-fate="already"],
-.issue-preview li[data-fate="out"] {
-	opacity: 0.55;
+.issue-preview li[data-fate="already"] .issue-preview-title,
+.issue-preview li[data-fate="out"] .issue-preview-title {
+	color: var(--ink-soft);
+	font-weight: 450;
 }
 
 .issue-preview li[data-fate="out"] .issue-preview-title {
@@ -1321,8 +1323,8 @@ button.issue-preview-body[aria-expanded="true"] {
 	color: var(--accent);
 }
 
-.issue-preview[data-checking] li {
-	opacity: 0.7;
+.issue-preview[data-checking] li .issue-preview-title {
+	color: var(--ink-soft);
 }
 
 /* Backlinks ---------------------------------------------------------------- */
