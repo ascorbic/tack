@@ -75,6 +75,11 @@ interface ToolbarProps {
 	 * hint for a moment rather than stacked above it. `key` replays it.
 	 */
 	note?: { text: string; key: number } | null;
+	/**
+	 * Why you can't comment (archived, signed out): view only, the comment
+	 * tool stays, greyed out and saying so, rather than vanishing.
+	 */
+	commentBlocked?: string;
 }
 
 const CommentPaths = () => <path d="M4 16.5V10a6 6 0 1 1 6 6Z" />;
@@ -96,6 +101,7 @@ export function Toolbar({
 	viewOnly = false,
 	commenting = true,
 	note = null,
+	commentBlocked,
 }: ToolbarProps) {
 	const commentHint = tool === "comment" && (
 		<ToolHint>Click anything to comment on it, or anywhere on the board</ToolHint>
@@ -112,9 +118,23 @@ export function Toolbar({
 						<path d="M7 11V5.5a1.5 1.5 0 0 1 3 0V10m0-.5V4a1.5 1.5 0 0 1 3 0v6m0-4.5a1.5 1.5 0 0 1 3 0V12a6 6 0 0 1-6 6h-.6a5 5 0 0 1-3.9-1.9L3.3 13a1.5 1.5 0 0 1 2.3-1.9L7 12.5" />
 					</ToolButton>
 					<span className="toolbar-divider" aria-hidden="true" />
-					<ToolButton tool="comment" active={tool} onTool={onTool} label="Comment" shortcut="B">
-						<CommentPaths />
-					</ToolButton>
+					{commenting ? (
+						<ToolButton tool="comment" active={tool} onTool={onTool} label="Comment" shortcut="B">
+							<CommentPaths />
+						</ToolButton>
+					) : (
+						<button
+							type="button"
+							className="tool"
+							aria-label={`Comment: ${commentBlocked ?? "not on this board"}`}
+							aria-disabled="true"
+							data-tooltip={commentBlocked ?? "You can’t comment here"}
+						>
+							<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+								<CommentPaths />
+							</svg>
+						</button>
+					)}
 				</div>
 			</div>
 		);

@@ -185,6 +185,8 @@ export function useCommentsOnBoard({
 		/** Whether the board has any comments (an empty board with comments isn't empty). */
 		hasThreads: threads.size > 0,
 		canComment: you.canComment,
+		/** Why not, when you can't: signed out, or the board's archived. */
+		commentBlocked: you.canComment ? undefined : you.reason,
 		closePanel,
 		jumpToThread,
 		jumpToShape,

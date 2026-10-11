@@ -15,6 +15,7 @@ import {
 } from "../src/client/boards/invites.ts";
 import { boardRepos } from "../src/client/boards/repoStatus.ts";
 import { matchScore, searchBoards } from "../src/client/boards/search.ts";
+import { type PanelState, panelsToClose } from "../src/client/panels.ts";
 import type { BoardInfo, BoardList, PersonLookup } from "../src/shared/boards.ts";
 import type { Card, MissingCard } from "../src/shared/cards.ts";
 
@@ -222,5 +223,25 @@ describe("a board's repositories", () => {
 			["new/repo", "loading", 1],
 			["emdash-cms/emdash", "ready", 2],
 		]);
+	});
+});
+
+describe("the board's panels", () => {
+	const panels = (open: string[]): PanelState[] =>
+		["since", "history", "rules", "comments", "changes"].map((id) => ({
+			id,
+			open: open.includes(id),
+			close: () => undefined,
+		}));
+
+	it("closes the others when one opens, so only one is ever open", () => {
+		expect(panelsToClose(new Set(["comments"]), panels(["comments", "history"]))).toEqual([
+			"comments",
+		]);
+		expect(panelsToClose(new Set(), panels(["rules"]))).toEqual([]);
+		// Nothing newly opened: nothing to do (closing one leaves the rest).
+		expect(panelsToClose(new Set(["rules", "changes"]), panels(["changes"]))).toEqual([]);
+		// Two at once: the later one wins.
+		expect(panelsToClose(new Set(), panels(["since", "changes"]))).toEqual(["since"]);
 	});
 });

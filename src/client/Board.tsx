@@ -105,6 +105,7 @@ import { ShortcutSheet } from "./Shortcuts.tsx";
 import { Toasts, ToastStore } from "./Toasts.tsx";
 import type { AddOutcome } from "./cardInput.ts";
 import { SyncStatus, TopBar } from "./TopBar.tsx";
+import { useExclusivePanels } from "./panels.ts";
 import { STICKY_DRAG_TYPE, TOOL_KEYS, type Tool, Toolbar, VIEW_TOOLS } from "./Toolbar.tsx";
 import { History } from "./undo.ts";
 import { usePublishStatus } from "./useActivity.ts";
@@ -127,8 +128,10 @@ import { WIDGET_DRAG_TYPE } from "./widgets/WidgetPicker.tsx";
 import { useCommentsOnBoard } from "./comments/useCommentsOnBoard.ts";
 import { CommentLayer } from "./comments/CommentLayer.tsx";
 import { CommentsButton, CommentsPanel } from "./comments/CommentsPanel.tsx";
+import { useCommentUI } from "./comments/store.ts";
 import { HighlightLayer } from "./since/Highlights.tsx";
 import { SinceButton, SincePanel } from "./since/SincePanel.tsx";
+import { sinceStore, useSince } from "./since/store.ts";
 
 // Every shape shows the changes staged about it, and shapes in a section
 // showing a list or mini cards draw as rows or mini cards (#72).
@@ -149,6 +152,9 @@ const NODE_TYPES = Object.fromEntries([
  */
 const LIST_GROUP_Z = SECTION_Z + 1000;
 const LIST_ROW_Z = 50;
+
+/** How often pressing an edit tool's key on a view-only board says why nothing happened. */
+const VIEW_ONLY_TOAST_MS = 4000;
 
 interface BoardProps extends BoardSource {
 	name: string;
@@ -926,7 +932,25 @@ export function Board({
 		if (replay.state.open) closeComments();
 	}, [replay.state.open, closeComments]);
 
+	// The panels on the right are one group: one open at a time, and Escape
+	// from the top bar closes it.
+	const sincePanel = useSince().panel;
+	const commentsPanel = useCommentUI().panel;
+	useExclusivePanels([
+		{ id: "since", open: sincePanel, close: () => sinceStore.setPanel(false) },
+		{
+			id: "history",
+			open: replay.state.open,
+			close: () => replay.controller?.close(),
+		},
+		{ id: "rules", open: rulesOpen, close: () => setRulesOpen(false) },
+		{ id: "comments", open: commentsPanel, close: closeComments },
+		{ id: "changes", open: changesUI.panelOpen, close: () => changesUI.setPanelOpen(false) },
+	]);
+
 	// Tool shortcuts, ignored while typing.
+	const archivedBoard = comments.commentBlocked === "archived";
+	const viewOnlyToldAt = useRef(0);
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -936,7 +960,18 @@ export function Board({
 			if (event.key === "Escape") setTool("select");
 			const next = TOOL_KEYS[event.key.toLowerCase()];
 			// View only: just the select and hand tools, and comments, no sections (F) or connectors (X).
-			if (next && readOnly && !VIEW_TOOLS.has(next)) return;
+			// Say why nothing happened, rather than nothing, at most every few seconds.
+			if (next && readOnly && !VIEW_TOOLS.has(next)) {
+				if (!event.repeat && Date.now() - viewOnlyToldAt.current > VIEW_ONLY_TOAST_MS) {
+					viewOnlyToldAt.current = Date.now();
+					toasts.show({
+						message: archivedBoard
+							? "This board is archived, so it’s read-only"
+							: "You can view this board, but not edit it. Ask its owner if you need to.",
+					});
+				}
+				return;
+			}
 			if (next) {
 				event.preventDefault();
 				setTool(next);
@@ -944,7 +979,7 @@ export function Board({
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [readOnly]);
+	}, [readOnly, archivedBoard, toasts]);
 
 	useEffect(() => {
 		if (tool !== "sticky") setGhost(null);
@@ -1576,7 +1611,7 @@ export function Board({
 								</PanelBoundary>
 							)}
 							<CursorChat awareness={awareness} user={user} />
-							{!replay.state.open && (!readOnly || comments.canComment) && (
+							{!replay.state.open && (
 								<Toolbar
 									tool={tool}
 									onTool={setTool}
@@ -1594,6 +1629,13 @@ export function Board({
 									viewOnly={readOnly}
 									commenting={comments.canComment}
 									note={toolNote}
+									commentBlocked={
+										comments.commentBlocked === "archived"
+											? "This board is archived, so it’s read-only"
+											: comments.commentBlocked === "signed_out"
+												? "Sign in to comment"
+												: undefined
+									}
 								/>
 							)}
 							<PanelBoundary name="What’s new">

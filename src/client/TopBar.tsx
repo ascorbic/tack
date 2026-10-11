@@ -31,6 +31,8 @@ export function TopBar({
 		};
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key !== "Escape") return;
+			// Closing the menu is all this Escape does.
+			event.preventDefault();
 			setOpen(false);
 			more.current?.focus();
 		};
