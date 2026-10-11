@@ -4431,7 +4431,8 @@ kbd {
 	margin-top: 0;
 }
 
-.gallery section {
+/* The gallery's own sections: not ones inside what it shows (a release draft's). */
+.gallery section:not(figure section) {
 	margin-top: 40px;
 }
 

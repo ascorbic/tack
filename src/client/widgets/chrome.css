@@ -129,17 +129,37 @@
 	list-style: none;
 }
 
+/* Each section: its title (and remove) above the labels it takes, at full width. */
 .release-config-sections li {
 	display: grid;
-	grid-template-columns: 9.5em minmax(0, 1fr) 28px;
+	grid-template-columns: minmax(0, 1fr) 28px;
 	align-items: center;
-	gap: 6px;
+	gap: 4px 6px;
+	padding: 6px;
+	border: 1px solid var(--line);
+	border-radius: 10px;
 	animation: row-in var(--t-settle) var(--ease-spring) backwards;
 	animation-delay: calc(var(--i, 0) * 20ms * var(--motion));
 }
 
 .release-config-sections input {
 	min-width: 0;
+}
+
+.release-config-sections input:first-child {
+	grid-column: 1;
+	grid-row: 1;
+	font-weight: 600;
+}
+
+.release-config-sections input.mono {
+	grid-column: 1 / -1;
+	grid-row: 2;
+}
+
+.release-config-sections .widget-tool {
+	grid-column: 2;
+	grid-row: 1;
 }
 
 .release-config-more {
