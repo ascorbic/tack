@@ -5,9 +5,9 @@ import {
 	type WidgetPreviewRequest,
 	aiError,
 } from "../../shared/ai.ts";
-import { useMe } from "../auth/me.ts";
 import { ReadOnlyContext } from "../DocContext.ts";
 import { ServicesContext } from "../actions/services.ts";
+import { useStacks } from "../stacks/store.ts";
 
 // AI in the client (#64): asking the board's server (or the playground's
 // stand-in), and previewing a proposed widget's results. Everything it
@@ -15,8 +15,6 @@ import { ServicesContext } from "../actions/services.ts";
 // is their own edit, one undo step.
 
 export interface AiService {
-	/** Asked of the Worker: whether `/api/me` must say AI's on before it's offered. */
-	live: boolean;
 	/** Ask; never throws. */
 	ask(request: AiRequest, signal?: AbortSignal): Promise<AiResponse>;
 	/** Run what a proposed widget would, answered as `widget-data` for `widgetPreviewId(id)`. */
@@ -31,7 +29,6 @@ export const previewChannel: { send: ((request: WidgetPreviewRequest) => void) |
 /** AI through the Worker's `POST /api/boards/:id/ai`. */
 export function liveAi(boardId: string): AiService {
 	return {
-		live: true,
 		async ask(request, signal) {
 			try {
 				const response = await fetch(`/api/boards/${encodeURIComponent(boardId)}/ai`, {
@@ -55,15 +52,16 @@ export function liveAi(boardId: string): AiService {
 }
 
 /**
- * AI on this board, if it's offered here: on for the instance (or the
- * playground's), and the board's editable by whoever's looking.
+ * AI on this board, if it's offered here: the board's server says AI
+ * suggestions are on (`stacks-ai`, as for stacks' names, #73; the
+ * playground's pretend server says so too), and the board's editable by
+ * whoever's looking.
  */
 export function useAi(): AiService | null {
 	const services = useContext(ServicesContext);
 	const readOnly = useContext(ReadOnlyContext);
-	const me = useMe();
+	const { ai: on } = useStacks();
 	const ai = services?.ai;
-	if (!ai || readOnly) return null;
-	if (ai.live && !(me.status === "ready" && me.me.ai?.state === "on")) return null;
+	if (!ai || readOnly || on !== true) return null;
 	return ai;
 }

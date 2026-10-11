@@ -8,8 +8,6 @@
 import type { Miniflare } from "miniflare";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { AiResponse } from "../src/shared/ai.ts";
-import { DEFAULT_MODEL } from "../src/server/ai/model.ts";
-import type { Me } from "../src/shared/auth.ts";
 import type { Card, MissingCard } from "../src/shared/cards.ts";
 import { addShape, nextZ, shapesMap } from "../src/shared/shapes.ts";
 import { joinSilentSession, parseSession } from "../src/shared/silent.ts";
@@ -79,43 +77,40 @@ function sticky(client: BoardClient, id: string, text: string, y = 0) {
 }
 
 describe("who may use AI", () => {
-	it("says whether it's on, in /api/me and /api/setup", async () => {
-		const mf = start();
-		const me = (await (await mf.dispatchFetch(`${ORIGIN}/api/me`)).json()) as Me;
-		expect(me.ai).toEqual({ state: "on", model: DEFAULT_MODEL });
-		const setup = (await (await mf.dispatchFetch(`${ORIGIN}/api/setup`)).json()) as { ai: unknown };
-		expect(setup.ai).toEqual({ state: "on", model: DEFAULT_MODEL });
-	});
-
 	it("is off with TACK_AI=off, and unavailable without the binding", async () => {
 		const off = start({ bindings: { TACK_AI: "off" } });
 		const olive = await signIn(off, "olive");
 		const id = await board(off, olive);
-		expect(((await (await off.dispatchFetch(`${ORIGIN}/api/me`)).json()) as Me).ai?.state).toBe(
-			"off",
-		);
 		const refused = await ask(off, id, olive, { task: "widget", prompt: "open bugs" });
 		expect(refused.status).toBe(404);
 		expect(refused.body).toMatchObject({ kind: "error", reason: "off" });
 
-		const none = start({ ai: false });
+		const none = start({ ai: null });
 		const oscar = await signIn(none, "oscar");
 		const other = await board(none, oscar);
-		expect(((await (await none.dispatchFetch(`${ORIGIN}/api/me`)).json()) as Me).ai?.state).toBe(
-			"unavailable",
-		);
 		expect((await ask(none, other, oscar, { task: "widget", prompt: "bugs" })).body).toMatchObject({
 			reason: "unavailable",
 		});
 	});
 
-	it("can choose another model by its id", async () => {
+	it("answers from local development's stand-in with TACK_AI=fake, never asking the model", async () => {
 		const ai = new FakeAi();
-		const mf = start({ ai, bindings: { TACK_AI: "@cf/meta/llama-3.3-70b-instruct-fp8-fast" } });
+		const mf = start({ ai, bindings: { TACK_AI: "fake" } });
 		const olive = await signIn(mf, "olive");
 		const id = await board(mf, olive);
-		expect((await ask(mf, id, olive, { task: "widget", prompt: "bugs" })).status).toBe(200);
-		expect(ai.calls[0]?.model).toBe("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+		const client = await open(mf, id, olive);
+		sticky(client, "s1", "Search is slow", 0);
+		sticky(client, "s2", "Cache search results?", 200);
+		await client.roundTrip();
+		const widget = await ask(mf, id, olive, { task: "widget", prompt: "Open bugs" });
+		expect(widget.body).toMatchObject({ kind: "widget", widget: "list" });
+		const decision = await ask(mf, id, olive, { task: "decision", shapes: ["s1", "s2"] });
+		expect(decision.body).toMatchObject({
+			kind: "decision",
+			title: "Cache search results?",
+			read: 2,
+		});
+		expect(ai.calls).toHaveLength(0);
 	});
 
 	it("is for the board's editors only, and refuses nonsense", async () => {
@@ -221,10 +216,10 @@ describe("asking for a widget", () => {
 			type: "json_schema",
 			json_schema: { name: "widget" },
 		});
-		expect(call.input.messages[1]?.content).toContain("withastro/astro");
-		expect(call.input.messages[1]?.content).toContain("ideas: “Ideas”");
-		expect(call.input.messages[1]?.content).toContain("<request>Open bugs</request>");
-		expect(call.input.messages[1]?.content).toContain("@olive");
+		expect(call.input.messages![1]?.content).toContain("withastro/astro");
+		expect(call.input.messages![1]?.content).toContain("ideas: “Ideas”");
+		expect(call.input.messages![1]?.content).toContain("<request>Open bugs</request>");
+		expect(call.input.messages![1]?.content).toContain("@olive");
 		// The board's untouched: nothing's placed until someone places it.
 		expect(shapesMap(client.doc).size).toBe(2);
 	});
@@ -246,7 +241,7 @@ describe("asking for a widget", () => {
 		expect(fixed.status).toBe(200);
 		expect(fixed.body).toMatchObject({ widget: "list", config: { sort: "created" } });
 		expect(ai.calls).toHaveLength(2);
-		const retry = ai.calls[1]!.input.messages;
+		const retry = ai.calls[1]!.input.messages!;
 		expect(retry.at(-2)?.role).toBe("assistant");
 		expect(retry.at(-1)?.content).toContain('“sort” can\'t be "loudest"');
 
@@ -259,7 +254,7 @@ describe("asking for a widget", () => {
 		expect(unusable.status).toBe(502);
 		expect(unusable.body).toMatchObject({ kind: "error", reason: "unusable" });
 		expect(ai.calls).toHaveLength(2);
-		expect(ai.calls[1]!.input.messages.at(-1)?.content).toContain("isn't a widget kind");
+		expect(ai.calls[1]!.input.messages!.at(-1)?.content).toContain("isn't a widget kind");
 
 		ai.reset();
 		ai.fail();
@@ -365,9 +360,9 @@ describe("summaries and decisions", () => {
 			read: 2,
 			leftOut: { faceDown: 1, private: 0 },
 		});
-		expect(ai.sent()).toContain("The docs need examples");
-		expect(ai.sent()).toContain("(in “Ideas”)");
-		expect(ai.sent()).not.toContain(SECRET);
+		expect(ai.sent).toContain("The docs need examples");
+		expect(ai.sent).toContain("(in “Ideas”)");
+		expect(ai.sent).not.toContain(SECRET);
 		expect(ai.calls[0]!.input.response_format?.json_schema?.name).toBe("summary");
 
 		// Only face-down stickies: nothing to read, and the model's never asked.
@@ -401,7 +396,7 @@ describe("summaries and decisions", () => {
 			options: [{ name: "Rewrite the index" }, { name: "Add caching" }],
 			read: 2,
 		});
-		expect(ai.calls[0]!.input.messages[1]?.content).toContain(
+		expect(ai.calls[0]!.input.messages![1]?.content).toContain(
 			"The decision is about: fixing search",
 		);
 	});
@@ -461,20 +456,20 @@ describe("summaries and decisions", () => {
 			if (visibility === "private") {
 				// Alice can read it: it's hers to summarise.
 				expect(theirs.body).toMatchObject({ read: 2, leftOut: { private: 0 } });
-				expect(ai.sent()).toContain(SECRET_TITLE);
+				expect(ai.sent).toContain(SECRET_TITLE);
 			} else {
 				// Whatever's drafted on a public board is public once it's placed.
 				expect(theirs.body).toMatchObject({ read: 1, leftOut: { private: 1 } });
-				expect(ai.sent()).not.toContain(SECRET_TITLE);
-				expect(ai.sent()).not.toContain("acme/secret");
+				expect(ai.sent).not.toContain(SECRET_TITLE);
+				expect(ai.sent).not.toContain("acme/secret");
 			}
-			expect(ai.sent()).toContain("Widgets wobble");
+			expect(ai.sent).toContain("Widgets wobble");
 
 			ai.reset();
 			const eddies = await ask(mf, id, eddie, { task: "decision", shapes });
 			expect(eddies.body).toMatchObject({ read: 1, leftOut: { private: 1 } });
-			expect(ai.sent()).not.toContain(SECRET_TITLE);
-			expect(ai.sent()).not.toContain("acme/secret");
+			expect(ai.sent).not.toContain(SECRET_TITLE);
+			expect(ai.sent).not.toContain("acme/secret");
 		}
 	});
 });
