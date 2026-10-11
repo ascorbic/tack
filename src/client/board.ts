@@ -90,13 +90,20 @@ function createNodeStore(doc: Y.Doc) {
 			});
 		}
 		const structure = readStructure(links);
+		// A stack counts once in its section, not once for each sticky in it (#73).
+		const stacked = (child: string) => {
+			const stack = shapes.get(child)?.get("stack");
+			return typeof stack === "string" && links.get(stack)?.type === "stack";
+		};
 		const nodes: ShapeNode[] = [];
 		for (const [id, shape] of shapes) {
 			// Connectors are drawn on their own layer, not as nodes.
 			const type = links.get(id)?.type;
 			if (type === "connector") continue;
 			const section = type === "section";
-			const count = section ? (structure.children.get(id)?.length ?? 0) : undefined;
+			const count = section
+				? (structure.children.get(id) ?? []).filter((child) => !stacked(child)).length
+				: undefined;
 			const zIndex = section ? SECTION_Z + (structure.depth.get(id) ?? 0) : 0;
 			let node = cache.get(id);
 			if (

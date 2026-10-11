@@ -3,6 +3,8 @@ import type { Point } from "./geometry.ts";
 import { PLACE_GAP } from "./placement.ts";
 import { NOMINAL_SIZE, type Size, type SizeOf, boxOf } from "./sections.ts";
 import { type ShapeProps, shapesMap } from "./shapes.ts";
+import { spreadStack } from "./stackEdits.ts";
+import { stackOf } from "./stacks.ts";
 import { readShapes } from "./structure.ts";
 
 // Making room for cards before stickies turn into them (#11.1 of the
@@ -150,7 +152,13 @@ function grow(
  * committed move does. Returns how many shapes moved.
  */
 export function makeRoomForCards(doc: Y.Doc, stickies: Iterable<string>, sizeOf?: SizeOf): number {
-	const plan = planRoomForCards(readShapes(doc), stickies, sizeOf);
+	const list = [...stickies];
+	// A stack whose stickies are becoming cards spreads out where it is
+	// first (#73): cards don't stack, and they'd all land on one spot.
+	const before = readShapes(doc);
+	const spreading = new Set(list.flatMap((id) => stackOf(before, id) ?? []));
+	for (const stack of spreading) spreadStack(doc, stack, sizeOf);
+	const plan = planRoomForCards(readShapes(doc), list, sizeOf);
 	const map = shapesMap(doc);
 	doc.transact(() => {
 		for (const [id, at] of plan.moves) {

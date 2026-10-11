@@ -37,6 +37,7 @@ import {
 	removeShapes,
 } from "../src/shared/structure.ts";
 import { extractTemplate, instantiateTemplate } from "../src/shared/templates.ts";
+import { makeRoomForCards } from "../src/shared/swap.ts";
 import { boardThumbnail } from "../src/shared/thumbnail.ts";
 
 function board(doc = new Y.Doc()) {
@@ -157,6 +158,17 @@ describe("leaving and spreading stacks", () => {
 			expect(get(id)?.stack ?? null).toBeNull();
 			expect({ x: get(id)?.x, y: get(id)?.y }).toEqual(layout.slots.get(id));
 		}
+	});
+
+	it("spreads out before its stickies become cards, so the cards land clear of each other", () => {
+		const { doc, sticky, get, newId } = board();
+		for (const id of ["a", "b", "c"]) sticky(id, 0, 0);
+		stackUp(doc, "a", ["b", "c"], undefined, newId);
+		makeRoomForCards(doc, ["a", "b"]);
+		expect(get("stack-1")).toBeUndefined();
+		const spots = ["a", "b", "c"].map((id) => `${get(id)?.x},${get(id)?.y}`);
+		expect(new Set(spots).size).toBe(3);
+		for (const id of ["a", "b", "c"]) expect(get(id)?.stack ?? null).toBeNull();
 	});
 
 	it("restacks a sticky within its stack", () => {

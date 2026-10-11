@@ -45,7 +45,7 @@
 	box-shadow: var(--sticky-shadow);
 	filter: brightness(0.96);
 	transform: rotate(var(--paper-tilt, 0deg))
-		translate(calc(var(--paper-i, 1) * 3px), calc(var(--paper-i, 1) * 3px));
+		translate(calc(var(--paper-i, 1) * 5px), calc(var(--paper-i, 1) * 6px));
 	transition: transform var(--t-settle) var(--ease-spring);
 }
 
@@ -57,7 +57,7 @@
 /* Lifts a little as the pointer comes near, fanning its papers out. */
 .react-flow__node:hover .stack-paper {
 	transform: rotate(calc(var(--paper-tilt, 0deg) * 1.5))
-		translate(calc(var(--paper-i, 1) * 4px), calc(var(--paper-i, 1) * 4px));
+		translate(calc(var(--paper-i, 1) * 6px), calc(var(--paper-i, 1) * 7px));
 }
 
 /* Something held over it: it opens up to take it in. */
