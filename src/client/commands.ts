@@ -706,6 +706,8 @@ export function useCanvasCommands(options: CommandsOptions) {
 				(shape) =>
 					hasWords(shape.text) ||
 					shape.type === "decision" ||
+					// A pile holds stickies: deleting one always says so.
+					shape.type === "pile" ||
 					(shape.type === "action" && (shape.owner !== undefined || shape.ref !== undefined)),
 			);
 			// Anything staged from them goes too: say so, so Undo is the obvious way back.
@@ -762,6 +764,7 @@ const NOUNS: Record<string, [string, string]> = {
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
+	pile: ["pile", "piles"],
 };
 
 /** "its issue", "3 issues", "4 changes": what deleting shapes unstaged. */

@@ -439,6 +439,7 @@ const NOUNS: Record<string, [string, string]> = {
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
+	pile: ["pile", "piles"],
 };
 
 function JsonSummary({

@@ -124,6 +124,12 @@ import type * as Y from "yjs";
 import { isEditingShape } from "./useEditing.ts";
 import { spotNear } from "../shared/placement.ts";
 import { addSection, placeInSections, readShapes } from "../shared/structure.ts";
+import { leavePile, pileUp, reorderInPile } from "../shared/pileEdits.ts";
+import { PILE_SIZE, STICKY, memberAt, nearestSlot, openLayout } from "../shared/piles.ts";
+import { contains } from "../shared/geometry.ts";
+import { pileStore, usePiles } from "./piles/store.ts";
+import { usePileDrop } from "./piles/usePileDrop.ts";
+import { type PileView, readPiles } from "./piles/view.ts";
 import { addWidget, widgetDefinition } from "../shared/widgetRegistry.ts";
 import { cardStore } from "./cardStore.ts";
 import type { WidgetBoard } from "./widgets/context.ts";
@@ -177,6 +183,17 @@ const ARIA_LABELS = {
 
 /** The id of the board's summary, its region's description. */
 const SUMMARY_ID = "board-summary";
+
+/**
+ * An open pile's tray sits above everything but what's dragged and its own
+ * stickies, which sit above it even while it's selected (React Flow lifts a
+ * selected node by 1000).
+ */
+const PILE_TRAY_Z = 1900;
+const PILE_MEMBER_Z = 2950;
+
+/** How long stickies take to gather back onto their stack when a pile closes. */
+const GATHER_MS = 420;
 
 /** How often pressing an edit tool's key on a view-only board says why nothing happened. */
 const VIEW_ONLY_TOAST_MS = 4000;
@@ -256,6 +273,42 @@ export function Board({
 	const readOnly = viewOnly || replay.state.open;
 	const shapeNodes = useShapeNodes(doc);
 	const flow = useReactFlow();
+	// Piles (#73): which stickies are in which, the one this person has open,
+	// and drags held over a sticky or pile to put what's dragged in it.
+	const pileUI = usePiles();
+	const pileLayout = useMemo(
+		() => readPiles(new Map(shapeNodes.map((node) => [node.id, node.data.shape] as const))),
+		[shapeNodes],
+	);
+	const pointerRef = useRef<{ x: number; y: number } | null>(null);
+	const nodesRef = useRef<ShapeNode[]>([]);
+	const pileDrop = usePileDrop({
+		nodes: nodesRef,
+		piles: pileLayout,
+		pointer: pointerRef,
+		enabled: !viewOnly && !replay.state.open,
+	});
+	// Closing a pile: its stickies glide back onto the stack before they hide.
+	const [gathering, setGathering] = useState<string | null>(null);
+	const wasOpen = useRef<string | null>(null);
+	useEffect(() => {
+		const was = wasOpen.current;
+		wasOpen.current = pileUI.open;
+		if (!was || was === pileUI.open) return;
+		setGathering(was);
+		const timer = setTimeout(
+			() => setGathering((current) => (current === was ? null : current)),
+			scaledDuration(GATHER_MS),
+		);
+		return () => clearTimeout(timer);
+	}, [pileUI.open]);
+	// A pile that's gone (someone deleted or spread it) can't stay open.
+	useEffect(() => {
+		if (pileUI.open && !pileLayout.members.has(pileUI.open)) pileStore.setOpen(null);
+	}, [pileUI.open, pileLayout]);
+	useEffect(() => () => pileStore.setOpen(null), []);
+	// Something just dropped into a pile: it gulps.
+	const [fed, setFed] = useState<{ id: string; n: number } | null>(null);
 	// Your colour here: one nobody else present has, while there's one free.
 	const user = useBoardColor(awareness, person, name);
 	const presence = usePresence(awareness, user);
@@ -448,130 +501,243 @@ export function Board({
 		displayData.current.set(data.id, { data, kind, out });
 		return out;
 	};
-	const nodes = useMemo(
-		() =>
-			shapeNodes.map((base) => {
-				const isSelected = selected.has(base.id);
-				let size = measured.get(base.id);
-				const drag = structure.overrides.get(base.id);
-				const resize = structure.resizes.get(base.id);
-				let position = resize
-					? { x: resize.x, y: resize.y }
-					: drag
-						? { x: drag.x, y: drag.y }
-						: base.position;
-				let width = resize?.w ?? base.width;
-				let height = resize?.h ?? base.height;
-				// Shapes being dragged float above everything else.
-				let zIndex = structure.zIndexOf(base);
-				const remoteColor = drag?.user?.color;
-				let className = remoteColor
-					? "remote-drag"
-					: structure.followsRemote.has(base.id)
-						? "remote-follow"
-						: matching.returning.has(base.id)
-							? "snap-back"
-							: undefined;
-				// "It's already here": a card someone tried to add again.
-				if (pulsing.has(base.id)) className = `${className ?? ""} pulse`.trim();
-
-				// In a list or grid: drawn in its slot, at its slot's size (#72).
-				let kind: DisplayKind | undefined;
-				let index: number | undefined;
-				const slot = display.slots.get(base.id);
-				const list = display.sections.get(base.id);
-				if (slot) {
-					kind = slot.kind;
-					index = slot.index;
-					position = { x: slot.rect.x, y: slot.rect.y };
-					width = slot.rect.w;
-					height = slot.rect.h;
-					size = { width, height };
-					// Stacked so a selected list (lifted by React Flow) stays beneath
-					// its groups, and a selected group beneath its rows.
-					if (zIndex === base.zIndex) {
-						zIndex =
-							slot.kind === "group"
-								? LIST_GROUP_Z + ((base.zIndex ?? SECTION_Z) - SECTION_Z)
-								: LIST_ROW_Z;
-					}
-					if (!slot.dragging) {
-						const root = display.rootOf(base.id);
-						const rootDrag = root ? presence.overrides.get(root) : undefined;
-						const carried =
-							root !== null && (rootDrag !== undefined || structure.overrides.has(root));
-						// Rows glide to new places, except while their list is carried along.
-						className = carried
-							? rootDrag?.user || structure.followsRemote.has(root)
-								? "remote-follow display-node"
-								: "display-node display-still"
-							: `${className ?? ""} display-node`.trim();
-					}
-				} else if (list) {
-					kind = list.mode === "mini" ? "grid" : "list";
-					width = list.box.w;
-					height = list.box.h;
-					className = `${className ?? ""} display-section`.trim();
-				}
-				if (list && slot) kind = "group";
-				const morph = display.morphing.get(base.id);
-				if (morph !== undefined) className = `${className ?? ""} display-morph`.trim();
-				const data = kind ? displayDataFor(base.data, kind) : base.data;
-				const style =
-					remoteColor || morph !== undefined || index !== undefined
-						? ({
-								...(remoteColor && { "--drag-color": remoteColor }),
-								...(morph !== undefined && { "--morph-i": Math.min(morph, 16) }),
-								...(index !== undefined && { "--display-i": Math.min(index, 24) }),
-							} as React.CSSProperties)
+	const pileData = useRef(new Map<string, { key: string; data: ShapeNode["data"] }>());
+	const nodes = useMemo(() => {
+		// Where each pile is drawn (where it's dragged to, or its row), its
+		// stickies with it; and the one open here, spread into its grid.
+		const pileAt = new Map<string, { x: number; y: number }>();
+		const shapesById = new Map<string, ShapeNode["data"]["shape"]>();
+		for (const base of shapeNodes) {
+			shapesById.set(base.id, base.data.shape);
+			if (base.data.shape.type !== "pile") continue;
+			const slot = display.slots.get(base.id);
+			const drag = structure.overrides.get(base.id);
+			pileAt.set(
+				base.id,
+				slot ? { x: slot.rect.x, y: slot.rect.y } : drag ? { x: drag.x, y: drag.y } : base.position,
+			);
+		}
+		const openId =
+			pileUI.open && pileAt.has(pileUI.open) && !display.slots.has(pileUI.open)
+				? pileUI.open
+				: null;
+		const open = openId
+			? openLayout(
+					pileAt.get(openId) as { x: number; y: number },
+					pileLayout.members.get(openId) ?? [],
+				)
+			: null;
+		const { target, armed, dragged } = pileDrop.state;
+		/** A pile's node data: what's in it and how it shows, the same object until that changes. */
+		const pileDataFor = (data: ShapeNode["data"], view: PileView): ShapeNode["data"] => {
+			const key = [
+				view.open,
+				view.receiving,
+				view.fed,
+				...view.members.map((member) => member.id),
+			].join("|");
+			const cached = pileData.current.get(data.id);
+			if (
+				cached &&
+				cached.key === key &&
+				cached.data.shape === data.shape &&
+				cached.data.pile?.members.every((member, i) => member.shape === view.members[i]?.shape)
+			) {
+				return cached.data;
+			}
+			const out = { ...data, pile: view };
+			pileData.current.set(data.id, { key, data: out });
+			return out;
+		};
+		return shapeNodes.map((base) => {
+			const isSelected = selected.has(base.id);
+			let size = measured.get(base.id);
+			const drag = structure.overrides.get(base.id);
+			const resize = structure.resizes.get(base.id);
+			let position = resize
+				? { x: resize.x, y: resize.y }
+				: drag
+					? { x: drag.x, y: drag.y }
+					: base.position;
+			let width = resize?.w ?? base.width;
+			let height = resize?.h ?? base.height;
+			// Shapes being dragged float above everything else.
+			let zIndex = structure.zIndexOf(base);
+			const remoteColor = drag?.user?.color;
+			let className = remoteColor
+				? "remote-drag"
+				: structure.followsRemote.has(base.id)
+					? "remote-follow"
+					: matching.returning.has(base.id)
+						? "snap-back"
 						: undefined;
-				const styleKey = `${remoteColor ?? ""}|${morph ?? ""}|${index ?? ""}`;
+			// "It's already here": a card someone tried to add again.
+			if (pulsing.has(base.id)) className = `${className ?? ""} pulse`.trim();
 
-				const cached = merged.current.get(base.id)?.out;
-				if (
-					cached &&
-					merged.current.get(base.id)?.base === base &&
-					cached.data === data &&
-					cached.selected === isSelected &&
-					cached.measured?.width === size?.width &&
-					cached.measured?.height === size?.height &&
-					cached.position.x === position.x &&
-					cached.position.y === position.y &&
-					cached.width === width &&
-					cached.height === height &&
-					cached.zIndex === zIndex &&
-					cached.className === className &&
-					styleKeys.get(base.id) === styleKey
-				) {
-					return cached;
+			// In a list or grid: drawn in its slot, at its slot's size (#72).
+			let kind: DisplayKind | undefined;
+			let index: number | undefined;
+			const slot = display.slots.get(base.id);
+			const list = display.sections.get(base.id);
+			if (slot) {
+				kind = slot.kind;
+				index = slot.index;
+				position = { x: slot.rect.x, y: slot.rect.y };
+				width = slot.rect.w;
+				height = slot.rect.h;
+				size = { width, height };
+				// Stacked so a selected list (lifted by React Flow) stays beneath
+				// its groups, and a selected group beneath its rows.
+				if (zIndex === base.zIndex) {
+					zIndex =
+						slot.kind === "group"
+							? LIST_GROUP_Z + ((base.zIndex ?? SECTION_Z) - SECTION_Z)
+							: LIST_ROW_Z;
 				}
-				const out: ShapeNode = {
-					...base,
-					data,
-					selected: isSelected,
-					measured: size,
-					position,
-					width,
-					height,
-					className,
-					zIndex,
-					style,
+				if (!slot.dragging) {
+					const root = display.rootOf(base.id);
+					const rootDrag = root ? presence.overrides.get(root) : undefined;
+					const carried =
+						root !== null && (rootDrag !== undefined || structure.overrides.has(root));
+					// Rows glide to new places, except while their list is carried along.
+					className = carried
+						? rootDrag?.user || structure.followsRemote.has(root)
+							? "remote-follow display-node"
+							: "display-node display-still"
+						: `${className ?? ""} display-node`.trim();
+				}
+			} else if (list) {
+				kind = list.mode === "mini" ? "grid" : "list";
+				width = list.box.w;
+				height = list.box.h;
+				className = `${className ?? ""} display-section`.trim();
+			}
+			if (list && slot) kind = "group";
+
+			// Piles (#73): a sticky in one is drawn on its stack (hidden) or,
+			// while it's open here, in its place in the grid.
+			let hidden = false;
+			let draggable: boolean | undefined;
+			let pileView: PileView | undefined;
+			const memberOf = pileLayout.pileOf.get(base.id);
+			const pileIndex = memberOf ? (pileLayout.members.get(memberOf) ?? []).indexOf(base.id) : -1;
+			if (memberOf) {
+				const at = pileAt.get(memberOf) ?? base.position;
+				if (memberOf === openId && open) {
+					if (!drag) position = open.slots.get(base.id) ?? position;
+					zIndex = drag ? zIndex : PILE_MEMBER_Z;
+					className = `${className ?? ""} pile-member`.trim();
+				} else if (memberOf === gathering) {
+					position = memberAt(at);
+					zIndex = PILE_MEMBER_Z;
+					className = `${className ?? ""} pile-member pile-gathering`.trim();
+				} else {
+					hidden = true;
+					position = memberAt(at);
+					size = { width: STICKY, height: STICKY };
+				}
+			}
+			if (base.data.shape.type === "pile") {
+				const isOpen = base.id === openId && open !== null;
+				if (!slot) {
+					if (isOpen) {
+						position = { x: open.tray.x, y: open.tray.y };
+						width = open.tray.w;
+						height = open.tray.h;
+						zIndex = PILE_TRAY_Z;
+						draggable = false;
+					} else {
+						width = PILE_SIZE.w;
+						height = PILE_SIZE.h;
+					}
+				}
+				pileView = {
+					members: (pileLayout.members.get(base.id) ?? []).map((id) => ({
+						id,
+						shape: shapesById.get(id) as ShapeNode["data"]["shape"],
+					})),
+					open: isOpen,
+					receiving: armed && target === base.id,
+					fed: fed?.id === base.id ? fed.n : 0,
 				};
-				merged.current.set(base.id, { base, out });
-				styleKeys.set(base.id, styleKey);
-				return out;
-			}),
-		[
-			shapeNodes,
-			selected,
-			measured,
-			structure,
-			matching.returning,
-			display,
-			presence.overrides,
-			pulsing,
-		],
-	);
+			}
+			if (target === base.id && armed && base.data.shape.type === "sticky") {
+				className = `${className ?? ""} pile-target`.trim();
+			}
+			if (armed && dragged.includes(base.id)) {
+				className = `${className ?? ""} pile-joining`.trim();
+			}
+			const morph = display.morphing.get(base.id);
+			if (morph !== undefined) className = `${className ?? ""} display-morph`.trim();
+			const shown = pileView ? pileDataFor(base.data, pileView) : base.data;
+			const data = kind ? displayDataFor(shown, kind) : shown;
+			const style =
+				remoteColor || morph !== undefined || index !== undefined || pileIndex >= 0
+					? ({
+							...(remoteColor && { "--drag-color": remoteColor }),
+							...(morph !== undefined && { "--morph-i": Math.min(morph, 16) }),
+							...(index !== undefined && { "--display-i": Math.min(index, 24) }),
+							...(pileIndex >= 0 && { "--pile-i": Math.min(pileIndex, 24) }),
+						} as React.CSSProperties)
+					: undefined;
+			const styleKey = `${remoteColor ?? ""}|${morph ?? ""}|${index ?? ""}|${pileIndex}`;
+
+			const cached = merged.current.get(base.id)?.out;
+			if (
+				cached &&
+				merged.current.get(base.id)?.base === base &&
+				cached.data === data &&
+				cached.selected === isSelected &&
+				cached.measured?.width === size?.width &&
+				cached.measured?.height === size?.height &&
+				cached.position.x === position.x &&
+				cached.position.y === position.y &&
+				cached.width === width &&
+				cached.height === height &&
+				cached.zIndex === zIndex &&
+				cached.className === className &&
+				cached.hidden === hidden &&
+				cached.draggable === draggable &&
+				styleKeys.get(base.id) === styleKey
+			) {
+				return cached;
+			}
+			const out: ShapeNode = {
+				...base,
+				data,
+				selected: isSelected,
+				measured: size,
+				position,
+				width,
+				height,
+				className,
+				zIndex,
+				style,
+				hidden,
+				draggable,
+			};
+			merged.current.set(base.id, { base, out });
+			styleKeys.set(base.id, styleKey);
+			return out;
+		});
+		// The data each cached node was made with may refer to displayDataFor's
+		// object for a pile: both caches are keyed by id, so nothing leaks.
+	}, [
+		shapeNodes,
+		selected,
+		measured,
+		structure,
+		matching.returning,
+		display,
+		presence.overrides,
+		pulsing,
+		pileUI.open,
+		pileLayout,
+		pileDrop.state,
+		gathering,
+		fed,
+	]);
+	nodesRef.current = nodes;
 
 	// A dragged section's contents move with it, so they're never snapped to.
 	const snapping = useSnapping(nodes, sizeOf, structure.contentsOf, (id) =>
@@ -905,9 +1071,59 @@ export function Board({
 			commands.onRemove(changes.flatMap((change) => (change.type === "remove" ? [change.id] : [])));
 			// Cards dropped on a list don't move: they ask to match it (#39).
 			const dropped = matching.track(changes);
-			const kept = dropped
+			let kept = dropped
 				? changes.filter((change) => change.type !== "position" || !dropped.has(change.id))
 				: changes;
+			// Held over a sticky or pile, then let go: into a pile, one undo step (#73).
+			const piling = pileDrop.track(kept);
+			if (piling) {
+				const ids = new Set(piling.ids);
+				const rest = kept.filter((change) => change.type !== "position" || !ids.has(change.id));
+				const pile = transactLocal(doc, () => {
+					applyNodeChanges(doc, rest, presence.lastDragPosition, boxSize);
+					return pileUp(doc, piling.target, piling.ids, boxSize);
+				});
+				if (pile) {
+					setFed({ id: pile, n: Date.now() });
+					if (pileStore.getSnapshot().open !== pile) setSelected(new Set([pile]));
+				}
+				return;
+			}
+			// Stickies dropped from an open pile: out of it if they're off its
+			// tray, else to a new place in it.
+			const openId = pileStore.getSnapshot().open;
+			const openShape = openId ? shapesMap(doc).get(openId) : undefined;
+			if (openId && openShape) {
+				const members = pileLayout.members.get(openId) ?? [];
+				const layout = openLayout(
+					{ x: Number(openShape.get("x")), y: Number(openShape.get("y")) },
+					members,
+				);
+				const out = new Map<string, Position>();
+				const within: { id: string; index: number }[] = [];
+				for (const change of kept) {
+					if (change.type !== "position" || change.dragging) continue;
+					if (pileLayout.pileOf.get(change.id) !== openId) continue;
+					const at = change.position ?? presence.lastDragPosition(change.id);
+					if (!at) continue;
+					const middle = { x: at.x + STICKY / 2, y: at.y + STICKY / 2 };
+					if (contains(layout.tray, middle)) {
+						within.push({ id: change.id, index: nearestSlot(layout, middle) });
+					} else {
+						out.set(change.id, at);
+					}
+				}
+				if (out.size > 0 || within.length > 0) {
+					const handled = new Set([...out.keys(), ...within.map((entry) => entry.id)]);
+					kept = kept.filter((change) => change.type !== "position" || !handled.has(change.id));
+					transactLocal(doc, () => {
+						for (const { id, index } of within) reorderInPile(doc, id, index);
+						if (out.size > 0) leavePile(doc, out, boxSize);
+						applyNodeChanges(doc, kept, presence.lastDragPosition, boxSize);
+					});
+					return;
+				}
+			}
 			// Rows dropped in their list reorder it, and anything dropped on a
 			// list joins it where the gap was (#72): one undo step with the move.
 			const drop = planDisplayDrop(
@@ -928,7 +1144,7 @@ export function Board({
 				applyNodeChanges(doc, drop.changes, presence.lastDragPosition, boxSize);
 			}
 		},
-		[doc, presence, snapping, commands, boxSize, readOnly, matching],
+		[doc, presence, snapping, commands, boxSize, readOnly, matching, pileDrop, pileLayout],
 	);
 
 	// Where a dragged shape would land: a list by what it draws, not its
@@ -997,6 +1213,35 @@ export function Board({
 		{ id: "comments", open: commentsPanel, close: closeComments },
 		{ id: "changes", open: changesUI.panelOpen, close: () => changesUI.setPanelOpen(false) },
 	]);
+
+	// An open pile gathers back up on Escape, or once something outside it is
+	// selected; its stickies are never selected while they're on the stack.
+	useEffect(() => {
+		const onKey = (event: KeyboardEvent) => {
+			const open = pileStore.getSnapshot().open;
+			if (!open || event.key !== "Escape" || event.defaultPrevented) return;
+			if (isOffBoardTarget(event.target)) return;
+			pileStore.setOpen(null);
+			setSelected(new Set([open]));
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, []);
+	useEffect(() => {
+		const open = pileUI.open;
+		if (!open) {
+			// Gathered: whatever of its stickies was selected is on the stack now.
+			setSelected((current) =>
+				[...current].some((id) => pileLayout.pileOf.has(id))
+					? new Set([...current].filter((id) => !pileLayout.pileOf.has(id)))
+					: current,
+			);
+			return;
+		}
+		if ([...selected].some((id) => id !== open && pileLayout.pileOf.get(id) !== open)) {
+			pileStore.setOpen(null);
+		}
+	}, [pileUI.open, selected, pileLayout]);
 
 	// Tool shortcuts, ignored while typing.
 	const viewOnlyToldAt = useRef(0);
@@ -1068,6 +1313,11 @@ export function Board({
 	);
 
 	const onPaneClick = (event: MouseEvent) => {
+		// Clicking away from an open pile gathers it back up.
+		if (pileStore.getSnapshot().open) {
+			pileStore.setOpen(null);
+			if (tool === "select") return;
+		}
 		if (readOnly) return;
 		const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
 		if (tool === "sticky") {
@@ -1369,6 +1619,7 @@ export function Board({
 							onPointerMove={(event) => {
 								const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
 								presence.setCursor(at);
+								pointerRef.current = at;
 								if (tool === "sticky") setGhost(at);
 							}}
 							onPointerLeave={() => {
@@ -1458,6 +1709,20 @@ export function Board({
 											} else if (result === "no_vote") {
 												showToolNote("That’s not part of a vote");
 											}
+											return;
+										}
+										// Clicking a pile spreads it open, here (#73).
+										if (
+											node.type === "pile" &&
+											tool === "select" &&
+											!event.shiftKey &&
+											!event.metaKey &&
+											!event.ctrlKey &&
+											!node.data.pile?.open &&
+											node.data.display === undefined
+										) {
+											pileStore.setOpen(node.id);
+											setSelected(new Set([node.id]));
 											return;
 										}
 										// Clicking one shape in a multi-selection selects just that one.
@@ -1773,6 +2038,10 @@ function minimapClass(node: ShapeNode): string {
 	if (type === "widget") return "minimap-widget";
 	if (type === "action")
 		return `minimap-action${node.data.shape.done ? " minimap-action-done" : ""}`;
+	// A pile shows as its top sticky's paper.
+	if (type === "pile") {
+		return `minimap-sticky minimap-${node.data.pile?.members[0]?.shape.color ?? "yellow"}`;
+	}
 	return `minimap-${type}`;
 }
 

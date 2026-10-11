@@ -21,6 +21,7 @@ import { joinSilentSession } from "../shared/silent.ts";
 import { commitMoves, placeInSections, removeShapes } from "../shared/structure.ts";
 import { widgetSize } from "../shared/widgetRegistry.ts";
 import { facilitation } from "./facilitation/store.ts";
+import type { PileView } from "./piles/view.ts";
 import { transactLocal } from "./undo.ts";
 
 export type ShapeNode = Node<{
@@ -34,6 +35,8 @@ export type ShapeNode = Node<{
 	 * the list or grid it shows. Absent: drawn as itself, free-form.
 	 */
 	display?: DisplayKind;
+	/** Piles (#73): what's in it, and how it's showing. */
+	pile?: PileView;
 }>;
 
 export type DisplayKind = "row" | "mini" | "group" | "list" | "grid";

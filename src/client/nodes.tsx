@@ -10,6 +10,7 @@ import { StickyNode } from "./StickyNode.tsx";
 import { TextNode } from "./TextNode.tsx";
 import { ActionItemNode } from "./actionItems/ActionItemNode.tsx";
 import { DecisionNode } from "./decisions/DecisionNode.tsx";
+import { PileNode } from "./piles/PileNode.tsx";
 import { useLinked } from "./widgets/store.ts";
 import { WidgetNode } from "./widgets/WidgetNode.tsx";
 
@@ -56,4 +57,5 @@ export const nodeTypes = {
 	decision: DecisionNode,
 	widget: WidgetNode,
 	action: ActionItemNode,
+	pile: PileNode,
 };

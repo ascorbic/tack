@@ -1,0 +1,414 @@
+/* ---------------------------------------------------------------------------
+   Piles (#73): a neat stack of stickies with a count and a name, that opens
+   up as a sticky is held over it (like a folder on a phone's home screen)
+   and spreads into a tray when clicked.
+   ------------------------------------------------------------------------ */
+
+.pile {
+	position: relative;
+	width: 200px;
+	height: 240px;
+}
+
+.pile-stack {
+	position: relative;
+	width: 200px;
+	height: 200px;
+	transform-origin: 50% 55%;
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.pile[data-enter] .pile-stack {
+	animation: pile-gather calc(520ms * var(--motion)) var(--ease-spring) backwards;
+}
+
+@keyframes pile-gather {
+	from {
+		transform: scale(0.82);
+		opacity: 0.4;
+	}
+}
+
+/* The papers under the top sticky: the next ones down, peeking out. */
+.pile-paper,
+.pile-top {
+	position: absolute;
+	left: 12px;
+	top: 10px;
+	width: 176px;
+	height: 176px;
+}
+
+.pile-paper {
+	border-radius: 3px 3px 14px 3px;
+	background: var(--sticky, var(--sticky-yellow));
+	box-shadow: var(--sticky-shadow);
+	filter: brightness(0.96);
+	transform: rotate(var(--paper-tilt, 0deg))
+		translate(calc(var(--paper-i, 1) * 3px), calc(var(--paper-i, 1) * 3px));
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.pile-top .sticky {
+	transform: none;
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+/* Lifts a little as the pointer comes near, fanning its papers out. */
+.react-flow__node:hover .pile-paper {
+	transform: rotate(calc(var(--paper-tilt, 0deg) * 1.5))
+		translate(calc(var(--paper-i, 1) * 4px), calc(var(--paper-i, 1) * 4px));
+}
+
+/* Something held over it: it opens up to take it in. */
+.pile[data-receiving] .pile-stack {
+	transform: scale(1.07);
+}
+
+.pile[data-receiving] .pile-paper {
+	transform: rotate(calc(var(--paper-tilt, 0deg) * 3))
+		translate(calc(var(--paper-i, 1) * 9px), calc(var(--paper-i, 1) * 7px));
+}
+
+.pile[data-receiving] .pile-top .sticky {
+	box-shadow:
+		0 0 0 3px var(--accent-soft),
+		var(--sticky-shadow-lifted);
+	transform: translateY(-4px);
+}
+
+/* Something just went in: a gulp. */
+.pile[data-fed] .pile-stack {
+	animation: pile-gulp calc(460ms * var(--motion)) var(--ease-spring);
+}
+
+@keyframes pile-gulp {
+	30% {
+		transform: scale(0.94);
+	}
+	65% {
+		transform: scale(1.04);
+	}
+}
+
+.pile[data-selected] .pile-top .sticky {
+	outline: 2px solid var(--accent);
+	outline-offset: 4px;
+}
+
+.pile-count {
+	position: absolute;
+	top: 0;
+	right: 2px;
+	display: grid;
+	place-items: center;
+	min-width: 26px;
+	height: 26px;
+	padding: 0 7px;
+	border: 2px solid var(--surface);
+	border-radius: 13px;
+	background: var(--accent);
+	color: var(--surface);
+	font: 680 13px/1 var(--font-ui);
+	font-variant-numeric: tabular-nums;
+	box-shadow: var(--shadow-hover);
+	/* Readable however far out the board is. */
+	transform: scale(min(var(--unzoom, 1), 3));
+	transform-origin: 70% 30%;
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.pile[data-receiving] .pile-count {
+	transform: scale(calc(min(var(--unzoom, 1), 3) * 1.18));
+}
+
+.pile-label {
+	display: flex;
+	justify-content: center;
+	height: 40px;
+	padding-top: 8px;
+}
+
+/* The name grows against the zoom, like a section's title. */
+.pile-label .pile-name-row {
+	transform: scale(min(var(--unzoom, 1), 3));
+	transform-origin: 50% 0;
+}
+
+.pile-name-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.pile-name {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	max-width: 240px;
+	padding: 3px 8px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--ink);
+	font: 640 14px/18px var(--font-ui);
+	letter-spacing: -0.008em;
+	box-shadow: var(--shadow-rest);
+	cursor: inherit;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.pile-name:disabled {
+	cursor: inherit;
+	opacity: 1;
+}
+
+.pile-name:not(:disabled):hover {
+	box-shadow: var(--shadow-hover);
+}
+
+.pile-name-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* A suggestion: marked, quietly, as one. */
+.pile-name[data-state="suggested"] .pile-name-text {
+	color: var(--ink-soft);
+}
+
+.pile-name[data-state="suggested"] {
+	animation: pile-name-in calc(620ms * var(--motion)) var(--ease-spring);
+}
+
+.pile-spark {
+	font-size: 12px;
+	line-height: 1;
+}
+
+.pile-name[data-state="none"] .pile-name-text {
+	color: var(--muted);
+	font-weight: 560;
+}
+
+/* A name on its way: a shimmer, not a spinner. */
+.pile-name[data-waiting] .pile-name-text {
+	background: linear-gradient(90deg, var(--muted) 30%, var(--accent) 50%, var(--muted) 70%) 0 0 /
+		300% 100%;
+	background-clip: text;
+	color: transparent;
+	animation: pile-shimmer calc(1600ms * var(--motion)) linear infinite;
+}
+
+@keyframes pile-shimmer {
+	from {
+		background-position: 100% 0;
+	}
+	to {
+		background-position: 0 0;
+	}
+}
+
+@keyframes pile-name-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px) scale(0.96);
+	}
+}
+
+.pile-pencil {
+	flex: none;
+	fill: none;
+	stroke: var(--muted);
+	stroke-width: 1.5;
+	stroke-linejoin: round;
+}
+
+.pile-keep {
+	padding: 3px 8px;
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--ink-soft);
+	font: 600 12px/16px var(--font-ui);
+	cursor: pointer;
+	animation: pile-name-in var(--t-settle) var(--ease-spring);
+}
+
+.pile-keep:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.pile-name-input {
+	width: 220px;
+	height: 26px;
+	padding: 0 8px;
+	border: 2px solid var(--accent);
+	border-radius: 8px;
+	outline: none;
+	background: var(--surface);
+	color: var(--ink);
+	font: 640 14px/18px var(--font-ui);
+}
+
+/* Open: the tray its stickies spread out on ------------------------------- */
+
+.pile-tray {
+	width: 100%;
+	height: 100%;
+	border: 1px solid var(--line-strong);
+	border-radius: 20px;
+	background: color-mix(in srgb, var(--surface) 88%, transparent);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(10px);
+	animation: pile-tray-in calc(460ms * var(--motion)) var(--ease-spring);
+	cursor: default;
+}
+
+.pile-tray[data-selected] {
+	border-color: var(--accent);
+}
+
+@keyframes pile-tray-in {
+	from {
+		opacity: 0;
+		transform: scale(0.6);
+	}
+}
+
+.pile-tray-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: 52px;
+	padding: 0 12px 0 16px;
+}
+
+.pile-tray-head .pile-name {
+	box-shadow: none;
+	background: transparent;
+	font-size: 16px;
+	padding-left: 4px;
+}
+
+.pile-tray-head .pile-name:not(:disabled):hover {
+	background: var(--hover);
+}
+
+.pile-tray-count {
+	color: var(--muted);
+	font: 560 13px/1 var(--font-ui);
+	white-space: nowrap;
+}
+
+.pile-gather {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: auto;
+	padding: 6px 10px;
+	border: 0;
+	border-radius: 9px;
+	background: var(--hover);
+	color: var(--ink);
+	font: 600 13px/1 var(--font-ui);
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.pile-gather:hover {
+	background: var(--accent-soft);
+}
+
+.pile-gather svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+/* Stickies spreading out of the stack, and gathering back into it. */
+.react-flow__node.pile-member:not(.dragging) {
+	transition: transform calc(520ms * var(--motion)) var(--ease-spring);
+	transition-delay: calc(var(--pile-i, 0) * 18ms * var(--motion));
+}
+
+.react-flow__node.pile-gathering {
+	pointer-events: none;
+	opacity: 0;
+	transition:
+		transform calc(320ms * var(--motion)) var(--ease-settle),
+		opacity calc(320ms * var(--motion)) var(--ease-out) calc(160ms * var(--motion));
+}
+
+.react-flow__node.pile-member .sticky {
+	transform: none;
+}
+
+/* Dragging onto a sticky or pile ------------------------------------------- */
+
+/* A sticky held over another: the one underneath opens up, papers fanning
+   out behind it, to become a pile. */
+.react-flow__node.pile-target .sticky {
+	transform: scale(1.07) rotate(0deg);
+	box-shadow:
+		0 0 0 3px var(--accent-soft),
+		var(--sticky-shadow-lifted);
+}
+
+.react-flow__node.pile-target .sticky::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	border-radius: inherit;
+	background: var(--sticky);
+	filter: brightness(0.93);
+	transform: rotate(6deg) translate(8px, 6px);
+	animation: pile-paper-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes pile-paper-in {
+	from {
+		transform: none;
+		opacity: 0;
+	}
+}
+
+/* Held long enough: what's dragged shrinks a little, ready to drop in. */
+.react-flow__node.pile-joining .sticky,
+.react-flow__node.pile-joining .pile-stack {
+	transform: scale(0.88) rotate(-2deg);
+	opacity: 0.92;
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+/* Icons in the action bar. */
+.pile-icon {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	stroke-linejoin: round;
+}
+
+.pile-icon-spark {
+	fill: currentColor;
+	stroke: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.pile-name[data-waiting] .pile-name-text {
+		animation: none;
+		color: var(--muted);
+		background: none;
+	}
+}

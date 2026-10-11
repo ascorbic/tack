@@ -26,6 +26,7 @@ import {
 } from "../../shared/dotvotes.ts";
 import type { Stamper } from "../../shared/facilitation.ts";
 import { readShape, shapesMap } from "../../shared/shapes.ts";
+import { UNTITLED_PILE, pileName } from "../../shared/piles.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { cardStore, useCard } from "../cardStore.ts";
 import { DocContext } from "../DocContext.ts";
@@ -694,6 +695,14 @@ function RowLabel({ doc, row }: { doc: Y.Doc; row: TallyRow }) {
 				{faceDown
 					? `${shape.author?.name ?? "Someone"}’s sticky (face down)`
 					: shape.text || "Empty sticky"}
+			</span>
+		);
+	}
+	if (shape.type === "pile") {
+		return (
+			<span className="tally-label" data-color="yellow">
+				<span className="tally-paper" aria-hidden="true" />
+				{pileName(shape) ?? UNTITLED_PILE} (a pile)
 			</span>
 		);
 	}

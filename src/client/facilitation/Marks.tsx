@@ -107,11 +107,12 @@ export function MarksLayer({
 					const counts = stamps.get(node.id);
 					const vote = open.length > 0 ? voteFor(open, shapes, node.id, now) : null;
 					const rank = vote ? undefined : ranks.get(node.id);
-					if (!counts && !vote && !rank) return null;
+					if (node.hidden || (!counts && !vote && !rank)) return null;
 					// Rows and mini cards in a list count their own, inline (#72).
 					const inline = node.data.display === "row" || node.data.display === "mini";
+					// A pile's marks sit on its stack, or its tray while it's open (#73).
 					const box =
-						inline && node.width && node.height
+						(inline || node.type === "pile") && node.width && node.height
 							? { x: node.position.x, y: node.position.y, w: node.width, h: node.height }
 							: boxOf(node.id, { ...shape, x: node.position.x, y: node.position.y }, sizeOf);
 					return (

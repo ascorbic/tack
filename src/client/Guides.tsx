@@ -84,7 +84,7 @@ export function useSnapping(
 			const targets: Rect[] = [];
 			for (const node of nodes) {
 				const size = sizeOf(node.id);
-				if (moving.has(node.id) || !size) continue;
+				if (moving.has(node.id) || !size || node.hidden) continue;
 				const rect = { ...node.position, ...size };
 				if (intersects(rect, view)) targets.push(rect);
 			}
