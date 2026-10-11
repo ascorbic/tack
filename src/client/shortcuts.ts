@@ -108,6 +108,8 @@ export type CommandId =
 	| "stackThese"
 	| "groupThese"
 	| "unstack"
+	| "summarise"
+	| "draftDecision"
 	| "shortcuts";
 
 const arrow = (key: string, shift: boolean): KeyCombo[] => [{ key, shift }];
@@ -456,6 +458,21 @@ export const SHORTCUTS: Shortcut[] = [
 		group: "Arrange",
 		combos: [{ code: "KeyU", alt: true, shift: false }],
 		keywords: "unstack spread ungroup stack stickies",
+	},
+	// AI (#64): drafts from what's selected, to read and place.
+	{
+		id: "summarise",
+		label: "Summarise with AI",
+		group: "Issues",
+		combos: [{ code: "KeyS", alt: true, shift: true }],
+		keywords: "ai summary summarise summarize stickies themes text",
+	},
+	{
+		id: "draftDecision",
+		label: "Draft a decision with AI",
+		group: "Issues",
+		combos: [{ code: "KeyD", alt: true, shift: true }],
+		keywords: "ai decision draft options context adr",
 	},
 	{
 		id: "zoomIn",

@@ -33,7 +33,12 @@ import { type ShapeNode, setStickyText } from "../board.ts";
 import { textFromIssue } from "../../shared/issueText.ts";
 import { installUrl } from "../CardView.tsx";
 import { cardStore } from "../cardStore.ts";
-import type { User } from "../presence.ts";
+import { type User, authorFor } from "../presence.ts";
+import { DraftPanel } from "../ai/DraftPanel.tsx";
+import { DraftDecisionIcon, SummariseIcon } from "../ai/icons.tsx";
+import { useAi } from "../ai/service.ts";
+import { countWords } from "../../shared/a11y.ts";
+import type { ShapeType } from "../../shared/shapes.ts";
 import { isApplePlatform, shortcutHint } from "../shortcuts.ts";
 import { unionRect } from "../snapping.ts";
 import type { ToastStore } from "../Toasts.tsx";
@@ -146,6 +151,9 @@ export interface Action {
 	unavailable?: string;
 }
 
+/** What the AI can read in a selection (#64). */
+const AI_READS = new Set<ShapeType>(["sticky", "card", "text", "section", "decision", "action"]);
+
 const KIND: Partial<Record<ActionCommand, OperationKind>> = {
 	labels: "item.labels",
 	milestone: "item.milestone",
@@ -165,6 +173,7 @@ function common<T>(lists: T[][], name: (item: T) => string): T[] {
 export function ActionBar(props: ActionBarProps) {
 	const { doc, selected, dragging, user, toasts, history, requests } = props;
 	const services = useServices();
+	const boardAi = useAi();
 	const store = useStoreApi();
 	const bar = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState<ActionCommand | null>(null);
@@ -421,6 +430,25 @@ export function ActionBar(props: ActionBarProps) {
 				out.push({ id: "parentIssue", label: "Make a parent issue", icon: <ParentIcon /> });
 			}
 		}
+		// AI (#64): a summary or a decision drafted from what's selected, to
+		// read and place. Nothing's staged: what it drafts goes on the board.
+		const readable = selected.filter((n) => AI_READS.has(n.data.shape.type));
+		const sectionAlone = readable.length === 1 && readable[0]?.data.shape.type === "section";
+		if (boardAi && (readable.length >= 2 || sectionAlone)) {
+			const allFaceDown = readable.every(
+				(n) => n.data.shape.type === "sticky" && n.data.shape.silent,
+			);
+			const unavailable = allFaceDown ? "Face down until the reveal" : undefined;
+			out.push(
+				{ id: "summarise", label: "Summarise with AI", icon: <SummariseIcon />, unavailable },
+				{
+					id: "draftDecision",
+					label: "Draft a decision with AI",
+					icon: <DraftDecisionIcon />,
+					unavailable,
+				},
+			);
+		}
 		// Two connected items: the arrow between them can become blocked-by,
 		// which otherwise only shows when the arrow itself is selected.
 		if (linking) {
@@ -434,6 +462,7 @@ export function ActionBar(props: ActionBarProps) {
 		}
 		return out;
 	}, [
+		boardAi,
 		linking,
 		doc,
 		selected,
@@ -847,6 +876,38 @@ export function ActionBar(props: ActionBarProps) {
 					/>
 				) : null;
 			}
+			case "summarise":
+			case "draftDecision": {
+				if (!boardAi) return null;
+				const only = selected.length === 1 ? selected[0]?.data.shape : undefined;
+				const what =
+					only?.type === "section"
+						? only.title?.trim()
+							? `the “${only.title.trim()}” section`
+							: "this section"
+						: countWords(selected.map((n) => n.data.shape.type));
+				return (
+					<DraftPanel
+						key={open}
+						mode={open === "summarise" ? "summary" : "decision"}
+						ai={boardAi}
+						doc={doc}
+						shapes={ids}
+						what={what}
+						author={authorFor(user)}
+						sizeOf={(id) => {
+							const size = props.sizeOf(id);
+							return size ? { w: size.width, h: size.height } : undefined;
+						}}
+						onPlaced={(placed, message) => {
+							close();
+							store.getState().resetSelectedElements();
+							requestAnimationFrame(() => store.getState().addSelectedNodes(placed));
+							toast(message);
+						}}
+					/>
+				);
+			}
 			case "backlink":
 				return (
 					<BacklinkFor
@@ -918,7 +979,9 @@ export function ActionBar(props: ActionBarProps) {
 							open === "parentIssue" ||
 							open === "expandRelated" ||
 							open === "carryOver" ||
-							open === "groupThese"
+							open === "groupThese" ||
+							open === "summarise" ||
+							open === "draftDecision"
 						}
 					>
 						{panel()}
