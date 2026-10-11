@@ -51,4 +51,4 @@ There's no public API yet.
 
 ## Does it work on phones?
 
-Tack is built for a mouse or trackpad and a keyboard. Viewing, voting, commenting and adding stickies on phones is planned.
+Yes. On a phone you can look around a board, vote, comment and add stickies; on a tablet you can do everything, with a finger or a pencil. See [Phones and tablets](/boards/phones-and-tablets/).

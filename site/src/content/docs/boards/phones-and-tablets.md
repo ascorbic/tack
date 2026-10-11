@@ -1,0 +1,35 @@
+---
+title: Phones and tablets
+description: Looking around a board, voting, commenting and adding stickies on a phone, and editing with a finger or a pencil on a tablet.
+sidebar:
+  order: 9.5
+---
+
+A board works on any screen. On a phone it's for following along and joining in: looking around, voting, commenting and adding stickies. On a tablet you can do everything you can with a mouse.
+
+## On a phone
+
+A screen 600 pixels wide or less (or a phone on its side) gets the phone's board. There's no toolbar: the board is for looking around, and everything you can do to a shape is one tap away.
+
+- **Getting around**: drag with one finger, or two, to move around the board, and pinch to zoom. The button in the bottom left shows the whole board.
+- **Tap a shape** to open it in a sheet from the bottom of the screen: a sticky's words big enough to read (or face down, in [silent mode](/facilitation/silent-mode/)), a card as it is on GitHub, a decision, an action item. The shape stays in sight above the sheet, ringed. Tap another shape to switch to it, or the empty board to put the sheet away. You can also drag the sheet down by its top, or flick it.
+- **Vote**: while a [dot vote](/facilitation/dot-voting/) covers the shape, its sheet shows how many dots you have left and **+** and **−** to put one on or take one back. A proposed [decision](/boards/decisions/) has **Agree** and **Disagree**. Tap a stamp to add yours, and again to take it back.
+- **Comment**: the sheet lists the shape's [comments](/facilitation/comments/). Tap one to read the thread and reply, or write a new one at the bottom. Comment pins on the board and the **Comments** panel open threads in the sheet too.
+- **Add stickies**: the **+** in the bottom right opens a pad. Type, pick a colour and tap **Add** (or press return): the sticky goes in the middle of what you can see, somewhere it doesn't cover anything, and the pad stays open for the next one.
+
+Moving, resizing, connecting and editing shapes are for bigger screens. A board you can only view has no **+**, and its sheets have no voting, but you can still read everything, and comment if you're signed in.
+
+The top bar keeps the board's name and who's here; its other buttons are under **More tools**, and its panels take the width of the screen.
+
+## On a tablet
+
+A tablet (or any touch screen wider than a phone's) edits as a computer does, with controls sized for a finger.
+
+- **Tap** a shape to select it, and drag it to move it. Its action bar and handles are big enough to hit.
+- **Drag the empty board** with a finger to move around, and pinch to zoom.
+- **Select several**: press and hold a shape until a ring spreads from your finger. From then on a tap adds a shape to the selection or takes it out; tap **Done** (or the empty board) when you're finished.
+- **A pencil** draws a selection box on the empty board, as a mouse does with the select tool.
+
+## Large boards
+
+Pinching and panning stay smooth on a board of 500 cards on a tablet: shapes out of view aren't drawn until you get to them.
