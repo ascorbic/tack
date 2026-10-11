@@ -62,9 +62,9 @@ export function seedStacks(doc: Y.Doc): void {
 		});
 		// A stack someone named themselves.
 		const perf = [
-			sticky(doc, "Srcset generation is slow on big sites", "orange", 1080, 80, 0),
-			sticky(doc, "Builds got 2x slower in 4.3", "orange", 1100, 100, 1),
-			sticky(doc, "Dev server lags with 500 images", "orange", 1120, 120, 2),
+			sticky(doc, "Srcset generation is slow on big sites", "blue", 1080, 80, 0),
+			sticky(doc, "Builds got 2x slower in 4.3", "blue", 1100, 100, 1),
+			sticky(doc, "Dev server lags with 500 images", "blue", 1120, 120, 2),
 		];
 		const named = stackUp(doc, perf[0] as string, perf.slice(1));
 		if (named) setStackName(doc, named, "Big sites are slow");
@@ -84,7 +84,7 @@ export function seedStacks(doc: Y.Doc): void {
 }
 
 export class SimulatedStacks {
-	private namer: StackNamer | null = null;
+	namer: StackNamer | null = null;
 	private mode: StackAiMode = "on";
 
 	constructor(private readonly doc: Y.Doc) {}

@@ -113,6 +113,7 @@ export default function Playground() {
 	const [stackAi, setStackAi] = useState<StackAiMode>("on");
 	useEffect(() => {
 		setStackAi("on");
+		Object.assign(window, { tackStacks: stacks });
 		return stacks.install();
 	}, [stacks]);
 	useEffect(() => stacks.setMode(stackAi), [stacks, stackAi]);
@@ -527,7 +528,9 @@ export default function Playground() {
 				readOnly={viewOnly}
 				push={push}
 				historySource={boardHistory}
-				fitOnLoad={scenario.startsWith("template-") || scenario === "actions"}
+				fitOnLoad={
+					scenario.startsWith("template-") || scenario === "actions" || scenario === "stacks"
+				}
 			>
 				<PenProbe doc={sim.doc} mode={pen} onStats={setPenStats} />
 				<aside className="play-panel" aria-label="Playground controls" data-chrome>
