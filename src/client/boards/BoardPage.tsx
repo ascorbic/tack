@@ -305,6 +305,7 @@ function LoadedBoard({
 					canSaveTemplate={editable && (me.viewer !== null || me.signIn !== "ready")}
 					canBackup={board.role === "owner" && me.viewer !== null}
 					onCustomWidgets={canManageCustom ? () => setCustomOpen(true) : undefined}
+					canDigest={me.viewer !== null}
 				/>
 			</>
 		),

@@ -1,0 +1,1080 @@
+/* Weekly digests (#68): the dialog from the board's menu, the digest as
+   its reader gets it (a sheet of paper on the board's dotted ground), and
+   the page the links in its emails open. */
+
+.digest-dialog {
+	width: min(960px, calc(100vw - 32px));
+	max-height: calc(100dvh - 32px);
+	padding: 0;
+	overflow: auto;
+	border: 1px solid var(--line);
+	border-radius: 20px;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-lifted);
+	animation: export-in var(--t-settle) var(--ease-spring);
+}
+
+.digest-dialog::backdrop {
+	background: rgb(16 17 20 / 32%);
+	backdrop-filter: blur(2px);
+}
+
+.digest-dialog[data-closing] {
+	animation: export-out var(--t-quick) var(--ease-out) forwards;
+}
+
+.digest {
+	display: grid;
+	grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+	min-height: min(620px, calc(100dvh - 34px));
+}
+
+.digest h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 720;
+	letter-spacing: -0.025em;
+}
+
+.digest-side {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	min-width: 0;
+	padding: 22px;
+}
+
+.digest-head p {
+	margin: 4px 0 0;
+	color: var(--ink-soft);
+	font-size: 13.5px;
+	line-height: 1.45;
+	text-wrap: pretty;
+}
+
+.digest-head strong {
+	color: var(--ink);
+	font-weight: 640;
+}
+
+.digest-done {
+	margin-top: auto;
+}
+
+.digest-muted {
+	color: var(--muted);
+}
+
+.digest-icon {
+	flex: none;
+	fill: none;
+	stroke: currentcolor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+/* --- Where it goes, for people who can't change it ------------------------------- */
+
+.digest-where {
+	display: grid;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--ink-soft);
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+.digest-where li {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr);
+	gap: 8px;
+	align-items: start;
+}
+
+.digest-where .digest-icon {
+	margin-top: 1px;
+	color: var(--accent);
+}
+
+/* --- The owner's settings ---------------------------------------------------------- */
+
+.digest-settings {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 12px;
+}
+
+.digest-channel {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--surface-muted);
+	transition:
+		border-color var(--t-base) var(--ease-out),
+		background var(--t-base) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.digest-channel[data-on] {
+	border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+	background: var(--surface);
+	box-shadow: var(--shadow-rest);
+}
+
+.digest-toggle {
+	position: relative;
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr) auto;
+	gap: 10px;
+	align-items: start;
+	padding: 12px 14px;
+	font-size: 13px;
+	line-height: 1.4;
+	cursor: pointer;
+	user-select: none;
+}
+
+.digest-toggle[data-disabled] {
+	cursor: default;
+}
+
+.digest-toggle[data-disabled] > :not(:last-child) {
+	opacity: 0.6;
+}
+
+.digest-toggle > .digest-icon {
+	margin-top: 2px;
+	color: var(--muted);
+	transition: color var(--t-base) var(--ease-out);
+}
+
+.digest-channel[data-on] .digest-toggle > .digest-icon {
+	color: var(--accent);
+}
+
+.digest-toggle > span:nth-child(2) {
+	display: grid;
+	gap: 2px;
+}
+
+.digest-toggle strong {
+	color: var(--ink);
+	font-weight: 640;
+}
+
+.digest-toggle > span:nth-child(2) > span {
+	color: var(--muted);
+	font-size: 12.5px;
+	text-wrap: pretty;
+}
+
+/* A small switch, its knob springing over. The real checkbox sits over it. */
+.digest-switch {
+	position: relative;
+	display: block;
+	width: 30px;
+	height: 18px;
+	margin-top: 1px;
+}
+
+.digest-switch input {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	opacity: 0;
+	cursor: inherit;
+}
+
+.digest-switch > span {
+	position: absolute;
+	inset: 0;
+	border-radius: 9px;
+	background: var(--line-strong);
+	transition:
+		background var(--t-base) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.digest-switch > span::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--surface);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 22%);
+	transition:
+		translate var(--t-settle) var(--ease-spring),
+		scale var(--t-quick) var(--ease-out);
+}
+
+.digest-switch input:checked + span {
+	background: var(--accent);
+}
+
+.digest-switch input:checked + span::after {
+	translate: 12px 0;
+}
+
+.digest-switch input:focus-visible + span {
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.digest-toggle:active .digest-switch > span::after {
+	scale: 1.12 0.9;
+}
+
+.digest-switch input:disabled + span {
+	opacity: 0.55;
+}
+
+/* What a channel needs unfolds under its switch. */
+.digest-channel-body {
+	display: grid;
+	gap: 10px;
+	margin: 0;
+	padding: 0 14px 14px 40px;
+	animation: digest-unfold var(--t-settle) var(--ease-spring);
+}
+
+.digest-channel-body .backup-fields {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.digest-channel-body .new-board-field {
+	min-width: 0;
+}
+
+.digest-channel-body .new-board-field input,
+.digest-channel-body .new-board-field select {
+	width: 100%;
+	min-width: 0;
+}
+
+p.digest-channel-body {
+	font-size: 12.5px;
+	animation: none;
+}
+
+@keyframes digest-unfold {
+	from {
+		opacity: 0;
+		transform: translateY(-6px);
+	}
+}
+
+.digest-note {
+	margin: 0;
+	padding: 8px 10px;
+	border-radius: 9px;
+	background: var(--surface-muted);
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	line-height: 1.45;
+}
+
+.digest-note[data-tone="warning"] {
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+}
+
+.digest-settings .export-row {
+	grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.digest-settings .export-segmented button {
+	padding: 0 4px;
+}
+
+.digest-time {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 12.5px;
+}
+
+.digest-time select {
+	height: 34px;
+	padding: 0 10px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 13.5px;
+	font-variant-numeric: tabular-nums;
+}
+
+.digest-time select:focus {
+	border-color: var(--accent);
+	outline: none;
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.digest-owner-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	min-height: 38px;
+}
+
+/* Saved: a tick that draws itself, then the word settles. */
+.digest-saved {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--pass);
+	font-size: 13px;
+	font-weight: 600;
+	animation: export-preview-in var(--t-settle) var(--ease-spring);
+}
+
+.digest-saved .digest-icon {
+	stroke-width: 2;
+	stroke-dasharray: 16;
+	stroke-dashoffset: 16;
+	animation: digest-tick var(--t-settle) var(--ease-out) forwards;
+}
+
+@keyframes digest-tick {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+/* --- Your own email ------------------------------------------------------------------ */
+
+.digest-you {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr);
+	gap: 10px;
+	padding: 12px 14px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--surface-muted);
+	font-size: 13px;
+	line-height: 1.45;
+	animation: export-preview-in var(--t-settle) var(--ease-spring);
+}
+
+.digest-you > .digest-icon {
+	margin-top: 2px;
+	color: var(--muted);
+}
+
+.digest-you[data-state="on"] {
+	border-color: color-mix(in srgb, var(--pass) 30%, var(--line));
+	background: color-mix(in srgb, var(--pass) 6%, var(--surface));
+}
+
+.digest-you[data-state="on"] > .digest-icon {
+	color: var(--pass);
+}
+
+.digest-you[data-state="pending"] {
+	border-color: color-mix(in srgb, var(--pending) 40%, var(--line));
+	background: var(--pending-bg);
+}
+
+/* Waiting for the link: the envelope bobs, gently. */
+.digest-you[data-state="pending"] > .digest-icon {
+	color: var(--pending-ink);
+	animation: digest-bob calc(1800ms * var(--motion)) var(--ease-out) infinite;
+}
+
+@keyframes digest-bob {
+	0%,
+	60%,
+	100% {
+		transform: translateY(0);
+	}
+	30% {
+		transform: translateY(-2px) rotate(-6deg);
+	}
+}
+
+.digest-you p {
+	margin: 0;
+}
+
+.digest-you > div {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+
+.digest-you label strong {
+	font-weight: 640;
+}
+
+.digest-you-field {
+	display: flex;
+	gap: 6px;
+}
+
+.digest-you-field input {
+	flex: 1;
+	min-width: 0;
+	height: 38px;
+	padding: 0 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 14px;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.digest-you-field input:focus {
+	border-color: var(--accent);
+	outline: none;
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.digest-you-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+}
+
+.digest-you-actions button,
+.digest-link {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent);
+	font: inherit;
+	font-size: 12.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.digest-link {
+	justify-self: start;
+}
+
+.digest-you-actions button:hover,
+.digest-link:hover {
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.digest-you-actions .digest-stop {
+	color: var(--muted);
+}
+
+.digest-you-actions .digest-stop:hover {
+	color: var(--danger);
+}
+
+.digest-you-actions button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+/* --- How the last ones went ---------------------------------------------------------- */
+
+.digest-runs h3 {
+	margin: 0 0 8px;
+	color: var(--muted);
+	font-size: 11.5px;
+	font-weight: 640;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.digest-runs ul {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: 12.5px;
+	line-height: 1.45;
+}
+
+.digest-runs li {
+	display: grid;
+	grid-template-columns: 10px minmax(0, 1fr);
+	gap: 10px;
+	align-items: start;
+	color: var(--ink-soft);
+}
+
+.digest-runs .backup-dot {
+	width: 8px;
+	height: 8px;
+	margin-top: 5px;
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--pass) 18%, transparent);
+}
+
+.digest-runs li[data-status="failed"] .backup-dot {
+	background: var(--fail);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--fail) 18%, transparent);
+}
+
+.digest-runs li[data-status="quiet"] .backup-dot {
+	background: var(--line-strong);
+	box-shadow: none;
+}
+
+.digest-runs a {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.digest-late {
+	color: var(--fail-ink);
+}
+
+/* --- The preview: a sheet of paper on the board ---------------------------------------- */
+
+.digest-preview {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	border-left: 1px solid var(--line);
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 16px 16px;
+}
+
+.digest-preview-head {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 12px;
+	min-height: 40px;
+	padding: 16px 22px 8px;
+	color: var(--muted);
+	font-size: 11.5px;
+	font-weight: 640;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.digest-preview-head .export-row {
+	grid-template-columns: 1fr;
+	width: 220px;
+	letter-spacing: normal;
+	text-transform: none;
+}
+
+.digest-preview-head .export-row-label {
+	display: none;
+}
+
+.digest-preview-body {
+	padding: 6px 22px 26px;
+	animation: digest-paper-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes digest-paper-in {
+	from {
+		opacity: 0;
+		transform: translateY(10px) rotate(-0.6deg) scale(0.985);
+	}
+}
+
+.digest-paper {
+	max-width: 560px;
+	margin: 0 auto;
+	padding: 22px 24px 24px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+	box-shadow: var(--shadow-hover);
+	color: var(--ink);
+	font-size: 13.5px;
+	line-height: 1.5;
+}
+
+/* While it's gathered: the shape of a digest, shimmering. */
+.digest-paper-skeleton {
+	display: grid;
+	gap: 4px;
+	padding-bottom: 30px;
+}
+
+.digest-paper-skeleton .skeleton:first-child {
+	height: 9px;
+	margin-top: 0;
+}
+
+.digest-paper-skeleton .skeleton:nth-child(2) {
+	height: 20px;
+}
+
+.digest-paper-skeleton .skeleton:nth-child(4) {
+	margin-top: 26px;
+}
+
+.digest-paper-skeleton[data-error] .skeleton {
+	animation: none;
+	opacity: 0.5;
+}
+
+.digest-paper-brand {
+	display: block;
+	margin: 0 0 10px;
+	color: var(--muted);
+	font-size: 11.5px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+
+.digest-paper-head h3 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 720;
+	letter-spacing: -0.025em;
+	line-height: 1.15;
+	overflow-wrap: anywhere;
+}
+
+.digest-paper-head p {
+	margin: 2px 0 0;
+	color: var(--muted);
+	font-size: 13px;
+}
+
+.digest-highlights {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 12px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.digest-highlights li {
+	padding: 3px 9px;
+	border-radius: 999px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-size: 12px;
+	font-weight: 640;
+	animation: digest-pop var(--t-settle) var(--ease-spring) backwards;
+}
+
+.digest-highlights li:nth-child(2) {
+	animation-delay: calc(40ms * var(--motion));
+}
+
+.digest-highlights li:nth-child(3) {
+	animation-delay: calc(80ms * var(--motion));
+}
+
+.digest-highlights li:nth-child(n + 4) {
+	animation-delay: calc(120ms * var(--motion));
+}
+
+@keyframes digest-pop {
+	from {
+		opacity: 0;
+		transform: scale(0.8);
+	}
+}
+
+/* Sections come in one after another, so a fresh preview reads top to bottom. */
+.digest-section {
+	margin-top: 18px;
+	padding-top: 14px;
+	border-top: 1px solid var(--line);
+	animation: digest-section-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc(var(--i, 0) * 60ms * var(--motion));
+}
+
+@keyframes digest-section-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+}
+
+.digest-section h4 {
+	margin: 0 0 8px;
+	color: var(--ink-soft);
+	font-size: 12px;
+	font-weight: 680;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.digest-section ul {
+	display: grid;
+	gap: 7px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.digest-row {
+	display: grid;
+	grid-template-columns: 18px minmax(0, 1fr);
+	gap: 8px;
+	align-items: start;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.digest-row strong {
+	font-weight: 640;
+}
+
+.digest-row a {
+	color: var(--ink);
+	font-weight: 600;
+	text-decoration-color: var(--line-strong);
+	text-underline-offset: 2px;
+}
+
+.digest-row a:hover {
+	color: var(--accent);
+	text-decoration-color: currentcolor;
+}
+
+.digest-quiet-text {
+	color: var(--muted);
+}
+
+.digest-block {
+	display: block;
+	font-size: 12.5px;
+}
+
+.digest-ref {
+	color: var(--muted);
+	font-family: var(--font-mono);
+	font-size: 11.5px;
+}
+
+.digest-activity {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 3px;
+}
+
+.digest-activity span {
+	padding: 1px 7px;
+	border-radius: 999px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 11.5px;
+	font-weight: 560;
+}
+
+.digest-activity span[data-tone="good"] {
+	background: var(--merged-bg);
+	color: var(--merged);
+}
+
+.digest-activity span[data-tone="bad"] {
+	background: var(--fail-bg);
+	color: var(--fail-ink);
+}
+
+.digest-glyph {
+	margin-top: 2px;
+	fill: none;
+	stroke: var(--muted);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.digest-glyph[data-kind="decision"] {
+	stroke: var(--accent);
+	fill: var(--accent-soft);
+}
+
+.digest-glyph[data-kind="done"] {
+	stroke: var(--pass);
+	stroke-width: 2;
+}
+
+.digest-glyph[data-kind="new"] {
+	stroke: var(--accent);
+}
+
+.digest-glyph[data-kind="overdue"] {
+	stroke: var(--fail);
+}
+
+.digest-glyph[data-kind="issue"] {
+	stroke: var(--open);
+}
+
+.digest-glyph[data-kind="pull"] {
+	stroke: var(--merged);
+}
+
+.digest-row[data-kind="done"] .digest-action-text {
+	text-decoration: line-through;
+	text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+/* People keep a colour from week to week. */
+.digest-initial {
+	display: grid;
+	place-items: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: var(--section-grey-title);
+	color: var(--section-grey-ink);
+	font-size: 10.5px;
+	font-weight: 700;
+}
+
+.digest-initial[data-hue="1"] {
+	background: var(--section-red-title);
+	color: var(--section-red-ink);
+}
+
+.digest-initial[data-hue="2"] {
+	background: var(--section-orange-title);
+	color: var(--section-orange-ink);
+}
+
+.digest-initial[data-hue="3"] {
+	background: var(--section-yellow-title);
+	color: var(--section-yellow-ink);
+}
+
+.digest-initial[data-hue="4"] {
+	background: var(--section-green-title);
+	color: var(--section-green-ink);
+}
+
+.digest-initial[data-hue="5"] {
+	background: var(--section-blue-title);
+	color: var(--section-blue-ink);
+}
+
+.digest-initial[data-hue="6"] {
+	background: var(--section-purple-title);
+	color: var(--section-purple-ink);
+}
+
+.digest-initial[data-hue="7"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+/* A quiet week: a calm empty state, not an empty page. */
+.digest-quiet {
+	display: grid;
+	justify-items: center;
+	gap: 12px;
+	margin-top: 22px;
+	padding: 20px 12px 6px;
+	border-top: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 13px;
+	text-align: center;
+}
+
+.digest-quiet p {
+	max-width: 34ch;
+	margin: 0;
+	text-wrap: pretty;
+}
+
+.digest-quiet-mark {
+	position: relative;
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: var(--well);
+}
+
+.digest-quiet-mark::before,
+.digest-quiet-mark::after {
+	content: "";
+	position: absolute;
+	top: 18px;
+	width: 8px;
+	height: 3px;
+	border-bottom: 1.5px solid var(--muted);
+	border-radius: 0 0 8px 8px;
+}
+
+.digest-quiet-mark::before {
+	left: 10px;
+}
+
+.digest-quiet-mark::after {
+	right: 10px;
+}
+
+/* The Discussion, as GitHub would draw its Markdown. */
+.digest-markdown .md {
+	font-size: 13.5px;
+	line-height: 1.55;
+	overflow-wrap: anywhere;
+}
+
+.digest-markdown .md h3 {
+	margin: 16px 0 6px;
+	font-size: 14.5px;
+}
+
+.digest-markdown .md ul {
+	margin: 0;
+	padding-left: 20px;
+}
+
+.digest-markdown .md hr {
+	margin: 16px 0 10px;
+	border: 0;
+	border-top: 1px solid var(--line);
+}
+
+.digest-markdown .md a {
+	color: var(--accent);
+}
+
+/* --- The page the links in emails open -------------------------------------------------- */
+
+.digest-link-page {
+	display: grid;
+	min-height: 100dvh;
+	place-items: center;
+	padding: 24px 16px;
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 16px 16px;
+	color: var(--ink);
+}
+
+.digest-link-card {
+	display: grid;
+	justify-items: center;
+	gap: 10px;
+	width: min(420px, 100%);
+	padding: 30px 26px 26px;
+	border: 1px solid var(--line);
+	border-radius: 20px;
+	background: var(--surface);
+	box-shadow: var(--shadow-lifted);
+	text-align: center;
+	animation: export-in var(--t-settle) var(--ease-spring);
+}
+
+.digest-link-card h1 {
+	margin: 4px 0 0;
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 720;
+	letter-spacing: -0.025em;
+	text-wrap: balance;
+}
+
+.digest-link-card p {
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 13.5px;
+	line-height: 1.5;
+	text-wrap: pretty;
+}
+
+.digest-link-card .primary {
+	margin-top: 8px;
+}
+
+/* A tick or an envelope that draws itself in. */
+.digest-link-mark {
+	width: 56px;
+	height: 56px;
+	fill: none;
+	stroke-width: 2.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.digest-link-mark circle {
+	fill: var(--accent-soft);
+	stroke: none;
+}
+
+.digest-link-mark path {
+	stroke: var(--accent);
+	stroke-dasharray: 1;
+	stroke-dashoffset: 1;
+	animation: digest-tick var(--t-settle) var(--ease-out) calc(120ms * var(--motion)) forwards;
+}
+
+.digest-link-card[data-tone="error"] .digest-link-mark circle {
+	fill: var(--fail-bg);
+}
+
+.digest-link-card[data-tone="error"] .digest-link-mark path {
+	stroke: var(--fail);
+}
+
+.digest-link-card[data-tone="busy"] .digest-link-mark circle {
+	animation: export-dot calc(900ms * var(--motion)) var(--ease-out) infinite;
+}
+
+@media (max-width: 760px) {
+	.digest {
+		grid-template-columns: 1fr;
+		min-height: 0;
+	}
+
+	.digest-preview {
+		border-top: 1px solid var(--line);
+		border-left: 0;
+	}
+
+	.digest-done {
+		order: 10;
+	}
+}
+
+@media (max-width: 520px) {
+	.digest-side,
+	.digest-preview-body {
+		padding-right: 16px;
+		padding-left: 16px;
+	}
+
+	.digest-preview-head {
+		padding-right: 16px;
+		padding-left: 16px;
+	}
+
+	.digest-paper {
+		padding: 18px 16px 20px;
+	}
+
+	.digest-channel-body {
+		padding-left: 14px;
+	}
+}

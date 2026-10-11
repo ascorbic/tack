@@ -5,6 +5,7 @@ import {
 	TEMPLATE_TITLE_MAX,
 	type TemplateInfo,
 } from "../../shared/templates.ts";
+import { DigestDialog } from "../digests/DigestDialog.tsx";
 import { BackupDialog } from "../export/BackupDialog.tsx";
 import { exportUI } from "../export/store.ts";
 import { isApplePlatform } from "../shortcuts.ts";
@@ -20,24 +21,28 @@ import "./templates.css";
 
 /**
  * The board's menu: things to do with the whole board. Export is for
- * everyone who can see it; saving it as a template for its editors, and
- * backups for its owner.
+ * everyone who can see it; the weekly digest for everyone signed in (its
+ * owner sets it up); saving it as a template for its editors, and backups
+ * for its owner.
  */
 export function BoardMenu({
 	board,
 	canSaveTemplate = true,
 	canBackup = false,
 	onCustomWidgets,
+	canDigest = false,
 }: {
 	board: BoardInfo;
 	canSaveTemplate?: boolean;
 	canBackup?: boolean;
 	/** Opens the board's custom widgets setting (#66), for its owner. */
 	onCustomWidgets?: () => void;
+	canDigest?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [backingUp, setBackingUp] = useState(false);
+	const [digesting, setDigesting] = useState(false);
 	const root = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -84,6 +89,19 @@ export function BoardMenu({
 							{isApplePlatform() ? "⇧⌘E" : "Ctrl+Shift+E"}
 						</kbd>
 					</button>
+					{canDigest && (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={() => {
+								setOpen(false);
+								setDigesting(true);
+							}}
+						>
+							<DigestIcon />
+							Weekly digest…
+						</button>
+					)}
 					{canSaveTemplate && (
 						<button
 							type="button"
@@ -132,6 +150,9 @@ export function BoardMenu({
 			{canBackup && (
 				<BackupDialog board={board} open={backingUp} onClose={() => setBackingUp(false)} />
 			)}
+			{canDigest && (
+				<DigestDialog board={board} open={digesting} onClose={() => setDigesting(false)} />
+			)}
 		</div>
 	);
 }
@@ -148,6 +169,15 @@ function ExportIcon() {
 	return (
 		<svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
 			<path d="M8 10V2.5M5 5.5l3-3 3 3M3 9.5v3a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3" />
+		</svg>
+	);
+}
+
+function DigestIcon() {
+	return (
+		<svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+			<rect x="2.5" y="3" width="11" height="10.5" rx="2" />
+			<path d="M2.5 6.5h11M5.5 1.75v2.5M10.5 1.75v2.5M5.5 9.5h5" />
 		</svg>
 	);
 }
