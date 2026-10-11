@@ -30,6 +30,7 @@ import { UNPIC, PEOPLE, failChange, stageAs } from "./push.ts";
 import { seedRoadmap } from "./roadmap.ts";
 import { seedStacks } from "./stacks.ts";
 import { seedTracking, seedWidgets } from "./widgets.ts";
+import { seedCustom } from "./custom.ts";
 
 export interface Scenario {
 	name: string;
@@ -595,6 +596,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"A review queue (yours, and a team's), a milestone's progress and risks, and a stale finder whose quick actions stage changes. Zoom out to read them from afar.",
 		seed: seedTracking,
+	},
+	custom: {
+		name: "Custom widgets",
+		description:
+			"Custom widgets over a fake repository: a burndown, a label cloud, contributors, and a sandbox check that tries every way out. Select one to use it; its code button opens the editor with a live preview and examples.",
+		seed: seedCustom,
 	},
 	comments: {
 		name: "Comments",

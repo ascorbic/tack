@@ -39,6 +39,9 @@ import { ChangeControls } from "./ChangeControls.tsx";
 import { pastPushes, SimulatedPush } from "./push.ts";
 import { SimulatedWidgets, WIDGET_CARDS, type WidgetMode, addWidgetCard } from "./widgets.ts";
 import { widgetStore } from "../widgets/store.ts";
+import { customWidgets } from "../widgets/custom/state.ts";
+import { Modal } from "../boards/Modal.tsx";
+import { CustomWidgetsPanel } from "../boards/CustomWidgetsDialog.tsx";
 
 const NEW_BUGS = [
 	"Pixfold provider drops the crop rectangle",
@@ -146,6 +149,17 @@ export default function Playground() {
 	useEffect(() => {
 		playAi.mode = stackAi === "slow" ? "slow" : stackAi === "failing" ? "failed" : "live";
 	}, [stackAi]);
+	// Custom widgets (#66): on, as if the board's owner allowed them; you're the owner.
+	const [customOn, setCustomOn] = useState(true);
+	const [customDialog, setCustomDialog] = useState(false);
+	useEffect(() => {
+		customWidgets.set({
+			enabled: customOn,
+			canManage: true,
+			openSettings: () => setCustomDialog(true),
+		});
+	}, [customOn]);
+	useEffect(() => () => customWidgets.reset(), []);
 	const [widgetMode, setWidgetMode] = useState<WidgetMode>("live");
 	const [widgetNote, setWidgetNote] = useState<string | null>(null);
 	useEffect(() => {
@@ -794,6 +808,50 @@ export default function Playground() {
 							{widgetNote ??
 								"W picks a widget. Drag rows out as cards; drop cards on a list to stage what makes them match, then push from Changes."}
 						</p>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Custom widgets</h2>
+						<div className="segmented" role="radiogroup" aria-label="Custom widgets">
+							{(
+								[
+									[true, "On"],
+									[false, "Off"],
+								] as const
+							).map(([on, label]) => (
+								<label key={label} data-checked={customOn === on}>
+									<input
+										type="radio"
+										name="custom-widgets"
+										checked={customOn === on}
+										onChange={() => setCustomOn(on)}
+									/>
+									{label}
+								</label>
+							))}
+						</div>
+						<p className="play-hint">
+							As if the board’s owner allowed them. Their searches run over the fake repository, as
+							the Widgets controls above say.
+						</p>
+						<Modal
+							open={customDialog}
+							onClose={() => setCustomDialog(false)}
+							className="custom-widgets-dialog"
+							labelledBy="play-custom-widgets"
+						>
+							{(close) => (
+								<CustomWidgetsPanel
+									headingId="play-custom-widgets"
+									enabled={customOn}
+									onChange={async (on) => {
+										setCustomOn(on);
+										return null;
+									}}
+									onClose={close}
+								/>
+							)}
+						</Modal>
 					</div>
 
 					<div className="play-section">

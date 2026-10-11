@@ -1,5 +1,6 @@
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
+import { type CustomSearch, customQueryOf } from "../../shared/customWidgets.ts";
 import { matchSearch, parseSearch } from "../../shared/search.ts";
 import { addShape, nextZ, shapesMap } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
@@ -194,6 +195,7 @@ export const KIND_CARDS: Card[] = kindCards(Date.now());
 
 /** Everything the fake repository has to search. */
 const searchable = () => [...WIDGET_CARDS, ...RELEASE_PULLS, ...KIND_CARDS];
+export const searchableCards = searchable;
 
 export interface SimulatedWidgetOptions {
 	/** What `@me` means. Without one, searches about `@me` say to sign in. */
@@ -213,6 +215,8 @@ export class SimulatedWidgets implements WidgetTransport {
 	private pending: ReturnType<typeof setTimeout> | undefined;
 	private unobserve: () => void;
 	private configs = new Map<string, string>();
+	/** Custom widgets' searches, as their code asked for them (#66). */
+	private custom = new Map<string, Record<string, CustomSearch>>();
 
 	constructor(
 		private doc: Y.Doc,
@@ -277,6 +281,12 @@ export class SimulatedWidgets implements WidgetTransport {
 	}
 
 	refresh(id: string): void {
+		this.answer(id);
+	}
+
+	query(id: string, queries: Record<string, CustomSearch>): void {
+		this.custom.set(id, queries);
+		this.watched.add(id);
 		this.answer(id);
 	}
 
@@ -352,6 +362,10 @@ export class SimulatedWidgets implements WidgetTransport {
 		}
 		for (const [name, query] of Object.entries(widgetFollowUps(widget, results))) {
 			results[name] = this.run(query);
+		}
+		for (const [name, raw] of Object.entries(this.custom.get(id) ?? {})) {
+			const query = customQueryOf(raw);
+			results[name] = query.kind === "error" ? query : this.run(query);
 		}
 		return { type: "widget-data", id, results, at };
 	}
