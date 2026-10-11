@@ -694,6 +694,18 @@
 	pointer-events: auto;
 }
 
+/* On the board, inside the shape's bottom-right corner (clear of a sticky's
+   author and a card's counts), so they don't spill onto the next shape. */
+.stamps-anchor > .stamps {
+	position: absolute;
+	right: calc(10px * var(--unzoom, 1));
+	bottom: calc(10px * var(--unzoom, 1));
+	justify-content: flex-end;
+	padding-left: 0;
+	translate: none;
+	transform-origin: 100% 100%;
+}
+
 .stamp {
 	display: inline-flex;
 	align-items: center;

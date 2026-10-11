@@ -74,6 +74,11 @@ test.describe("facilitating a retro", () => {
 		const stamp = page.getByRole("button", { name: /^❤️ 1: .*\(including you\)/ });
 		await expect(stamp).toBeVisible();
 		await expect(stamp).toHaveAttribute("aria-pressed", "true");
+		// Inside the sticky's bottom-right corner, not spilling onto the next shape.
+		const [mark, shape] = [(await stamp.boundingBox())!, (await note.boundingBox())!];
+		expect(mark.y + mark.height).toBeLessThanOrEqual(shape.y + shape.height);
+		expect(mark.x + mark.width).toBeLessThanOrEqual(shape.x + shape.width);
+		expect(mark.x + mark.width).toBeGreaterThan(shape.x + shape.width / 2);
 		await note.click();
 		await expect(stamp).toHaveCount(0);
 		// Seeded stamps from other people count up.

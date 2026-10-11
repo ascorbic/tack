@@ -26,9 +26,10 @@ import { useServerNow, useStampCounts, useVotes } from "./hooks.ts";
 import { facilitation } from "./store.ts";
 import { useDismissedVotes } from "./Votes.tsx";
 
-// What people put on shapes in a session: stamps along a shape's bottom
-// edge (👍 3 ❤️ 1), and dot votes in its top-right corner. Drawn on their
-// own layer above the shapes, in board coordinates, so they move with them.
+// What people put on shapes in a session: stamps inside a shape's
+// bottom-right corner (👍 3 ❤️ 1), and dot votes in its top-right corner.
+// Drawn on their own layer above the shapes, in board coordinates, so they
+// move with them.
 
 /** Stamp a shape, or take your stamp back off. One undo step. */
 export function stampShape(doc: Y.Doc, id: string, emoji: StampEmoji, me: Stamper): boolean {
@@ -192,7 +193,7 @@ const ShapeMarks = memo(function ShapeMarks({
 				</div>
 			)}
 			{counts && (
-				<div className="stamps-anchor" style={{ transform: `translate(${x}px, ${y + h}px)` }}>
+				<div className="stamps-anchor" style={{ transform: `translate(${x + w}px, ${y + h}px)` }}>
 					<StampRow
 						counts={counts}
 						onToggle={readOnly ? undefined : (emoji) => stampShape(doc, id, emoji, me)}
