@@ -607,8 +607,14 @@ function RunningNow({
 									className="running-reveal"
 									onClick={() => revealSilent(session.session)}
 								>
-									<FlipIcon size={13} />
-									Reveal
+									{session.total > 0 ? (
+										<>
+											<FlipIcon size={13} />
+											Reveal
+										</>
+									) : (
+										"End"
+									)}
 								</button>
 							)}
 						</span>

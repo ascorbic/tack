@@ -187,14 +187,22 @@ export function SilentBadgeView({
 				<button
 					type="button"
 					className="section-silent-reveal"
+					// Nothing written yet (started on the wrong section, say): it just ends.
+					data-tooltip={total === 0 ? "Nothing to reveal: end silent mode here" : undefined}
 					onPointerDown={(event) => event.stopPropagation()}
 					onClick={(event) => {
 						event.stopPropagation();
 						onReveal();
 					}}
 				>
-					<FlipIcon size={14} />
-					Reveal{total > 0 ? ` ${total}` : ""}
+					{total > 0 ? (
+						<>
+							<FlipIcon size={14} />
+							Reveal {total}
+						</>
+					) : (
+						"End silent mode"
+					)}
 				</button>
 			)}
 			{!canReveal && !viewOnly && (

@@ -11,8 +11,13 @@ const run = Date.now().toString(36);
 const LEAD = `e2e-lead-${run}`;
 const GUEST = `e2e-guest-${run}`;
 
-async function signIn(browser: Browser, login: string, name: string): Promise<Page> {
-	const context = await browser.newContext();
+async function signIn(
+	browser: Browser,
+	baseURL: string | undefined,
+	login: string,
+	name: string,
+): Promise<Page> {
+	const context = await browser.newContext({ baseURL });
 	const page = await context.newPage();
 	await page.route("https://github.com/**", (route) => route.abort());
 	await page.goto(
@@ -82,10 +87,10 @@ test.describe.serial("running a session", () => {
 	let lead: Page;
 	let guest: Page;
 
-	test.beforeAll(async ({ browser }) => {
-		lead = await signIn(browser, LEAD, "Lena Lead");
+	test.beforeAll(async ({ browser, baseURL }) => {
+		lead = await signIn(browser, baseURL, LEAD, "Lena Lead");
 		const url = await makeBoard(lead);
-		guest = await signIn(browser, GUEST, "Gus Guest");
+		guest = await signIn(browser, baseURL, GUEST, "Gus Guest");
 		await openBoard(guest, url);
 		// Both see each other.
 		await expect(lead.getByRole("group", { name: "People here" })).toContainText("GG");
@@ -158,7 +163,8 @@ test.describe.serial("running a session", () => {
 				.locator(".section-silent");
 		await expect(header(guest)).toContainText("Lena will reveal");
 		await expect(header(guest).getByRole("button", { name: /Reveal/ })).toHaveCount(0);
-		await expect(header(lead).getByRole("button", { name: /Reveal/ })).toBeVisible();
+		// Nothing written yet: the facilitator can just end it.
+		await expect(header(lead).getByRole("button", { name: "End silent mode" })).toBeVisible();
 	});
 
 	test("Running now lists all of it, with its controls", async () => {
@@ -168,14 +174,14 @@ test.describe.serial("running a session", () => {
 		await expect(running).toContainText("paused");
 		await expect(running).toContainText("Voting on “Now”");
 		await expect(running).toContainText("“Brainstorm” is silent");
-		await expect(running.getByRole("button", { name: "Reveal" })).toBeVisible();
+		await expect(running.getByRole("button", { name: "End" })).toBeVisible();
 		await lead.keyboard.press("Escape");
 		await expect(lead.getByRole("button", { name: "Facilitate" })).toBeFocused();
 
 		await openMenu(guest);
 		const theirs = menu(guest).getByRole("region", { name: "Running now" });
 		await expect(theirs).toContainText("Voting on “Now”");
-		await expect(theirs.getByRole("button", { name: "Reveal" })).toHaveCount(0);
+		await expect(theirs.getByRole("button", { name: /^(Reveal|End)$/ })).toHaveCount(0);
 		await expect(theirs.getByRole("button", { name: "Close" })).toHaveCount(0);
 		await expect(theirs.getByRole("button", { name: "Pause" })).toHaveCount(0);
 		await guest.keyboard.press("Escape");

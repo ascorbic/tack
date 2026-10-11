@@ -348,7 +348,13 @@ test("every facilitation, silent mode and dot voting state renders", async ({ pa
 	).toBeVisible();
 	await expect(page.locator("figure[data-state=face-down] .sticky[data-face-down]")).toBeVisible();
 	await expect(page.locator("figure[data-state=hidden] .sticky[data-hidden]")).toBeVisible();
-	await expect(page.getByRole("button", { name: /^Reveal/ })).toHaveCount(2);
+	await expect(page.getByRole("button", { name: /^Reveal/ })).toHaveCount(1);
+	// Nothing written yet: it just ends.
+	await expect(
+		page
+			.locator("figure[data-state=silent-empty]")
+			.getByRole("button", { name: "End silent mode" }),
+	).toBeVisible();
 	await expect(page.locator(".vote-bar")).toHaveCount(6);
 	await expect(
 		page.locator("figure[data-state=vote-closed] .vote-bar[data-open=false]"),
