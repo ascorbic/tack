@@ -47,6 +47,11 @@ export interface CommentLayerProps {
 	placing: boolean;
 	user: User;
 	toasts: ToastStore;
+	/**
+	 * Whether an open thread (or a new comment) opens by its pin. A phone opens
+	 * them in its sheet instead (#67, touch/PhoneBoard.tsx).
+	 */
+	popovers?: boolean;
 	store?: CommentStore;
 }
 
@@ -98,6 +103,7 @@ export function CommentLayer({
 	placing,
 	user,
 	toasts,
+	popovers = true,
 	store = commentStore,
 }: CommentLayerProps) {
 	const { threads, you } = useComments(store);
@@ -139,7 +145,7 @@ export function CommentLayer({
 	}, [placing, api, flow, store, toasts]);
 
 	// Clicking away (or Escape) closes the open thread or draft.
-	const active = ui.open !== null || ui.draft !== null;
+	const active = popovers && (ui.open !== null || ui.draft !== null);
 	useEffect(() => {
 		if (!active) return;
 		const onDown = (event: PointerEvent) => {
@@ -186,7 +192,7 @@ export function CommentLayer({
 						}}
 					/>
 				))}
-				{ui.draft && (
+				{popovers && ui.draft && (
 					<DraftPin at={positionOf(ui.draft)} user={user}>
 						<Popover at={positionOf(ui.draft)}>
 							<div className="comment-thread comment-draft">
@@ -204,7 +210,7 @@ export function CommentLayer({
 						</Popover>
 					</DraftPin>
 				)}
-				{open && (
+				{popovers && open && (
 					<Popover at={positionOf(open.anchor)} key={open.id}>
 						<OpenThread thread={open} store={store} toasts={toasts} login={user.login} />
 					</Popover>

@@ -1,0 +1,1188 @@
+/* ---------------------------------------------------------------------------
+   Phones and tablets (#67): the sheet a tapped shape opens in on a phone,
+   the + for stickies, and touch-sized controls on tablets.
+   ------------------------------------------------------------------------ */
+
+/* A finger or a pencil on the board: no callouts, no text selection, no
+   grey flash on tap. Text boxes still select as text. */
+.app[data-touch] .canvas {
+	-webkit-touch-callout: none;
+	-webkit-tap-highlight-color: transparent;
+	user-select: none;
+}
+
+.app[data-touch] .canvas :is(textarea, input, [contenteditable]) {
+	user-select: text;
+}
+
+/* iOS zooms the page into any text box under 16px: keep it where it is. */
+.app[data-touch] :is(textarea, input:not([type="checkbox"], [type="radio"])) {
+	font-size: max(16px, 1em);
+}
+
+/* --- The sheet ------------------------------------------------------------ */
+
+.sheet-layer {
+	position: absolute;
+	inset: 0;
+	z-index: 60;
+	overflow: hidden;
+	/* The board above the sheet stays the board's: pan it, tap another shape. */
+	pointer-events: none;
+}
+
+.sheet {
+	position: absolute;
+	right: 0;
+	bottom: var(--keyboard, 0px);
+	left: 0;
+	display: flex;
+	flex-direction: column;
+	width: min(100%, 560px);
+	max-height: min(70%, calc(100% - 48px));
+	margin-inline: auto;
+	padding-bottom: env(safe-area-inset-bottom);
+	border: 1px solid var(--line);
+	border-bottom: 0;
+	border-radius: 22px 22px 0 0;
+	background: var(--chrome-solid);
+	box-shadow:
+		0 -1px 0 rgb(255 255 255 / 4%),
+		0 -18px 48px -18px rgb(0 0 0 / 28%);
+	outline: none;
+	pointer-events: auto;
+	transform: translateY(var(--sheet-drag, 0px));
+	transition:
+		transform var(--t-settle) var(--ease-spring),
+		bottom var(--t-base) var(--ease-out);
+	animation: sheet-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.sheet[data-dragging] {
+	transition: none;
+}
+
+.sheet[data-leaving] {
+	animation: sheet-out calc(260ms * var(--motion)) var(--ease-out) forwards;
+}
+
+@keyframes sheet-in {
+	from {
+		transform: translateY(100%);
+	}
+}
+
+@keyframes sheet-out {
+	to {
+		transform: translateY(calc(100% + 24px));
+	}
+}
+
+.sheet-top {
+	flex: none;
+	padding: 8px 12px 6px 18px;
+	touch-action: none;
+	cursor: grab;
+}
+
+.sheet[data-dragging] .sheet-top {
+	cursor: grabbing;
+}
+
+.sheet-grip {
+	display: block;
+	width: 38px;
+	height: 5px;
+	margin: 0 auto 8px;
+	border-radius: 3px;
+	background: var(--line-strong);
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.sheet[data-dragging] .sheet-grip {
+	background: var(--muted);
+}
+
+.sheet-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 40px;
+}
+
+.sheet-heading {
+	flex: 1;
+	min-width: 0;
+}
+
+.sheet-title {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.25;
+}
+
+.sheet-kind {
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 620;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.sheet-detail {
+	overflow: hidden;
+	color: var(--ink);
+	font-family: var(--font-display);
+	font-size: 17px;
+	font-weight: 620;
+	letter-spacing: -0.01em;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sheet-close,
+.sheet-back {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	background: var(--surface-muted);
+	color: var(--ink-soft);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.sheet-close {
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+}
+
+.sheet-back {
+	gap: 8px;
+	max-width: 100%;
+	height: 40px;
+	padding: 0 14px 0 10px;
+	border-radius: 20px;
+	text-align: left;
+}
+
+.sheet-back .sheet-detail {
+	font-size: 14px;
+}
+
+.sheet-back .sheet-kind {
+	font-size: 10.5px;
+}
+
+.sheet-close svg,
+.sheet-back svg {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.sheet-close:active,
+.sheet-back:active {
+	background: var(--hover);
+	transform: scale(0.94);
+}
+
+.sheet-body {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	overscroll-behavior: contain;
+	padding: 6px 18px 20px;
+}
+
+/* --- What's in it ------------------------------------------------------- */
+
+.shape-sheet {
+	display: grid;
+	gap: 18px;
+}
+
+.shape-sheet > * {
+	animation: sheet-part-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.shape-sheet > :nth-child(2) {
+	animation-delay: calc(40ms * var(--motion));
+}
+
+.shape-sheet > :nth-child(3) {
+	animation-delay: calc(80ms * var(--motion));
+}
+
+.shape-sheet > :nth-child(4) {
+	animation-delay: calc(120ms * var(--motion));
+}
+
+@keyframes sheet-part-in {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+}
+
+.sheet-card .card {
+	width: 100%;
+	box-shadow: none;
+}
+
+.sheet-sticky {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	min-height: 132px;
+	padding: 18px 20px 16px;
+	border-radius: 4px 4px 20px 4px;
+	background: var(--sticky, var(--sticky-yellow));
+	color: var(--sticky-ink);
+	box-shadow: var(--sticky-shadow);
+	transform: rotate(-0.6deg);
+}
+
+.sheet-sticky::after {
+	content: "";
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	width: 22px;
+	height: 22px;
+	border-radius: 0 0 20px 0;
+	background: linear-gradient(135deg, rgb(0 0 0 / 0%) 50%, rgb(0 0 0 / 8%) 50%);
+}
+
+.sheet-sticky-text {
+	flex: 1;
+	margin: 0;
+	font-size: 21px;
+	font-weight: 520;
+	line-height: 1.32;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+.sheet-sticky[data-font="hand"] .sheet-sticky-text {
+	font-family: var(--font-hand);
+}
+
+.sheet-sticky-text em,
+.sheet-plain-text em {
+	color: var(--muted);
+	font-style: normal;
+}
+
+.sheet-sticky[data-face-down] {
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--sticky),
+		var(--sticky, var(--sticky-yellow)) 10px,
+		color-mix(in srgb, var(--sticky) 86%, var(--sticky-ink)) 10px,
+		color-mix(in srgb, var(--sticky) 86%, var(--sticky-ink)) 20px
+	);
+}
+
+.sheet-sticky-hidden {
+	flex: 1;
+	margin: 0;
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.sheet-sticky-author {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--sticky-ink-soft);
+	font-size: 13px;
+	font-weight: 560;
+}
+
+.sheet-sticky-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	box-shadow: 0 0 0 1.5px rgb(255 255 255 / 70%);
+}
+
+.sheet-plain {
+	padding: 16px 18px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--surface);
+}
+
+.sheet-plain-text {
+	margin: 0;
+	font-size: 18px;
+	font-weight: 560;
+	line-height: 1.35;
+	white-space: pre-wrap;
+}
+
+.sheet-plain[data-done] .sheet-plain-text {
+	text-decoration: line-through;
+	text-decoration-color: var(--muted);
+}
+
+.sheet-meta {
+	margin: 8px 0 0;
+	color: var(--ink-soft);
+	font-size: 13px;
+}
+
+.sheet-decision {
+	--rail: var(--accent);
+	padding: 16px 18px 18px;
+	border: 1px solid var(--line);
+	border-left: 5px solid var(--rail);
+	border-radius: 14px;
+	background: var(--surface);
+}
+
+.sheet-decision[data-status="decided"] {
+	--rail: var(--pass);
+}
+
+.sheet-decision[data-status="superseded"] {
+	--rail: var(--muted);
+}
+
+.sheet-decision-status {
+	color: var(--ink-soft);
+	font-size: 11.5px;
+	font-weight: 650;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.sheet-decision-title {
+	margin: 4px 0 0;
+	font-family: var(--font-display);
+	font-size: 21px;
+	font-weight: 650;
+	line-height: 1.2;
+	letter-spacing: -0.015em;
+}
+
+.sheet-decision-text {
+	margin: 10px 0 0;
+	color: var(--ink-soft);
+	font-size: 15px;
+	line-height: 1.45;
+	white-space: pre-wrap;
+}
+
+.sheet-choices {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px;
+	margin-top: 16px;
+}
+
+.sheet-choice {
+	--choice: var(--pass);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 50px;
+	padding: 0 16px;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 14px;
+	background: var(--surface);
+	color: var(--ink);
+	font-size: 15.5px;
+	font-weight: 620;
+	cursor: pointer;
+	transition:
+		background var(--t-base) var(--ease-out),
+		border-color var(--t-base) var(--ease-out),
+		color var(--t-base) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.sheet-choice[data-choice="disagree"] {
+	--choice: var(--fail);
+}
+
+.sheet-choice:active:not(:disabled) {
+	transform: scale(0.97);
+}
+
+.sheet-choice[aria-pressed="true"] {
+	border-color: var(--choice);
+	background: color-mix(in srgb, var(--choice) 12%, var(--surface));
+	color: color-mix(in srgb, var(--choice) 70%, var(--ink));
+	animation: choice-pop var(--t-settle) var(--ease-spring);
+}
+
+@keyframes choice-pop {
+	40% {
+		transform: scale(1.04);
+	}
+}
+
+.sheet-choice-count {
+	min-width: 26px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	background: var(--surface-muted);
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}
+
+.sheet-section {
+	display: grid;
+	gap: 10px;
+}
+
+.sheet-section-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 13px;
+	font-weight: 650;
+}
+
+.sheet-count {
+	padding: 1px 7px;
+	border-radius: 9px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.sheet-empty {
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 14px;
+}
+
+/* A dot vote: your dots, and a stepper to put one on or take one back. */
+.sheet-vote {
+	padding: 14px 16px;
+	border-radius: 16px;
+	background: var(--accent-soft);
+}
+
+.sheet-vote-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.sheet-vote-left {
+	color: var(--accent);
+	font-size: 13px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+}
+
+.sheet-vote-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 48px;
+}
+
+.sheet-vote-row .vote-dots {
+	justify-content: flex-start;
+	flex: 1;
+	width: auto;
+	min-width: 0;
+	padding: 0;
+	translate: none;
+	scale: 1;
+	gap: 5px;
+}
+
+.sheet-vote-row .vote-dot {
+	width: 20px;
+	height: 20px;
+}
+
+.sheet-vote-buttons {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: auto;
+}
+
+.sheet-vote-mine {
+	min-width: 28px;
+	font-size: 20px;
+	font-weight: 680;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}
+
+.sheet-round {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 46px;
+	height: 46px;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 50%;
+	background: var(--surface);
+	color: var(--ink);
+	cursor: pointer;
+	transition:
+		transform var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.sheet-round svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+}
+
+.sheet-round-primary {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.sheet-round:active:not(:disabled) {
+	transform: scale(0.9);
+}
+
+.sheet-round:disabled {
+	border-color: var(--line);
+	background: var(--surface-muted);
+	color: var(--muted);
+	cursor: default;
+}
+
+.sheet-stamps {
+	display: grid;
+	grid-template-columns: repeat(8, minmax(0, 1fr));
+	gap: 6px;
+}
+
+.sheet-stamp {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 46px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+	font-size: 20px;
+	cursor: pointer;
+	transition:
+		transform var(--t-quick) var(--ease-out),
+		background var(--t-base) var(--ease-out),
+		border-color var(--t-base) var(--ease-out);
+}
+
+.sheet-stamp:active {
+	transform: scale(0.88);
+}
+
+.sheet-stamp[aria-pressed="true"] {
+	border-color: var(--accent);
+	background: var(--accent-soft);
+	animation: choice-pop var(--t-settle) var(--ease-spring);
+}
+
+.sheet-stamp-count {
+	position: absolute;
+	top: -5px;
+	right: -4px;
+	min-width: 18px;
+	padding: 0 5px;
+	border-radius: 9px;
+	background: var(--ink);
+	color: var(--surface);
+	font-size: 11px;
+	font-weight: 700;
+	line-height: 18px;
+	font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 360px) {
+	.sheet-stamps {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
+
+.sheet-threads {
+	display: grid;
+	gap: 2px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.sheet-threads:empty {
+	display: none;
+}
+
+.sheet-thread {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	width: 100%;
+	padding: 10px 8px;
+	border: 0;
+	border-radius: 12px;
+	background: none;
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+	animation: sheet-part-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.sheet-thread:active {
+	background: var(--hover);
+}
+
+.sheet-thread[data-resolved] .sheet-thread-body {
+	color: var(--ink-soft);
+}
+
+.sheet-thread .avatar {
+	flex: none;
+}
+
+.sheet-thread-main {
+	display: grid;
+	flex: 1;
+	gap: 2px;
+	min-width: 0;
+}
+
+.sheet-thread-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.sheet-thread-name {
+	font-size: 14px;
+	font-weight: 650;
+}
+
+.sheet-thread-time,
+.sheet-thread-replies {
+	color: var(--ink-soft);
+	font-size: 12.5px;
+}
+
+.sheet-thread-body {
+	font-size: 15px;
+	line-height: 1.4;
+}
+
+.sheet-unread {
+	flex: none;
+	width: 9px;
+	height: 9px;
+	margin-top: 6px;
+	border-radius: 50%;
+	background: var(--accent);
+}
+
+.sheet-link {
+	justify-self: start;
+	padding: 6px 8px;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	color: var(--accent);
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.sheet-composer {
+	padding: 4px;
+	border: 1px solid var(--line);
+	border-radius: 16px;
+	background: var(--surface);
+}
+
+/* A thread, open in the sheet: the popover's thread, flattened. */
+.sheet-thread-view .comment-thread {
+	width: auto;
+	max-height: none;
+	border: 0;
+	background: none;
+	box-shadow: none;
+}
+
+/* --- The + and the pad ------------------------------------------------------ */
+
+.phone-dock {
+	position: absolute;
+	right: 16px;
+	bottom: calc(16px + env(safe-area-inset-bottom));
+	left: 16px;
+	z-index: 25;
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	pointer-events: none;
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		transform var(--t-base) var(--ease-out);
+}
+
+.phone-dock[data-sheet] {
+	opacity: 0;
+	transform: translateY(16px);
+}
+
+.phone-dock:not([data-sheet]) > * {
+	pointer-events: auto;
+}
+
+.phone-fit,
+.phone-add {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.phone-fit {
+	width: 48px;
+	height: 48px;
+	border: 1px solid var(--line);
+	border-radius: 16px;
+	background: var(--chrome-strong);
+	box-shadow: var(--shadow-lifted);
+	color: var(--ink-soft);
+	backdrop-filter: blur(16px) saturate(1.3);
+}
+
+.phone-fit svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+/* The +: a pad of stickies in the colour you'll write on, peeking out. */
+.phone-add {
+	position: relative;
+	width: 62px;
+	height: 62px;
+	border-radius: 22px;
+	background: var(--accent);
+	color: var(--on-accent);
+	box-shadow:
+		0 2px 4px rgb(0 0 0 / 12%),
+		0 16px 28px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.phone-add::before {
+	content: "";
+	position: absolute;
+	top: -7px;
+	right: -6px;
+	width: 22px;
+	height: 22px;
+	border-radius: 3px 3px 8px 3px;
+	background: var(--sticky, var(--sticky-yellow));
+	box-shadow: var(--sticky-shadow);
+	transform: rotate(9deg);
+	transition:
+		transform var(--t-settle) var(--ease-spring),
+		background-color var(--t-base) var(--ease-out);
+}
+
+.phone-add svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2.4;
+	stroke-linecap: round;
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.phone-add:active,
+.phone-fit:active {
+	transform: scale(0.9);
+}
+
+.phone-add:active::before {
+	transform: rotate(-6deg) translate(-2px, 3px);
+}
+
+.phone-add[aria-expanded="true"] svg {
+	transform: rotate(45deg);
+}
+
+.quick-sticky {
+	display: grid;
+	gap: 14px;
+}
+
+.quick-pad {
+	position: relative;
+}
+
+.quick-paper {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 120px;
+	padding: 18px 20px;
+	border: 0;
+	border-radius: 4px 4px 20px 4px;
+	background: var(--sticky, var(--sticky-yellow));
+	color: var(--sticky-ink);
+	box-shadow: var(--sticky-shadow);
+	font: inherit;
+	font-size: 21px;
+	font-weight: 520;
+	line-height: 1.32;
+	resize: none;
+	transform: rotate(-0.6deg);
+	transition:
+		background-color var(--t-base) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.app[data-touch] .quick-paper {
+	font-size: 21px;
+}
+
+.quick-paper::placeholder {
+	color: var(--sticky-ink-soft);
+}
+
+.quick-paper:focus {
+	outline: none;
+	box-shadow:
+		var(--sticky-shadow-lifted),
+		0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* The sticky just added, flying off the pad onto the board. */
+.quick-flying {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	border-radius: 4px 4px 20px 4px;
+	background: var(--sticky, var(--sticky-yellow));
+	box-shadow: var(--sticky-shadow-lifted);
+	pointer-events: none;
+	animation: sticky-fly calc(620ms * var(--motion)) var(--ease-out) forwards;
+}
+
+@keyframes sticky-fly {
+	from {
+		opacity: 1;
+		transform: rotate(-0.6deg);
+	}
+	to {
+		opacity: 0;
+		transform: translateY(-150%) scale(0.42) rotate(10deg);
+	}
+}
+
+.quick-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.quick-colors {
+	display: flex;
+	gap: 10px;
+}
+
+.quick-color {
+	width: 34px;
+	height: 34px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: var(--sticky, var(--sticky-yellow));
+	box-shadow: inset 0 0 0 1px rgb(0 0 0 / 10%);
+	cursor: pointer;
+	transition:
+		transform var(--t-settle) var(--ease-spring),
+		box-shadow var(--t-base) var(--ease-out);
+}
+
+.quick-color[aria-checked="true"] {
+	box-shadow:
+		inset 0 0 0 1px rgb(0 0 0 / 10%),
+		0 0 0 2px var(--chrome-solid),
+		0 0 0 4px var(--accent);
+	transform: scale(1.08);
+}
+
+.quick-color:active {
+	transform: scale(0.88);
+}
+
+.quick-add {
+	height: 46px;
+	padding: 0 24px;
+	border: 0;
+	border-radius: 23px;
+	background: var(--accent);
+	color: var(--on-accent);
+	font-size: 16px;
+	font-weight: 650;
+	cursor: pointer;
+	transition:
+		transform var(--t-quick) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.quick-add:active:not(:disabled) {
+	transform: scale(0.94);
+}
+
+.quick-add:disabled {
+	background: var(--surface-muted);
+	color: var(--ink-soft);
+	cursor: default;
+}
+
+.quick-note {
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 13px;
+}
+
+/* The shape whose sheet is open, ringed on the board above it. */
+.react-flow__node.sheet-open::before {
+	content: "";
+	position: absolute;
+	inset: -7px;
+	z-index: -1;
+	border: 2.5px solid var(--accent);
+	border-radius: 16px;
+	pointer-events: none;
+	animation: sheet-ring var(--t-settle) var(--ease-spring);
+}
+
+@keyframes sheet-ring {
+	from {
+		opacity: 0;
+		transform: scale(1.08);
+	}
+}
+
+/* --- Phones: the top bar and panels ---------------------------------------- */
+
+.app[data-phone] .topbar-title {
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.app[data-phone] .topbar-title > * {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Side panels take the width of the screen. */
+.app[data-phone] :is(.comments-panel, .since-panel, .rules-panel, .history-panel, .changes-panel) {
+	right: 8px;
+	left: 8px;
+	width: auto;
+	max-width: none;
+}
+
+/* A vote's bar fits the screen: dots go on from a shape's sheet, so there's
+   no Place dots, and the board's name gives way first. */
+.app[data-phone] .vote-bar-place {
+	display: none;
+}
+
+.app[data-phone] .facilitation-dock {
+	right: 12px;
+	left: 12px;
+	max-width: none;
+	transform: none;
+}
+
+.app[data-phone] .vote-bars {
+	align-self: stretch;
+}
+
+.app[data-phone] .vote-bars > .vote-bar {
+	gap: 8px;
+	width: 100%;
+	min-width: 0;
+}
+
+.app[data-phone] .vote-bar-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.app[data-phone] .vote-bar > :not(.vote-bar-title) {
+	flex-shrink: 0;
+}
+
+/* Stamps and dots on the board are to look at: a tap goes through them to
+   the shape beneath, whose sheet has them as buttons a finger can hit. */
+.app[data-phone] :is(.stamps-anchor, .vote-dots-anchor),
+.app[data-phone] :is(.stamps-anchor, .vote-dots-anchor) * {
+	pointer-events: none;
+}
+
+/* Toasts stay above a sheet, and clear of the +. */
+.app[data-phone] .toasts {
+	z-index: 70;
+	bottom: calc(92px + env(safe-area-inset-bottom));
+}
+
+/* --- Tablets: touch-sized controls ---------------------------------------- */
+
+.app[data-touch]:not([data-phone]) :is(.selection-action, .arrange-button) {
+	min-width: 44px;
+	height: 44px;
+}
+
+.app[data-touch]:not([data-phone]) .shape-toolbar-option {
+	min-width: 40px;
+	height: 40px;
+}
+
+.app[data-touch]:not([data-phone]) .swatch {
+	width: 32px;
+	height: 32px;
+}
+
+.app[data-touch]:not([data-phone]) :is(.connector-end, .connector-handle) {
+	left: -16px;
+	top: -16px;
+	width: 32px;
+	height: 32px;
+}
+
+.app[data-touch]:not([data-phone]) .connector-end::before {
+	inset: 9px;
+}
+
+.app[data-touch]:not([data-phone]) .connector-handle::before {
+	inset: 10px;
+}
+
+.app[data-touch]:not([data-phone])
+	.section-resize:is(
+		[data-handle="nw"],
+		[data-handle="ne"],
+		[data-handle="sw"],
+		[data-handle="se"]
+	) {
+	width: calc(22 * var(--px, 1px));
+	height: calc(22 * var(--px, 1px));
+	border-radius: calc(6 * var(--px, 1px));
+}
+
+/* A long-press took: a ring spreads from under the finger. */
+.press-ring {
+	position: absolute;
+	z-index: 30;
+	width: 64px;
+	height: 64px;
+	margin: -32px 0 0 -32px;
+	border: 2.5px solid var(--accent);
+	border-radius: 50%;
+	pointer-events: none;
+	animation: press-ring calc(520ms * var(--motion)) var(--ease-out) forwards;
+}
+
+@keyframes press-ring {
+	from {
+		opacity: 0.9;
+		transform: scale(0.3);
+	}
+	to {
+		opacity: 0;
+		transform: scale(1.6);
+	}
+}
+
+/* Selecting several with a finger: how many, and Done. */
+.multi-select {
+	position: absolute;
+	top: 14px;
+	left: 50%;
+	z-index: 26;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 6px 6px 6px 16px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--chrome-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(16px) saturate(1.3);
+	transform: translateX(-50%);
+	animation: multi-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes multi-in {
+	from {
+		opacity: 0;
+		transform: translate(-50%, -10px) scale(0.94);
+	}
+}
+
+.multi-select-count {
+	font-size: 14px;
+	font-weight: 680;
+	font-variant-numeric: tabular-nums;
+}
+
+.multi-select-hint {
+	color: var(--ink-soft);
+	font-size: 13px;
+}
+
+.multi-select-done {
+	height: 36px;
+	padding: 0 16px;
+	border: 0;
+	border-radius: 18px;
+	background: var(--accent);
+	color: var(--on-accent);
+	font-size: 14px;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+/* The sheet has its own close. */
+.sheet-thread-view .comment-thread-head .comment-icon-button[aria-label="Close"] {
+	display: none;
+}

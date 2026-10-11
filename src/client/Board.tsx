@@ -141,10 +141,14 @@ import { WIDGET_DRAG_TYPE } from "./widgets/WidgetPicker.tsx";
 import { useCommentsOnBoard } from "./comments/useCommentsOnBoard.ts";
 import { CommentLayer } from "./comments/CommentLayer.tsx";
 import { CommentsButton, CommentsPanel } from "./comments/CommentsPanel.tsx";
-import { useCommentUI } from "./comments/store.ts";
+import { commentStore, useCommentUI } from "./comments/store.ts";
 import { HighlightLayer } from "./since/Highlights.tsx";
 import { SinceButton, SincePanel } from "./since/SincePanel.tsx";
 import { sinceStore, useSince } from "./since/store.ts";
+import { useDevice } from "./touch/device.ts";
+import { MultiSelectPill } from "./touch/MultiSelect.tsx";
+import { PhoneBoard } from "./touch/PhoneBoard.tsx";
+import { useTouchSelection } from "./touch/useTouchSelection.ts";
 
 // Every shape shows the changes staged about it, and shapes in a section
 // showing a list or mini cards draw as rows or mini cards (#72). Each is named
@@ -359,6 +363,16 @@ export function Board({
 	const spotlight = useSpotlightFollow(awareness, presence.people, follow);
 	usePublishStatus(awareness);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	// Phones look, vote, comment and add stickies, a tapped shape opening in a
+	// sheet; tablets edit with touch and a pencil (#67, touch/).
+	const device = useDevice();
+	const phone = device.phone;
+	const [sheetShape, setSheetShape] = useState<string | null>(null);
+	useEffect(() => {
+		if (!phone) setSheetShape(null);
+		// A phone has no selection: nothing to act on, and nothing to drag.
+		else setSelected((current) => (current.size === 0 ? current : new Set()));
+	}, [phone]);
 	// Export (#59): drawing the board as an image draws all of it, at 100%, for a moment.
 	const exporter = useBoardExport({ doc, canvas, selected });
 	const [measured, setMeasured] = useState<Map<string, { width: number; height: number }>>(
@@ -579,6 +593,8 @@ export function Board({
 						: undefined;
 			// "It's already here": a card someone tried to add again.
 			if (pulsing.has(base.id)) className = `${className ?? ""} pulse`.trim();
+			// Open in a phone’s sheet (#67).
+			if (base.id === sheetShape) className = `${className ?? ""} sheet-open`.trim();
 
 			// In a list or grid: drawn in its slot, at its slot's size (#72).
 			let kind: DisplayKind | undefined;
@@ -745,6 +761,7 @@ export function Board({
 		display,
 		presence.overrides,
 		pulsing,
+		sheetShape,
 		stackUI.open,
 		stackUI.proposal,
 		stackLayout,
@@ -1021,6 +1038,13 @@ export function Board({
 		inList: (id) => displayRef.current.slots.has(id),
 		drawnAt: (id) => displayRef.current.slots.get(id)?.rect,
 		addCards: (keys, options) => addCardsRef.current(keys, options),
+	});
+	// Tablets: long-press to select several (#67).
+	const touchSelect = useTouchSelection({
+		canvas,
+		enabled: device.touch && !phone,
+		selected,
+		setSelected,
 	});
 	// Getting around with the keyboard, and other people's changes said
 	// aloud, for screen readers (#61).
@@ -1328,6 +1352,12 @@ export function Board({
 	);
 
 	const onPaneClick = (event: MouseEvent) => {
+		// On a phone, tapping the empty board puts a shape's sheet away.
+		if (phone) {
+			setSheetShape(null);
+			if (commentStore.getUI().open) commentStore.openThread(null);
+			return;
+		}
 		// Clicking away from an open stack gathers it back up.
 		if (stackStore.getSnapshot().open) {
 			stackStore.setOpen(null);
@@ -1558,7 +1588,12 @@ export function Board({
 				widgets={widgetBoard}
 			>
 				<ServicesContext value={writeServices}>
-					<div className="app" data-read-only={readOnly || undefined}>
+					<div
+						className="app"
+						data-read-only={readOnly || undefined}
+						data-phone={phone || undefined}
+						data-touch={device.touch || undefined}
+					>
 						<SkipToBoard onSkip={() => canvas.current?.focus()} />
 						<TopBar
 							title={
@@ -1659,11 +1694,15 @@ export function Board({
 									}}
 									proOptions={{ hideAttribution: true }}
 									onlyRenderVisibleElements={!exporter.drawing}
-									selectionOnDrag={tool === "select"}
-									panOnDrag={tool === "hand" ? true : [1, 2]}
+									selectionOnDrag={tool === "select" && !phone}
+									// A finger on the board pans (React Flow's, for touch, whatever this
+									// says); a pencil draws a selection box, as a mouse does.
+									panOnDrag={tool === "hand" || phone ? true : [1, 2]}
+									// A finger wobbles: a tap shouldn't nudge what it lands on.
+									nodeDragThreshold={device.touch ? 6 : 1}
 									panOnScroll
-									nodesDraggable={!readOnly && shapesInteractive}
-									elementsSelectable={shapesInteractive}
+									nodesDraggable={!readOnly && shapesInteractive && !phone}
+									elementsSelectable={shapesInteractive && !phone}
 									minZoom={0.1}
 									// Deleting is a board command (see commands.ts), so that shapes
 									// and connectors go together, as one undo step.
@@ -1718,12 +1757,22 @@ export function Board({
 												user,
 												event.altKey,
 											);
-											// Said in place of the tool's hint, not in a toast above it.
+											// Said in place of the tool's hint, not in a toast above it
+											// (a phone has no toolbar to say it in).
+											const say = phone
+												? (message: string) => toasts.show({ message })
+												: showToolNote;
 											if (result === "none_left") {
-												showToolNote("No dots left: click one of yours to move it");
+												say("No dots left: click one of yours to move it");
 											} else if (result === "no_vote") {
-												showToolNote("That’s not part of a vote");
+												say("That’s not part of a vote");
 											}
+											return;
+										}
+										// On a phone, a tap opens the shape in a sheet: what it is,
+										// its votes and its comments.
+										if (phone) {
+											setSheetShape(node.id);
 											return;
 										}
 										// Clicking a stack spreads it open, here (#73); its name
@@ -1742,8 +1791,10 @@ export function Board({
 											setSelected(new Set([node.id]));
 											return;
 										}
-										// Clicking one shape in a multi-selection selects just that one.
-										if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+										// Clicking one shape in a multi-selection selects just that
+										// one (not while a finger is selecting several, on a tablet).
+										if (event.shiftKey || event.metaKey || event.ctrlKey || touchSelect.multi)
+											return;
 										if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
 									}}
 								>
@@ -1820,6 +1871,8 @@ export function Board({
 											placing={tool === "comment"}
 											user={user}
 											toasts={toasts}
+											// A phone opens threads in its sheet, not by their pins.
+											popovers={!phone}
 										/>
 									</PanelBoundary>
 									<Guides store={snapping.guides} />
@@ -1906,6 +1959,7 @@ export function Board({
 									!comments.hasThreads
 								}
 								onTool={setTool}
+								phone={phone}
 							/>
 							{spotlight.along ? null : (
 								<FollowIndicator person={follow.target} onStop={follow.stop} />
@@ -1949,7 +2003,7 @@ export function Board({
 								</PanelBoundary>
 							)}
 							<CursorChat awareness={awareness} user={user} />
-							{!replay.state.open && (
+							{!replay.state.open && !phone && (
 								<Toolbar
 									tool={tool}
 									onTool={setTool}
@@ -2020,6 +2074,31 @@ export function Board({
 										onClose={() => replay.controller?.close()}
 									/>
 								</>
+							)}
+							{phone && !replay.state.open && (
+								<PanelBoundary name="The phone’s sheet">
+									<PhoneBoard
+										doc={doc}
+										nodes={nodes}
+										user={user}
+										readOnly={readOnly}
+										toasts={toasts}
+										shape={sheetShape}
+										onShape={setSheetShape}
+										boxSize={boxSize}
+										drawnSize={drawnSize}
+										canvas={canvas}
+										onFit={() => {
+											follow.stop();
+											commands.run("zoomToFit");
+										}}
+										stickyColor={stickyColor}
+										onStickyColor={setStickyColor}
+									/>
+								</PanelBoundary>
+							)}
+							{touchSelect.multi && (
+								<MultiSelectPill count={selected.size} onDone={touchSelect.done} />
 							)}
 							<RowGhost />
 							<Toasts store={toasts} />

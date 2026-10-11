@@ -22,7 +22,23 @@ const HINTS: Hint[] = [
  * A new board: a few notes pinned at jaunty angles, and the handful of
  * things worth knowing first. It steps aside as soon as anything lands.
  */
-export function EmptyBoard({ empty, onTool }: { empty: boolean; onTool?: (tool: Tool) => void }) {
+/** On a phone (#67): the + adds stickies, and fingers get around. */
+const PHONE_HINTS: Hint[] = [
+	{ keys: ["+"], label: "Add a sticky" },
+	{ keys: ["Pinch"], label: "Zoom in and out" },
+	{ keys: ["Tap"], label: "Open anything to vote or comment" },
+];
+
+export function EmptyBoard({
+	empty,
+	onTool,
+	phone = false,
+}: {
+	empty: boolean;
+	onTool?: (tool: Tool) => void;
+	/** A phone: no keys to press, just the + and fingers. */
+	phone?: boolean;
+}) {
 	// Linger on `true` so the guide can animate away once the board fills.
 	const shown = useLinger(empty ? true : null, 360);
 	if (!shown.value) return null;
@@ -37,7 +53,7 @@ export function EmptyBoard({ empty, onTool }: { empty: boolean; onTool?: (tool: 
 			<h2 className="empty-board-title">A blank board</h2>
 			<p className="empty-board-lede">Bring in issues and ideas, and plan together.</p>
 			<ul className="empty-board-hints">
-				{HINTS.map((hint) => {
+				{(phone ? PHONE_HINTS : HINTS).map((hint) => {
 					const content = (
 						<>
 							<span className="empty-board-keys">
