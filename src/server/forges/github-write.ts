@@ -17,7 +17,15 @@ import type { Operation, PushAs, Target } from "../../shared/changes.ts";
 import type { Label, Milestone, RepoMeta } from "../../shared/push.ts";
 import { itemKey, parseKey } from "../../shared/refs.ts";
 import { isInstalled, repoToken } from "../github/tokens.ts";
-import type { ApplyOptions, ApplyResult, ReadAuth, RepoIdentity, WriteAuth } from "./types.ts";
+import type {
+	ApplyOptions,
+	ApplyResult,
+	BranchResult,
+	BranchWrite,
+	ReadAuth,
+	RepoIdentity,
+	WriteAuth,
+} from "./types.ts";
 
 const HOST = "github.com";
 const API = "https://api.github.com";
@@ -693,6 +701,112 @@ async function createPull(op: PullOp, repo: RepoIdentity, token: string): Promis
 		{ method: "POST", body: { title: op.title, body: op.body, head: op.branch, base } },
 	);
 	return { ok: true, key: keyFor(repo, pull.number), url: pull.html_url, confirmed: false };
+}
+
+/**
+ * Commit files to a branch of their own (backups, #59): the first time, an
+ * orphan branch (a commit with no parents, so none of the repository's
+ * history comes along); after that, a commit on top, with the branch's
+ * other files kept. Nothing's committed if the files haven't changed. Never
+ * the default branch. If someone else moves the branch meanwhile (another
+ * board backing up to it), it starts again from the new head, once.
+ */
+export async function writeBranchGitHub(
+	repo: RepoIdentity,
+	write: BranchWrite,
+	auth: WriteAuth,
+): Promise<BranchResult> {
+	try {
+		if (!validBranch(write.branch)) fail(`“${write.branch}” isn't a valid branch name.`);
+		const bad = write.files.find((file) => !validFilePath(file.path));
+		if (bad) fail(`“${bad.path}” isn't a valid file path.`);
+		if (write.files.length === 0) fail("There's nothing to write.");
+		try {
+			return await commitToBranch(repo, write, auth.token);
+		} catch (error) {
+			// Someone else moved (or made) the branch between reading and writing it.
+			if (!(error instanceof WriteFailure) || error.refusal?.status !== 422) throw error;
+			return await commitToBranch(repo, write, auth.token);
+		}
+	} catch (error) {
+		if (error instanceof WriteFailure) {
+			const refusal = error.refusal;
+			if (refusal?.status === 403 && auth.as === "user" && !error.failure.retryable) {
+				return {
+					...error.failure,
+					error: explain(refusal.status, refusal.message, refusal.what, auth.as),
+				};
+			}
+			return error.failure;
+		}
+		return {
+			ok: false,
+			error: `Something went wrong writing to GitHub: ${error instanceof Error ? error.message : String(error)}`,
+			retryable: false,
+		};
+	}
+}
+
+async function commitToBranch(
+	repo: RepoIdentity,
+	write: BranchWrite,
+	token: string,
+): Promise<BranchResult> {
+	const path = `/repos/${repo.name}`;
+	const info = await rest<{ default_branch: string; html_url?: string }>(
+		token,
+		path,
+		`look up ${repo.name}`,
+	);
+	if (write.branch === info.default_branch) {
+		fail(`${write.branch} is ${repo.name}'s default branch. Backups need a branch of their own.`);
+	}
+	const page = info.html_url ?? `https://${HOST}/${repo.name}`;
+	const head = await rest<{ object: { sha: string } } | null>(
+		token,
+		`${path}/git/ref/heads/${segments(write.branch)}`,
+		`find the ${write.branch} branch`,
+		{ allow404: true },
+	);
+	const parent = head?.object.sha ?? null;
+	const base = parent
+		? await rest<{ tree: { sha: string } }>(
+				token,
+				`${path}/git/commits/${parent}`,
+				`read the ${write.branch} branch`,
+			)
+		: null;
+	const tree = await rest<{ sha: string }>(token, `${path}/git/trees`, "write the backup", {
+		method: "POST",
+		body: {
+			...(base ? { base_tree: base.tree.sha } : {}),
+			tree: write.files.map((file) => ({
+				path: file.path,
+				mode: "100644",
+				type: "blob",
+				content: file.content,
+			})),
+		},
+	});
+	if (parent && base && tree.sha === base.tree.sha) {
+		return { ok: true, sha: parent, url: `${page}/commit/${parent}`, unchanged: true };
+	}
+	const commit = await rest<{ sha: string }>(token, `${path}/git/commits`, "commit the backup", {
+		method: "POST",
+		body: { message: write.message, tree: tree.sha, parents: parent ? [parent] : [] },
+	});
+	if (parent) {
+		await rest(token, `${path}/git/refs/heads/${segments(write.branch)}`, "move the branch", {
+			method: "PATCH",
+			body: { sha: commit.sha, force: false },
+		});
+	} else {
+		await rest(token, `${path}/git/refs`, `create the ${write.branch} branch`, {
+			method: "POST",
+			body: { ref: `refs/heads/${write.branch}`, sha: commit.sha },
+		});
+	}
+	return { ok: true, sha: commit.sha, url: `${page}/commit/${commit.sha}`, unchanged: false };
 }
 
 type DiscussionOp = Extract<Operation, { kind: "discussion.create" }>;

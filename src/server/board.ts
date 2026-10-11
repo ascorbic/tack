@@ -42,6 +42,8 @@ import {
 	placeCarried,
 } from "../shared/actionItems.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
+import type { BackupSettings, BackupStatus } from "../shared/backups.ts";
+import { type BoardExport, type ImportResult, importBoard } from "../shared/boardExport.ts";
 import {
 	type Extracted,
 	type InstantiateResult,
@@ -63,6 +65,7 @@ import type { WidgetRequest } from "../shared/widgets.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "../shared/thumbnail.ts";
 import { watchCardRefs } from "./card-refs.ts";
+import { Backups } from "./backups.ts";
 import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts";
 import { Facilitation } from "./facilitation.ts";
 import { type Commenter, CommentsService } from "./comments.ts";
@@ -211,6 +214,8 @@ export class Board extends YServer<Env> {
 	private fresh = false;
 	/** What bringing the document up to the current format did on load (#55). */
 	private migration: MigrationReport | null = null;
+	/** Backups of the board's JSON to a branch, if its owner turned them on (#59). */
+	private backups: Backups | null = null;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -262,16 +267,18 @@ export class Board extends YServer<Env> {
 			wrote: (repos) => {
 				for (const repo of repos) this.widgets?.repoChanged(repo);
 			},
-			alarmAt: async (at) => {
-				const current = await this.ctx.storage.getAlarm();
-				const real = realTime(at);
-				// An alarm in the past is the one running now (or about to).
-				if (current === null || real < current || current <= realTime(Date.now())) {
-					await this.ctx.storage.setAlarm(real);
-				}
-			},
+			alarmAt: (at) => this.alarmAt(at),
 		});
 		await this.pushes.init();
+		this.backups = new Backups({
+			name: this.name,
+			env: this.env,
+			doc: this.document,
+			sql: this.ctx.storage.sql,
+			route: (repoKey) => this.route(repoKey),
+			card: (key) => this.cards.get(key),
+			alarmAt: (at) => this.alarmAt(at),
+		});
 		this.rules = new RulesEngine({
 			board: this.name,
 			doc: this.document,
@@ -649,6 +656,7 @@ export class Board extends YServer<Env> {
 
 	/** Called by the Directory when the board is renamed, so everyone's title updates. */
 	renamed(title: string, slug: string): void {
+		this.backups?.renamed(title);
 		this.broadcastCustomMessage(
 			JSON.stringify({ type: "renamed", title, slug } satisfies BoardMessage),
 		);
@@ -1169,6 +1177,75 @@ export class Board extends YServer<Env> {
 
 	override async onAlarm(): Promise<void> {
 		await this.pushEngine().run();
+		await this.backups?.runIfDue();
+	}
+
+	/**
+	 * Wake at `at`, unless something else wakes the board sooner (the push
+	 * engine and backups share the one alarm).
+	 */
+	private async alarmAt(at: number): Promise<void> {
+		const current = await this.ctx.storage.getAlarm();
+		const real = realTime(at);
+		// An alarm in the past is the one running now (or about to).
+		if (current === null || real < current || current <= realTime(Date.now())) {
+			await this.ctx.storage.setAlarm(real);
+		}
+	}
+
+	// --- Export, import and backups (#59) ----------------------------------------
+
+	/**
+	 * Lay a new board out from an export (see `importBoard`), as checked by
+	 * the Worker. Only an empty board is written to, so a retried request
+	 * can't import twice. Returns what was written, or null if the board
+	 * already had shapes.
+	 */
+	async importContent(input: {
+		data: BoardExport;
+		by: { name: string; login?: string };
+	}): Promise<ImportResult | null> {
+		if (shapesMap(this.document).size > 0) return null;
+		const result = importBoard(this.document, input.data, { by: input.by });
+		this.writeSnapshot();
+		await this.updateIndex();
+		log.info("board.imported", { board: this.name, by: input.by.login, ...result });
+		return result;
+	}
+
+	backupStatus(): BackupStatus {
+		return this.backupService().status();
+	}
+
+	/** Turn backups on or change them, for its owner, as checked by the Worker. */
+	async configureBackup(input: {
+		settings: BackupSettings;
+		title: string;
+		by: { id: number; login: string; name?: string };
+		repoPublic: boolean | null;
+	}): Promise<BackupStatus> {
+		return this.backupService().configure(input);
+	}
+
+	disableBackup(by: string): BackupStatus {
+		this.backupService().disable(by);
+		return this.backupService().status();
+	}
+
+	/** Back up now, whether or not anything's changed, and say how it went. */
+	async backupNow(): Promise<BackupStatus> {
+		await this.backupService().run("now");
+		return this.backupService().status();
+	}
+
+	/** For tests: what the alarm does for backups, now (a backup if one's due). */
+	async runBackups(): Promise<void> {
+		await this.backupService().runIfDue();
+	}
+
+	private backupService(): Backups {
+		if (!this.backups) throw new Error("Board not started");
+		return this.backups;
 	}
 
 	private pushEngine(): PushEngine {

@@ -2,7 +2,7 @@ import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing";
 import * as v from "valibot";
 import * as Y from "yjs";
 import { isDate } from "./actionItems.ts";
-import { MAX_TITLE } from "./boards.ts";
+import { type CreatedBoard, MAX_TITLE, type Visibility } from "./boards.ts";
 import { type PreparedPlan, preparedMap, readPrepared, readStep } from "./prepared.ts";
 import { parseKey } from "./refs.ts";
 import { type RuleAction, type RuleTrigger, readRule, rulesMap } from "./rules.ts";
@@ -164,7 +164,8 @@ export function exportBoard(
 			y: Number(props.y) || 0,
 		};
 		if (type !== "connector") {
-			shape.parent = typeof props.parent === "string" && kept.has(props.parent) ? props.parent : null;
+			shape.parent =
+				typeof props.parent === "string" && kept.has(props.parent) ? props.parent : null;
 			if (typeof props.order === "string") shape.order = props.order;
 		}
 		for (const key of KEEP[type]) {
@@ -366,7 +367,12 @@ const ShapeSchema = v.variant("type", [
 				avatarUrl: v.optional(text(500)),
 			}),
 		),
-		due: v.optional(v.pipe(v.string(), v.check(isDate, "Not a date"))),
+		due: v.optional(
+			v.pipe(
+				v.string(),
+				v.check((value: string) => isDate(value), "Not a date"),
+			),
+		),
 		done: v.optional(Instant),
 		ref: v.optional(ItemKey),
 		author: v.optional(Author),
@@ -403,6 +409,20 @@ const ExportSchema = v.object({
 	prepared: v.optional(v.pipe(v.array(StepSchema), v.maxLength(200)), []),
 });
 
+/** `POST /api/boards/import`: a new board from an export. */
+export interface ImportBoardRequest {
+	board: BoardExport;
+	/** Defaults to the export's own title. */
+	title?: string;
+	visibility?: Visibility;
+}
+
+/** What `POST /api/boards/import` answers: the new board, and what was imported into it. */
+export interface ImportedBoard extends CreatedBoard {
+	/** Null if the board was made but laying it out failed (it's logged). */
+	imported: ImportResult | null;
+}
+
 /** Why a file couldn't be read as a board. */
 export type ImportError =
 	| { reason: "not_json" }
@@ -420,7 +440,7 @@ export type ReadResult = { ok: true; data: BoardExport } | { ok: false; error: I
 const MIGRATIONS: Record<number, (raw: Record<string, unknown>) => Record<string, unknown>> = {};
 
 /** An export from a file's text, or from JSON already parsed, checked throughout. */
-export function readBoardExport(input: string | unknown): ReadResult {
+export function readBoardExport(input: unknown): ReadResult {
 	let raw: unknown = input;
 	if (typeof input === "string") {
 		if (new TextEncoder().encode(input).byteLength > BOARD_EXPORT_MAX_BYTES) {

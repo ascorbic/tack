@@ -231,7 +231,10 @@ describe("reading an export", () => {
 			readBoardExport(JSON.stringify({ format: "other" })),
 			readBoardExport(JSON.stringify({ ...valid(), version: 99 })),
 			readBoardExport(
-				JSON.stringify({ ...valid(), shapes: [{ id: "x", type: "card", x: 0, y: 0, ref: "nope" }] }),
+				JSON.stringify({
+					...valid(),
+					shapes: [{ id: "x", type: "card", x: 0, y: 0, ref: "nope" }],
+				}),
 			),
 			readBoardExport(
 				JSON.stringify({ ...valid(), shapes: [{ id: "x", type: "sticky", x: "far", y: 0 }] }),
@@ -305,7 +308,11 @@ describe("importing a board", () => {
 		expect(cards).toContain(connector?.to?.shape);
 		const decision = [...shapes.values()].find((s) => s.type === "decision");
 		expect(decision).toMatchObject({ status: "decided", votes: {} });
-		expect(shapesMap(doc).get(find("Use Valibot") ?? "")?.get("votes")).toBeInstanceOf(Y.Map);
+		expect(
+			shapesMap(doc)
+				.get(find("Use Valibot") ?? "")
+				?.get("votes"),
+		).toBeInstanceOf(Y.Map);
 
 		const [rule] = listRules(doc);
 		expect(rule?.action).toEqual({ kind: "section", section });

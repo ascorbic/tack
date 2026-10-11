@@ -4,6 +4,7 @@ import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.t
 import { handlePeople } from "./server/boards/people.ts";
 import { handleTemplates } from "./server/boards/templates.ts";
 import { handleClientError } from "./server/clientErrors.ts";
+import { handleExports } from "./server/exports.ts";
 import { redeliverFailedWebhooks } from "./server/github/redeliver.ts";
 import { handleSetup } from "./server/github/setup.ts";
 import { handleNotifications } from "./server/notifications.ts";
@@ -57,6 +58,10 @@ export default {
 		// Comment notifications: mentions and replies (the top bar's inbox).
 		const notifications = await handleNotifications(request, env);
 		if (notifications) return notifications;
+
+		// Importing boards from their JSON, and backing them up to a branch (#59).
+		const exported = await handleExports(request, env);
+		if (exported) return exported;
 
 		// Templates, and carrying action items over between boards.
 		const templates = await handleTemplates(request, env);

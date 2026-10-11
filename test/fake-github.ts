@@ -399,6 +399,19 @@ export class FakeGitHub {
 		return commit ? (this.trees.get(commit.tree) ?? null) : null;
 	}
 
+	/** A branch's commits, newest first (first parents only), for assertions. */
+	commitsOn(repoId: number, branch: string): { sha: string; parents: string[]; message: string }[] {
+		const out: { sha: string; parents: string[]; message: string }[] = [];
+		let sha = this.refs.get(`${repoId}:${branch}`);
+		while (sha) {
+			const commit = this.commits.get(sha);
+			if (!commit) break;
+			out.push({ sha, parents: commit.parents, message: commit.message });
+			sha = commit.parents[0];
+		}
+		return out;
+	}
+
 	private storeTree(files: Map<string, string>): string {
 		// Content-addressed, as in git: the same files make the same tree.
 		const sha = createHash("sha1")
@@ -949,6 +962,18 @@ export class FakeGitHub {
 			}
 			if (!drop) this.refs.set(`${repo.id}:${branch}`, String(body.sha));
 			return json({ ref: body.ref, object: { sha: body.sha } }, 201);
+		}
+		// Moving a branch: only forward (the new commit's on top of it), unless forced.
+		if ((match = /^\/git\/refs\/heads\/(.+)$/.exec(rest)) && method === "PATCH") {
+			const key = `${repo.id}:${decodeURIComponent(match[1] ?? "")}`;
+			const current = this.refs.get(key);
+			if (!current) return json({ message: "Reference does not exist" }, 422);
+			const next = String(body.sha);
+			if (!body.force && !this.commits.get(next)?.parents.includes(current)) {
+				return json({ message: "Update is not a fast forward" }, 422);
+			}
+			if (!drop) this.refs.set(key, next);
+			return json({ ref: `refs/heads/${match[1]}`, object: { sha: next } });
 		}
 		if (rest === "/pulls" && method === "POST") {
 			const branch = String(body.head);

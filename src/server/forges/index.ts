@@ -6,6 +6,8 @@ import type { ForgeAdapter } from "./types.ts";
 export type {
 	ApplyOptions,
 	ApplyResult,
+	BranchResult,
+	BranchWrite,
 	CommandReaction,
 	CommentCommand,
 	Delivery,

@@ -24,6 +24,7 @@ import { searchGitHub } from "./github-search.ts";
 import {
 	applyGitHub,
 	canWriteGitHub,
+	writeBranchGitHub,
 	listDirectoryGitHub,
 	repoMetaGitHub,
 } from "./github-write.ts";
@@ -478,6 +479,8 @@ export const github: ForgeAdapter = {
 	// Writing (M2): see github-write.ts.
 	apply: (op, repo, auth, _env, options) => applyGitHub(op, repo, auth, options),
 	canWrite: (repo, token) => canWriteGitHub(repo, token),
+	// Backups to a branch (#59).
+	writeBranch: (repo, write, auth) => writeBranchGitHub(repo, write, auth),
 	repoMeta: repoMetaGitHub,
 	listDirectory: listDirectoryGitHub,
 

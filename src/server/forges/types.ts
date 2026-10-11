@@ -166,6 +166,24 @@ export type ApplyResult =
 			detail?: string;
 	  };
 
+/** Files to commit to a branch of their own (backups, #59). */
+export interface BranchWrite {
+	branch: string;
+	files: { path: string; content: string }[];
+	message: string;
+}
+
+export type BranchResult =
+	| {
+			ok: true;
+			/** The branch's head after writing, and a link to it. */
+			sha: string;
+			url: string;
+			/** The files were already exactly that: nothing was committed. */
+			unchanged: boolean;
+	  }
+	| Extract<ApplyResult, { ok: false }>;
+
 /** How to apply: context the adapter needs to keep retries from writing twice. */
 export interface ApplyOptions {
 	/**
@@ -260,6 +278,17 @@ export interface ForgeAdapter {
 	 * GitHub). Pushing needs this even when writing as the app.
 	 */
 	canWrite?(repo: RepoIdentity, token: string, env: Env): Promise<boolean>;
+	/**
+	 * Commit files to a branch that's only for them (#59: a board's backups):
+	 * made as an orphan branch, with no history, the first time; a commit on
+	 * top of it after. Never the default branch. Never throws for forge errors.
+	 */
+	writeBranch?(
+		repo: RepoIdentity,
+		write: BranchWrite,
+		auth: WriteAuth,
+		env: Env,
+	): Promise<BranchResult>;
 	/** What a repository offers to write with: labels, milestones, people, categories. */
 	repoMeta?(repo: RepoIdentity, env: Env, auth?: ReadAuth): Promise<RepoMeta>;
 	// Reading for widgets (M3). `auth.token` is the viewer's own token where

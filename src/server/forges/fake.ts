@@ -129,6 +129,22 @@ export const fake: ForgeAdapter = {
 		return true;
 	},
 
+	// Backups (#59) go nowhere either: a made-up commit, or a refusal for a
+	// branch with "fail" in its name.
+	async writeBranch(repo, write) {
+		if (write.branch.includes("fail")) {
+			return {
+				ok: false,
+				error: "The fake forge refused this, as asked (a branch called “fail”).",
+				retryable: false,
+			};
+		}
+		const sha = Array.from(crypto.getRandomValues(new Uint8Array(20)), (byte) =>
+			byte.toString(16).padStart(2, "0"),
+		).join("");
+		return { ok: true, sha, url: `https://fake.tack/${repo.name}/commit/${sha}`, unchanged: false };
+	},
+
 	async repoMeta(repo) {
 		return {
 			repo: `${repo.host}/${repo.name}`,
