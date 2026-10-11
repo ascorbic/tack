@@ -1,3 +1,4 @@
+import { useScrollFocusable } from "../a11y.ts";
 import { type CSSProperties, useMemo } from "react";
 import type { Card } from "../../shared/cards.ts";
 import { mentionsMe, parseSearch } from "../../shared/search.ts";
@@ -77,6 +78,8 @@ const STAGED_TEXT: Record<StaleAction, string> = {
 };
 
 export function StaleView(props: StaleViewProps) {
+	// Scrollable from the keyboard when nothing in it can take focus (#61).
+	const bodyRef = useScrollFocusable<HTMLDivElement>();
 	const { status, title, config, selected, enter, refreshing, compact, readOnly } = props;
 	const now = useNow(props.now);
 	const result = status.kind === "ready" ? status.results.items : undefined;
@@ -157,7 +160,7 @@ export function StaleView(props: StaleViewProps) {
 				{compact && groups ? (
 					<FarGroups groups={groups} count={count} />
 				) : (
-					<div className="widget-body nowheel">
+					<div ref={bodyRef} className="widget-body nowheel">
 						<Body {...props} now={now} groups={groups} count={count} />
 					</div>
 				)}

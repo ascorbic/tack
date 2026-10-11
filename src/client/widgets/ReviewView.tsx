@@ -1,3 +1,4 @@
+import { useScrollFocusable } from "../a11y.ts";
 import { useMemo } from "react";
 import type { Card } from "../../shared/cards.ts";
 import {
@@ -62,6 +63,8 @@ function scopeChip(config: ReviewConfig): string | null {
 }
 
 export function ReviewView(props: ReviewViewProps) {
+	// Scrollable from the keyboard when nothing in it can take focus (#61).
+	const bodyRef = useScrollFocusable<HTMLDivElement>();
 	const { status, title, config, selected, enter, refreshing, compact, readOnly } = props;
 	const now = useNow(props.now);
 	const result = status.kind === "ready" ? status.results.pulls : undefined;
@@ -131,7 +134,7 @@ export function ReviewView(props: ReviewViewProps) {
 				{compact && result ? (
 					<FarQueue items={result.items} total={result.total} now={now} />
 				) : (
-					<div className="widget-body nowheel">
+					<div ref={bodyRef} className="widget-body nowheel">
 						<Body {...props} now={now} />
 					</div>
 				)}

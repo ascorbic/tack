@@ -1,3 +1,4 @@
+import { useScrollFocusable } from "../a11y.ts";
 import {
 	type PointerEvent as ReactPointerEvent,
 	type ReactNode,
@@ -88,6 +89,8 @@ export interface ListViewProps {
 }
 
 export function ListView(props: ListViewProps) {
+	// Scrollable from the keyboard when nothing in it can take focus (#61).
+	const bodyRef = useScrollFocusable<HTMLDivElement>();
 	const { status, title, q, selected, enter, refreshing, readOnly, drop } = props;
 	const chips = useMemo(() => queryChips(parseSearch(q)), [q]);
 	const queryId = useId();
@@ -162,7 +165,7 @@ export function ListView(props: ListViewProps) {
 				{props.children}
 			</header>
 			<div className="widget-main">
-				<div className="widget-body nowheel">
+				<div ref={bodyRef} className="widget-body nowheel">
 					<Body {...props} />
 				</div>
 				{drop && <DropOverlay drop={drop} />}

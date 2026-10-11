@@ -1,3 +1,4 @@
+import { useScrollFocusable } from "../a11y.ts";
 import { type CSSProperties, type PointerEvent, useMemo, useState } from "react";
 import type { Card } from "../../shared/cards.ts";
 import {
@@ -46,6 +47,8 @@ const dateText = (at: number) =>
 	new Date(at).toLocaleDateString([], { month: "short", day: "numeric", timeZone: "UTC" });
 
 export function MilestoneView(props: MilestoneViewProps) {
+	// Scrollable from the keyboard when nothing in it can take focus (#61).
+	const bodyRef = useScrollFocusable<HTMLDivElement>();
 	const { status, title, config, selected, enter, refreshing, compact, readOnly } = props;
 	const now = useNow(props.now);
 	const open = status.kind === "ready" ? status.results.open : undefined;
@@ -122,7 +125,7 @@ export function MilestoneView(props: MilestoneViewProps) {
 						<span className="kind-far-detail">{due.text}</span>
 					</div>
 				) : (
-					<div className="widget-body nowheel">
+					<div ref={bodyRef} className="widget-body nowheel">
 						<Body {...props} now={now} />
 					</div>
 				)}

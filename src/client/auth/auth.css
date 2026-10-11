@@ -1244,7 +1244,8 @@
 	border-color: var(--accent);
 	color: var(--accent);
 	box-shadow: 0 0 0 4px var(--accent-soft);
-	animation: step-beckon calc(2.4s * var(--motion)) var(--ease-out) calc(1s * var(--motion)) infinite;
+	animation: step-beckon calc(2.4s * var(--motion)) var(--ease-out) calc(1s * var(--motion))
+		infinite;
 }
 
 @keyframes step-beckon {
