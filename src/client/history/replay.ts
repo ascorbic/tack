@@ -19,8 +19,10 @@ export class Replayer {
 	private generation = -1;
 	/** Every step's id, in order. */
 	private ids: number[] = [];
-	/** The document as of the last seek, kept to play forwards from. */
-	private cursor: { doc: Y.Doc; step: number } | null = null;
+	/** Steps where the document was rebuilt (compacted): nothing replays across them. */
+	private rebases: number[] = [];
+	/** The document as of the last seek, kept to play forwards from, and the keyframe it grew from. */
+	private cursor: { doc: Y.Doc; step: number; base: number } | null = null;
 
 	constructor(private readonly source: HistorySource) {}
 
@@ -34,6 +36,7 @@ export class Replayer {
 			this.cursor = null;
 		}
 		this.ids = timeline.steps.map((step) => step.id);
+		this.rebases = timeline.steps.filter((step) => step.rebase).map((step) => step.id);
 	}
 
 	/** Whether `step` can be shown without fetching anything. */
@@ -62,14 +65,24 @@ export class Replayer {
 		if (!this.ready(step)) void this.load(step).catch(() => {});
 	}
 
+	/** The loaded segment holding `step` that starts latest (a rebuild's, where two overlap). */
 	private spanOf(step: number) {
-		return this.spans.find((span) => span.base <= step && step <= span.last) ?? null;
+		let best: { base: number; last: number } | null = null;
+		for (const span of this.spans) {
+			if (span.base <= step && step <= span.last && (!best || span.base > best.base)) best = span;
+		}
+		return best;
 	}
 
-	/** Whether every step from the cursor to `step` has its update here. */
+	/**
+	 * Whether every step from the cursor to `step` has its update here, and
+	 * the document wasn't rebuilt on the way (updates after a rebuild only
+	 * apply to its own keyframe).
+	 */
 	private canWalk(step: number): boolean {
 		const cursor = this.cursor;
 		if (!cursor || step < cursor.step) return false;
+		if (this.rebases.some((id) => cursor.base < id && id <= step)) return false;
 		for (const id of this.ids) {
 			if (id <= cursor.step) continue;
 			if (id > step) break;
@@ -96,7 +109,7 @@ export class Replayer {
 		const base = this.bases.get(span.base);
 		if (base) Y.applyUpdate(doc, base);
 		this.cursor?.doc.destroy();
-		this.cursor = { doc, step: span.base };
+		this.cursor = { doc, step: span.base, base: span.base };
 		return this.walk(step);
 	}
 

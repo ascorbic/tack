@@ -4,6 +4,8 @@ import type { Connection, ConnectionContext, WSMessage } from "partyserver";
 import { YServer } from "y-partyserver";
 import * as Y from "yjs";
 import { sanitizeAwareness } from "./awareness.ts";
+import type { CompactionLimits } from "../shared/compaction.ts";
+import { BoardCompaction, DOCUMENT_REBUILT, type DocumentInfo } from "./compaction.ts";
 import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
 import {
 	type CompactResult,
@@ -227,6 +229,8 @@ export class Board extends YServer<Env> {
 	private backups: Backups | null = null;
 	/** Presence client ids, by the connection that speaks for them (see awareness.ts). */
 	private awarenessOwners = new Map<number, string>();
+	/** Compacting very old documents, and keeping old copies of them out (#60). */
+	private compaction: BoardCompaction | null = null;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -253,6 +257,7 @@ export class Board extends YServer<Env> {
 		)) {
 			this.routes.set(row.repo_key, JSON.parse(row.identity) as RepoIdentity);
 		}
+		this.compaction = new BoardCompaction(this.ctx.storage, log.with({ board: this.name }));
 		await super.onStart();
 		// A new board is stamped with the current format before history starts,
 		// so the stamp is part of where its history begins; an existing one is
@@ -455,6 +460,8 @@ export class Board extends YServer<Env> {
 				store: sqlHistoryStore(this.ctx.storage),
 				attribute: (origin) => attributeOrigin(origin, this.document.awareness),
 				log: (level, event, context) => log[level](event, { board: this.name, ...context }),
+				// A compacted document starts a new stretch of history (see compaction.ts).
+				epoch: this.compaction?.epoch() ?? "",
 			});
 			history.start();
 			return history;
@@ -556,7 +563,14 @@ export class Board extends YServer<Env> {
 		}
 		const doc = new Y.Doc();
 		Y.applyUpdate(doc, update);
-		return doc;
+		// Very old boards are rebuilt without their tombstones, before anyone syncs (#60).
+		if (!this.compaction) return doc;
+		try {
+			return this.compaction.load(doc, update, (rebuilt) => this.writeChunks(rebuilt));
+		} catch (error) {
+			log.error("board.compact.failed", { board: this.name, reason: "error", error });
+			return doc;
+		}
 	}
 
 	override async onSave(): Promise<void> {
@@ -578,20 +592,36 @@ export class Board extends YServer<Env> {
 		};
 		try {
 			this.ctx.storage.transactionSync(() => {
-				this.ctx.storage.sql.exec("DELETE FROM snapshot");
-				for (let i = 0; i * CHUNK_SIZE < update.byteLength; i++) {
-					this.ctx.storage.sql.exec(
-						"INSERT INTO snapshot (seq, chunk) VALUES (?, ?)",
-						i,
-						update.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
-					);
-				}
+				this.writeChunks(update);
+				this.compaction?.saved();
 			});
 		} catch (error) {
 			log.error("board.save.failed", { ...context, error });
 			throw error;
 		}
 		log.info("board.save", context);
+	}
+
+	/** The snapshot table holds `update`, in chunks (call inside a transaction). */
+	private writeChunks(update: Uint8Array): void {
+		this.ctx.storage.sql.exec("DELETE FROM snapshot");
+		for (let i = 0; i * CHUNK_SIZE < update.byteLength; i++) {
+			this.ctx.storage.sql.exec(
+				"INSERT INTO snapshot (seq, chunk) VALUES (?, ?)",
+				i,
+				update.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
+			);
+		}
+	}
+
+	/** The document's size, tombstones and build, for tests and operators. */
+	async documentInfo(): Promise<DocumentInfo | null> {
+		return this.compaction?.info(this.document) ?? null;
+	}
+
+	/** For tests: change when the board compacts its document on load (kept across restarts). */
+	async compactionLimits(limits: Partial<CompactionLimits>): Promise<void> {
+		this.compaction?.setLimits(limits);
 	}
 
 	/**
@@ -744,7 +774,16 @@ export class Board extends YServer<Env> {
 		} catch {
 			return null;
 		}
-		if (type !== MESSAGE_AWARENESS) return bytes;
+		if (type !== MESSAGE_AWARENESS) {
+			// A copy of the document from before it was rebuilt would put
+			// everything in it back: that connection starts again instead.
+			if (this.compaction?.stale(bytes)) {
+				log.warn("board.document.stale", { board: this.name, connection: connection.id });
+				connection.close(DOCUMENT_REBUILT, "document_rebuilt");
+				return null;
+			}
+			return bytes;
+		}
 		const access = connection.state;
 		if (!access) return null;
 		let update: Uint8Array;

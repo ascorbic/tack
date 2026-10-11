@@ -130,6 +130,12 @@ export interface StepMeta {
 	span: number;
 	/** Where history starts: its keyframe is the board as it was then. */
 	origin?: boolean;
+	/**
+	 * The document was rebuilt here (compacted, src/shared/compaction.ts):
+	 * its keyframe starts a new document, so nothing replays across it and
+	 * it's never merged into its neighbours.
+	 */
+	rebase?: boolean;
 	/** Its update's size. */
 	bytes: number;
 }
@@ -255,6 +261,12 @@ export interface HistoryLogOptions {
 	now?: () => number;
 	limits?: Partial<HistoryLimits>;
 	log?: (level: "info" | "warn" | "error", event: string, context: Record<string, unknown>) => void;
+	/**
+	 * Which build of the document this is (src/shared/compaction.ts): a
+	 * rebuilt document can't take updates recorded on the old one, so when
+	 * it changes, history starts a new stretch with a keyframe (a `rebase`).
+	 */
+	epoch?: string;
 }
 
 interface Pending {
@@ -312,6 +324,7 @@ export class HistoryLog {
 		for (const actor of this.store.actors()) this.known.set(actor.key, actorFingerprint(actor));
 		const steps = this.store.steps();
 		const frames = this.store.keyframes();
+		const epoch = this.options.epoch ?? "";
 		if (steps.length === 0) {
 			const state = Y.encodeStateAsUpdate(this.doc);
 			const at = this.now();
@@ -322,8 +335,11 @@ export class HistoryLog {
 				);
 				this.store.putKeyframe(id, state);
 				this.store.putMeta("sv", toBase64(Y.encodeStateVector(this.doc)));
+				if (epoch) this.store.putMeta("epoch", epoch);
 			});
 			this.lastKeyframeBytes = state.byteLength;
+		} else if ((this.store.meta("epoch") ?? "") !== epoch) {
+			this.rebase(epoch);
 		} else {
 			const last = frames.at(-1);
 			this.lastKeyframeBytes = last?.bytes ?? 0;
@@ -343,6 +359,31 @@ export class HistoryLog {
 	/** Whether anything is waiting to be written. */
 	get dirty(): boolean {
 		return this.pending.size > 0;
+	}
+
+	/**
+	 * The document was rebuilt (compacted) since history last saw it: a step
+	 * with a keyframe of the new document, which replays start from. Edits
+	 * saved but not recorded before the rebuild are in it, unattributed.
+	 */
+	private rebase(epoch: string): void {
+		const state = Y.encodeStateAsUpdate(this.doc);
+		const at = this.now();
+		this.store.transact(() => {
+			const id = this.store.addStep(
+				{ at, until: at, actors: ["sys:server"], changes: [], span: 0, rebase: true, bytes: 0 },
+				null,
+			);
+			this.store.putKeyframe(id, state);
+			this.store.putMeta("sv", toBase64(Y.encodeStateVector(this.doc)));
+			this.store.putMeta("epoch", epoch);
+			// Clients drop what they'd cached of the old document.
+			this.store.putMeta("generation", String(this.generation() + 1));
+		});
+		this.rememberActor({ key: "sys:server", name: "Tack", color: "", system: "server" });
+		this.lastKeyframeBytes = state.byteLength;
+		this.bytesSinceKeyframe = 0;
+		this.options.log?.("info", "history.rebased", { bytes: state.byteLength });
 	}
 
 	private catchUp(): void {
@@ -595,13 +636,18 @@ export class HistoryLog {
 		const groups = planMerges(steps, now);
 		if (groups.length === 0) return 0;
 		const first = groups[0]![0]!;
-		const doc = this.docAt(steps[first - 1]!.id);
+		let doc = this.docAt(steps[first - 1]!.id);
 		const keyframes = new Set(this.store.keyframes().map((frame) => frame.step));
 		let merged = 0;
 		let g = 0;
 		for (let i = first; i < steps.length && g < groups.length; i++) {
 			const group = groups[g]!;
 			if (group[0] !== i) {
+				// A rebuilt document starts again from its own keyframe.
+				if (steps[i]!.rebase) {
+					doc = this.docAt(steps[i]!.id);
+					continue;
+				}
 				const update = this.store.update(steps[i]!.id);
 				if (update) Y.applyUpdate(doc, update);
 				continue;
@@ -651,7 +697,8 @@ export class HistoryLog {
 			if (step.id !== origin) since += step.bytes;
 			const bytes = byStep.get(step.id);
 			if (bytes === undefined) continue;
-			if (step.id === origin) {
+			// A rebuild's keyframe is the only way into what came after it.
+			if (step.id === origin || step.rebase) {
 				lastKept = bytes;
 				since = 0;
 				continue;
@@ -724,7 +771,7 @@ export function planMerges(steps: readonly StepMeta[], now: number): number[][] 
 		runKey = "";
 	};
 	steps.forEach((step, i) => {
-		const span = step.origin ? 0 : spanFor(now - step.until);
+		const span = step.origin || step.rebase ? 0 : spanFor(now - step.until);
 		if (span === 0) return close();
 		const key = `${span}:${Math.floor(step.at / span)}`;
 		if (key !== runKey) {
@@ -1063,6 +1110,7 @@ const SYSTEM_VERBS: Partial<Record<SystemKind, string>> = {
 
 /** A step in a sentence, without the name: "added 3 stickies". */
 export function whatHappened(step: StepMeta, actors: Record<string, Actor>): string {
+	if (step.rebase) return "tidied the board's storage up";
 	const system = step.actors.length === 1 ? actors[step.actors[0]!]?.system : undefined;
 	// Silent mode's own writes are its start (a section's mark) as well as
 	// the reveal: only a step that turned stickies over is the reveal.

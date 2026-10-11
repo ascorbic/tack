@@ -15,6 +15,7 @@ import { widgetStore } from "./widgets/store.ts";
 import { boardPeople, peopleSource } from "./comments/people.ts";
 import { commentStore } from "./comments/store.ts";
 import { sinceStore } from "./since/store.ts";
+import { setFlash } from "./flash.ts";
 import { PendingEdits } from "./pending.ts";
 
 /** Everything a board needs to render, whether live or simulated. */
@@ -41,6 +42,39 @@ export interface LiveBoardEvents {
 
 /** The server's close code for a connection whose access was taken away. */
 const ACCESS_REVOKED = 4403;
+/**
+ * The server's close code for a connection holding the board's document
+ * from before it was rebuilt (compacted, src/shared/compaction.ts): it
+ * can't merge with the new one, so the page starts again from what's saved.
+ */
+const DOCUMENT_REBUILT = 4410;
+/** Reloading again this soon after the last means something else is wrong: stop. */
+const RESTART_GUARD_MS = 30_000;
+
+/**
+ * Load the board again from the server, once: everything local was made on
+ * the old document. Edits that were still waiting are lost, and the page
+ * that loads says so.
+ */
+function startAgain(board: string, lost: number): void {
+	const key = `tack:restarted:${board}`;
+	try {
+		const last = Number(sessionStorage.getItem(key));
+		if (Date.now() - last < RESTART_GUARD_MS) return;
+		sessionStorage.setItem(key, String(Date.now()));
+	} catch {
+		// Without storage there's no way to tell a loop: reload anyway.
+	}
+	if (lost > 0) {
+		setFlash({
+			message:
+				lost === 1
+					? "This board was tidied up while you were offline, so an edit made then couldn’t be kept."
+					: `This board was tidied up while you were offline, so ${lost} edits made then couldn’t be kept.`,
+		});
+	}
+	location.reload();
+}
 
 function isCommentEvent(message: { type: string }): message is CommentEvent {
 	return message.type.startsWith("comment");
@@ -107,6 +141,11 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 			}
 		});
 		provider.on("connection-close", (event: CloseEvent) => {
+			if (event.code === DOCUMENT_REBUILT) {
+				provider.disconnect();
+				startAgain(name, pending.discard());
+				return;
+			}
 			if (event.code !== ACCESS_REVOKED) return;
 			provider.disconnect();
 			handlers.current.onRevoked?.();

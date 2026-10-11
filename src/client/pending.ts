@@ -132,6 +132,34 @@ export class PendingEdits {
 		this.listeners.clear();
 	}
 
+	/**
+	 * Forget everything kept for this board, in every tab: the board's
+	 * document was rebuilt (compacted) on the server, and edits made on the
+	 * old one can't be applied to it. Returns how many were still waiting.
+	 */
+	discard(): number {
+		const waiting = this.bursts;
+		this.doc.off("update", this.onUpdate);
+		clearTimeout(this.saveTimer);
+		clearTimeout(this.pruneTimer);
+		this.saveTimer = undefined;
+		this.entries = [];
+		this.bursts = 0;
+		const board = this.key.slice(PREFIX.length, this.key.lastIndexOf(":"));
+		try {
+			const keys: string[] = [];
+			for (let i = 0; i < (this.store?.length ?? 0); i++) {
+				const key = this.store?.key(i);
+				if (key?.startsWith(`${PREFIX}${board}:`)) keys.push(key);
+			}
+			for (const key of keys) this.store?.removeItem(key);
+		} catch {
+			// Storage is off: there's nothing kept.
+		}
+		this.emit();
+		return waiting;
+	}
+
 	/** Drop edits the server has had for long enough. */
 	prune(): void {
 		if (!this.synced) return;
