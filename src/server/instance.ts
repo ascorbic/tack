@@ -1112,32 +1112,6 @@ export class Instance extends DurableObject<Env> {
 	}
 
 	// ---------------------------------------------------------------------
-	// AI suggestions (#73)
-
-	/** Whether an admin has turned AI suggestions on, who, and when. Off until they do. */
-	aiSuggestions(): { enabled: boolean; by?: string; at?: string } {
-		const stored = this.setting("ai");
-		if (!stored) return { enabled: false };
-		try {
-			const value = JSON.parse(stored) as { enabled?: unknown; by?: unknown; at?: unknown };
-			return {
-				enabled: value.enabled === true,
-				...(typeof value.by === "string" ? { by: value.by } : {}),
-				...(typeof value.at === "string" ? { at: value.at } : {}),
-			};
-		} catch {
-			return { enabled: false };
-		}
-	}
-
-	/** Turn AI suggestions on or off (admins, through `PUT /api/setup/ai`). */
-	setAiSuggestions(enabled: boolean, by: string): { enabled: boolean; by: string; at: string } {
-		const value = { enabled, by, at: new Date().toISOString() };
-		this.setSetting("ai", JSON.stringify(value));
-		return value;
-	}
-
-	// ---------------------------------------------------------------------
 	// Access
 
 	private accessList(): AccessList {

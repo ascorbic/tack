@@ -1491,63 +1491,22 @@
 	font-size: 0.85em;
 }
 
-.setup-ai-state[data-state="on"] {
-	color: var(--open);
-	font-weight: 600;
-}
-
-.setup-ai-state[data-state="error"] {
-	color: var(--danger);
-}
-
-.setup-switch {
-	position: relative;
-	display: inline-block;
+.setup-ai-state {
 	flex: none;
-	width: 38px;
-	height: 22px;
-	cursor: pointer;
+	padding: 3px 10px;
+	border-radius: 999px;
+	background: var(--hover);
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 620;
 }
 
-.setup-switch input {
-	position: absolute;
-	inset: 0;
-	margin: 0;
-	opacity: 0;
-	cursor: inherit;
+.setup-ai-state[data-state="on"] {
+	background: color-mix(in srgb, var(--open) 14%, transparent);
+	color: var(--open);
 }
 
-.setup-switch span {
-	position: absolute;
-	inset: 0;
-	border-radius: 11px;
-	background: var(--line-strong);
-	transition: background var(--t-base) var(--ease-out);
-	pointer-events: none;
-}
-
-.setup-switch span::after {
-	content: "";
-	position: absolute;
-	top: 2px;
-	left: 2px;
-	width: 18px;
-	height: 18px;
-	border-radius: 50%;
-	background: var(--surface);
-	box-shadow: 0 1px 2px rgb(0 0 0 / 25%);
-	transition: translate var(--t-base) var(--ease-spring);
-}
-
-.setup-switch input:checked + span {
-	background: var(--accent);
-}
-
-.setup-switch input:checked + span::after {
-	translate: 16px 0;
-}
-
-.setup-switch input:focus-visible + span {
-	outline: 2px solid var(--accent);
-	outline-offset: 2px;
+.setup-ai-state[data-state="unavailable"] {
+	background: color-mix(in srgb, var(--danger) 10%, transparent);
+	color: var(--danger);
 }

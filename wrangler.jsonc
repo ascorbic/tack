@@ -41,7 +41,8 @@
 		]
 	},
 	"vars": {
-		"TACK_COMMAND_ALIAS": ""
+		"TACK_COMMAND_ALIAS": "",
+		"TACK_AI": "workers-ai"
 	},
 	"secrets": {
 		"required": [

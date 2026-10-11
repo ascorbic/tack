@@ -8,21 +8,18 @@ import {
 	type PileMessage,
 	type PileRequest,
 } from "../shared/pileNamer.ts";
-import { hasAi, workersAi } from "./ai.ts";
+import { aiStatus, pileAi } from "./ai.ts";
 import type { ConnectionAccess } from "./board.ts";
 import { log } from "./log.ts";
-import { instance } from "./namespaces.ts";
 
 // Piles on the board's server (#73): names suggested from what's in them,
-// and "Group these", asked of Workers AI (src/server/ai.ts) when an admin has
-// turned AI suggestions on at /setup. The naming itself (what's sent, when,
-// caching, the budget) is `PileNamer`, shared with the playground; here it
-// gets its model, a cache in the board's SQLite, the instance's setting, and
-// the board's connections: editors ask for groupings, and everyone's told
+// and "Group these", asked of Workers AI (src/server/ai.ts) while AI
+// suggestions are on (`TACK_AI`, on by default). The naming itself (what's
+// sent, when, caching, the budget) is `PileNamer`, shared with the
+// playground; here it gets its model, a cache in the board's SQLite, and the
+// board's connections: editors ask for groupings, and everyone's told
 // whether suggestions are on.
 
-/** How long to believe the instance's setting. */
-const SETTING_TTL_MS = 30_000;
 /** Names kept per board. */
 const CACHE_ROWS = 1000;
 
@@ -61,7 +58,6 @@ function sqlNameCache(sql: SqlStorage): NameCache {
 
 export class Piles {
 	readonly namer: PileNamer;
-	private setting: { enabled: boolean; until: number } | null = null;
 	/** A grouping in flight per connection: one at a time each. */
 	private grouping = new Set<string>();
 
@@ -80,36 +76,18 @@ export class Piles {
 		this.namer.stop();
 	}
 
-	/** Whether suggestions are on: this Worker has Workers AI, and an admin's turned them on. */
-	async enabled(fresh = false): Promise<boolean> {
-		const now = Date.now();
-		if (!fresh && this.setting && this.setting.until > now) return this.setting.enabled;
-		let enabled = false;
-		if (hasAi(this.options.env) && this.options.env.TACK_SECRET) {
-			try {
-				enabled = (await instance(this.options.env).aiSuggestions()).enabled;
-			} catch (error) {
-				log.warn("pile.setting.failed", { board: this.options.board, error });
-				enabled = this.setting?.enabled ?? false;
-			}
-		}
-		const was = this.setting?.enabled;
-		this.setting = { enabled, until: now + SETTING_TTL_MS };
-		if (was !== undefined && was !== enabled) {
-			// Turned on or off since: tell everyone, and name what's waiting.
-			for (const connection of this.options.connections()) this.tell(connection, enabled);
-			if (enabled) this.namer.schedule(0);
-		}
-		return enabled;
+	/** Whether suggestions are on (`TACK_AI`, and an AI binding to ask; see ai.ts). */
+	enabled(): boolean {
+		return aiStatus(this.options.env).state === "on";
 	}
 
-	private async ai(): Promise<PileAi | null> {
-		return (await this.enabled()) ? workersAi(this.options.env) : null;
+	private ai(): PileAi | null {
+		return pileAi(this.options.env);
 	}
 
 	/** A new connection: whether suggestions are on. */
 	connected(connection: Connection<ConnectionAccess>): void {
-		void this.enabled().then((enabled) => this.tell(connection, enabled));
+		this.tell(connection, this.enabled());
 	}
 
 	closed(id: string): void {

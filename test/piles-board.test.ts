@@ -1,12 +1,13 @@
 // Piles' names (#73) on a real board in Miniflare, with a fake Workers AI:
-// suggestions are off until an admin turns them on, a name a person gave a
-// pile is never replaced, silent mode's hidden text never reaches the model,
-// and "Group these" answers editors alone.
+// suggestions are on by default and off with TACK_AI=off or without the AI
+// binding, a name a person gave a pile is never replaced, silent mode's
+// hidden text never reaches the model, and "Group these" answers editors
+// alone.
 
 import type { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import type * as Y from "yjs";
-import type { AiSettings, SetupInfo } from "../src/shared/auth.ts";
+import type { SetupInfo } from "../src/shared/auth.ts";
 import type { BoardInfo, Role } from "../src/shared/boards.ts";
 import { pileUp, setPileName } from "../src/shared/pileEdits.ts";
 import type { PileMessage } from "../src/shared/pileNamer.ts";
@@ -89,50 +90,35 @@ const pile = (client: BoardClient, id: string) => {
 	return shape ? readShape(shape) : undefined;
 };
 
-async function setAi(cookie: string, enabled: boolean) {
-	return api("/api/setup/ai", cookie, "PUT", { enabled });
-}
-
 describe("AI suggestions", () => {
-	it("are off until an admin turns them on, and only admins can", async () => {
+	it("are on by default, name piles from their text, and say so", async () => {
 		const setup = (await (await api("/api/setup", olive)).json()) as Extract<
 			SetupInfo,
 			{ status: "configured" }
 		>;
-		expect(setup.ai).toMatchObject({ available: true, enabled: false });
+		expect(setup.ai).toMatchObject({ state: "on", provider: "workers-ai" });
 		const id = await board();
 		const editor = await open(id, eddie);
-		await eventually(() => pileMessages(editor).some((m) => m.type === "piles-ai" && !m.enabled));
+		await eventually(() => pileMessages(editor).some((m) => m.type === "piles-ai" && m.enabled));
 
 		sticky(editor.doc, "a", "Provider docs are hard to find");
 		sticky(editor.doc, "b", "No example of a custom loader");
 		pileUp(editor.doc, "a", ["b"], undefined, () => "p");
 		await editor.roundTrip();
+		const before = ai.calls.length;
 		await (await boardStub(mf, id)).namePiles();
-		expect(ai.calls).toHaveLength(0);
-		expect(pile(editor, "p")?.suggested).toBeUndefined();
-
-		expect((await setAi(eddie, true)).status).toBe(403);
-		const turnedOn = await setAi(olive, true);
-		expect(turnedOn.status).toBe(200);
-		expect(((await turnedOn.json()) as AiSettings).enabled).toBe(true);
-
-		await (await boardStub(mf, id)).namePiles();
-		expect(ai.calls).toHaveLength(1);
-		expect(ai.calls[0]?.model).toMatch(/^@cf\//);
-		expect(ai.calls[0]?.input.response_format?.type).toBe("json_schema");
+		expect(ai.calls).toHaveLength(before + 1);
+		expect(ai.calls.at(-1)?.model).toMatch(/^@cf\//);
+		expect(ai.calls.at(-1)?.input.response_format?.type).toBe("json_schema");
 		await eventually(() => pileName(pile(editor, "p")) === "No example of");
 		expect(pile(editor, "p")?.suggested?.title).toBe("No example of");
-		// Told it's on now.
-		await eventually(() => pileMessages(editor).some((m) => m.type === "piles-ai" && m.enabled));
 
 		// The same text isn't asked about twice.
 		await (await boardStub(mf, id)).namePiles();
-		expect(ai.calls).toHaveLength(1);
+		expect(ai.calls).toHaveLength(before + 1);
 	});
 
 	it("never replace a name a person gave a pile", async () => {
-		expect((await setAi(olive, true)).status).toBe(200);
 		const id = await board();
 		const editor = await open(id, eddie);
 		sticky(editor.doc, "a", "CI takes 25 minutes");
@@ -163,7 +149,6 @@ describe("AI suggestions", () => {
 	});
 
 	it("never send silent mode's hidden text, before or after it's piled", async () => {
-		expect((await setAi(olive, true)).status).toBe(200);
 		const id = await board();
 		const facilitator = await open(id, olive);
 		const writer = await open(id, eddie);
@@ -209,7 +194,6 @@ describe("AI suggestions", () => {
 
 describe("Group these", () => {
 	it("proposes piles to the editor who asked, and refuses viewers", async () => {
-		expect((await setAi(olive, true)).status).toBe(200);
 		const id = await board();
 		const editor = await open(id, eddie);
 		const viewer = await open(id, vera);
@@ -239,23 +223,11 @@ describe("Group these", () => {
 		expect([...shapesMap(editor.doc).values()].some((s) => s.get("type") === "pile")).toBe(false);
 	});
 
-	it("says when suggestions are off, or the model fails", async () => {
+	it("says when the model fails", async () => {
 		const id = await board();
 		const editor = await open(id, eddie);
 		for (const [i, text] of ["One", "Two", "Three"].entries()) sticky(editor.doc, `s${i}`, text);
 		await editor.roundTrip();
-		expect((await setAi(olive, false)).status).toBe(200);
-		await (await boardStub(mf, id)).namePiles();
-		editor.send({ type: "pile-group", request: "off", ids: ["s0", "s1", "s2"] });
-		await eventually(() =>
-			pileMessages(editor).some((m) => m.type === "pile-group-failed" && m.request === "off"),
-		);
-		expect(pileMessages(editor).find((m) => "request" in m && m.request === "off")).toMatchObject({
-			reason: "off",
-		});
-
-		expect((await setAi(olive, true)).status).toBe(200);
-		await (await boardStub(mf, id)).namePiles();
 		ai.failing = true;
 		try {
 			editor.send({ type: "pile-group", request: "down", ids: ["s0", "s1", "s2"] });
@@ -271,24 +243,59 @@ describe("Group these", () => {
 	});
 });
 
-describe("without Workers AI", () => {
-	it("can't be turned on", async () => {
-		const worker = startWorker({ devAuth: true, outboundService: github.fetch, ai: null });
-		try {
-			await (await instanceStub(worker)).completeSetup(github.manifestCode);
-			const admin = await signIn(worker, "olive", { admin: true });
-			const info = (await (
-				await worker.dispatchFetch(`${ORIGIN}/api/setup`, { headers: { cookie: admin } })
-			).json()) as Extract<SetupInfo, { status: "configured" }>;
-			expect(info.ai).toMatchObject({ available: false, enabled: false });
-			const refused = await worker.dispatchFetch(`${ORIGIN}/api/setup/ai`, {
-				method: "PUT",
-				headers: { cookie: admin, origin: ORIGIN, "content-type": "application/json" },
-				body: JSON.stringify({ enabled: true }),
+describe("turned off", () => {
+	for (const [what, options] of [
+		["with TACK_AI=off", { bindings: { TACK_AI: "off" } }],
+		["without the AI binding", { ai: null }],
+	] as const) {
+		it(`names nothing ${what}, and says so`, async () => {
+			const off = new FakeAi();
+			const worker = startWorker({
+				devAuth: true,
+				outboundService: github.fetch,
+				ai: off,
+				...options,
 			});
-			expect(refused.status).toBe(422);
-		} finally {
-			await worker.dispose();
-		}
-	});
+			try {
+				await (await instanceStub(worker)).completeSetup(github.manifestCode);
+				const admin = await signIn(worker, "olive", { admin: true });
+				const info = (await (
+					await worker.dispatchFetch(`${ORIGIN}/api/setup`, { headers: { cookie: admin } })
+				).json()) as Extract<SetupInfo, { status: "configured" }>;
+				expect(info.ai?.state).toBe("ai" in options ? "unavailable" : "off");
+				const made = (await (
+					await worker.dispatchFetch(`${ORIGIN}/api/boards`, {
+						method: "POST",
+						headers: { cookie: admin, origin: ORIGIN, "content-type": "application/json" },
+						body: JSON.stringify({ title: "Off" }),
+					})
+				).json()) as BoardInfo;
+				const result = await connectBoard(worker, made.id, admin);
+				if (!result.ok) throw new Error("connect");
+				const client = result.client;
+				clients.push(client);
+				await eventually(() =>
+					pileMessages(client).some((m) => m.type === "piles-ai" && !m.enabled),
+				);
+				for (const [i, text] of ["One", "Two", "Three"].entries()) {
+					sticky(client.doc, `s${i}`, text);
+				}
+				pileUp(client.doc, "s0", ["s1"], undefined, () => "p");
+				await client.roundTrip();
+				await (await boardStub(worker, made.id)).namePiles();
+				expect(pile(client, "p")?.suggested).toBeUndefined();
+				expect(pileName(pile(client, "p"))).toBeNull();
+				client.send({ type: "pile-group", request: "off", ids: ["s0", "s1", "s2"] });
+				await eventually(() =>
+					pileMessages(client).some((m) => m.type === "pile-group-failed" && m.request === "off"),
+				);
+				expect(
+					pileMessages(client).find((m) => "request" in m && m.request === "off"),
+				).toMatchObject({ reason: "off" });
+				expect(off.calls).toHaveLength(0);
+			} finally {
+				await worker.dispose();
+			}
+		});
+	}
 });

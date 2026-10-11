@@ -2,6 +2,13 @@ import { bindings, defineConfig, exports, triggers } from "cf/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import * as entrypoint from "./src/index.ts" with { type: "cf-worker" };
 
+/** Whether `vp dev` should ask the real Workers AI (`TACK_DEV_AI=workers-ai`) rather than a fake. */
+function realAiInDev(): boolean {
+	const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+		?.env;
+	return env?.TACK_DEV_AI === "workers-ai";
+}
+
 // Previews don't inherit production settings, so this returns the complete
 // config for each. Each Preview gets its own isolated Durable Object
 // namespaces automatically. Previews get no secrets: webhooks only go to
@@ -48,12 +55,20 @@ export default defineConfig(({ isPreview, mode }) => ({
 			// empty for the slug alone. Empty by default: a short alias like `tack`
 			// is someone's real GitHub login, and every command would notify them.
 			TACK_COMMAND_ALIAS: bindings.text(""),
-			// Workers AI, for suggesting piles' names and grouping stickies (#73).
-			// Nothing's sent to it until an admin turns AI suggestions on at
-			// /setup, as each request is billed to the account. Not in local dev,
-			// where an AI binding always reaches the real (remote, billed) service
-			// and needs a Cloudflare login; the playground fakes it.
-			...(mode === "development" ? {} : { AI: bindings.ai() }),
+			// AI suggestions (#73): naming piles of stickies from what they say,
+			// and sorting a selection into named piles. `workers-ai` (the
+			// default) asks Workers AI through the AI binding below, which counts
+			// against the account's Workers AI allocation (a free daily amount,
+			// then billed); `off` turns them off (piles are "Untitled pile" until
+			// someone names them), as does removing the binding. Local dev has
+			// no Workers AI (a binding there always reaches the remote, billed
+			// service and needs a Cloudflare login), so it uses `fake`, a stand-in
+			// that answers from the stickies' words; start it with
+			// TACK_DEV_AI=workers-ai to ask the real thing.
+			TACK_AI: bindings.text(mode === "development" && !realAiInDev() ? "fake" : "workers-ai"),
+			...(mode !== "development" || realAiInDev()
+				? { AI: bindings.ai(realAiInDev() ? { dev: { remote: true } } : undefined) }
+				: {}),
 			// The one secret an instance needs. A declared secret is required: the
 			// first deploy fails without it (give it with `--secrets-file`, or the
 			// Deploy to Cloudflare button asks for it), and later deploys keep it.

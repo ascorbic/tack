@@ -1,3 +1,5 @@
+import type { AiStatus } from "../shared/auth.ts";
+import { fakePileAi } from "../shared/fakePileAi.ts";
 import type { PileAi } from "../shared/pileNamer.ts";
 import {
 	GROUP_SCHEMA,
@@ -36,6 +38,30 @@ interface AiRunner {
 export function hasAi(env: Env): boolean {
 	const binding = (env as { AI?: unknown }).AI as Partial<AiRunner> | undefined;
 	return !!binding && typeof binding.run === "function";
+}
+
+/**
+ * Whether AI suggestions are on (`TACK_AI` in cloudflare.config.ts), and with
+ * what: `workers-ai` (the default) when the Worker has its AI binding, the
+ * fake in local dev, or off (`TACK_AI=off`, or no binding to ask).
+ */
+export function aiStatus(env: Env): AiStatus {
+	const raw = (env as { TACK_AI?: unknown }).TACK_AI;
+	const setting = (typeof raw === "string" ? raw : "workers-ai").trim().toLowerCase();
+	if (setting === "off" || setting === "") {
+		return { state: "off", provider: null, model: PILE_MODEL };
+	}
+	if (setting === "fake") return { state: "on", provider: "fake", model: "fake" };
+	return hasAi(env)
+		? { state: "on", provider: "workers-ai", model: PILE_MODEL }
+		: { state: "unavailable", provider: null, model: PILE_MODEL };
+}
+
+/** What names piles here, or null when suggestions are off. */
+export function pileAi(env: Env): PileAi | null {
+	const status = aiStatus(env);
+	if (status.provider === "fake") return fakePileAi();
+	return status.provider === "workers-ai" ? workersAi(env) : null;
 }
 
 /** Workers AI as piles' namer asks it, or null if this Worker has none. */

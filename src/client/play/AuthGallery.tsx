@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type {
 	AccessUpdateResponse,
-	AiSettings,
+	AiStatus,
 	InstallationList,
 	InstallationSummary,
 	Me,
@@ -122,19 +122,14 @@ const hooks = (health: Partial<WebhookHealth>) => () =>
 	});
 
 const AI_MODEL = "@cf/google/gemma-4-26b-a4b-it";
-const AI_OFF: AiSettings = { available: true, enabled: false, model: AI_MODEL };
-const AI_ON: AiSettings = {
-	available: true,
-	enabled: true,
-	model: AI_MODEL,
-	by: "octocat",
-	at: minutesAgo(60 * 26),
-};
-const AI_LOCAL: AiSettings = { available: false, enabled: false, model: AI_MODEL };
+const AI_ON: AiStatus = { state: "on", provider: "workers-ai", model: AI_MODEL };
+const AI_OFF: AiStatus = { state: "off", provider: null, model: AI_MODEL };
+const AI_LOCAL: AiStatus = { state: "on", provider: "fake", model: "fake" };
+const AI_MISSING: AiStatus = { state: "unavailable", provider: null, model: AI_MODEL };
 
 const configured = (
 	access: Extract<SetupInfo, { status: "configured" }>["access"],
-	ai: AiSettings = AI_OFF,
+	ai: AiStatus = AI_ON,
 ): SetupInfo => ({
 	status: "configured",
 	app: APP,
@@ -143,12 +138,6 @@ const configured = (
 	access,
 	ai,
 });
-
-/** Turning AI suggestions on or off: saves after a beat. */
-async function fakeSaveAi(enabled: boolean): Promise<AiSettings> {
-	await new Promise((resolve) => setTimeout(resolve, 500));
-	return { ...AI_ON, enabled, at: new Date().toISOString() };
-}
 
 const SETUPS: {
 	label: string;
@@ -178,13 +167,13 @@ const SETUPS: {
 		info: configured({ users: ["mallory"], orgs: ["emdash-cms"], admins: [OCTOCAT, PRIYA] }, AI_ON),
 	},
 	{
-		label: "Installed: one read-only, one suspended",
+		label: "Installed: one read-only, one suspended; AI off",
 		installations: installed,
 		webhooks: hooks({ failed: 2 }),
-		info: configured({ users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] }),
+		info: configured({ users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] }, AI_OFF),
 	},
 	{
-		label: "Webhooks refused",
+		label: "Webhooks refused; no Workers AI binding",
 		installations: allLive,
 		webhooks: hooks({
 			state: "failing",
@@ -192,7 +181,7 @@ const SETUPS: {
 			failed: 6,
 			last: { event: "issues", at: minutesAgo(12), status: 401, redelivery: true },
 		}),
-		info: configured({ users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] }),
+		info: configured({ users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] }, AI_MISSING),
 	},
 	{
 		label: "Webhooks not arriving",
@@ -346,7 +335,6 @@ export default function AuthGallery() {
 								params={new URLSearchParams(params)}
 								loadInstallations={installations}
 								loadWebhooks={webhooks}
-								saveAi={fakeSaveAi}
 								onRecheck={() => {}}
 							/>
 						</Frame>

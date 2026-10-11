@@ -2,7 +2,6 @@
 //
 //   GET /api/setup            the setup page's state (and a manifest, before setup)
 //   PUT /api/setup/access     admins: replace the allowlist and admins
-//   PUT /api/setup/ai         admins: turn AI suggestions (piles' names, #73) on or off
 //   GET /api/setup/installations  admins: where the app is installed, and if it can write,
 //                                 and repositories Tack found it isn't installed on
 //   GET /api/setup/webhooks   admins: whether GitHub's webhooks reach this instance
@@ -14,8 +13,8 @@
 // The `/setup` page itself is client-side.
 
 import * as v from "valibot";
-import type { AiSettings, InstallationList, SetupInfo, WebhookHealth } from "../../shared/auth.ts";
-import { PILE_MODEL, hasAi } from "../ai.ts";
+import type { InstallationList, SetupInfo, WebhookHealth } from "../../shared/auth.ts";
+import { aiStatus } from "../ai.ts";
 import { clearCookie, readCookie, serializeCookie } from "../auth/cookies.ts";
 import { randomToken, sign, unsign } from "../auth/crypto.ts";
 import { isCrossSite, json, redirect, safeReturnTo } from "../auth/http.ts";
@@ -39,8 +38,6 @@ export async function handleSetup(request: Request, env: Env): Promise<Response 
 			return setupInfo(request, env);
 		case "PUT /api/setup/access":
 			return updateAccess(request, env);
-		case "PUT /api/setup/ai":
-			return updateAi(request, env);
 		case "GET /api/setup/webhooks":
 			return webhooks(request, env);
 		case "GET /api/setup/installations":
@@ -105,37 +102,8 @@ async function setupInfo(request: Request, env: Env): Promise<Response> {
 		viewer: session?.viewer ?? null,
 		admin,
 		access: admin ? await instance(env).accessSettings() : null,
-		ai: admin ? await aiSettings(env) : null,
+		ai: aiStatus(env),
 	} satisfies SetupInfo);
-}
-
-/** AI suggestions (#73): whether this Tack can, and whether an admin's turned them on. */
-async function aiSettings(env: Env): Promise<AiSettings> {
-	const setting = await instance(env).aiSuggestions();
-	return { available: hasAi(env), model: PILE_MODEL, ...setting };
-}
-
-const AiBody = v.object({ enabled: v.boolean() });
-
-/**
- * `PUT /api/setup/ai`, admins only: turn AI suggestions on or off. They
- * can't be turned on where there's no Workers AI to ask (local dev).
- */
-async function updateAi(request: Request, env: Env): Promise<Response> {
-	if (isCrossSite(request)) return json({ error: "forbidden" }, { status: 403 });
-	const { session } = await lookupRequest(request, env);
-	if (!session?.admin) {
-		log.warn("access.denied", { path: "/api/setup/ai", login: session?.viewer.login });
-		return json({ error: "forbidden" }, { status: 403 });
-	}
-	const body = v.safeParse(AiBody, await request.json().catch(() => null));
-	if (!body.success) return json({ error: "invalid_body" }, { status: 400 });
-	if (body.output.enabled && !hasAi(env)) {
-		return json({ error: "unavailable" }, { status: 422 });
-	}
-	await instance(env).setAiSuggestions(body.output.enabled, session.viewer.login);
-	log.info("setup.ai", { enabled: body.output.enabled, by: session.viewer.login });
-	return json(await aiSettings(env));
 }
 
 /**

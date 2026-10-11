@@ -60,24 +60,21 @@ export type SetupInfo =
 			admin: boolean;
 			/** Only for admins. */
 			access: AccessSettings | null;
-			/** AI suggestions (#73): only for admins. */
-			ai?: AiSettings | null;
+			/** AI suggestions (#73). */
+			ai?: AiStatus;
 	  };
 
 /**
- * AI suggestions (#73): naming piles and grouping stickies with Workers AI.
- * Off until an admin turns them on at /setup, as each request is billed to
- * the Cloudflare account Tack runs on.
+ * AI suggestions (#73): naming piles and grouping stickies. On by default
+ * with Workers AI (`TACK_AI` in cloudflare.config.ts, `workers-ai`); off when
+ * it's set to `off`, unavailable when the Worker has no AI binding to ask.
  */
-export interface AiSettings {
-	/** Whether this Tack has Workers AI to ask (a Worker with the `AI` binding; not in local dev). */
-	available: boolean;
-	enabled: boolean;
+export interface AiStatus {
+	state: "on" | "off" | "unavailable";
+	/** What answers while it's on: Workers AI, or local development's stand-in. */
+	provider: "workers-ai" | "fake" | null;
 	/** The model it asks. */
 	model: string;
-	/** Who turned it on or off, and when (ISO 8601). */
-	by?: string;
-	at?: string;
 }
 
 /**

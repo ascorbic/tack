@@ -531,10 +531,9 @@ export class Board extends YServer<Env> {
 
 	/**
 	 * For tests: name every pile that wants a name now (rather than a moment
-	 * after its text changes), with the instance's AI setting read afresh.
+	 * after its text changes).
 	 */
 	async namePiles(): Promise<void> {
-		await this.piles?.enabled(true);
 		await this.piles?.namer.scan();
 	}
 

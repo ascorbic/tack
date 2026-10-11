@@ -36,8 +36,9 @@ export interface WorkerOptions {
 	assets?: (request: Request) => Response | Promise<Response>;
 	/**
 	 * Workers AI, as the `AI` binding (`cloudflare.config.ts` declares it in
-	 * production): a fake that answers from Node (see `fake-ai.ts`). Every
-	 * Worker has one, as production does; pass `null` for none, as in dev.
+	 * production and Previews): a fake that answers from Node (see
+	 * `fake-ai.ts`). Every Worker has one, as production does; pass `null`
+	 * for none. `bindings: { TACK_AI: "off" }` turns suggestions off.
 	 */
 	ai?: FakeAi | null;
 }
@@ -87,6 +88,8 @@ export function startWorker(options: WorkerOptions = {}): Miniflare {
 			TACK_SECRET,
 			// An alias, so tests cover one (production's default is none).
 			TACK_COMMAND_ALIAS: "tack",
+			// AI suggestions on, as in production, asking the fake below (#73).
+			TACK_AI: "workers-ai",
 			...(options.devAuth ? { TACK_DEV_AUTH: "1" } : {}),
 			...(options.clock ? { TACK_TEST_CLOCK: "1" } : {}),
 			...options.bindings,
