@@ -41,7 +41,7 @@ test.describe.serial("a board's life", () => {
 		// It opens the template picker: start blank.
 		await page.getByRole("option", { name: /^Blank board/ }).click();
 		await page.getByRole("button", { name: "Create board" }).click();
-		await expect(page).toHaveURL(/\/b\/[a-z0-9]{10}\/untitled-board$/);
+		await expect(page).toHaveURL(/\/b\/[a-z0-9]{10}\/untitled-board$/, { timeout: 15_000 });
 		const title = page.getByRole("textbox", { name: "Board title" });
 		// The first load of a board can be slow on a cold dev server.
 		await expect(title).toBeFocused({ timeout: 15_000 });
@@ -116,11 +116,17 @@ test.describe.serial("a board's life", () => {
 		// The dev server has no GitHub App, so everyone counts as on the
 		// instance: make that view-only too, as the public always is.
 		await page.getByLabel("What people on this Tack can do").selectOption("viewer");
-		await expect(page.getByRole("dialog")).toContainText("People on this Tack can view.");
+		await expect(page.getByRole("dialog")).toContainText("Everyone who can sign in here can view.");
 
 		await stranger.reload();
 		await expect(stranger.getByText("View only")).toBeVisible();
-		await expect(stranger.getByRole("toolbar", { name: "Tools" })).toHaveCount(0);
+		// Looking around, but no commenting without signing in, and it says so.
+		const tools = stranger.getByRole("toolbar", { name: "Tools" });
+		await expect(tools.getByRole("button")).toHaveCount(3);
+		await expect(tools.getByRole("button", { name: /^Comment/ })).toHaveAttribute(
+			"aria-label",
+			"Comment: Sign in to comment",
+		);
 		await stranger.context().close();
 	});
 });
