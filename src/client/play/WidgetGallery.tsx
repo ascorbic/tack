@@ -1,3 +1,4 @@
+import { plainSearchError } from "../../shared/queryHelp.ts";
 import { useMemo, useState } from "react";
 import * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
@@ -132,7 +133,11 @@ const SAMPLES: Sample[] = [
 		q: "repo:acme/imagekit is:open label:",
 		status: error(
 			"invalid",
-			"The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them.",
+			// As the server says it: GitHub's own words, made plain.
+			plainSearchError(
+				"The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them.",
+				"repo:acme/imagekit is:open label:",
+			),
 		),
 		h: 320,
 	},

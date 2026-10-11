@@ -1,3 +1,4 @@
+import { plainSearchError } from "../../shared/queryHelp.ts";
 import type { Card } from "../../shared/cards.ts";
 import { mentionsMe } from "../../shared/search.ts";
 import type { QueryError, SearchQuery, SearchResult } from "../../shared/widgets.ts";
@@ -153,7 +154,10 @@ async function searchGraphQL(
 	}
 	const search = body.data?.search;
 	if (!search) {
-		return error("invalid", problem?.message ?? "GitHub couldn't run this search.");
+		return error(
+			"invalid",
+			problem?.message ? plainSearchError(problem.message, q) : "GitHub couldn't run this search.",
+		);
 	}
 	const items: Card[] = [];
 	for (const node of search.nodes) {
@@ -204,9 +208,10 @@ async function searchRest(
 		const body = await response
 			.json<{ message?: string; errors?: { message?: string }[] }>()
 			.catch(() => null);
+		const message = body?.errors?.[0]?.message ?? body?.message;
 		return error(
 			"invalid",
-			body?.errors?.[0]?.message ?? body?.message ?? "GitHub couldn't run this search.",
+			message ? plainSearchError(message, q) : "GitHub couldn't run this search.",
 		);
 	}
 	if (!response.ok) return error("error", `GitHub answered ${response.status}.`);

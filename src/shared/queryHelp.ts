@@ -152,3 +152,25 @@ export function mightMiss(q: string): boolean {
 		(scope.repos.length === 0 && scope.owners.length === 0)
 	);
 }
+
+/**
+ * GitHub's search errors, said plainly: its message for a repository or
+ * owner it can't see names neither, and reads like a stack trace. Anything
+ * not recognised is passed through as it came.
+ */
+export function plainSearchError(message: string, q: string): string {
+	if (
+		/cannot be searched either because the resources do not exist or you do not have permission/i.test(
+			message,
+		)
+	) {
+		const { repos, owners } = searchScope(parseSearch(q));
+		const names = [...repos, ...owners];
+		if (names.length === 0)
+			return "Some of what this searches doesn't exist, or is private to you.";
+		const list =
+			names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
+		return `Can't see ${list}: ${names.length === 1 ? "it doesn't" : "one doesn't"} exist, or it's private to you. Check the spelling, or sign in as someone who can read it.`;
+	}
+	return message;
+}

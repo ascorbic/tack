@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { mightMiss, rescueQuery } from "../src/shared/queryHelp.ts";
+import { mightMiss, plainSearchError, rescueQuery } from "../src/shared/queryHelp.ts";
 import { withLogin } from "../src/shared/search.ts";
 import { listPresets } from "../src/shared/widgetRegistry.ts";
 
@@ -84,5 +84,25 @@ describe("@me on a shared board", () => {
 			"is:open assignee:@me",
 			"is:pr is:open review-requested:@me",
 		]);
+	});
+});
+
+describe("plainSearchError", () => {
+	const github =
+		"The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them.";
+
+	it("names the repository GitHub couldn't see", () => {
+		expect(plainSearchError(github, "repo:acme/imagekit is:open")).toBe(
+			"Can't see acme/imagekit: it doesn't exist, or it's private to you. Check the spelling, or sign in as someone who can read it.",
+		);
+		expect(plainSearchError(github, "repo:acme/a org:emdash")).toMatch(
+			/^Can't see acme\/a or emdash: one doesn't exist/,
+		);
+	});
+
+	it("passes anything else through as it came", () => {
+		expect(plainSearchError("Something else went wrong.", "repo:a/b")).toBe(
+			"Something else went wrong.",
+		);
 	});
 });
