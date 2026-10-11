@@ -375,9 +375,34 @@
 }
 
 .depmap-pop-links dd {
+	min-width: 0;
 	margin: 0;
-	font-family: var(--font-mono);
+}
+
+.depmap-pop-items {
+	display: grid;
+	gap: 1px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.depmap-pop-items li {
+	display: flex;
+	gap: 5px;
+	min-width: 0;
+	white-space: nowrap;
+}
+
+.depmap-pop-items .mono {
+	flex: none;
+	color: var(--muted);
 	font-size: 11px;
+}
+
+.depmap-pop-item-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .depmap-pop-actions {

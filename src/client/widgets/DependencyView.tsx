@@ -474,6 +474,32 @@ function Node({
 	);
 }
 
+/** Items a popover lists, by number and title, so they can be told apart. */
+function Linked({
+	keys,
+	graph,
+	refOf,
+}: {
+	keys: string[];
+	graph: DependencyGraph;
+	refOf: (key: string) => string;
+}) {
+	return (
+		<ul className="depmap-pop-items">
+			{keys.map((key) => {
+				const card = graph.nodes.get(key)?.card;
+				const title = card && !isMissing(card) ? card.title : null;
+				return (
+					<li key={key} title={title ?? undefined}>
+						<span className="mono">{refOf(key)}</span>
+						{title && <span className="depmap-pop-item-title">{title}</span>}
+					</li>
+				);
+			})}
+		</ul>
+	);
+}
+
 /** A clicked item: what it waits on, what waits on it, and putting it on the board. */
 function Pop(
 	props: DependencyViewProps & {
@@ -520,13 +546,17 @@ function Pop(
 				{blockers.length > 0 && (
 					<>
 						<dt>Blocked by</dt>
-						<dd>{blockers.map(ref).join(", ")}</dd>
+						<dd>
+							<Linked keys={blockers} graph={graph} refOf={ref} />
+						</dd>
 					</>
 				)}
 				{blocks.length > 0 && (
 					<>
 						<dt>Blocks</dt>
-						<dd>{blocks.map(ref).join(", ")}</dd>
+						<dd>
+							<Linked keys={blocks} graph={graph} refOf={ref} />
+						</dd>
 					</>
 				)}
 			</dl>

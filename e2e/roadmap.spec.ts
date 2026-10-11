@@ -158,6 +158,9 @@ test("a blocker outside the section goes onto the board from its popover", async
 	await outside.click();
 	const pop = map.getByRole("dialog", { name: "#426: dependencies" });
 	await expect(pop).toContainText("Blocked by");
+	// What it waits on is named, not just numbered.
+	await expect(pop.locator(".depmap-pop-items li").first()).toContainText(/#\d+\s*\S+/);
+	await expect(pop.locator(".depmap-pop-item-title").first()).not.toBeEmpty();
 	await pop.getByRole("button", { name: "Add to the board" }).click();
 	await expect.poll(async () => (await shapes(page)).some((s) => s.ref === key(426))).toBe(true);
 	const card = (await shapes(page)).find((s) => s.ref === key(426));
