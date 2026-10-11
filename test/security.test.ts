@@ -3,7 +3,7 @@
 // and presence that can't be forged.
 
 import { readFileSync } from "node:fs";
-import type { Miniflare } from "miniflare";
+import { type Miniflare, Response as MfResponse } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
 import { sanitizeAwareness } from "../src/server/awareness.ts";
@@ -32,7 +32,7 @@ describe("security headers", () => {
 		expect(csp).not.toMatch(/script-src[^;]*'unsafe-(inline|eval)'/);
 		expect(csp).toContain("frame-ancestors 'none'");
 		expect(csp).toContain("object-src 'none'");
-		expect(csp).toContain("base-uri 'none'");
+		expect(csp).toContain("base-uri 'self'");
 		expect(headersFile(hashes)).toContain(`Content-Security-Policy: ${csp}`);
 	});
 
@@ -50,23 +50,53 @@ describe("security headers", () => {
 
 	it("go on Worker responses, keeping what a route set, and leave WebSocket upgrades alone", async () => {
 		const request = new Request("https://tack.example/api/me");
-		const json = withSecurityHeaders(request, Response.json({}));
+		const json = await withSecurityHeaders(request, Response.json({}));
 		expect(json.headers.get("content-security-policy")).toBe(API_CSP);
 		expect(json.headers.get("x-content-type-options")).toBe("nosniff");
 		expect(json.headers.get("strict-transport-security")).toBe("max-age=31536000");
 		expect(json.headers.get("cross-origin-resource-policy")).toBe("same-origin");
-		const svg = withSecurityHeaders(
+		const svg = await withSecurityHeaders(
 			new Request("https://tack.example/embed/x.svg"),
 			new Response("<svg/>", { headers: { "content-type": "image/svg+xml" } }),
 		);
 		expect(svg.headers.get("content-security-policy")).toBe(SVG_CSP);
-		const own = withSecurityHeaders(
+		const own = await withSecurityHeaders(
 			request,
 			new Response("", { headers: { "content-security-policy": "default-src 'self'" } }),
 		);
 		expect(own.headers.get("content-security-policy")).toBe("default-src 'self'");
-		const plain = withSecurityHeaders(new Request("http://localhost/api/me"), new Response(""));
+		const plain = await withSecurityHeaders(
+			new Request("http://localhost/api/me"),
+			new Response(""),
+		);
 		expect(plain.headers.has("strict-transport-security")).toBe(false);
+	});
+
+	it("give pages the Worker serves the app's policy, with their own inline scripts' hashes", async () => {
+		// The dev server's page has Vite's inline scripts as well as the theme script.
+		const html = `<head><script>var theme = 1;</script><script type="module">import "/@react-refresh";</script></head><body></body>`;
+		const { scripts } = await inlineHashes(html);
+		const page = await withSecurityHeaders(
+			new Request("https://tack.example/b/abc/plan"),
+			new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } }),
+		);
+		expect(page.headers.get("content-security-policy")).toBe(appCsp({ scripts }));
+		expect(await page.text()).toBe(html);
+		expect(page.headers.get("x-frame-options")).toBe("DENY");
+		expect(page.headers.has("cross-origin-resource-policy")).toBe(false);
+		// HEAD (no body) gets the same policy as the last page.
+		const head = await withSecurityHeaders(
+			new Request("https://tack.example/b/abc/plan", { method: "HEAD" }),
+			new Response(null, { headers: { "content-type": "text/html" } }),
+		);
+		expect(head.headers.get("content-security-policy")).toBe(appCsp({ scripts }));
+		// A 304 updates the cached page's headers, so it carries no policy to replace its own.
+		const unchanged = await withSecurityHeaders(
+			new Request("https://tack.example/b/abc/plan"),
+			new Response(null, { status: 304 }),
+		);
+		expect(unchanged.headers.has("content-security-policy")).toBe(false);
+		expect(unchanged.headers.get("x-content-type-options")).toBe("nosniff");
 	});
 });
 
@@ -138,6 +168,45 @@ describe("on the Worker", () => {
 		expect(own.status).toBe(101);
 		own.webSocket?.accept();
 		own.webSocket?.close();
+	});
+});
+
+describe("pages the Worker serves", () => {
+	const PAGE = `<!doctype html><html><head><title>Tack</title><script>var theme = "light";</script></head><body><script type="module" src="/assets/app.js"></script></body></html>`;
+	let mf: Miniflare;
+	beforeAll(() => {
+		mf = startWorker({
+			devAuth: true,
+			assets: () =>
+				new MfResponse(PAGE, { headers: { "content-type": "text/html; charset=utf-8" } }),
+		});
+	});
+	afterAll(() => mf.dispose());
+
+	it("get the app's policy, not the API's, with board pages public or not", async () => {
+		const { scripts } = await inlineHashes(PAGE);
+		const cookie = await signIn(mf, "olive");
+		const made = async (visibility: string) =>
+			(
+				(await (
+					await mf.dispatchFetch(`${ORIGIN}/api/boards`, {
+						method: "POST",
+						headers: { cookie, origin: ORIGIN, "content-type": "application/json" },
+						body: JSON.stringify({ title: "Page", visibility }),
+					})
+				).json()) as { id: string }
+			).id;
+		for (const path of [
+			`/b/${await made("public")}/page`,
+			`/b/${await made("private")}/page`,
+			"/b/nothing-here",
+		]) {
+			const response = await mf.dispatchFetch(`${ORIGIN}${path}`);
+			expect(response.status, path).toBe(200);
+			expect(response.headers.get("content-security-policy"), path).toBe(appCsp({ scripts }));
+			expect(response.headers.get("x-frame-options"), path).toBe("DENY");
+			expect(await response.text(), path).toContain(`var theme = "light"`);
+		}
 	});
 });
 

@@ -164,8 +164,9 @@ const ROWS: Row[] = [
 		refusedAs: [401, 403],
 	},
 	{
+		// Signed out, only its members, to show mentions by name (not who's been looking, #56).
 		route: "GET /api/boards/:id/people (public)",
-		allowed: signedIn,
+		allowed: everyone,
 		request: (a) => call(a, "GET", `/api/boards/${publicBoard}/people`),
 	},
 	{

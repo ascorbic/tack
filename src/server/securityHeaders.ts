@@ -51,11 +51,15 @@ export function appCsp(hashes: InlineHashes): string {
 		"style-src": ["'self'", "'unsafe-inline'"],
 		"img-src": ["'self'", "data:", "blob:", "https:"],
 		"font-src": ["'self'", "data:"],
-		"connect-src": ["'self'", "https://avatars.githubusercontent.com"],
+		// Snapshots and exported images fetch avatars to inline them, some by
+		// way of github.com/{login}.png, which redirects to the avatars host.
+		"connect-src": ["'self'", "https://avatars.githubusercontent.com", "https://github.com"],
 		"worker-src": ["'self'", "blob:"],
 		"frame-src": ["'self'"],
 		"object-src": ["'none'"],
-		"base-uri": ["'none'"],
+		// modern-screenshot (snapshots, exported images) resolves the stylesheet's
+		// font URLs in a document of its own with a <base> of this origin.
+		"base-uri": ["'self'"],
 		"form-action": ["'self'", "https://github.com"],
 		"frame-ancestors": ["'none'"],
 		"manifest-src": ["'self'"],
@@ -110,35 +114,61 @@ function title(name: string): string {
 	);
 }
 
+/** The app's policy for the last page the Worker served, for answering HEAD alike. */
+let lastPageCsp: string | null = null;
+
 /**
  * The Worker's response with the security headers added: the common ones,
- * HSTS over HTTPS, a policy for what it is (nothing at all for data; inline
- * styles only for SVG), and `same-origin` resources for the API. Anything a
- * route set itself is kept. WebSocket upgrades pass through untouched.
+ * HSTS over HTTPS, and a policy for what it is. Pages (the app's
+ * `index.html`, which the Worker serves for `/b/…` with a public board's
+ * link preview tags) get the app's policy, with the hashes of the inline
+ * scripts actually in them, so the dev server's page (which Vite rewrites)
+ * works too; SVG gets inline styles only; everything else (data) gets a
+ * policy that loads nothing, and `same-origin` resources for the API.
+ * Anything a route set itself is kept. WebSocket upgrades pass through
+ * untouched.
  */
-export function withSecurityHeaders(request: Request, response: Response): Response {
+export async function withSecurityHeaders(request: Request, response: Response): Promise<Response> {
 	if (response.status === 101 || response.webSocket) return response;
 	const url = new URL(request.url);
-	let headers: Headers;
-	let result = response;
-	try {
-		headers = response.headers;
-		headers.set("x-tack-probe", "1");
-		headers.delete("x-tack-probe");
-	} catch {
-		// Immutable (a response from fetch or another object): copy it.
-		result = new Response(response.body, response);
-		headers = result.headers;
+	const type = response.headers.get("content-type") ?? "";
+	let result: Response;
+	if (
+		type.includes("text/html") &&
+		response.status !== 304 &&
+		!response.headers.has("content-security-policy")
+	) {
+		// Read, to hash its inline scripts: pages are a few kilobytes.
+		const html = response.body ? await response.text() : null;
+		if (html !== null) lastPageCsp = appCsp(await inlineHashes(html));
+		result = new Response(html, response);
+		result.headers.set("content-security-policy", lastPageCsp ?? appCsp({ scripts: [] }));
+	} else {
+		result = mutable(response);
 	}
+	const headers = result.headers;
 	const set = (name: string, value: string) => {
 		if (!headers.has(name)) headers.set(name, value);
 	};
 	for (const [name, value] of Object.entries(COMMON_HEADERS)) set(name, value);
 	if (url.protocol === "https:") set("strict-transport-security", "max-age=31536000");
-	const type = headers.get("content-type") ?? "";
-	set("content-security-policy", type.includes("image/svg+xml") ? SVG_CSP : API_CSP);
+	// A 304's headers update the cached response's: it keeps the policy it came with.
+	if (result.status !== 304) {
+		set("content-security-policy", type.includes("image/svg+xml") ? SVG_CSP : API_CSP);
+	}
 	if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) {
 		set("cross-origin-resource-policy", "same-origin");
 	}
 	return result;
+}
+
+/** The response, or a copy of it whose headers can change (one from fetch or another object). */
+function mutable(response: Response): Response {
+	try {
+		response.headers.set("x-tack-probe", "1");
+		response.headers.delete("x-tack-probe");
+		return response;
+	} catch {
+		return new Response(response.body, response);
+	}
 }
