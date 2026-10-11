@@ -1,5 +1,7 @@
 // A thin wrapper over fetch for GitHub's REST API and OAuth endpoints.
 
+import { forgeFetch } from "../forges/rateLimit.ts";
+
 export const API = "https://api.github.com";
 export const WEB = "https://github.com";
 
@@ -16,7 +18,7 @@ export class GitHubError extends Error {
 /** Call the REST API, at a path like `/repos/owner/name`. */
 export function gh(path: string, init: GitHubInit = {}): Promise<Response> {
 	const { auth, ...rest } = init;
-	return fetch(`${API}${path}`, {
+	return forgeFetch(`${API}${path}`, {
 		...rest,
 		headers: {
 			accept: "application/vnd.github+json",

@@ -32,14 +32,13 @@ import type {
 	RepoIdentity,
 	WriteAuth,
 } from "./types.ts";
+import { forgeFetch, graphqlRateLimited, noteBodyLimit, rateLimitOf } from "./rateLimit.ts";
 
 const HOST = "github.com";
 const API = "https://api.github.com";
 const GRAPHQL = "https://api.github.com/graphql";
 /** Give up on a request that hasn't answered in this long (and say it may have gone through). */
 const TIMEOUT_MS = 20_000;
-/** GitHub's advice for secondary rate limits with no `retry-after`: wait at least a minute. */
-const SECONDARY_WAIT_MS = 60_000;
 /** An earlier attempt's creation counts as ours if it's at most this much older than the attempt. */
 const RETRY_SLACK_MS = 60_000;
 
@@ -96,7 +95,7 @@ interface CallOptions {
 
 async function send(token: string | null, url: string, options: CallOptions): Promise<Response> {
 	try {
-		return await fetch(url, {
+		return await forgeFetch(url, {
 			method: options.method ?? "GET",
 			headers: headers(token, options.body !== undefined),
 			body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -313,18 +312,10 @@ async function parentOf(token: string, child: Item): Promise<string | null> {
 	}
 }
 
-/** When a rate limit lifts, if this response is one. */
+/** When a rate limit lifts, if this response is one (see rateLimit.ts). */
 function rateLimitedUntil(response: Response, message: string): number | null {
 	if (response.status !== 403 && response.status !== 429) return null;
-	const now = Date.now();
-	const retryAfter = Number(response.headers.get("retry-after"));
-	if (retryAfter > 0) return now + retryAfter * 1000;
-	if (response.headers.get("x-ratelimit-remaining") === "0") {
-		const reset = Number(response.headers.get("x-ratelimit-reset"));
-		return reset > 0 ? Math.max(reset * 1000, now + 1000) : now + SECONDARY_WAIT_MS;
-	}
-	if (response.status === 429 || /rate limit|abuse/i.test(message)) return now + SECONDARY_WAIT_MS;
-	return null;
+	return rateLimitOf(response, { message })?.retryAt ?? null;
 }
 
 interface GraphQLError {
@@ -346,8 +337,8 @@ async function graphql<T>(
 	if (!response.ok) return refused(response, what);
 	const body = await response.json<{ data?: T | null; errors?: GraphQLError[] }>();
 	const errors = body.errors ?? [];
-	if (errors.some((error) => error.type === "RATE_LIMITED")) {
-		const retryAt = rateLimitedUntil(response, "rate limit") ?? Date.now() + SECONDARY_WAIT_MS;
+	if (graphqlRateLimited(errors)) {
+		const retryAt = noteBodyLimit(token ? `Bearer ${token}` : null, response, GRAPHQL);
 		throw new WriteFailure({ ok: false, error: rateLimited(retryAt), retryable: true, retryAt });
 	}
 	if (errors.length > 0 || !body.data) {
@@ -1053,7 +1044,7 @@ async function createDiscussion(
  * don't matter. Throws if GitHub can't say.
  */
 export async function canWriteGitHub(repo: RepoIdentity, token: string): Promise<boolean> {
-	const response = await fetch(`${API}/repositories/${repo.id}`, {
+	const response = await forgeFetch(`${API}/repositories/${repo.id}`, {
 		headers: headers(token),
 		signal: AbortSignal.timeout(TIMEOUT_MS),
 	});

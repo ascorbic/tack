@@ -13,6 +13,7 @@ import {
 	normaliseGqlPull,
 } from "./github-graphql.ts";
 import type { ReadAuth } from "./types.ts";
+import { forgeFetch, gate, graphqlRateLimited, noteBodyLimit, rateLimitOf } from "./rateLimit.ts";
 
 // Searching GitHub for widgets (#37): GraphQL's `search` with a token, so
 // results carry the same full card data as a fetch (CI, reviews, linked
@@ -30,9 +31,6 @@ const GRAPHQL = `${API}/graphql`;
 const MAX_QUERY = 256;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
-
-/** When each token (or anonymous searching) may search again, after a rate limit. */
-const backoff = new Map<string, number>();
 
 const SEARCH = `query TackSearch($q: String!, $first: Int!) {
 	search(query: $q, type: ISSUE, first: $first) {
@@ -59,18 +57,18 @@ export function searchText(query: SearchQuery): string {
 	return `${q} sort:${query.sort}-${query.order ?? "desc"}`;
 }
 
-/** When a rate-limited response says to try again (ms since the epoch). */
-function retryAtOf(response: Response): number | null {
-	const limited =
-		response.status === 429 ||
-		((response.status === 403 || response.status === 429) &&
-			(response.headers.get("x-ratelimit-remaining") === "0" ||
-				response.headers.has("retry-after")));
-	if (!limited) return null;
-	const after = Number(response.headers.get("retry-after"));
-	if (after > 0) return Date.now() + after * 1000;
-	const reset = Number(response.headers.get("x-ratelimit-reset"));
-	return reset > 0 ? reset * 1000 : Date.now() + 60_000;
+/**
+ * When a refused search may run again (ms since the epoch), if it was rate
+ * limited (see rateLimit.ts). Once GitHub limits a token, the shared gate
+ * answers for it until the limit lifts, without calling GitHub.
+ */
+async function retryAtOf(response: Response, url: string | URL): Promise<number | null> {
+	if (response.ok) return null;
+	const message = await response
+		.clone()
+		.text()
+		.catch(() => "");
+	return rateLimitOf(response, { message, url })?.retryAt ?? null;
 }
 
 function headers(token: string | null): Record<string, string> {
@@ -104,16 +102,7 @@ export async function searchGitHub(
 	}
 	const limit = Math.min(Math.max(1, Math.round(query.limit ?? DEFAULT_LIMIT)), MAX_LIMIT);
 	const token = auth?.token || env.GITHUB_TOKEN || null;
-	const key = token ?? "anonymous";
-	const until = backoff.get(key) ?? 0;
-	if (until > Date.now()) {
-		return error("rate_limited", "GitHub asked Tack to slow down its searches.", until);
-	}
-	const result = token ? await searchGraphQL(q, limit, token) : await searchRest(q, limit, query);
-	if (result.kind === "error" && result.reason === "rate_limited" && result.retryAt) {
-		backoff.set(key, result.retryAt);
-	}
-	return result;
+	return token ? await searchGraphQL(q, limit, token) : await searchRest(q, limit, query);
 }
 
 async function searchGraphQL(
@@ -123,7 +112,7 @@ async function searchGraphQL(
 ): Promise<SearchResult | QueryError> {
 	let response: Response;
 	try {
-		response = await fetch(GRAPHQL, {
+		response = await forgeFetch(GRAPHQL, {
 			method: "POST",
 			headers: { ...headers(token), "content-type": "application/json" },
 			body: JSON.stringify({
@@ -135,7 +124,7 @@ async function searchGraphQL(
 	} catch {
 		return error("error", "GitHub couldn't be reached.");
 	}
-	const retryAt = retryAtOf(response);
+	const retryAt = await retryAtOf(response, GRAPHQL);
 	if (retryAt)
 		return error("rate_limited", "GitHub asked Tack to slow down its searches.", retryAt);
 	if (response.status === 401) return error("no_access", "GitHub didn't accept the token.");
@@ -145,11 +134,11 @@ async function searchGraphQL(
 		errors?: { type?: string; message?: string }[];
 	}>();
 	const problem = body.errors?.[0];
-	if (problem?.type === "RATE_LIMITED") {
+	if (graphqlRateLimited(body.errors)) {
 		return error(
 			"rate_limited",
 			"GitHub asked Tack to slow down its searches.",
-			Date.now() + 60_000,
+			noteBodyLimit(`Bearer ${token}`, response, GRAPHQL),
 		);
 	}
 	const search = body.data?.search;
@@ -197,11 +186,11 @@ async function searchRest(
 	}
 	let response: Response;
 	try {
-		response = await fetch(url, { headers: headers(null) });
+		response = await forgeFetch(url, { headers: headers(null) });
 	} catch {
 		return error("error", "GitHub couldn't be reached.");
 	}
-	const retryAt = retryAtOf(response);
+	const retryAt = await retryAtOf(response, url);
 	if (retryAt)
 		return error("rate_limited", "GitHub asked Tack to slow down its searches.", retryAt);
 	if (response.status === 422) {
@@ -228,7 +217,7 @@ async function searchRest(
 	};
 }
 
-/** For tests: forget every backoff. */
+/** For tests: forget every rate limit this isolate has seen. */
 export function resetSearchBackoff(): void {
-	backoff.clear();
+	gate.clear();
 }

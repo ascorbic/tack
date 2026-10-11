@@ -77,7 +77,15 @@ interface Decision {
 	board: string | null;
 }
 
-class RetryLater extends Error {}
+class RetryLater extends Error {
+	constructor(
+		message: string,
+		/** When a rate limit lifts, if that's why. */
+		readonly retryAt?: number,
+	) {
+		super(message);
+	}
+}
 
 export class CommentCommands {
 	/** Waits between tries; tests shorten them. */
@@ -215,7 +223,7 @@ export class CommentCommands {
 						this.host.env,
 						attempts > 1 ? { retryOf: firstAt } : {},
 					);
-					if (!reply.ok && reply.retryable) throw new RetryLater(reply.error);
+					if (!reply.ok && reply.retryable) throw new RetryLater(reply.error, reply.retryAt);
 					if (!reply.ok) logger.warn("command.reply.failed", { error: reply.error });
 					this.update(row.comment, { replied_at: Date.now() });
 				}
@@ -250,7 +258,12 @@ export class CommentCommands {
 				return;
 			}
 			const waits = this.retryMs;
-			const retryAt = Date.now() + (waits[attempts - 1] ?? waits.at(-1) ?? 60_000);
+			// A rate limit says when it lifts: never try again before then.
+			const limitedUntil = error instanceof RetryLater ? (error.retryAt ?? 0) : 0;
+			const retryAt = Math.max(
+				Date.now() + (waits[attempts - 1] ?? waits.at(-1) ?? 60_000),
+				limitedUntil,
+			);
 			this.update(row.comment, { due_at: retryAt });
 			logger.warn("command.retry", { attempts, retryAt, error });
 		}

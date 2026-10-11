@@ -11,6 +11,7 @@ import {
 } from "../../shared/cards.ts";
 import { itemKey } from "../../shared/refs.ts";
 import type { RepoIdentity } from "./types.ts";
+import { forgeFetch, graphqlRateLimited, noteBodyLimit } from "./rateLimit.ts";
 
 // Batched reads from GitHub's GraphQL API. Known items are refetched by node
 // id with `nodes(ids:)`; new ones by number, as aliased `issueOrPullRequest`
@@ -206,7 +207,7 @@ async function graphql<T>(
 ): Promise<T> {
 	let response: Response;
 	try {
-		response = await fetch(ENDPOINT, {
+		response = await forgeFetch(ENDPOINT, {
 			method: "POST",
 			headers: {
 				authorization: `Bearer ${token}`,
@@ -220,6 +221,11 @@ async function graphql<T>(
 	}
 	if (!response.ok) throw new GraphQLUnavailable(`GraphQL ${response.status}`);
 	const body = await response.json<{ data?: T | null; errors?: { type?: string }[] }>();
+	if (graphqlRateLimited(body.errors)) {
+		// Remembered, so the REST fallback with the same token doesn't call either.
+		noteBodyLimit(`Bearer ${token}`, response, ENDPOINT);
+		throw new GraphQLUnavailable("GraphQL rate limited");
+	}
 	// Missing nodes come back as nulls with NOT_FOUND errors alongside the
 	// data. Only a response with no data at all means the request failed.
 	if (!body.data) throw new GraphQLUnavailable(`GraphQL errors: ${JSON.stringify(body.errors)}`);

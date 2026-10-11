@@ -11,6 +11,7 @@ import {
 	listDirectoryGitHub,
 	repoMetaGitHub,
 } from "../src/server/forges/github-write.ts";
+import { gate } from "../src/server/forges/rateLimit.ts";
 import type { RepoIdentity, WriteAuth } from "../src/server/forges/types.ts";
 import { FakeGitHub, type FakeUser } from "./fake-github.ts";
 
@@ -52,6 +53,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	gate.clear();
 });
 
 function apply(op: Operation, options = {}) {
@@ -440,6 +442,11 @@ describe("failures", () => {
 			message: "API rate limit exceeded",
 		});
 		expect(await apply(op)).toMatchObject({ ok: false, retryable: true, retryAt: reset * 1000 });
+		// Until then, writes with that token wait without asking GitHub (rateLimit.ts).
+		const asked = github.requests.length;
+		expect(await apply(op)).toMatchObject({ ok: false, retryable: true, retryAt: reset * 1000 });
+		expect(github.requests.length).toBe(asked);
+		gate.clear();
 
 		const before = Date.now();
 		github.failWrites({
@@ -450,6 +457,7 @@ describe("failures", () => {
 		const secondary = await apply(op);
 		expect(secondary).toMatchObject({ ok: false, retryable: true });
 		expect(!secondary.ok && secondary.retryAt).toBeGreaterThanOrEqual(before + 30_000);
+		gate.clear();
 
 		github.failWrites({ status: 403, message: "You have exceeded a secondary rate limit" });
 		const unsaid = await apply(op);

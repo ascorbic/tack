@@ -1,5 +1,6 @@
 import { log } from "../log.ts";
 import { appJwt } from "./tokens.ts";
+import { forgeFetch } from "../forges/rateLimit.ts";
 
 // GitHub doesn't retry failed webhook deliveries, so a cron asks it to. The
 // app's delivery log says which deliveries failed; each one is redelivered a
@@ -99,7 +100,7 @@ export async function redeliver(
 	const attempts = new Map<string, HookDelivery[]>();
 	let url: string | null = `${API}/app/hook/deliveries?per_page=100`;
 	for (let page = 0; url && page < maxPages; page++) {
-		const response: Response = await fetch(url, { headers });
+		const response: Response = await forgeFetch(url, { headers });
 		if (!response.ok) {
 			return { status: "error", reason: `listing deliveries: ${response.status}` };
 		}
@@ -125,7 +126,7 @@ export async function redeliver(
 			gaveUp.push(guid);
 			continue;
 		}
-		const response = await fetch(`${API}/app/hook/deliveries/${latest.id}/attempts`, {
+		const response = await forgeFetch(`${API}/app/hook/deliveries/${latest.id}/attempts`, {
 			method: "POST",
 			headers,
 		});
@@ -151,5 +152,11 @@ export async function redeliver(
 
 function nextLink(response: Response): string | null {
 	const link = response.headers.get("link") ?? "";
-	return /<([^>]+)>;\s*rel="next"/.exec(link)?.[1] ?? null;
+	const next = /<([^>]+)>;\s*rel="next"/.exec(link)?.[1] ?? null;
+	// The app's JWT only ever goes to GitHub's API, wherever a header points.
+	try {
+		return next && new URL(next).origin === new URL(API).origin ? next : null;
+	} catch {
+		return null;
+	}
 }

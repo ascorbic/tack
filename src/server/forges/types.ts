@@ -106,7 +106,8 @@ export type CommandReaction = "eyes" | "rocket" | "confused";
 
 export type ReplyResult =
 	| { ok: true; url: string }
-	| { ok: false; error: string; retryable: boolean };
+	/** `retryAt`: a rate limit's end (ms since the epoch), when that's why. */
+	| { ok: false; error: string; retryable: boolean; retryAt?: number };
 
 export type WebhookResult =
 	| { type: "delivery"; delivery: Delivery }

@@ -37,6 +37,7 @@ import type {
 	RepoIdentity,
 	WebhookResult,
 } from "./types.ts";
+import { forgeFetch, rateLimitOf } from "./rateLimit.ts";
 
 const HOST = "github.com";
 const API = "https://api.github.com";
@@ -214,8 +215,8 @@ function restHeaders(token: string | null): HeadersInit {
 
 function missingReason(response: Response): MissingReason {
 	if (response.status === 404) return "not_found";
-	const rateLimited =
-		response.status === 429 || response.headers.get("x-ratelimit-remaining") === "0";
+	// A rate limit (see rateLimit.ts) is a passing error, not a refusal.
+	const rateLimited = response.status === 429 || rateLimitOf(response) !== null;
 	if ((response.status === 401 || response.status === 403) && !rateLimited) return "forbidden";
 	return "error";
 }
@@ -240,13 +241,13 @@ async function fetchItemRest(
 	const headers = restHeaders(token);
 	const base = `${API}/repos/${name}`;
 	try {
-		const res = await fetch(`${base}/issues/${number}`, { headers });
+		const res = await forgeFetch(`${base}/issues/${number}`, { headers });
 		if (!res.ok) return { key, missing: true, reason: missingReason(res) };
 		const issue = await res.json<GitHubIssueLike>();
 		if (issue.pull_request) {
 			// The issues endpoint doesn't say whether a PR is a draft, or
 			// anything about its head, reviewers or mergeability.
-			const pr = await fetch(`${base}/pulls/${number}`, { headers });
+			const pr = await forgeFetch(`${base}/pulls/${number}`, { headers });
 			if (pr.ok) {
 				const pull = await pr.json<GitHubIssueLike>();
 				Object.assign(issue, {
@@ -280,7 +281,7 @@ async function reconcileRest(name: string, cards: Card[], token: string | null) 
 	})) {
 		url.searchParams.set(param, value);
 	}
-	const res = await fetch(url, { headers: restHeaders(token) }).catch(() => null);
+	const res = await forgeFetch(url, { headers: restHeaders(token) }).catch(() => null);
 	if (!res?.ok) return [];
 	const cached = new Map(cards.map((card) => [card.item, card]));
 	const changed = (await res.json<GitHubIssueLike[]>()).filter((issue) => {
@@ -339,12 +340,13 @@ async function pollRest(
 	}
 	const headers = new Headers(restHeaders(token));
 	if (options.etag) headers.set("if-none-match", options.etag);
-	const res = await fetch(url, { headers }).catch(() => null);
+	const res = await forgeFetch(url, { headers }).catch(() => null);
 	if (!res) return { status: "error" };
 	if (res.status === 304) return { status: "unchanged" };
 	if (!res.ok) {
-		const reset = Number(res.headers.get("x-ratelimit-reset"));
-		return { status: "error", ...(reset > 0 ? { retryAt: reset * 1000 } : {}) };
+		// Only a rate limit says when to try again; other errors use the usual interval.
+		const limit = rateLimitOf(res, { url });
+		return { status: "error", ...(limit ? { retryAt: limit.retryAt } : {}) };
 	}
 	const etag = res.headers.get("etag");
 	const list = await res.json<GitHubIssueLike[]>();
@@ -412,7 +414,7 @@ export const github: ForgeAdapter = {
 		const token = await tokenFor(env, name);
 		try {
 			// Renamed and transferred repositories redirect to their new home.
-			const res = await fetch(`${API}/repos/${name}`, { headers: restHeaders(token) });
+			const res = await forgeFetch(`${API}/repos/${name}`, { headers: restHeaders(token) });
 			if (!res.ok) return missingReason(res);
 			return repoIdentity(await res.json<GitHubRepository>());
 		} catch {
@@ -496,7 +498,7 @@ export const github: ForgeAdapter = {
 		// By id, so renames don't matter. A GitHub App's user token only
 		// reaches private repositories the app is installed on, and only if
 		// the person can read them; anyone can read public ones.
-		const res = await fetch(`${API}/repositories/${repo.id}`, { headers: restHeaders(token) });
+		const res = await forgeFetch(`${API}/repositories/${repo.id}`, { headers: restHeaders(token) });
 		if (res.ok) return true;
 		const reason = missingReason(res);
 		if (reason === "error") throw new Error(`Access check failed: ${res.status}`);

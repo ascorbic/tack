@@ -8,6 +8,7 @@ import { installationToken } from "../github/tokens.ts";
 import { instance } from "../namespaces.ts";
 import { failureFrom } from "./github-write.ts";
 import type { CommandReaction, CommentCommand, ReplyResult, RepoIdentity } from "./types.ts";
+import { forgeFetch } from "./rateLimit.ts";
 
 const HOST = "github.com";
 const API = "https://api.github.com";
@@ -98,7 +99,7 @@ function headers(token: string): HeadersInit {
 }
 
 async function call(token: string, path: string, init: { method: string; body?: unknown }) {
-	return fetch(`${API}${path}`, {
+	return forgeFetch(`${API}${path}`, {
 		method: init.method,
 		headers: headers(token),
 		body: init.body === undefined ? undefined : JSON.stringify(init.body),
@@ -181,7 +182,12 @@ export async function replyGitHub(
 		const response = await call(token, path, { method: "POST", body: { body } });
 		if (!response.ok) {
 			const failure = await failureFrom(response, `reply on ${repo.name}${item}`);
-			return { ok: false, error: failure.error, retryable: failure.retryable };
+			return {
+				ok: false,
+				error: failure.error,
+				retryable: failure.retryable,
+				...(failure.retryAt ? { retryAt: failure.retryAt } : {}),
+			};
 		}
 		return { ok: true, url: (await response.json<{ html_url: string }>()).html_url };
 	} catch {

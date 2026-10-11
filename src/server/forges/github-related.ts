@@ -10,6 +10,7 @@ import {
 	normaliseGqlPull,
 } from "./github-graphql.ts";
 import type { ReadAuth, RepoIdentity } from "./types.ts";
+import { forgeFetch, graphqlRateLimited, noteBodyLimit, rateLimitOf } from "./rateLimit.ts";
 
 // Reading around an item for widgets (M3): what's related to an issue (its
 // parent, sub-issues, dependencies and the pull requests that close or
@@ -135,7 +136,7 @@ async function run<T>(
 ): Promise<T | QueryError> {
 	let response: Response;
 	try {
-		response = await fetch(ENDPOINT, {
+		response = await forgeFetch(ENDPOINT, {
 			method: "POST",
 			headers: {
 				authorization: `Bearer ${token}`,
@@ -147,16 +148,19 @@ async function run<T>(
 	} catch {
 		return { kind: "error", reason: "error", message: "Couldn’t reach GitHub." };
 	}
-	const rateLimited =
-		response.status === 429 ||
-		(response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0");
-	if (rateLimited) {
-		const reset = Number(response.headers.get("x-ratelimit-reset"));
+	const message = response.ok
+		? ""
+		: await response
+				.clone()
+				.text()
+				.catch(() => "");
+	const limit = response.ok ? null : rateLimitOf(response, { message, url: ENDPOINT });
+	if (limit) {
 		return {
 			kind: "error",
 			reason: "rate_limited",
 			message: "GitHub’s rate limit is used up for now.",
-			...(reset > 0 ? { retryAt: reset * 1000 } : {}),
+			retryAt: limit.retryAt,
 		};
 	}
 	if (response.status === 401 || response.status === 403) {
@@ -168,6 +172,14 @@ async function run<T>(
 	const body = await response
 		.json<{ data?: T | null; errors?: { type?: string; message?: string }[] }>()
 		.catch(() => null);
+	if (graphqlRateLimited(body?.errors)) {
+		return {
+			kind: "error",
+			reason: "rate_limited",
+			message: "GitHub’s rate limit is used up for now.",
+			retryAt: noteBodyLimit(`Bearer ${token}`, response, ENDPOINT),
+		};
+	}
 	if (!body?.data) {
 		const notFound = body?.errors?.some((error) => error.type === "NOT_FOUND");
 		return notFound

@@ -6,6 +6,7 @@ import type { Request } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { fake, fakeRelated } from "../src/server/forges/fake.ts";
 import { relatedGitHub, releaseGitHub } from "../src/server/forges/github-related.ts";
+import { gate } from "../src/server/forges/rateLimit.ts";
 import type { RepoIdentity } from "../src/server/forges/types.ts";
 import { isMissing } from "../src/shared/cards.ts";
 import type { RelatedResult } from "../src/shared/widgets.ts";
@@ -145,12 +146,13 @@ describe("related on GitHub", () => {
 			kind: "error",
 			reason: "no_access",
 		});
+		const reset = Math.floor(Date.now() / 1000) + 600;
 		vi.stubGlobal("fetch", async () =>
 			Response.json(
 				{ message: "rate limited" },
 				{
 					status: 403,
-					headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1900000000" },
+					headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset) },
 				},
 			),
 		);
@@ -158,8 +160,20 @@ describe("related on GitHub", () => {
 			kind: "error",
 			reason: "rate_limited",
 			message: expect.any(String),
-			retryAt: 1_900_000_000_000,
+			retryAt: reset * 1000,
 		});
+		// The shared gate remembers: the next call waits without asking GitHub.
+		let calls = 0;
+		vi.stubGlobal("fetch", async () => {
+			calls++;
+			return Response.json({});
+		});
+		expect(await related(KEY(2), "token")).toMatchObject({
+			reason: "rate_limited",
+			retryAt: reset * 1000,
+		});
+		expect(calls).toBe(0);
+		gate.clear();
 	});
 });
 
