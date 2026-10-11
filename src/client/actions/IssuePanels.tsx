@@ -20,7 +20,7 @@ import {
 	SetList,
 	avatarFor,
 } from "./pickers.tsx";
-import { Notice, PopoverHead } from "./Popover.tsx";
+import { Notice, PopoverHead, SUBMIT_HINT } from "./Popover.tsx";
 import { useRepoMeta } from "./services.ts";
 
 // Panels for making issues: stickies into issues, and a parent issue with
@@ -58,7 +58,7 @@ function StageButton({ disabled, children }: { disabled?: boolean; children: Rea
 	return (
 		<button type="submit" className="action-primary" disabled={disabled}>
 			{children}
-			<kbd>↵</kbd>
+			<kbd>{SUBMIT_HINT}</kbd>
 		</button>
 	);
 }

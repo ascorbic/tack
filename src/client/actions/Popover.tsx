@@ -154,6 +154,17 @@ export function Popover({
 					event.stopPropagation();
 					event.preventDefault();
 					close.current();
+					return;
+				}
+				// ⌘↵ stages from any panel, whatever has focus in it.
+				if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !event.defaultPrevented) {
+					const primary = ref.current?.querySelector<HTMLButtonElement>(
+						".action-primary:not(:disabled)",
+					);
+					if (!primary) return;
+					event.preventDefault();
+					event.stopPropagation();
+					primary.click();
 				}
 			}}
 			onPointerDown={(event) => event.stopPropagation()}

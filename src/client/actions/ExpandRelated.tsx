@@ -20,7 +20,7 @@ import { type Entrance, stageEntrances } from "../entering.ts";
 import { scaledDuration } from "../motion.ts";
 import { transactLocal } from "../undo.ts";
 import { RelatedIcon } from "./icons.tsx";
-import { Notice, PopoverHead } from "./Popover.tsx";
+import { Notice, PopoverHead, SUBMIT_HINT } from "./Popover.tsx";
 import { count, isCard } from "./selection.ts";
 import "./related.css";
 import type { WriteServices } from "./services.ts";
@@ -381,7 +381,7 @@ export function RelatedPanelView({
 				<button type="submit" className="action-primary" disabled={nothing}>
 					<RelatedIcon />
 					Lay out
-					<kbd>↵</kbd>
+					<kbd>{SUBMIT_HINT}</kbd>
 				</button>
 			</footer>
 		</form>

@@ -6,7 +6,7 @@ import type { History } from "../undo.ts";
 import type { User } from "../presence.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import { ArrowDownIcon, BlockedIcon, CheckIcon, IssueIcon, SwapIcon } from "./icons.tsx";
-import { Notice, Popover, PopoverHead } from "./Popover.tsx";
+import { Notice, Popover, PopoverHead, SUBMIT_HINT } from "./Popover.tsx";
 import { type ActionRequests, isCard, useCards } from "./selection.ts";
 import { stagerFor } from "./services.ts";
 import { undoToast } from "./toast.ts";
@@ -178,7 +178,7 @@ export function BlockedByAction({
 								disabled={!!problem || !!staged}
 							>
 								Stage
-								<kbd>↵</kbd>
+								<kbd>{SUBMIT_HINT}</kbd>
 							</button>
 						</footer>
 					</form>

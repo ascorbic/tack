@@ -150,7 +150,11 @@ test("a typed repository, and one without the app", async ({ page }) => {
 	await field.fill("acme/new-thing");
 	await page.keyboard.press("Enter");
 	await expect(panel.locator(".repo-value")).toContainText("acme/new-thing");
-	await page.keyboard.press("Enter");
+	// ⌘↵ stages from every panel, as its button says.
+	await expect(panel.getByRole("button", { name: /^Stage issue/ }).locator("kbd")).toHaveText(
+		/⌘↵|Ctrl ↵/,
+	);
+	await page.keyboard.press("ControlOrMeta+Enter");
 	expect((await changes(page)).map((c) => c.op)).toEqual([
 		{ kind: "issue.create", repo: "fake.tack/acme/new-thing", title: "Codemods for 5.0" },
 	]);
@@ -194,11 +198,12 @@ test("labels, milestone and closing on selected cards", async ({ page }) => {
 	await page.keyboard.press("ControlOrMeta+Enter");
 	await expect(labels).toHaveCount(0);
 
+	// Enter picks the first real milestone; taking it off is last in the list.
 	await page.keyboard.press("Alt+KeyM");
-	await page
-		.getByRole("dialog", { name: "Milestone" })
-		.getByRole("option", { name: /5\.0/ })
-		.click();
+	const milestones = page.getByRole("dialog", { name: "Milestone" }).getByRole("option");
+	await expect(milestones.first()).toContainText("5.0");
+	await expect(milestones.last()).toContainText("No milestone");
+	await page.keyboard.press("Enter");
 
 	await page.keyboard.press("Alt+KeyC");
 	await page.getByRole("menuitem", { name: /Close as not planned/ }).click();
