@@ -555,7 +555,7 @@ async function main(): Promise<void> {
 			p50: percentile(latencies, 50),
 			p95: percentile(latencies, 95),
 			p99: percentile(latencies, 99),
-			max: latencies.length > 0 ? Math.max(...latencies) : Number.NaN,
+			max: latencies.length > 0 ? latencies.reduce((most, ms) => Math.max(most, ms)) : Number.NaN,
 		},
 		messagesPerClientPerSecond: Math.round(perClient),
 		memoryMb: { before: baseline, peak, after: memory.at(-1) ?? null },
