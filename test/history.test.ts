@@ -348,6 +348,31 @@ describe("reading history", () => {
 		expect(groups[1]!.merged.id).toBe(3);
 	});
 
+	it("groups a session's votes and stamps, whoever made them", () => {
+		const step = (id: number, at: number, extra: Partial<StepMeta> = {}): StepMeta => ({
+			id,
+			at,
+			until: at,
+			actors: ["u:1"],
+			changes: [],
+			span: 0,
+			bytes: 1,
+			...extra,
+		});
+		const groups = groupSteps([
+			step(1, START, { other: ["dotVotes"] }),
+			step(2, START + 1000, { actors: ["u:2"], other: ["dotVotes"] }),
+			step(3, START + 2000, { actors: ["u:3"], other: ["stamps"] }),
+			step(4, START + 3000, { actors: ["u:2"], other: ["facilitation"] }),
+			// An edit stands apart, by someone else.
+			step(5, START + 4000, { changes: [{ id: "s", op: "add", type: "sticky" }] }),
+			step(6, START + 5000, { actors: ["u:2"], other: ["dotVotes"] }),
+		]);
+		expect(groups.map((g) => g.steps.map((s) => s.id))).toEqual([[1, 2, 3, 4], [5], [6]]);
+		expect(groups[0]!.merged.actors).toEqual(["u:1", "u:2", "u:3"]);
+		expect(describeChanges(groups[0]!.merged)).toBe("voted, set the timer and stamped");
+	});
+
 	it("describes steps in words", () => {
 		const step = {
 			changes: [

@@ -1085,11 +1085,26 @@ export interface StepGroup {
 	merged: StepMeta;
 }
 
+/** Root maps a session touches without changing the board: votes, stamps, the timer. */
+const SESSION_MAPS = new Set(["dotVotes", "stamps", "facilitation"]);
+
+/** A step that only voted, stamped or set the timer. */
+function sessionOnly(step: StepMeta): boolean {
+	return (
+		step.changes.length === 0 &&
+		!step.more &&
+		(step.other?.length ?? 0) > 0 &&
+		step.other!.every((name) => SESSION_MAPS.has(name))
+	);
+}
+
 /**
  * Group neighbouring steps by the same people within `gap` of each other.
  * The origin stands alone, and so does every step that removed something:
  * those are what people come looking for, to bring back, and in a group a
- * shape made and removed again would cancel out.
+ * shape made and removed again would cancel out. Steps that only voted,
+ * stamped or set the timer group whoever made them ("Ana, Ben and Kai
+ * voted"), so a session doesn't bury the board's edits.
  */
 export function groupSteps(steps: readonly StepMeta[], gap = 10 * MINUTE): StepGroup[] {
 	const runs: StepMeta[][] = [];
@@ -1104,7 +1119,7 @@ export function groupSteps(steps: readonly StepMeta[], gap = 10 * MINUTE): StepG
 			!step.origin &&
 			!removes(last) &&
 			!removes(step) &&
-			step.actors.join() === last.actors.join() &&
+			(step.actors.join() === last.actors.join() || (sessionOnly(step) && sessionOnly(last))) &&
 			step.at - last.until <= gap
 		) {
 			run.push(step);
