@@ -12,6 +12,7 @@ import { relativeTime } from "../boards/api.ts";
 import { Avatar } from "../People.tsx";
 import { Composer } from "./Composer.tsx";
 import { CheckIcon, CloseIcon, EditIcon, ReopenIcon, ResolveIcon, TrashIcon } from "./icons.tsx";
+import { useMentionName } from "./people.ts";
 import type { PendingMessage } from "./store.ts";
 
 // A comment thread: its messages, a reply box, and resolving. Board-free,
@@ -41,19 +42,22 @@ export function CommentBody({ message, login }: { message: CommentMessage; login
 		<p className="comment-body">
 			{bodyParts(message.body, message.mentions).map((part, i) =>
 				"mention" in part ? (
-					<span
-						key={i}
-						className="comment-mention"
-						data-self={part.mention === self || undefined}
-						title={`@${part.mention}`}
-					>
-						{part.text}
-					</span>
+					<Mention key={i} login={part.mention} text={part.text} self={part.mention === self} />
 				) : (
 					<span key={i}>{part.text}</span>
 				),
 			)}
 		</p>
+	);
+}
+
+/** A mention, by name, with the login to hand on hover. */
+function Mention({ login, text, self }: { login: string; text: string; self: boolean }) {
+	const name = useMentionName(login);
+	return (
+		<span className="comment-mention" data-self={self || undefined} title={`@${login}`}>
+			{name ? `@${name}` : text}
+		</span>
 	);
 }
 
@@ -76,6 +80,7 @@ export function ThreadView({
 	unreadSince,
 	initialEditing = null,
 	autoFocus = true,
+	place,
 }: {
 	thread: CommentThread;
 	you: CommentsYou;
@@ -90,6 +95,8 @@ export function ThreadView({
 	initialEditing?: string | null;
 	/** Whether the reply box takes focus (not in the gallery). */
 	autoFocus?: boolean;
+	/** What it's on, in words ("on #412 Drop Node 18"), under its title. */
+	place?: string;
 }) {
 	const now = useNow();
 	const [editing, setEditing] = useState<string | null>(initialEditing);
@@ -110,10 +117,17 @@ export function ThreadView({
 		<div className="comment-thread" data-resolved={!!resolved || undefined}>
 			<header className="comment-thread-head">
 				<span className="comment-thread-title">
-					{resolved ? "Resolved" : "Comment"}
-					{messages.filter((m) => !m.deleted).length > 1 && (
-						<span className="comment-thread-count">
-							{messages.filter((m) => !m.deleted).length}
+					<span className="comment-thread-what">
+						{resolved ? "Resolved" : "Comment"}
+						{messages.filter((m) => !m.deleted).length > 1 && (
+							<span className="comment-thread-count">
+								{messages.filter((m) => !m.deleted).length}
+							</span>
+						)}
+					</span>
+					{place && place !== "on the board" && (
+						<span className="comment-thread-place" title={place}>
+							{place}
 						</span>
 					)}
 				</span>

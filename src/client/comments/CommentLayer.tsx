@@ -1,6 +1,6 @@
 import { clock } from "../clock.ts";
 import { ViewportPortal, useReactFlow, useStore, useStoreApi } from "@xyflow/react";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
 	type Box,
 	type CommentAnchor,
@@ -14,10 +14,12 @@ import {
 } from "../../shared/comments.ts";
 import { NOMINAL_SIZE, type SizeOf } from "../../shared/sections.ts";
 import type { ShapeNode } from "../board.ts";
+import { DocContext } from "../DocContext.ts";
 import { relativeTime } from "../boards/api.ts";
 import { Avatar, initials } from "../People.tsx";
 import type { User } from "../presence.ts";
 import type { ToastStore } from "../Toasts.tsx";
+import { threadPlace } from "./CommentsPanel.tsx";
 import { Composer } from "./Composer.tsx";
 import { CheckIcon } from "./icons.tsx";
 import { type CommentStore, commentStore, useCommentUI, useComments } from "./store.ts";
@@ -225,6 +227,7 @@ function OpenThread({
 	login?: string;
 }) {
 	const { you } = useComments(store);
+	const doc = useContext(DocContext);
 	// What was new when it opened stays marked new while it's open.
 	const since = useCommentUI(store).unreadSince ?? undefined;
 	// Messages that arrive while it's open are read as they arrive.
@@ -238,6 +241,7 @@ function OpenThread({
 			login={login}
 			canTriage={store.canTriage(thread)}
 			unreadSince={since}
+			place={threadPlace(doc, thread)}
 			actions={{
 				reply: (body) => store.reply(thread.id, body),
 				edit: (message, body) => store.edit(thread.id, message, body),

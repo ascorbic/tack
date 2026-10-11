@@ -79,3 +79,15 @@ export function boardPeople(boardId: string): () => Promise<Mentionable[]> {
 		return body.people ?? [];
 	};
 }
+
+/**
+ * The name to show for a mention of `login`, once the board's people are
+ * known (`@priya-tackux` reads as "@Priya Shah"); the login until then, or
+ * for someone without a name.
+ */
+export function useMentionName(login: string): string | null {
+	useEffect(() => peopleSource.refresh(), []);
+	const people = useSyncExternalStore(peopleSource.subscribe, peopleSource.get);
+	const lower = login.toLowerCase();
+	return people.find((person) => person.login.toLowerCase() === lower)?.name || null;
+}

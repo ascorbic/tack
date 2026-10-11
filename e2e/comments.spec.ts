@@ -35,6 +35,8 @@ test.describe("comments", () => {
 
 		await page.getByRole("button", { name: /Comment by Priya Shah, 2 replies, unread/ }).click();
 		await expect(popover(page).locator(".comment-message")).toHaveCount(3);
+		// Its header says what it's on.
+		await expect(popover(page).locator(".comment-thread-place")).toHaveText(/^on /);
 		// New since you last read it: marked, and read now.
 		await expect(popover(page).locator(".comment-message[data-fresh]")).toHaveCount(1);
 		await expect(page.locator(".comment-pin[data-unread]")).toHaveCount(2);
@@ -49,9 +51,10 @@ test.describe("comments", () => {
 		await expect(reply).toHaveValue("On it @kai ");
 		await reply.press("Enter");
 		await expect(popover(page).locator(".comment-message")).toHaveCount(4);
-		await expect(
-			popover(page).locator(".comment-message").last().locator(".comment-mention"),
-		).toHaveText("@kai");
+		// Mentions read by name, with the login on hover.
+		const mention = popover(page).locator(".comment-message").last().locator(".comment-mention");
+		await expect(mention).toHaveText("@Kai Andersen");
+		await expect(mention).toHaveAttribute("title", "@kai");
 		await expect(popover(page).locator(".comment-message[data-pending]")).toHaveCount(0);
 
 		// Resolve it: the pin goes, with a way back.
