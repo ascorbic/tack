@@ -188,6 +188,24 @@ test("zoomed out, each reads as one big number", async ({ page }) => {
 	await expect(widget(page, "5.0").locator(".milestone-far")).toContainText("10 of 16 done");
 });
 
+test("at half zoom, where rows are too small to read, widgets are already summaries", async ({
+	page,
+}) => {
+	await page.locator(".react-flow__pane").click({ position: { x: 720, y: 60 } });
+	const zoom = () =>
+		page
+			.locator(".react-flow__viewport")
+			.evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).a);
+	for (let i = 0; i < 8 && (await zoom()) > 0.55; i++) {
+		await page.keyboard.press("-");
+		await page.waitForTimeout(250);
+	}
+	const at = await zoom();
+	expect(at).toBeGreaterThan(0.45);
+	expect(at).toBeLessThanOrEqual(0.55);
+	await expect(page.locator(".widget[data-compact]")).toHaveCount(4);
+});
+
 test("the widget tool adds each kind, set up from the board's repository", async ({ page }) => {
 	const before = (await shapes(page)).filter((s) => s.type === "widget").length;
 

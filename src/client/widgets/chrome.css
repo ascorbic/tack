@@ -41,10 +41,14 @@
 	pointer-events: none;
 }
 
-/* Only on the board, where --unzoom says how far out it is (and the gallery's zoomed-out samples). */
+/*
+ * Only on the board, where --unzoom says how far out it is (and the gallery's
+ * zoomed-out samples). Rows stop being readable a little below 60%: the
+ * summary fades in from there, and has taken over by about 53%.
+ */
 .react-flow .widget-far,
 [data-far-zoom] .widget-far {
-	--far: clamp(0, calc((var(--unzoom, 1) - 2.1) * 2.2), 1);
+	--far: clamp(0, calc((var(--unzoom, 1) - 1.6) * 3.4), 1);
 	--far-scale: min(var(--unzoom, 1), 4.5);
 }
 

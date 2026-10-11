@@ -40,8 +40,12 @@ import {
 // that come out as cards and light up with theirs, and when to draw it
 // simplified for reading zoomed out.
 
-/** Below this zoom, widgets draw their simplified, zoomed-out view (as cards do). */
-export const COMPACT_ZOOM = 0.45;
+/**
+ * Below this zoom, widgets draw their simplified, zoomed-out view. Sooner
+ * than cards (0.45): a widget's rows are smaller than a card's title, and
+ * unreadable a little below 60%.
+ */
+export const COMPACT_ZOOM = 0.56;
 
 /** Results older than this many refresh periods are stale: a refresh must have failed. */
 const STALE_PERIODS = 2;
