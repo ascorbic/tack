@@ -21,7 +21,7 @@ A timeline plots items along a line, by when they were opened, closed, merged or
 	kind="timeline"
 	labels={{
 		title: "Title (named after what it shows if empty)",
-		host: "On",
+		host: "Forge (only shown when the board has more than one)",
 		q: "What to follow",
 		event: "Plot when they were: Opened, Closed, Merged or Updated",
 		range: "Over: Week, 2 weeks, Month, 3 months or Dates",
@@ -39,6 +39,6 @@ A timeline plots items along a line, by when they were opened, closed, merged or
 
 ## Using it
 
-Markers stack by day, with density bars along the axis and a line for today. Where too many land close together they cluster ("12 items: zoom in"); click a cluster to zoom in, and **Show the whole range** to zoom out.
+Markers stack by day, with density bars along the axis and a line for today. Circles are issues and diamonds are pull requests, coloured by state; the key along the top lists the ones on the timeline (open issue, closed issue, open, draft, merged or closed pull request). Where too many land close together they cluster ("12 items: zoom in"); click a cluster to zoom in, and **Show the whole range** to zoom out.
 
-Point at a marker to see the item. Click it to find its card on the board, or open it on GitHub. Drag it out to add a card.
+Point at a marker to see the item. Click it to add its card in free space beside the timeline, or, if it's already on the board, to find that card. <kbd>⌘</kbd>-click (<kbd>Ctrl</kbd>-click) opens it on GitHub. Drag it out to add a card somewhere else.

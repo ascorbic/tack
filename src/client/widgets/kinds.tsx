@@ -14,6 +14,7 @@ import {
 } from "../../shared/dependencyMap.ts";
 import { spotBeside } from "../../shared/placement.ts";
 import { type ReleaseConfig, releaseTitle, releaseWidget } from "../../shared/releaseDraft.ts";
+import type { Card } from "../../shared/cards.ts";
 import { CARD_WIDTH, applyExpand, boardContext } from "../../shared/related.ts";
 import { type ShapeProps, shapesMap } from "../../shared/shapes.ts";
 import { readShapes } from "../../shared/structure.ts";
@@ -94,6 +95,14 @@ function useWidgetBoard(id: string) {
 			onItemPointerDown: drag.onPointerDown,
 			onItemHover: (key: string | null) => linkStore.set(key, "row"),
 			onReveal: (key: string) => board.reveal(cards?.shapesFor(key) ?? []),
+			/** An item clicked: its card shown if it's on the board, else added beside the widget. */
+			onItemActivate: readOnly
+				? undefined
+				: (card: Card) => {
+						const placed = cards?.shapesFor(card.key) ?? [];
+						if (placed.length > 0) board.reveal(placed);
+						else drag.activate(card);
+					},
 		},
 	};
 }

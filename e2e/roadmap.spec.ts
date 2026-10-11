@@ -62,9 +62,10 @@ test("the timeline plots what was opened, says what each is, and drags them out 
 
 	const dot = timeline.getByRole("button", { name: /#430 Netlify provider/ });
 	await dot.hover();
-	await expect(timeline.getByRole("tooltip")).toContainText(
-		"Netlify provider ignores quality=auto",
-	);
+	// Drawn over the page, so the widget's edges never cut it off.
+	const peek = page.getByRole("tooltip");
+	await expect(peek).toContainText("Netlify provider ignores quality=auto");
+	await expect(peek).toContainText("Click to add it beside the timeline");
 
 	const self = (await shapes(page)).find((s) => s.widget === "timeline");
 	await drag(page, dot, { x: 900, y: 700 });
@@ -73,6 +74,25 @@ test("the timeline plots what was opened, says what each is, and drags them out 
 		.toEqual({ via: "list", source: self?.id });
 	// It's on the board now: its dot says so.
 	await expect(dot).toHaveAttribute("data-on-board", "true");
+});
+
+test("the timeline has a key, and a clicked item lands beside it as a card", async ({ page }) => {
+	const timeline = widget(page, "timeline");
+	const key_ = timeline.getByRole("list", { name: "Key" });
+	await expect(key_).toContainText("Open issue");
+	await expect(key_).toContainText("Merged PR");
+
+	const self = (await shapes(page)).find((s) => s.widget === "timeline");
+	const dot = timeline.getByRole("button", { name: /#430 Netlify provider/ });
+	await dot.click();
+	await expect
+		.poll(async () => (await shapes(page)).find((s) => s.ref === key(430))?.provenance)
+		.toEqual({ via: "list", source: self?.id });
+	await expect(dot).toHaveAttribute("data-on-board", "true");
+	// Clicked again, it's shown rather than added twice.
+	await dot.click();
+	await page.waitForTimeout(200);
+	expect((await shapes(page)).filter((s) => s.ref === key(430))).toHaveLength(1);
 });
 
 test("the release draft sorts what's merged, and copies its notes", async ({ page, context }) => {

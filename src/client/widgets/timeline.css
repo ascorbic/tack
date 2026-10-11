@@ -413,8 +413,8 @@
 /* What's under the pointer -------------------------------------------------------------- */
 
 .timeline-peek {
-	position: absolute;
-	z-index: 4;
+	position: fixed;
+	z-index: 60;
 	width: 248px;
 	padding: 9px 11px 8px;
 	border: 1px solid var(--line);
@@ -446,8 +446,72 @@
 	transform: translate(-50%, -5px) rotate(45deg);
 }
 
+.timeline-peek[data-below] {
+	transform-origin: var(--arrow) 0;
+}
+
+.timeline-peek[data-below]::after {
+	top: auto;
+	bottom: 100%;
+	transform: translate(-50%, 5px) rotate(225deg);
+}
+
 .timeline-peek p {
 	margin: 0;
+}
+
+/* The key: what each shape and colour means, for what's on the timeline. */
+.timeline-legend {
+	position: absolute;
+	top: 6px;
+	left: var(--inset);
+	z-index: 1;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px 10px;
+	max-width: calc(100% - var(--inset) * 2 - 64px);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--muted);
+	font-size: 10.5px;
+	line-height: 14px;
+	pointer-events: none;
+}
+
+.timeline-legend li {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	white-space: nowrap;
+}
+
+.timeline-legend-mark {
+	--state: var(--open);
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--state);
+}
+
+.timeline-legend-mark[data-kind="pull"] {
+	width: 7px;
+	height: 7px;
+	border-radius: 2px;
+	rotate: 45deg;
+}
+
+.timeline-legend-mark[data-state="merged"],
+.timeline-legend-mark[data-kind="issue"][data-state="closed"] {
+	--state: var(--merged);
+}
+
+.timeline-legend-mark[data-kind="pull"][data-state="closed"] {
+	--state: var(--fail);
+}
+
+.timeline-legend-mark[data-state="draft"] {
+	--state: var(--closed);
 }
 
 .timeline-peek-head {

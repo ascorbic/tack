@@ -1,4 +1,11 @@
-import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from "react";
+import {
+	type PointerEvent as ReactPointerEvent,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { createPortal } from "react-dom";
 import type { Card } from "../../shared/cards.ts";
 import { mentionsMe } from "../../shared/search.ts";
 import {
@@ -30,7 +37,9 @@ import "./timeline.css";
 // gallery can show every state. Items sit on a horizontal time axis as
 // dots coloured by state, stacked where they're close and gathered into a
 // counted cluster where they're crowded; clicking a cluster zooms into its
-// span. Hovering an item shows what it is; dragging it out makes a card.
+// span. A legend says what the shapes and colours mean. Hovering an item
+// shows what it is; clicking it puts its card beside the widget (or shows
+// the one on the board), ⌘-click opens it, and dragging it out makes a card.
 
 /** Room kept on each side of the axis, so markers at the ends aren't cut off. */
 const INSET = 22;
@@ -60,6 +69,8 @@ export interface TimelineViewProps {
 	onItemPointerDown?: (event: ReactPointerEvent<HTMLElement>, card: Card) => void;
 	onItemHover?: (key: string | null) => void;
 	onReveal?: (key: string) => void;
+	/** An item clicked: its card shown, or added beside the widget. */
+	onItemActivate?: (card: Card) => void;
 	/** Ready-made scopes while it's not set up. */
 	suggestions?: { label: string; q: string }[];
 	onSuggest?: (q: string) => void;
@@ -300,6 +311,7 @@ function Plot(
 								}}
 								onPointerDown={props.onItemPointerDown}
 								onReveal={props.onReveal}
+								onActivate={props.onItemActivate}
 							/>
 						) : (
 							<button
@@ -332,6 +344,7 @@ function Plot(
 					)}
 				{loading && <Skeleton />}
 			</div>
+			{!loading && size.w >= 300 && <Legend cards={dated.map(({ card }) => card)} />}
 			<div className="timeline-axis" aria-hidden="true">
 				{layout.ticks.map((tick) => (
 					<span
@@ -356,7 +369,9 @@ function Plot(
 					cards={cards}
 					event={config.event}
 					now={props.now}
-					width={size.w}
+					container={ref}
+					onBoard={peekCard ? (props.onBoard?.(peekCard.key) ?? false) : false}
+					canAdd={Boolean(props.onItemActivate)}
 				/>
 			)}
 		</div>
@@ -375,6 +390,7 @@ function Dot({
 	onHover,
 	onPointerDown,
 	onReveal,
+	onActivate,
 }: {
 	mark: Extract<TimelineMark, { kind: "item" }>;
 	card: Card | undefined;
@@ -387,6 +403,7 @@ function Dot({
 	onHover: (on: boolean) => void;
 	onPointerDown?: (event: ReactPointerEvent<HTMLElement>, card: Card) => void;
 	onReveal?: (key: string) => void;
+	onActivate?: (card: Card) => void;
 }) {
 	if (!card) return null;
 	return (
@@ -410,7 +427,12 @@ function Dot({
 			onFocus={() => onHover(true)}
 			onBlur={() => onHover(false)}
 			onPointerDown={(event) => onPointerDown?.(event, card)}
-			onClick={() => (onBoard ? onReveal?.(card.key) : window.open(card.url, "_blank", "noopener"))}
+			onClick={(event) => {
+				if (event.metaKey || event.ctrlKey) window.open(card.url, "_blank", "noopener");
+				else if (onActivate) onActivate(card);
+				else if (onBoard) onReveal?.(card.key);
+				else window.open(card.url, "_blank", "noopener");
+			}}
 		>
 			<span className="timeline-dot-core" />
 		</button>
@@ -424,27 +446,65 @@ function Peek({
 	cards,
 	event,
 	now,
-	width,
+	container,
+	onBoard = false,
+	canAdd = false,
 }: {
 	mark: TimelineMark;
 	card: Card | undefined;
 	cards: Map<string, Card>;
 	event: TimelineConfig["event"];
 	now: number;
-	width: number;
+	/** The timeline, for where on the screen the item is. */
+	container: React.RefObject<HTMLDivElement | null>;
+	onBoard?: boolean;
+	canAdd?: boolean;
 }) {
 	const w = 248;
-	const left = Math.max(8, Math.min(width - w - 8, mark.x + INSET - w / 2));
+	const ref = useRef<HTMLDivElement>(null);
+	// Drawn over the page at screen size, so the widget's header and edges
+	// never clip it: above the item, or below it when there's no room.
+	const [at, setAt] = useState<{ left: number; top: number; arrow: number; below: boolean } | null>(
+		null,
+	);
 	const lane = mark.kind === "item" ? mark.lane : 1;
+	useLayoutEffect(() => {
+		const box = container.current;
+		const own = ref.current;
+		if (!box || !own) return;
+		const rect = box.getBoundingClientRect();
+		const scale = box.offsetWidth > 0 ? rect.width / box.offsetWidth : 1;
+		const x = rect.left + (mark.x + INSET) * scale;
+		const dotBottom = rect.bottom - (AXIS + 9 + lane * LANE) * scale;
+		const dotTop = dotBottom - 15 * scale;
+		const h = own.offsetHeight;
+		const below = dotTop - 12 - h < 8;
+		const left = Math.max(8, Math.min(window.innerWidth - w - 8, x - w / 2));
+		setAt({
+			left,
+			top: below ? dotBottom + 12 : dotTop - 12 - h,
+			arrow: Math.max(14, Math.min(w - 14, x - left)),
+			below,
+		});
+	}, [container, mark, lane]);
 	const style = {
-		left,
-		bottom: AXIS + 22 + (lane + 1) * LANE,
-		"--arrow": `${Math.max(14, Math.min(w - 14, mark.x + INSET - left))}px`,
+		left: at?.left ?? 0,
+		top: at?.top ?? 0,
+		visibility: at ? undefined : "hidden",
+		"--arrow": `${at?.arrow ?? w / 2}px`,
 	} as React.CSSProperties;
+	const below = at?.below ?? false;
 	if (mark.kind === "cluster") {
 		const list = mark.keys.map((key) => cards.get(key)).filter((c): c is Card => Boolean(c));
-		return (
-			<div className="timeline-peek" data-kind="cluster" style={style} role="tooltip">
+		return createPortal(
+			<div
+				ref={ref}
+				className="timeline-peek"
+				data-kind="cluster"
+				data-below={below || undefined}
+				style={style}
+				role="tooltip"
+			>
 				<p className="timeline-peek-head">
 					{mark.keys.length} {eventWord(event).toLowerCase()} · {rangeText(mark.from, mark.to + 1)}
 				</p>
@@ -462,12 +522,20 @@ function Peek({
 				<p className="timeline-peek-hint">
 					{list.length > 5 ? `and ${list.length - 5} more · ` : ""}Click to zoom in
 				</p>
-			</div>
+			</div>,
+			document.body,
 		);
 	}
 	if (!card) return null;
-	return (
-		<div className="timeline-peek" data-state={card.state} style={style} role="tooltip">
+	return createPortal(
+		<div
+			ref={ref}
+			className="timeline-peek"
+			data-state={card.state}
+			data-below={below || undefined}
+			style={style}
+			role="tooltip"
+		>
 			<p className="timeline-peek-head">
 				<span className="state-icon">
 					<StateIcon card={card} size={13} />
@@ -500,8 +568,51 @@ function Peek({
 					)}
 				</p>
 			)}
-			<p className="timeline-peek-hint">Drag onto the board to add a card</p>
-		</div>
+			<p className="timeline-peek-hint">
+				{onBoard
+					? "On the board: click to show it · ⌘-click opens it"
+					: canAdd
+						? "Click to add it beside the timeline, or drag it out"
+						: "Click to open it"}
+			</p>
+		</div>,
+		document.body,
+	);
+}
+
+/** What the shapes and colours mean: only the kinds and states that are here. */
+export function legendEntries(
+	cards: Card[],
+): { kind: Card["kind"]; state: string; label: string }[] {
+	const ENTRIES: { kind: Card["kind"]; state: string; label: string }[] = [
+		{ kind: "issue", state: "open", label: "Open issue" },
+		{ kind: "issue", state: "closed", label: "Closed issue" },
+		{ kind: "pull", state: "open", label: "Open PR" },
+		{ kind: "pull", state: "draft", label: "Draft PR" },
+		{ kind: "pull", state: "merged", label: "Merged PR" },
+		{ kind: "pull", state: "closed", label: "Closed PR" },
+	];
+	const seen = new Set(cards.map((card) => `${card.kind}:${card.state}`));
+	return ENTRIES.filter((entry) => seen.has(`${entry.kind}:${entry.state}`));
+}
+
+function Legend({ cards }: { cards: Card[] }) {
+	const entries = useMemo(() => legendEntries(cards), [cards]);
+	if (entries.length === 0) return null;
+	return (
+		<ul className="timeline-legend" aria-label="Key">
+			{entries.map((entry) => (
+				<li key={`${entry.kind}:${entry.state}`}>
+					<span
+						className="timeline-legend-mark"
+						data-kind={entry.kind}
+						data-state={entry.state}
+						aria-hidden="true"
+					/>
+					{entry.label}
+				</li>
+			))}
+		</ul>
 	);
 }
 
