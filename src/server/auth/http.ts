@@ -1,12 +1,7 @@
 // Small HTTP helpers shared by the auth and setup routes.
 
-/** A same-origin path to return to after a redirect, or `/`. */
-export function safeReturnTo(value: string | null | undefined, fallback = "/"): string {
-	if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) {
-		return fallback;
-	}
-	return value;
-}
+/** A same-origin path to return to after a redirect (see src/shared/returnTo.ts). */
+export { safeReturnTo } from "../../shared/returnTo.ts";
 
 export function redirect(location: string, cookies: string[] = [], status = 302): Response {
 	const headers = new Headers({ location, "cache-control": "no-store" });

@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect } from "react";
 import type { Me } from "../../shared/auth.ts";
+import { safeReturnTo } from "../../shared/returnTo.ts";
 import { Avatar } from "../People.tsx";
 import { BrandMark } from "../BrandMark.tsx";
 import { DevSignIn } from "./AccountMenu.tsx";
@@ -31,7 +32,8 @@ const ERRORS: Record<string, string> = {
 export function SignInRoute() {
 	const state = useMe();
 	const params = new URLSearchParams(location.search);
-	const returnTo = params.get("return_to") ?? "/";
+	// Only ever back to a page here (#60).
+	const returnTo = safeReturnTo(params.get("return_to"));
 	const signedIn = state.status === "ready" && state.me.viewer && state.me.allowed;
 
 	useEffect(() => {

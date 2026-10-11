@@ -228,6 +228,11 @@ describe("sessions", () => {
 			["//evil.example/", "/"],
 			["https://evil.example/", "/"],
 			["/\\evil.example", "/"],
+			// Browsers drop tabs and newlines: these are //evil.example.
+			["/\t/evil.example", "/"],
+			["/\n/evil.example", "/"],
+			["/ /evil.example", "/"],
+			["/b/123/plan?x=1#comment=a", "/b/123/plan?x=1#comment=a"],
 		]) {
 			const url = `${ORIGIN}/auth/dev?login=octocat&return_to=${encodeURIComponent(returnTo ?? "")}`;
 			const response = await mf.dispatchFetch(url, { redirect: "manual" });
