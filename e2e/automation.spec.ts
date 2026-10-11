@@ -234,7 +234,7 @@ test.describe("inbox frames", () => {
 
 	test("zoomed far out, trays fold to their pills", async ({ page }) => {
 		await expect(tray(page)).toBeVisible();
-		const zoomOut = page.locator(".react-flow__controls-zoomout");
+		const zoomOut = page.getByRole("button", { name: "Zoom out" });
 		for (let i = 0; i < 12 && (await tray(page).count()) > 0; i++) await zoomOut.click();
 		await expect(tray(page)).toHaveCount(0);
 		await expect(page.getByRole("button", { name: /Open Triage's inbox: 5 new/ })).toBeVisible();

@@ -1,3 +1,4 @@
+import { TRAY_GAP, TRAY_WIDTH } from "./inbox/layout.ts";
 import type { Rect } from "../shared/geometry.ts";
 import { type SizeOf, boxOf } from "../shared/sections.ts";
 import type { ShapeNode } from "./board.ts";
@@ -86,8 +87,15 @@ export function shapeBoxes(
 ): Rect[] {
 	return nodes.map((node) => {
 		const size = drawnSize(node.id);
-		if (size) return { x: node.position.x, y: node.position.y, w: size.width, h: size.height };
-		return boxOf(node.id, node.data.shape, boxSize);
+		const box = size
+			? { x: node.position.x, y: node.position.y, w: size.width, h: size.height }
+			: boxOf(node.id, node.data.shape, boxSize);
+		// An inbox's tray of new matches sits beside its section, on whichever
+		// side has room: fit in either.
+		const tray = TRAY_GAP + TRAY_WIDTH;
+		return node.data.shape.type === "section" && node.data.shape.inbox
+			? { ...box, x: box.x - tray, w: box.w + 2 * tray }
+			: box;
 	});
 }
 
