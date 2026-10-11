@@ -21,8 +21,8 @@ import { repoName } from "./selection.ts";
 // Each is keyboard-first: type to filter, arrows to move, Enter to pick.
 
 /** Arrow keys move through a list of `length` items, wrapping around. */
-export function useActive(length: number) {
-	const [active, setActive] = useState(0);
+export function useActive(length: number, initial = 0) {
+	const [active, setActive] = useState(initial);
 	const clamped = length === 0 ? -1 : Math.min(active, length - 1);
 	const onKey = (event: KeyboardEvent): boolean => {
 		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -546,18 +546,26 @@ export function MilestonePicker({
 }: {
 	milestones: Milestone[];
 	onPick: (milestone: string | null) => void;
-	/** The milestone already picked, ticked. */
+	/** The milestone it has now (or that's staged), ticked and started on; null for none. */
 	chosen?: string | null;
 	autoFocus?: boolean;
 }) {
 	const [query, setQuery] = useState("");
 	const listId = useId();
 	const words = query.trim().toLowerCase();
+	// Real milestones first; taking it off is last, so Enter never does that by accident.
 	const shown: (Milestone | null)[] = [
-		...(words ? [] : [null]),
 		...milestones.filter((m) => !words || m.title.toLowerCase().includes(words)),
+		...(words ? [] : [null]),
 	];
-	const { active, setActive, onKey } = useActive(shown.length);
+	// Start on the current milestone, if there is one.
+	const { active, setActive, onKey } = useActive(
+		shown.length,
+		Math.max(
+			0,
+			shown.findIndex((m) => chosen !== undefined && chosen !== null && m?.title === chosen),
+		),
+	);
 	return (
 		<div className="milestone-picker">
 			<SearchField

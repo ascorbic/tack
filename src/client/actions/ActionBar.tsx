@@ -17,7 +17,8 @@ import {
 } from "../../shared/actions.ts";
 import { stickiesToActions } from "../../shared/actionItems.ts";
 import { backlinkBody } from "../../shared/backlinks.ts";
-import type { OperationKind } from "../../shared/changes.ts";
+import { type OperationKind, listChanges } from "../../shared/changes.ts";
+import { isPending } from "../changes/describe.ts";
 import type { Rect } from "../snapping.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import { DEFAULT_HOST, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
@@ -577,6 +578,7 @@ export function ActionBar(props: ActionBarProps) {
 										list.map((m) => m.milestones),
 										(m) => m.title,
 									)}
+									chosen={currentMilestone(doc, targets)}
 									onPick={(milestone) => {
 										stageTriage(
 											doc,
@@ -776,6 +778,27 @@ export function ActionButton({
 			{action.text && <span>{action.text}</span>}
 		</button>
 	);
+}
+
+/**
+ * The milestone these items share now, counting one that's staged: null for
+ * none, undefined when they differ or it isn't known.
+ */
+function currentMilestone(doc: Y.Doc, targets: SelectedCard[]): string | null | undefined {
+	const staged = new Map<string, string | null>();
+	for (const change of listChanges(doc)) {
+		if (change.op.kind !== "item.milestone" || !isPending(change)) continue;
+		if ("key" in change.op.target) staged.set(change.op.target.key, change.op.milestone);
+	}
+	const values = targets.map((t) =>
+		staged.has(t.key)
+			? staged.get(t.key)
+			: t.card.milestone === undefined
+				? undefined
+				: (t.card.milestone?.title ?? null),
+	);
+	const [first] = values;
+	return values.every((v) => v === first) ? first : undefined;
 }
 
 /** Wait for repository metadata, then show what needs it. */
