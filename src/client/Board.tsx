@@ -88,6 +88,7 @@ import { isOffBoardTarget } from "./keys.ts";
 import { BoardMinimap, useMinimapPreference } from "./Minimap.tsx";
 import { nodeTypes } from "./nodes.tsx";
 import { ZoomControls } from "./ZoomControls.tsx";
+import { PanelBoundary, withBoundary } from "./ShapeBoundary.tsx";
 import { People } from "./People.tsx";
 import { type User, usePresence } from "./presence.ts";
 import { SectionTool, ZoomVariable, sectionNodeTypes } from "./sections.tsx";
@@ -122,8 +123,14 @@ import { SinceButton, SincePanel } from "./since/SincePanel.tsx";
 // Every shape shows the changes staged about it, and shapes in a section
 // showing a list or mini cards draw as rows or mini cards (#72).
 const NODE_TYPES = Object.fromEntries([
-	...Object.entries(nodeTypes).map(([type, node]) => [type, withStagedMarks(withDisplay(node))]),
-	...Object.entries(sectionNodeTypes).map(([type, node]) => [type, withStagedMarks(node)]),
+	...Object.entries(nodeTypes).map(([type, node]) => [
+		type,
+		withBoundary(withStagedMarks(withDisplay(node))),
+	]),
+	...Object.entries(sectionNodeTypes).map(([type, node]) => [
+		type,
+		withBoundary(withStagedMarks(node)),
+	]),
 ]);
 
 /**
@@ -1211,33 +1218,35 @@ export function Board({
 										<BoardMinimap pannable zoomable nodeClassName={minimapClass} />
 									)}
 									<ZoomVariable />
-									<ConnectorLayer
-										doc={doc}
-										awareness={awareness}
-										nodes={nodes}
-										sectionDrags={structure.sectionDrags}
-										drawing={!readOnly && tool === "connector"}
-										interactive={!readOnly && tool !== "hand"}
-										onDrawn={() => setTool("select")}
-										selected={selected}
-										setSelected={setSelected}
-										sizeOf={boxSize}
-										connectorActions={
-											readOnly
-												? undefined
-												: (id) => (
-														<BlockedByAction
-															key={id}
-															doc={doc}
-															connector={id}
-															user={user}
-															toasts={toasts}
-															history={history}
-															requests={actionRequests}
-														/>
-													)
-										}
-									/>
+									<PanelBoundary name="Connectors">
+										<ConnectorLayer
+											doc={doc}
+											awareness={awareness}
+											nodes={nodes}
+											sectionDrags={structure.sectionDrags}
+											drawing={!readOnly && tool === "connector"}
+											interactive={!readOnly && tool !== "hand"}
+											onDrawn={() => setTool("select")}
+											selected={selected}
+											setSelected={setSelected}
+											sizeOf={boxSize}
+											connectorActions={
+												readOnly
+													? undefined
+													: (id) => (
+															<BlockedByAction
+																key={id}
+																doc={doc}
+																connector={id}
+																user={user}
+																toasts={toasts}
+																history={history}
+																requests={actionRequests}
+															/>
+														)
+											}
+										/>
+									</PanelBoundary>
 									{!readOnly && tool === "section" && (
 										<SectionTool
 											doc={doc}
@@ -1248,25 +1257,29 @@ export function Board({
 											}}
 										/>
 									)}
-									<InboxLayer
-										doc={doc}
-										nodes={nodes}
-										readOnly={readOnly}
-										user={user}
-										toasts={toasts}
-										sizeOf={boxSize}
-										onPlaced={(id) => setSelected(new Set([id]))}
-									/>
+									<PanelBoundary name="Inboxes">
+										<InboxLayer
+											doc={doc}
+											nodes={nodes}
+											readOnly={readOnly}
+											user={user}
+											toasts={toasts}
+											sizeOf={boxSize}
+											onPlaced={(id) => setSelected(new Set([id]))}
+										/>
+									</PanelBoundary>
 									{!replay.state.open && (
 										<HighlightLayer doc={doc} nodes={nodes} sizeOf={drawnSize} />
 									)}
-									<CommentLayer
-										nodes={nodes}
-										sizeOf={drawnSize}
-										placing={tool === "comment"}
-										user={user}
-										toasts={toasts}
-									/>
+									<PanelBoundary name="Comment pins">
+										<CommentLayer
+											nodes={nodes}
+											sizeOf={drawnSize}
+											placing={tool === "comment"}
+											user={user}
+											toasts={toasts}
+										/>
+									</PanelBoundary>
 									<Guides store={snapping.guides} />
 									{!readOnly && (
 										<SelectionTools
@@ -1278,14 +1291,16 @@ export function Board({
 											onCommand={commands.run}
 										/>
 									)}
-									<MarksLayer
-										doc={doc}
-										nodes={nodes}
-										sizeOf={boxSize}
-										me={user}
-										readOnly={readOnly}
-										voting={!readOnly && tool === "vote"}
-									/>
+									<PanelBoundary name="Votes and marks">
+										<MarksLayer
+											doc={doc}
+											nodes={nodes}
+											sizeOf={boxSize}
+											me={user}
+											readOnly={readOnly}
+											voting={!readOnly && tool === "vote"}
+										/>
+									</PanelBoundary>
 									{replay.controller && replay.state.open && (
 										<HistoryCanvas
 											controller={replay.controller}
@@ -1372,14 +1387,16 @@ export function Board({
 							</div>
 							{!readOnly && <StartVoteDialog doc={doc} user={user} now={facilitation.serverNow} />}
 							{voteState.tally && (
-								<TallyPanel
-									doc={doc}
-									voteId={voteState.tally}
-									user={user}
-									readOnly={readOnly}
-									onClose={() => voteUI.showTally(null)}
-									onReveal={reveal}
-								/>
+								<PanelBoundary name="The vote’s results">
+									<TallyPanel
+										doc={doc}
+										voteId={voteState.tally}
+										user={user}
+										readOnly={readOnly}
+										onClose={() => voteUI.showTally(null)}
+										onReveal={reveal}
+									/>
+								</PanelBoundary>
 							)}
 							<CursorChat awareness={awareness} user={user} />
 							{!replay.state.open && (!readOnly || comments.canComment) && (
@@ -1400,36 +1417,44 @@ export function Board({
 									commenting={comments.canComment}
 								/>
 							)}
-							<SincePanel
-								doc={liveDoc}
-								login={user.login}
-								youId={comments.youId}
-								onJump={comments.jumpToShape}
-								onOpenThread={comments.jumpToThread}
-							/>
-							<CommentsPanel doc={liveDoc} login={user.login} onJump={comments.jumpToThread} />
-							{rulesOpen && (
-								<RulesPanel
-									doc={doc}
-									user={{ name: user.name, color: user.color }}
-									readOnly={readOnly}
-									onClose={() => setRulesOpen(false)}
-									onReveal={reveal}
-									onUndo={() => history.undo()}
-									toasts={toasts}
+							<PanelBoundary name="What’s new">
+								<SincePanel
+									doc={liveDoc}
+									login={user.login}
+									youId={comments.youId}
+									onJump={comments.jumpToShape}
+									onOpenThread={comments.jumpToThread}
 								/>
+							</PanelBoundary>
+							<PanelBoundary name="Comments">
+								<CommentsPanel doc={liveDoc} login={user.login} onJump={comments.jumpToThread} />
+							</PanelBoundary>
+							{rulesOpen && (
+								<PanelBoundary name="Rules">
+									<RulesPanel
+										doc={doc}
+										user={{ name: user.name, color: user.color }}
+										readOnly={readOnly}
+										onClose={() => setRulesOpen(false)}
+										onReveal={reveal}
+										onUndo={() => history.undo()}
+										toasts={toasts}
+									/>
+								</PanelBoundary>
 							)}
 							{replay.controller && replay.state.open && (
 								<>
-									<HistoryPanel
-										controller={replay.controller}
-										state={replay.state}
-										live={liveDoc}
-										readOnly={viewOnly}
-										sizeOf={boxSize}
-										onClose={() => replay.controller?.close()}
-										onFocus={focusArea}
-									/>
+									<PanelBoundary name="History">
+										<HistoryPanel
+											controller={replay.controller}
+											state={replay.state}
+											live={liveDoc}
+											readOnly={viewOnly}
+											sizeOf={boxSize}
+											onClose={() => replay.controller?.close()}
+											onFocus={focusArea}
+										/>
+									</PanelBoundary>
 									<HistoryDock
 										controller={replay.controller}
 										state={replay.state}
@@ -1440,8 +1465,12 @@ export function Board({
 							<RowGhost />
 							<Toasts store={toasts} />
 							<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
-							<ChangesPanel />
-							<PushSheet />
+							<PanelBoundary name="Changes">
+								<ChangesPanel />
+							</PanelBoundary>
+							<PanelBoundary name="Pushing">
+								<PushSheet />
+							</PanelBoundary>
 							{children}
 						</main>
 					</div>

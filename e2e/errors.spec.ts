@@ -1,4 +1,5 @@
 import { type APIRequestContext, type Page, expect, test } from "@playwright/test";
+import { openScenario } from "./fixtures.ts";
 
 // Client errors: the error boundary's fallback, and reports from the boundary,
 // window.onerror and unhandled rejections reaching the Worker's logs. These
@@ -82,4 +83,51 @@ test("uncaught errors and rejections are reported", async ({ page }) => {
 		source: "unhandledrejection",
 		message: "Rejected on purpose",
 	});
+});
+
+test("a shape that can't be drawn says so in its place, and the board carries on", async ({
+	page,
+}) => {
+	await openScenario(page, "sections");
+	await expect(page.getByText("Drop Node 18 support", { exact: true })).toBeVisible();
+	const cards = page.locator(".react-flow__node-card");
+	const count = await cards.count();
+
+	// A malformed card from the forge: its title isn't text.
+	const breakCard = () =>
+		page.evaluate(() => {
+			const { doc } = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } })
+				.tackPlayground;
+			const store = (window as unknown as { tackCards: { get(k: string): any; set(c: any): void } })
+				.tackCards;
+			const key = [...doc.getMap<import("yjs").Map<unknown>>("shapes").values()]
+				.map((shape) => String(shape.get("ref")))
+				.find((ref) => ref.endsWith("#412"))!;
+			const card = store.get(key);
+			store.set({ ...card, title: { not: "text" } });
+			return card;
+		});
+	const report = nextReport(page);
+	const original = await breakCard();
+	const broken = page.getByRole("alert").filter({ hasText: "This shape couldn’t be shown" });
+	await expect(broken).toBeVisible();
+	expect((await report).request().postDataJSON()).toMatchObject({ source: "boundary" });
+	// Everything else is still there.
+	await expect(page.getByText("Custom domains aren’t detected for Cloudinary")).toBeVisible();
+	await expect(page.getByRole("toolbar", { name: "Tools" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Something came unstuck" })).toHaveCount(0);
+
+	// Fixed (say, by the next webhook), it comes back on trying again.
+	await page.evaluate((card) => {
+		(window as unknown as { tackCards: { set(c: unknown): void } }).tackCards.set(card);
+	}, original);
+	await broken.getByRole("button", { name: "Try again" }).click();
+	await expect(broken).toHaveCount(0);
+	await expect(page.getByText("Drop Node 18 support", { exact: true })).toBeVisible();
+
+	// Or it can be deleted.
+	await breakCard();
+	await broken.getByRole("button", { name: "Delete" }).click();
+	await expect(cards).toHaveCount(count - 1);
+	await expect(broken).toHaveCount(0);
 });

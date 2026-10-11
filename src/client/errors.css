@@ -134,3 +134,87 @@
 		opacity: 0;
 	}
 }
+
+/* A shape that couldn't be drawn (ShapeBoundary.tsx): a quiet placeholder
+   in its place, dashed like something missing, with a way to try again or
+   to delete it. */
+.broken-shape {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: center;
+	gap: 6px 8px;
+	width: 100%;
+	min-width: 220px;
+	height: 100%;
+	min-height: 88px;
+	padding: 12px 14px;
+	border: 1.5px dashed var(--line-strong);
+	border-radius: 12px;
+	background: var(--surface-muted);
+	color: var(--muted);
+	font-size: 13px;
+	animation: broken-in var(--t-base) var(--ease-out);
+}
+
+@keyframes broken-in {
+	from {
+		opacity: 0;
+		transform: scale(0.97);
+	}
+}
+
+.broken-shape-icon {
+	display: grid;
+	color: var(--pending-ink);
+}
+
+.broken-shape-text {
+	color: var(--ink-soft);
+	font-weight: 550;
+}
+
+.broken-shape-actions {
+	grid-column: 1 / -1;
+	display: flex;
+	gap: 6px;
+}
+
+.broken-shape button,
+.broken-panel button {
+	padding: 4px 10px;
+	border: 1px solid var(--line);
+	border-radius: 7px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.broken-shape button:hover,
+.broken-panel button:hover {
+	background: var(--hover);
+}
+
+/* A panel or layer that couldn't be drawn: a pill at the top of the canvas. */
+.broken-panel {
+	position: absolute;
+	top: 14px;
+	left: 50%;
+	z-index: 30;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 6px 6px 14px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--chrome-strong);
+	backdrop-filter: blur(14px) saturate(1.4);
+	box-shadow: var(--shadow-hover);
+	color: var(--ink-soft);
+	font-size: 13px;
+	translate: -50% 0;
+	animation: broken-in var(--t-base) var(--ease-out);
+}
