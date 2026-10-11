@@ -110,10 +110,11 @@ function NeedsSecret({ onRecheck }: { onRecheck?: () => void }) {
 }
 
 const PERMISSIONS = [
-	["Issues, pull requests, discussions", "read and write, for pushing staged changes"],
-	["Checks, statuses, Actions runs", "read, for CI on cards"],
+	["Metadata", "read, which GitHub requires"],
+	["Issues and pull requests", "read and write, for pushing staged changes"],
 	["Code", "read and write, for decision records (ADR pull requests)"],
-	["Metadata", "read"],
+	["Discussions", "read and write, for writing decisions back as posts"],
+	["Checks, statuses, Actions runs", "read, for CI on cards"],
 	["Organisation members", "read, for the access list"],
 ];
 

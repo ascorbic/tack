@@ -43,7 +43,10 @@ export function credentialsFromConversion(app: ManifestConversion): AppCredentia
 	};
 }
 
-// `read` for everything we only show, `write` for what Tack will push in M2.
+// `read` for everything we only show, `write` for what Tack pushes: issues,
+// pull requests, Discussion posts, and decision records committed to a branch
+// (`contents`). Keep /setup's list (SetupPage.tsx) and the self-hosting docs'
+// table in step with this.
 // Members lets Tack check private org membership for the access allowlist,
 // and Actions is needed for `workflow_run` events.
 const PERMISSIONS = {
