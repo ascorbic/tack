@@ -1461,3 +1461,9 @@
 .setup-ready .auth-actions {
 	margin-top: 10px;
 }
+
+/* Room between "what to do now" and the checklist under it. */
+.setup-ready + .checklist,
+.setup-ready + * {
+	margin-top: 28px;
+}
