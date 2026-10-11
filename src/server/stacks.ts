@@ -17,11 +17,16 @@ import {
 	groupMessage,
 	nameMessage,
 } from "../shared/stackNaming.ts";
+import { stackMembers } from "../shared/stacks.ts";
+import { readShapes } from "../shared/structure.ts";
 import { aiStatus, askModel } from "./ai.ts";
 import type { ConnectionAccess } from "./board.ts";
 import { log } from "./log.ts";
 
-// Stacks on the board's server (#73): names suggested from what's in them,
+// Stacks on the board's server (#73): names suggested from what's in them
+// (stickies' visible text, and the titles of cards that everyone who can see
+// the board can read: the name is everyone's, so it mustn't carry a title
+// some of them can't see; the board decides, with `cardTitles`),
 // and "Group these", asked of Workers AI (`askModel`, src/server/ai.ts) while AI
 // suggestions are on (`TACK_AI`, on by default). The naming itself (what's
 // sent, when, caching, the budget) is `StackNamer`, shared with the
@@ -67,6 +72,11 @@ export interface StacksOptions {
 	sql: SqlStorage;
 	connections: () => Iterable<Connection<ConnectionAccess>>;
 	send: (connection: Connection, message: string) => void;
+	/**
+	 * The titles of these cards that everyone who can see the board can read
+	 * (`Board.sharedTitles`): only those go into names, which everyone sees.
+	 */
+	cardTitles?: (refs: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 }
 
 /** Names already made, by the hash of the text they came from, in the board's SQLite. */
@@ -103,6 +113,7 @@ export class Stacks {
 		this.namer = new StackNamer({
 			doc,
 			ai: () => this.ai(),
+			cardTitles: options.cardTitles,
 			cache: sqlNameCache(sql),
 			log: (level, event, context) => log[level](event, { board, ...context }),
 		});
@@ -129,6 +140,22 @@ export class Stacks {
 
 	closed(id: string): void {
 		this.grouping.delete(id);
+	}
+
+	/** Cards' data changed: a stack with one of them in may read differently now. */
+	cardsChanged(keys: readonly string[]): void {
+		if (keys.length === 0) return;
+		const changed = new Set(keys);
+		const shapes = readShapes(this.options.doc);
+		for (const members of stackMembers(shapes).values()) {
+			for (const id of members) {
+				const ref = shapes.get(id)?.ref;
+				if (typeof ref === "string" && changed.has(ref)) {
+					this.namer.schedule();
+					return;
+				}
+			}
+		}
 	}
 
 	private tell(connection: Connection, enabled: boolean): void {
@@ -170,7 +197,12 @@ export class Stacks {
 			this.reply(
 				connection,
 				outcome.ok
-					? { type: "stack-groups", request: request.request, stacks: outcome.stacks }
+					? {
+							type: "stack-groups",
+							request: request.request,
+							stacks: outcome.stacks,
+							...(outcome.withheld > 0 ? { withheld: outcome.withheld } : {}),
+						}
 					: { type: "stack-group-failed", request: request.request, reason: outcome.reason },
 			);
 		} finally {

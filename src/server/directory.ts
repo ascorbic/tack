@@ -1118,6 +1118,13 @@ export class Directory extends DurableObject<Env> {
 			.toArray()) {
 			members[member.user_id] = member.role as Role;
 		}
+		const pending =
+			this.sql
+				.exec<{ n: number }>(
+					"SELECT COUNT(*) AS n FROM members WHERE board_id = ? AND user_id IS NULL",
+					row.id,
+				)
+				.toArray()[0]?.n ?? 0;
 		return {
 			ownerId: row.owner_id,
 			visibility: row.visibility as Visibility,
@@ -1125,6 +1132,7 @@ export class Directory extends DurableObject<Env> {
 			archived: row.archived_at !== null,
 			customWidgets: this.customWidgets(row.id),
 			members,
+			pending,
 		};
 	}
 

@@ -33,6 +33,11 @@ export interface Policy {
 	customWidgets?: boolean;
 	/** Members' roles by user id, the owner included. Pending invites aren't here. */
 	members: Record<number, Role>;
+	/**
+	 * How many invites haven't been taken up yet: people who'll be able to
+	 * open it once they sign in, who nobody can check anything for yet.
+	 */
+	pending?: number;
 }
 
 /** Just who someone is, for checking a policy: what a live connection remembers. */

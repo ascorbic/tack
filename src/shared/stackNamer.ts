@@ -72,6 +72,13 @@ export interface NamerOptions {
 	doc: Y.Doc;
 	/** Whether naming is on, and with what: null when it's off (the instance's setting). */
 	ai: () => StackAi | null | Promise<StackAi | null>;
+	/**
+	 * The titles of these cards that may go into a name everyone on the board
+	 * sees, by card key: only those everyone who can see the board can read
+	 * (the board's server decides). Cards left out still count toward their
+	 * stack; their titles are never sent. Without it, no card's title is.
+	 */
+	cardTitles?: (refs: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 	cache?: NameCache;
 	log?: (level: Level, event: string, context: Record<string, unknown>) => void;
 	now?: () => number;
@@ -123,7 +130,13 @@ export type StackRequest = StackGroupRequest;
 /** On the board's connection, to one client: whether suggestions are on, and answers. */
 export type StackMessage =
 	| { type: "stacks-ai"; enabled: boolean }
-	| { type: "stack-groups"; request: string; stacks: ProposedStack[] }
+	| {
+			type: "stack-groups";
+			request: string;
+			stacks: ProposedStack[];
+			/** Cards asked about whose titles couldn't be shared, so weren't sent. */
+			withheld?: number;
+	  }
 	| {
 			type: "stack-group-failed";
 			request: string;
@@ -144,7 +157,7 @@ export function isStackRequest(value: unknown): value is StackRequest {
 }
 
 export type GroupOutcome =
-	| { ok: true; stacks: ProposedStack[]; ms: number }
+	| { ok: true; stacks: ProposedStack[]; ms: number; withheld: number }
 	| { ok: false; reason: "off" | "too_few" | "limited" | "failed" };
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -251,16 +264,49 @@ export class StackNamer {
 		return this.running;
 	}
 
-	/** What each stack would be named from now, for the stacks that want a name. */
-	private wanted(): { stack: string; texts: string[]; hash: string }[] {
-		const doc = this.options.doc;
+	/** The shapes now, read once. */
+	private shapes(): Map<string, ShapeProps> {
 		const shapes = new Map<string, ShapeProps>();
-		for (const [id, shape] of shapesMap(doc)) shapes.set(id, readShape(shape));
+		for (const [id, shape] of shapesMap(this.options.doc)) shapes.set(id, readShape(shape));
+		return shapes;
+	}
+
+	/** Titles of these cards that may be shared (none without `cardTitles`, or if asking fails). */
+	private async titles(refs: Iterable<string>): Promise<ReadonlyMap<string, string>> {
+		const list = [...new Set(refs)];
+		if (list.length === 0 || !this.options.cardTitles) return new Map();
+		try {
+			return await this.options.cardTitles(list);
+		} catch (error) {
+			this.log("warn", "stack.titles.failed", { cards: list.length, error });
+			return new Map();
+		}
+	}
+
+	/** The cards in stacks now, by key. */
+	private stackedCards(shapes: ReadonlyMap<string, ShapeProps>): string[] {
+		const refs: string[] = [];
+		for (const ids of stackMembers(shapes).values()) {
+			for (const id of ids) {
+				const shape = shapes.get(id);
+				if (shape?.type === "card" && typeof shape.ref === "string") refs.push(shape.ref);
+			}
+		}
+		return refs;
+	}
+
+	/** What each stack would be named from now, for the stacks that want a name. */
+	private wanted(titles: ReadonlyMap<string, string>): {
+		stack: string;
+		texts: string[];
+		hash: string;
+	}[] {
+		const shapes = this.shapes();
 		const members = stackMembers(shapes);
 		const out: { stack: string; texts: string[]; hash: string }[] = [];
 		for (const [id, shape] of shapes) {
 			if (shape.type !== "stack") continue;
-			const texts = namingTexts(shapes, members.get(id) ?? []);
+			const texts = namingTexts(shapes, members.get(id) ?? [], (ref) => titles.get(ref));
 			const hash = texts.length > 0 ? stackHash(texts) : null;
 			if (hash === null) {
 				// Nothing left to read (the words went): the old suggestion no longer fits.
@@ -273,7 +319,10 @@ export class StackNamer {
 	}
 
 	private async nameAll(): Promise<void> {
-		const wanted = this.wanted();
+		// Only cards make it wait (stickies are read as they are, at once).
+		const cards = this.stackedCards(this.shapes());
+		const titles = cards.length > 0 ? await this.titles(cards) : new Map<string, string>();
+		const wanted = this.wanted(titles);
 		if (wanted.length === 0) return;
 		let ai: StackAi | null = null;
 		for (const { stack, texts, hash } of wanted) {
@@ -312,7 +361,7 @@ export class StackNamer {
 			}
 			this.cache.set(hash, name);
 			// Still wanted, for the same text? People may have named it, or moved on.
-			const still = this.wanted().find((entry) => entry.stack === stack);
+			const still = this.wanted(titles).find((entry) => entry.stack === stack);
 			if (still?.hash !== hash) {
 				this.log("info", "stack.name.stale", { stack });
 				this.again = true;
@@ -342,20 +391,34 @@ export class StackNamer {
 	}
 
 	/**
-	 * "Group these": stacks proposed for these stickies, by what they say.
-	 * Only stickies with visible text take part (never a face-down one).
+	 * "Group these": stacks proposed for these stickies (and cards), by what
+	 * they say. Only stickies with visible text take part (never a face-down
+	 * one), and cards whose titles `cardTitles` says may be shared; the rest
+	 * are counted as `withheld`, and never sent.
 	 */
 	async group(ids: readonly string[]): Promise<GroupOutcome> {
 		const doc = this.options.doc;
 		const shapes = shapesMap(doc);
-		const items: { id: string; text: string }[] = [];
-		for (const id of new Set(ids)) {
+		const asked = [...new Set(ids)].flatMap((id) => {
 			const raw = shapes.get(id);
-			if (!raw) continue;
-			const shape = readShape(raw);
-			if (shape.type !== "sticky" || shape.silent !== undefined) continue;
-			const text = cleanText(typeof shape.text === "string" ? shape.text : "");
-			if (text) items.push({ id, text });
+			return raw ? [{ id, shape: readShape(raw) }] : [];
+		});
+		// Cards take part by their titles, only where they may be shared.
+		const refs = asked.flatMap(({ shape }) =>
+			shape.type === "card" && typeof shape.ref === "string" ? [shape.ref] : [],
+		);
+		const titles = refs.length > 0 ? await this.titles(refs) : new Map<string, string>();
+		const items: { id: string; text: string }[] = [];
+		let withheld = 0;
+		for (const { id, shape } of asked) {
+			if (shape.type === "card") {
+				const title = cleanText(typeof shape.ref === "string" ? (titles.get(shape.ref) ?? "") : "");
+				if (title) items.push({ id, text: title });
+				else withheld++;
+			} else if (shape.type === "sticky" && shape.silent === undefined) {
+				const text = cleanText(typeof shape.text === "string" ? shape.text : "");
+				if (text) items.push({ id, text });
+			}
 			if (items.length >= GROUP_LIMIT) break;
 		}
 		if (items.length < 3) return { ok: false, reason: "too_few" };
@@ -376,11 +439,12 @@ export class StackNamer {
 			}
 			this.log("info", "stack.grouped", {
 				stickies: notes.length,
+				withheld,
 				stacks: stacks.length,
 				grouped: stacks.reduce((sum, stack) => sum + stack.ids.length, 0),
 				ms,
 			});
-			return { ok: true, stacks, ms };
+			return { ok: true, stacks, ms, withheld };
 		} catch (error) {
 			this.log("warn", "stack.group.failed", { stickies: notes.length, error });
 			return { ok: false, reason: "failed" };

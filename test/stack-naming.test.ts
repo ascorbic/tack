@@ -212,6 +212,50 @@ describe("naming stacks", () => {
 		expect(JSON.stringify(ai.named)).not.toContain("SECRET");
 	});
 
+	it("names from cards' titles only where they may be shared; the rest still count", async () => {
+		const ai = new FakeAi();
+		const doc = new Y.Doc();
+		const shared = new Map([["github.com/tack/tack#1", "Readable title"]]);
+		const asked: string[][] = [];
+		const namer = new StackNamer({
+			doc,
+			ai: () => ai,
+			cardTitles: async (refs) => {
+				asked.push([...refs]);
+				return shared;
+			},
+			setTimer: () => 0,
+			clearTimer: () => {},
+		});
+		addShape(doc, "s", { type: "sticky", text: "Sticky words", x: 0, y: 0, z: nextZ(doc) });
+		for (const [id, n] of [
+			["open", 1],
+			["closed", 2],
+		] as const) {
+			addShape(doc, id, {
+				type: "card",
+				ref: `github.com/tack/tack#${n}`,
+				x: 0,
+				y: 0,
+				z: nextZ(doc),
+			});
+		}
+		stackUp(doc, "s", ["open", "closed"], undefined, () => "p");
+		await namer.scan();
+		expect(asked.flat().sort((a, b) => a.localeCompare(b))).toEqual([
+			"github.com/tack/tack#1",
+			"github.com/tack/tack#2",
+		]);
+		expect(ai.named).toHaveLength(1);
+		expect(ai.named[0]?.sort((a, b) => a.localeCompare(b))).toEqual([
+			"Readable title",
+			"Sticky words",
+		]);
+		// No way to ask means no card's title, ever.
+		const shapes = readShapes(doc);
+		expect(namingTexts(shapes, ["open", "closed", "s"])).toEqual(["Sticky words"]);
+	});
+
 	it("does nothing while suggestions are off", async () => {
 		const { doc, namer, sticky, get } = setup(null);
 		sticky("a", "One");

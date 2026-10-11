@@ -440,6 +440,7 @@ export class Board extends YServer<Env> {
 			sql,
 			connections: () => this.getConnections<ConnectionAccess>(),
 			send: (connection, message) => this.sendCustomMessage(connection, message),
+			cardTitles: (refs) => this.sharedTitles(refs),
 		});
 		this.watchForRepairs();
 		await this.syncSubscriptions();
@@ -754,6 +755,8 @@ export class Board extends YServer<Env> {
 	 * data: that's checked per repository, whatever the role.)
 	 */
 	accessChanged(policy: Policy): void {
+		// Who can see the board decides which cards' titles stacks may be named from.
+		this.stacks?.namer.schedule();
 		for (const connection of this.getConnections<ConnectionAccess>()) {
 			const access = connection.state;
 			if (!access) continue;
@@ -1225,6 +1228,8 @@ export class Board extends YServer<Env> {
 	/** Called by Repo when subscribed cards change. */
 	async cardsUpdated(cards: Entry[]): Promise<void> {
 		this.publish(cards.filter((card) => this.subscribed.has(card.key)));
+		// A stacked card's title may be what its stack's named from.
+		this.stacks?.cardsChanged(cards.map((card) => card.key));
 	}
 
 	/** Called by Repo when a subscribed card changes. */
@@ -1467,6 +1472,46 @@ export class Board extends YServer<Env> {
 						},
 			),
 		}));
+	}
+
+	/**
+	 * The titles of these cards that may go into something everyone who can
+	 * see the board sees (a stack's suggested name, #73): a card from a public
+	 * repository, or, on a board only its members can open (with no invite
+	 * waiting to be taken up), one every member can read (checked as
+	 * `canRead` checks each viewer). On a board the
+	 * instance or the public can open, nobody can say who'll see it, so no
+	 * private card's title is ever shared. Any doubt means no.
+	 */
+	async sharedTitles(refs: readonly string[]): Promise<Map<string, string>> {
+		const out = new Map<string, string>();
+		const hidden: Card[] = [];
+		for (const ref of refs) {
+			const entry = this.cards.get(ref);
+			if (!entry || "missing" in entry) continue;
+			if (isPublic(entry)) out.set(ref, entry.title);
+			else hidden.push(entry);
+		}
+		if (hidden.length === 0) return out;
+		const policy = await directory(this.env)
+			.accessPolicy(this.name)
+			.catch(() => null);
+		// Only its members can open it, and they're all known (an invite not yet
+		// taken up is someone nobody can check).
+		if (!policy || policy.visibility !== "private" || (policy.pending ?? 0) > 0) return out;
+		const members = Object.keys(policy.members).map(Number);
+		if (members.length === 0) return out;
+		const readable = new Map<string, boolean>();
+		for (const repoKey of new Set(hidden.map((card) => repoKeyOf(card.key)))) {
+			const answers = await Promise.all(
+				members.map((userId) => this.canRead(userId, repoKey).catch(() => false)),
+			);
+			readable.set(repoKey, answers.every(Boolean));
+		}
+		for (const card of hidden) {
+			if (readable.get(repoKeyOf(card.key))) out.set(card.key, card.title);
+		}
+		return out;
 	}
 
 	/**
