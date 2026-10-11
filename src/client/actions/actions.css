@@ -895,13 +895,19 @@
 	box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* The button's own colour, not the app's keycap: readable on the accent. */
 .action-primary kbd {
+	min-width: 0;
+	height: auto;
 	padding: 1px 5px;
+	border: 0;
 	border-radius: 5px;
 	background: rgb(255 255 255 / 18%);
+	box-shadow: none;
+	color: inherit;
 	font-family: var(--font-mono);
 	font-size: 11px;
-	opacity: 0.85;
+	font-weight: 600;
 }
 
 .action-primary:disabled {
