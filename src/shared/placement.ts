@@ -172,3 +172,52 @@ function nearestFree(
 	}
 	return null;
 }
+
+/** The smallest a section placed with a click shrinks to, to fit a gap. */
+const SECTION_SHRINK_MIN: Size = { w: 320, h: 220 };
+
+/**
+ * Where a section placed with a click (not drawn) goes: centred on the
+ * click at `size` if that's clear, or shrunk to fit the gap there, or at
+ * full size in the nearest free space. Never over another shape, across a
+ * section's edge or over a section's title, so it never takes shapes from
+ * other sections (or anything else): it starts empty, as a click promises.
+ * Wholly inside a section is fine: a section can hold sections.
+ */
+export function sectionSpot(
+	shapes: ReadonlyMap<string, ShapeProps>,
+	at: Point,
+	size: Size,
+	sizeOf?: SizeOf,
+): Rect {
+	const obstacles = obstaclesOf(shapes, sizeOf);
+	const centred = (s: Size): Rect => ({
+		x: Math.round(at.x - s.w / 2),
+		y: Math.round(at.y - s.h / 2),
+		w: s.w,
+		h: s.h,
+	});
+	// The title pill sits above the section, so it needs to be clear too.
+	const clear = (rect: Rect) =>
+		isFree(
+			{ x: rect.x, y: rect.y - SECTION_TITLE.h, w: rect.w, h: rect.h + SECTION_TITLE.h },
+			obstacles,
+		);
+	for (let scale = 1; scale >= 0.4; scale -= 0.1) {
+		const s = {
+			w: Math.max(SECTION_SHRINK_MIN.w, Math.round(size.w * scale)),
+			h: Math.max(SECTION_SHRINK_MIN.h, Math.round(size.h * scale)),
+		};
+		const rect = centred(s);
+		if (clear(rect)) return rect;
+		if (s.w === SECTION_SHRINK_MIN.w && s.h === SECTION_SHRINK_MIN.h) break;
+	}
+	const ideal = centred(size);
+	const spot = nearestFree(
+		{ x: ideal.x, y: ideal.y - SECTION_TITLE.h },
+		{ w: size.w, h: size.h + SECTION_TITLE.h },
+		obstacles,
+		() => 0,
+	);
+	return spot ? { x: spot.x, y: spot.y + SECTION_TITLE.h, w: size.w, h: size.h } : ideal;
+}

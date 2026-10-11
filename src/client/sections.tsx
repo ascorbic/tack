@@ -18,10 +18,12 @@ import {
 	resizeRect,
 } from "../shared/sections.ts";
 import { transactLocal, updateShapes } from "../shared/shapes.ts";
-import { addSection, resizeSection } from "../shared/structure.ts";
+import { addSection, readShapes, resizeSection } from "../shared/structure.ts";
+import { sectionSpot } from "../shared/placement.ts";
 import { sortOf } from "../shared/display.ts";
 import { DisplaySwitch, sortLabel } from "./display/DisplaySwitch.tsx";
 import { type ShapeNode, focusWhenMounted, isFresh, takeFocus } from "./board.ts";
+import { scaledDuration } from "./motion.ts";
 import { DocContext, ReadOnlyContext, SectionContext, type SectionUI } from "./DocContext.ts";
 import { SilentBadge, SilentButton } from "./facilitation/Silent.tsx";
 import { VoteButton } from "./facilitation/Votes.tsx";
@@ -511,17 +513,36 @@ export function SectionTool({
 				cancel = null;
 				setDraft(null);
 				if (!commit) return;
+				// Drawn: around whatever it's drawn around. Clicked: an empty section
+				// in the space there, never taking shapes from another section.
 				const rect = dragged
 					? rectFromPoints(start, end)
-					: {
-							x: start.x - SECTION_DEFAULT.w / 2,
-							y: start.y - SECTION_DEFAULT.h / 2,
-							w: SECTION_DEFAULT.w,
-							h: SECTION_DEFAULT.h,
-						};
-				const id = transactLocal(doc, () => addSection(doc, rect, {}, sizeOf));
-				focusWhenMounted(id);
-				onCreateRef.current(id);
+					: sectionSpot(readShapes(doc), start, SECTION_DEFAULT, sizeOf);
+				const place = () => {
+					const id = transactLocal(doc, () => addSection(doc, rect, {}, sizeOf));
+					focusWhenMounted(id);
+					onCreateRef.current(id);
+				};
+				// Free space wasn't where you clicked: glide there first, title and
+				// all, and it pops in once it's in view (ready to name).
+				const { width, height, transform } = store.getState();
+				const [tx, ty, zoom] = transform;
+				const seen = { x: -tx / zoom, y: -ty / zoom, w: width / zoom, h: height / zoom };
+				const inView =
+					rect.x >= seen.x &&
+					rect.y - 40 >= seen.y &&
+					rect.x + rect.w <= seen.x + seen.w &&
+					rect.y + rect.h <= seen.y + seen.h;
+				if (dragged || inView) {
+					place();
+					return;
+				}
+				void flow
+					.setCenter(rect.x + rect.w / 2, rect.y + rect.h / 2 - 20, {
+						zoom: Math.min(zoom, (height * 0.8) / (rect.h + 60), (width * 0.9) / rect.w),
+						duration: scaledDuration(420),
+					})
+					.then(place);
 			};
 			const onUp = () => finish(true);
 			const onKey = (key: KeyboardEvent) => {

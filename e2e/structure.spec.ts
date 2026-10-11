@@ -71,6 +71,53 @@ test("draw a section around cards, then move it with them", async ({ page }) => 
 	await expect(now.locator(".section-count")).toHaveText("2");
 });
 
+test("a section placed with a click lands in free space, and takes nothing from other sections", async ({
+	page,
+}) => {
+	await openScenario(page, "sections");
+	const columns = ["Now", "Next", "Later"].map((title) => section(page, title));
+	for (const column of columns) await expect(column.locator(".section-count")).toHaveText("2");
+	const next = await box(columns[1]!);
+
+	// Low across the Next column's edge, where a default-size section would
+	// have reached into all three.
+	await page.keyboard.press("f");
+	await page.mouse.click(next.x + next.width / 2, next.y + next.height - 80);
+	const title = page.getByRole("textbox", { name: "Section title" });
+	await expect(title).toBeFocused();
+	await page.keyboard.type("Parking lot");
+	await page.keyboard.press("Enter");
+
+	// It's on screen, ready to name, though not where the click was.
+	await expect(section(page, "Parking lot")).toBeVisible();
+	const sections = await page.evaluate(() => {
+		const { doc } = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } })
+			.tackPlayground;
+		const shapes = [...doc.getMap<import("yjs").Map<unknown>>("shapes").entries()];
+		return shapes
+			.filter(([, shape]) => shape.get("type") === "section")
+			.map(([id, shape]) => ({
+				title: String(shape.get("title")),
+				x: Number(shape.get("x")),
+				y: Number(shape.get("y")),
+				w: Number(shape.get("w")),
+				h: Number(shape.get("h")),
+				holds: shapes.filter(([, other]) => other.get("parent") === id).length,
+			}));
+	});
+	const added = sections.find((s) => s.title === "Parking lot")!;
+	expect(added.holds).toBe(0);
+	for (const column of sections.filter((s) => s.title !== "Parking lot")) {
+		expect(column.holds).toBe(2);
+		const meets =
+			added.x < column.x + column.w &&
+			column.x < added.x + added.w &&
+			added.y < column.y + column.h &&
+			column.y < added.y + added.h;
+		expect(meets).toBe(false);
+	}
+});
+
 test("undo puts a moved section and its contents back in one step", async ({ page }) => {
 	await openScenario(page, "sections");
 	const now = section(page, "Now");
