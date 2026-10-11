@@ -207,6 +207,20 @@ const ROWS: Row[] = [
 		request: (a) => call(a, "POST", `/api/boards/${privateBoard}/snapshots`, "x", "image/png"),
 	},
 	{
+		// Editors only: what it drafts is for them to place. Answered by the harness's fake Workers AI.
+		route: "POST /api/boards/:id/ai",
+		allowed: privateEditors,
+		request: (a) =>
+			call(a, "POST", `/api/boards/${privateBoard}/ai`, { task: "widget", prompt: "Open bugs" }),
+	},
+	{
+		// Instance users edit a public board (its `instanceRole`); strangers only read it.
+		route: "POST /api/boards/:id/ai (public)",
+		allowed: instanceUsers,
+		request: (a) =>
+			call(a, "POST", `/api/boards/${publicBoard}/ai`, { task: "widget", prompt: "Open bugs" }),
+	},
+	{
 		route: "POST /api/boards/:id/carry",
 		allowed: privateEditors,
 		request: (a) => call(a, "POST", `/api/boards/${publicBoard}/carry`, { to: privateBoard }),
@@ -504,9 +518,21 @@ describe("the access table: board messages", () => {
 		stranger.send({ type: "clock", t: 1 });
 		stranger.send({ type: "since-request", since: Date.now() - 60_000 });
 		stranger.send({ type: "widget-watch", ids: ["nothing"] });
+		// A proposed widget's preview runs at the stranger's own (public) access.
+		stranger.send({
+			type: "widget-preview",
+			id: "proposal",
+			widget: "list",
+			config: { host: "fake.tack", q: "repo:acme/app is:open" },
+		});
 		stranger.send({ type: "recheck" });
 		await eventually(() => received(stranger, "clock").length === 1);
 		await eventually(() => received(stranger, "since").length === 1);
+		await eventually(() =>
+			stranger.messages.some(
+				(message) => (message as { id?: string }).id === "preview:widget:proposal",
+			),
+		);
 		expect(stranger.closed).toBeNull();
 	});
 
