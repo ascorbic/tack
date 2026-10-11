@@ -14,7 +14,9 @@ import type { ApplyResult, ForgeAdapter } from "./types.ts";
 // blocked-by included. Created items get a number from 100000 up: even for
 // issues, odd for pull requests, so their (synthetic) cards are open items
 // of the right kind. Anything with "[fail]" in its title or body is
-// refused, to show failures.
+// refused, to show failures. Synthetic issues have a parent (`fakeParent`),
+// so making one a sub-issue of anything else is refused, as GitHub refuses
+// a second parent, unless it's moved (`replaceParent`).
 
 const LABELS = [
 	{ name: "bug", color: "d73a4a" },
@@ -143,6 +145,23 @@ export const fake: ForgeAdapter = {
 			const n = createdNumber(op.kind === "pr.create" ? "pull" : "issue");
 			const key = itemKey({ host: repo.host, repo: repo.name, item: `#${n}` });
 			return { ok: true, key, url: `https://fake.tack/${repo.name}/${n}`, confirmed: true };
+		}
+		if (op.kind === "item.subIssue") {
+			// Synthetic issues have the parent `fakeParent` gives them, and
+			// one only: moving one there takes `replaceParent`.
+			const child = "key" in op.child ? Number(itemOf(op.child.key)?.slice(1)) : NaN;
+			const parent = "key" in op.parent ? op.parent.key.toLowerCase() : "";
+			const has = Number.isInteger(child) ? fakeParent(child) : null;
+			const current = has ? itemKey({ host: repo.host, repo: repo.name, item: `#${has}` }) : null;
+			if (current && current.toLowerCase() !== parent && !op.replaceParent) {
+				return {
+					ok: false,
+					error: `#${child} already has a parent issue (#${has}), and an issue can only have one.`,
+					retryable: false,
+					detail: "The fake forge said: Sub issue may only have one parent",
+					problem: { code: "has_parent", parent: current },
+				};
+			}
 		}
 		const target = op.kind === "item.subIssue" ? op.parent : "target" in op ? op.target : null;
 		const key = target && "key" in target ? target.key : undefined;

@@ -162,7 +162,7 @@ describe("apply", () => {
 		expect(writes().filter((w) => w.endsWith("/sub_issues"))).toHaveLength(1);
 	});
 
-	it("says so when the child already has another parent", async () => {
+	it("says so, in plain words, when the child already has another parent", async () => {
 		await apply({
 			kind: "item.subIssue",
 			parent: { key: `${KEY}#12` },
@@ -173,9 +173,113 @@ describe("apply", () => {
 			parent: { key: `${KEY}#13` },
 			child: { key: `${KEY}#14` },
 		});
-		expect(result).toMatchObject({ ok: false, retryable: false });
-		expect(!result.ok && result.error).toContain("it's already a sub-issue of another issue");
-		expect(!result.ok && result.detail).toContain("Issue already has a parent");
+		expect(result).toEqual({
+			ok: false,
+			retryable: false,
+			error: "#14 already has a parent issue (#12), and an issue can only have one.",
+			detail:
+				"GitHub said (422): An error occurred while adding the sub-issue to the parent issue. Sub issue may only have one parent",
+			problem: { code: "has_parent", parent: `${KEY}#12` },
+		});
+		expect(github.subIssues.get(`${REPO_ID}#13`)).toBeUndefined();
+	});
+
+	it("refuses before writing when GitHub says which parent it has", async () => {
+		github.restParentUrls = true;
+		await apply({
+			kind: "item.subIssue",
+			parent: { key: `${KEY}#12` },
+			child: { key: `${KEY}#14` },
+		});
+		const before = writes().length;
+		const result = await apply({
+			kind: "item.subIssue",
+			parent: { key: `${KEY}#13` },
+			child: { key: `${KEY}#14` },
+		});
+		expect(result).toMatchObject({
+			ok: false,
+			error: "#14 already has a parent issue (#12), and an issue can only have one.",
+			problem: { code: "has_parent", parent: `${KEY}#12` },
+		});
+		expect(writes()).toHaveLength(before);
+	});
+
+	it("moves a sub-issue from its parent with replaceParent, once", async () => {
+		await apply({
+			kind: "item.subIssue",
+			parent: { key: `${KEY}#12` },
+			child: { key: `${KEY}#14` },
+		});
+		const move: Operation = {
+			kind: "item.subIssue",
+			parent: { key: `${KEY}#13` },
+			child: { key: `${KEY}#14` },
+			replaceParent: true,
+			previousParent: `${KEY}#12`,
+		};
+		expect(await apply(move)).toMatchObject({ ok: true, key: `${KEY}#13`, confirmed: true });
+		expect(github.subIssues.get(`${REPO_ID}#12`)).toEqual([]);
+		expect(github.subIssues.get(`${REPO_ID}#13`)).toEqual([github.databaseId(REPO_ID, 14)]);
+		const posts = github.requests.filter(
+			(r) => r.method === "POST" && r.path.endsWith("/13/sub_issues"),
+		);
+		expect(posts).toHaveLength(1);
+		// Already a sub-issue of this parent: applied, with nothing written.
+		expect(await apply(move)).toMatchObject({ ok: true });
+		expect(
+			github.requests.filter((r) => r.method === "POST" && r.path.endsWith("/13/sub_issues")),
+		).toHaveLength(1);
+	});
+
+	it("explains loops, limits and an issue under itself, and keeps what GitHub said", async () => {
+		const sub = (parent: number, child: number) =>
+			apply({
+				kind: "item.subIssue",
+				parent: { key: `${KEY}#${parent}` },
+				child: { key: `${KEY}#${child}` },
+			});
+		expect(await sub(12, 12)).toMatchObject({
+			ok: false,
+			error: "An issue can't be its own sub-issue.",
+			problem: { code: "self" },
+		});
+		await sub(12, 13);
+		const loop = await sub(13, 12);
+		expect(loop).toMatchObject({
+			ok: false,
+			retryable: false,
+			error: expect.stringContaining("#13 is already under #12"),
+			detail: expect.stringContaining("ancestor"),
+			problem: { code: "cycle" },
+		});
+		github.maxSubIssues = 1;
+		expect(await sub(12, 14)).toMatchObject({
+			ok: false,
+			error: expect.stringContaining("#12 has as many sub-issues as GitHub allows"),
+			problem: { code: "too_many" },
+		});
+	});
+
+	it("explains blocked-by loops and an issue blocking itself", async () => {
+		const block = (target: number, blocker: number) =>
+			apply({
+				kind: "item.blockedBy",
+				target: { key: `${KEY}#${target}` },
+				blockedBy: { key: `${KEY}#${blocker}` },
+			});
+		expect(await block(12, 12)).toMatchObject({
+			ok: false,
+			error: "An issue can't be blocked by itself.",
+			problem: { code: "self" },
+		});
+		expect(await block(12, 13)).toMatchObject({ ok: true });
+		expect(await block(13, 12)).toMatchObject({
+			ok: false,
+			error: expect.stringContaining("#12 is already waiting on #13"),
+			detail: expect.stringContaining("circular"),
+			problem: { code: "cycle" },
+		});
 	});
 
 	it("marks an issue as blocked by another, only once", async () => {

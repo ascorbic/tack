@@ -331,6 +331,15 @@ export class Repo extends DurableObject<Env> {
 			.map((row) => row.board);
 	}
 
+	/**
+	 * Read these items (`#12`) again soon, debounced like CI changes: for
+	 * writes whose effect no delivery may describe, such as a sub-issue's
+	 * new parent. Only items someone's watching. Returns those queued.
+	 */
+	async refetchItems(items: string[]): Promise<string[]> {
+		return this.scheduleRefetch({ items, commits: [] });
+	}
+
 	/** Items waiting for a debounced refetch, for tests and debugging. */
 	pendingRefetches(): { item: string; dueAt: number; attempts: number }[] {
 		return this.sql

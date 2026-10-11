@@ -13,7 +13,13 @@
 // (issues, comments, pull requests, discussions) look for what an earlier,
 // unanswered attempt made before making it again (`ApplyOptions.retryOf`).
 
-import type { Operation, PushAs, Target } from "../../shared/changes.ts";
+import type {
+	ChangeProblem,
+	Operation,
+	PushAs,
+	ProblemCode,
+	Target,
+} from "../../shared/changes.ts";
 import type { Label, Milestone, RepoMeta } from "../../shared/push.ts";
 import { itemKey, parseKey } from "../../shared/refs.ts";
 import { isInstalled, repoToken } from "../github/tokens.ts";
@@ -61,8 +67,14 @@ async function refused(response: Response, what: string): Promise<never> {
 	});
 }
 
-function fail(error: string, retryable = false, detail?: string): never {
-	throw new WriteFailure({ ok: false, error, retryable, ...(detail ? { detail } : {}) });
+function fail(error: string, retryable = false, detail?: string, problem?: ChangeProblem): never {
+	throw new WriteFailure({
+		ok: false,
+		error,
+		retryable,
+		...(detail ? { detail } : {}),
+		...(problem ? { problem } : {}),
+	});
 }
 
 function headers(token: string | null, json = false): HeadersInit {
@@ -193,8 +205,8 @@ export function explain(status: number, message: string, what: string, as: PushA
 		if (/label/i.test(message)) {
 			return `Couldn't ${what}: GitHub wouldn't take one of the labels. Check it still exists.`;
 		}
-		if (/already has a parent/i.test(message)) {
-			return `Couldn't ${what}: it's already a sub-issue of another issue. Take it off that one on GitHub first.`;
+		if (HAS_PARENT.test(message)) {
+			return `Couldn't ${what}: it already has a parent issue, and an issue can only have one.`;
 		}
 		if (/already exists|already (been )?(added|taken)/i.test(message)) {
 			return `Couldn't ${what}: it's already there.`;
@@ -202,6 +214,103 @@ export function explain(status: number, message: string, what: string, as: PushA
 		return `Couldn't ${what}: GitHub said something in it isn't valid.`;
 	}
 	return `Couldn't ${what} (GitHub answered ${status}).`;
+}
+
+// Sub-issue and blocked-by refusals. GitHub answers 422 with words written
+// for developers ("Sub issue may only have one parent"), which are matched
+// loosely: the wording isn't documented, and what it said is kept in
+// `detail` either way.
+
+const HAS_PARENT = /only have one parent|already has a parent|already (a )?sub[- ]?issue of/i;
+const LINK_PROBLEMS: [ProblemCode, RegExp][] = [
+	["has_parent", HAS_PARENT],
+	["self", /\bitself\b|same as the (parent|issue)|own (parent|sub[- ]?issue)/i],
+	["cycle", /cycle|circular|loop|ancestor|descendant/i],
+	["too_deep", /depth|levels? deep|nest(ed|ing)? (too )?deep/i],
+	["too_many", /limit|maximum|too many|more than \d+/i],
+	[
+		"cross_repo",
+		/(different|another|other|same) (owner|organi[sz]ation|account|repositor)|cross[- ]?(repo|owner|org)|across (repositor|owner|organi[sz]ation)/i,
+	],
+];
+
+/** Which way out a sub-issue or blocked-by refusal has, if it's one we know. */
+function linkProblem(kind: "item.subIssue" | "item.blockedBy", error: unknown): ProblemCode | null {
+	if (!(error instanceof WriteFailure) || error.refusal?.status !== 422) return null;
+	const message = error.refusal.message;
+	for (const [code, pattern] of LINK_PROBLEMS) {
+		// Only sub-issues have parents.
+		if (code === "has_parent" && kind !== "item.subIssue") continue;
+		if (pattern.test(message)) return code;
+	}
+	return null;
+}
+
+/**
+ * Refuse a link in plain words. For sub-issues `a` is the child and `b` the
+ * parent; for blocked-by, `a` is blocked by `b`.
+ */
+function linkRefused(
+	kind: "item.subIssue" | "item.blockedBy",
+	code: ProblemCode,
+	{ a, b }: { a: string; b: string },
+	error?: unknown,
+): never {
+	const sub = kind === "item.subIssue";
+	const words: Record<ProblemCode, string> = {
+		has_parent: `${a} already has a parent issue, and an issue can only have one.`,
+		self: sub ? "An issue can't be its own sub-issue." : "An issue can't be blocked by itself.",
+		cycle: sub
+			? `${b} is already under ${a}, so ${a} can't go under it too: that would make a loop. Take one of them off the other on GitHub, then retry.`
+			: `${b} is already waiting on ${a}, directly or through others, so ${a} can't wait on it too: that would make a loop. Remove one of the links on GitHub, then retry.`,
+		too_many: sub
+			? `${b} has as many sub-issues as GitHub allows. Take some off it on GitHub, then retry, or put ${a} under another issue.`
+			: `${a} has as many blocked-by links as GitHub allows. Remove one on GitHub, then retry.`,
+		too_deep: `That would nest sub-issues deeper than GitHub allows. Put ${a} under an issue higher up instead.`,
+		cross_repo: `GitHub won't link ${a} and ${b}: it doesn't link issues across these repositories.`,
+	};
+	const detail = error instanceof WriteFailure ? error.failure.detail : undefined;
+	fail(words[code], false, detail, { code });
+}
+
+/** Refuse a sub-issue that has a parent (`current`, if known) other than this one. */
+function hasParent(child: Item, current: string | null, repo: string, error?: unknown): never {
+	const named = current ? parseKey(current) : null;
+	const parent = named
+		? shortIn({ repo: named.repo, number: Number(named.item.slice(1)) }, repo)
+		: null;
+	const detail = error instanceof WriteFailure ? error.failure.detail : undefined;
+	fail(
+		`${shortIn(child, repo)} already has a parent issue${parent ? ` (${parent})` : ""}, and an issue can only have one.`,
+		false,
+		detail,
+		{ code: "has_parent", ...(current ? { parent: current } : {}) },
+	);
+}
+
+/** An issue's key from its API or web URL (`…/repos/o/r/issues/4`), if it is one. */
+function keyFromUrl(url: string | null | undefined): string | null {
+	const match =
+		/^https:\/\/(?:api\.)?github\.com\/(?:repos\/)?([\w.-]+\/[\w.-]+)\/issues\/(\d+)$/i.exec(
+			url ?? "",
+		);
+	if (!match) return null;
+	return itemKey({ host: HOST, repo: match[1] ?? "", item: `#${match[2]}` }).toLowerCase();
+}
+
+/** The parent issue an issue has now, by key, or null if it has none (or GitHub won't say). */
+async function parentOf(token: string, child: Item): Promise<string | null> {
+	try {
+		const parent = await rest<IssueResponse | null>(
+			token,
+			`/repos/${child.repo}/issues/${child.number}/parent`,
+			`find the parent of ${short(child)}`,
+			{ allow404: true },
+		);
+		return parent ? keyFromUrl(parent.html_url) : null;
+	} catch {
+		return null;
+	}
 }
 
 /** When a rate limit lifts, if this response is one. */
@@ -271,6 +380,8 @@ interface IssueResponse {
 	created_at?: string;
 	pull_request?: unknown;
 	assignees?: { login: string }[];
+	/** The API URL of its parent issue, where GitHub says (null: none). */
+	parent_issue_url?: string | null;
 }
 
 interface Item {
@@ -295,6 +406,13 @@ function item(target: Target): Item {
 /** `owner/repo#12`, for messages. */
 function short(target: Item): string {
 	return `${target.repo}#${target.number}`;
+}
+
+/** `#12` in the repository being written to, else `owner/repo#12`. */
+function shortIn(target: Pick<Item, "repo" | "number">, repo: string): string {
+	return target.repo.toLowerCase() === repo.toLowerCase()
+		? `#${target.number}`
+		: `${target.repo}#${target.number}`;
 }
 
 function issueUrl(repo: string, number: number): string {
@@ -528,6 +646,8 @@ async function applyOrFail(
 		case "item.subIssue": {
 			const parent = item(op.parent);
 			const child = item(op.child);
+			const names = { a: shortIn(child, repo.name), b: shortIn(parent, repo.name) };
+			if (parent.key === child.key) linkRefused("item.subIssue", "self", names);
 			// Sub-issues are added by the child's database id, not its number.
 			const childIssue = await rest<IssueResponse>(
 				token,
@@ -540,11 +660,39 @@ async function applyOrFail(
 				`${url}?per_page=100`,
 				`list the sub-issues of ${short(parent)}`,
 			);
+			// Already a sub-issue of this parent: done, moved or not.
 			if (!existing.some((issue) => issue.id === childIssue.id)) {
-				await rest(token, url, `make ${short(child)} a sub-issue of ${short(parent)}`, {
-					method: "POST",
-					body: { sub_issue_id: childIssue.id },
-				});
+				// Where GitHub says which parent it has, refuse before writing.
+				const current = keyFromUrl(childIssue.parent_issue_url);
+				if (!op.replaceParent && current && current !== parent.key) {
+					hasParent(child, current, repo.name);
+				}
+				try {
+					await rest(token, url, `make ${short(child)} a sub-issue of ${short(parent)}`, {
+						method: "POST",
+						body: {
+							sub_issue_id: childIssue.id,
+							...(op.replaceParent ? { replace_parent: true } : {}),
+						},
+					});
+				} catch (error) {
+					const problem = linkProblem("item.subIssue", error);
+					if (problem === "has_parent") {
+						const now = await parentOf(token, child);
+						// Someone got there first: it's where it should be.
+						if (now === parent.key) {
+							return {
+								ok: true,
+								key: parent.key,
+								url: issueUrl(repo.name, parent.number),
+								confirmed: true,
+							};
+						}
+						hasParent(child, now, repo.name, error);
+					}
+					if (problem) linkRefused("item.subIssue", problem, names, error);
+					throw error;
+				}
 			}
 			// Cards don't show sub-issues, so GitHub's answer is the confirmation.
 			return {
@@ -558,6 +706,8 @@ async function applyOrFail(
 		case "item.blockedBy": {
 			const target = item(op.target);
 			const blocker = item(op.blockedBy);
+			const names = { a: shortIn(target, repo.name), b: shortIn(blocker, repo.name) };
+			if (target.key === blocker.key) linkRefused("item.blockedBy", "self", names);
 			const blockerIssue = await rest<IssueResponse>(
 				token,
 				`/repos/${blocker.repo}/issues/${blocker.number}`,
@@ -570,10 +720,16 @@ async function applyOrFail(
 				`list what blocks ${short(target)}`,
 			);
 			if (!existing.some((issue) => issue.id === blockerIssue.id)) {
-				await rest(token, url, `mark ${short(target)} as blocked by ${short(blocker)}`, {
-					method: "POST",
-					body: { issue_id: blockerIssue.id },
-				});
+				try {
+					await rest(token, url, `mark ${short(target)} as blocked by ${short(blocker)}`, {
+						method: "POST",
+						body: { issue_id: blockerIssue.id },
+					});
+				} catch (error) {
+					const problem = linkProblem("item.blockedBy", error);
+					if (problem) linkRefused("item.blockedBy", problem, names, error);
+					throw error;
+				}
 			}
 			return {
 				ok: true,

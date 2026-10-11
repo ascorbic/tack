@@ -97,15 +97,16 @@ describe("push table migrations", () => {
 		);
 		migrateSql(sql, "push", PUSH_MIGRATIONS);
 		expect(columns(sql, "push_changes")).toContain("error_detail");
-		expect(sql.exec("SELECT state, error_detail FROM push_changes").toArray()).toEqual([
-			{ state: "failed", error_detail: null },
+		expect(columns(sql, "push_changes")).toContain("problem");
+		expect(sql.exec("SELECT state, error_detail, problem FROM push_changes").toArray()).toEqual([
+			{ state: "failed", error_detail: null, problem: null },
 		]);
 	});
 
 	it("run harmlessly on boards whose tables already have everything", () => {
 		const { sql } = memorySql();
-		sql.exec("CREATE TABLE push_changes (push_id TEXT, error_detail TEXT)");
-		expect(migrateSql(sql, "push", PUSH_MIGRATIONS).applied).toEqual(["error-detail"]);
-		expect(columns(sql, "push_changes")).toEqual(["push_id", "error_detail"]);
+		sql.exec("CREATE TABLE push_changes (push_id TEXT, error_detail TEXT, problem TEXT)");
+		expect(migrateSql(sql, "push", PUSH_MIGRATIONS).applied).toEqual(["error-detail", "problem"]);
+		expect(columns(sql, "push_changes")).toEqual(["push_id", "error_detail", "problem"]);
 	});
 });

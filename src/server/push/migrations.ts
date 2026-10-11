@@ -11,4 +11,10 @@ export const PUSH_MIGRATIONS: readonly SqlMigration[] = [
 		name: "error-detail",
 		up: (sql) => addColumn(sql, "push_changes", "error_detail", "TEXT"),
 	},
+	{
+		// And before they kept what kind of refusal it was (`ChangeProblem`).
+		version: 2,
+		name: "problem",
+		up: (sql) => addColumn(sql, "push_changes", "problem", "TEXT"),
+	},
 ];

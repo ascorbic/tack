@@ -44,7 +44,18 @@ export type Operation =
 	| { kind: "item.milestone"; target: Target; milestone: string | null }
 	| { kind: "item.assignees"; target: Target; add?: string[]; remove?: string[] }
 	| { kind: "item.state"; target: Target; state: "open" | "closed"; reason?: CloseReason }
-	| { kind: "item.subIssue"; parent: Target; child: Target }
+	| {
+			kind: "item.subIssue";
+			parent: Target;
+			child: Target;
+			/**
+			 * Move the child here from the parent it has. An issue can only
+			 * have one, so without this a child that has one is refused.
+			 */
+			replaceParent?: boolean;
+			/** The parent it's moved from, as staged (an item key), for saying so. */
+			previousParent?: string;
+	  }
 	| { kind: "item.blockedBy"; target: Target; blockedBy: Target }
 	| { kind: "item.comment"; target: Target; body: string }
 	| ({
@@ -123,6 +134,39 @@ export type ChangeEffect =
  */
 export type Drift = "edited" | "deleted" | "empty";
 
+/**
+ * Refusals of sub-issue and blocked-by links that the board can offer a
+ * way out of, beyond retrying:
+ *
+ * - `has_parent`: the sub-issue already has a parent (`parent`, when the
+ *   forge said which), and an issue can only have one. Move it here
+ *   (`replaceParent`), or leave it out
+ * - `self`: an issue can't be its own sub-issue, or block itself
+ * - `cycle`: the link would make a loop
+ * - `too_many`: the parent has as many sub-issues (or the issue as many
+ *   dependencies) as the forge allows
+ * - `too_deep`: sub-issues would nest deeper than the forge allows
+ * - `cross_repo`: the forge won't link items across these repositories
+ */
+export type ProblemCode = "has_parent" | "self" | "cycle" | "too_many" | "too_deep" | "cross_repo";
+
+export interface ChangeProblem {
+	code: ProblemCode;
+	/** `has_parent`: the parent it has now, as an item key. */
+	parent?: string;
+}
+
+/**
+ * Whether trying a refused change again, unchanged, could ever work. A
+ * child that already has a parent is refused until it's moved (or its
+ * parent is changed on the forge, which Tack can do: Move it here), and an
+ * issue is always itself. Loops and limits can be sorted out on the forge,
+ * after which a retry works.
+ */
+export function retryCanWork(problem: ChangeProblem | undefined): boolean {
+	return problem?.code !== "has_parent" && problem?.code !== "self";
+}
+
 /** Changes staged together by one action: which, and in what order they were staged. */
 export interface Batch {
 	id: string;
@@ -157,6 +201,8 @@ export interface PendingChange {
 	error?: string;
 	/** What the forge itself said, when that's different, for looking it up. */
 	errorDetail?: string;
+	/** What kind of refusal it was, when there's a way out other than retrying. */
+	problem?: ChangeProblem;
 	updatedAt?: string;
 }
 

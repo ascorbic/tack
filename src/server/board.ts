@@ -25,7 +25,7 @@ import {
 	placeCommandCard,
 } from "../shared/commands.ts";
 import { INBOX_ORIGIN, type InboxPreviewRequest } from "../shared/inbox.ts";
-import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
+import { itemOf, parseRepoKey, repoKeyOf } from "../shared/refs.ts";
 import { RULE_ORIGIN, type RepoActivity, setScopeRepos } from "../shared/rules.ts";
 import {
 	type Actor,
@@ -266,6 +266,21 @@ export class Board extends YServer<Env> {
 			},
 			wrote: (repos) => {
 				for (const repo of repos) this.widgets?.repoChanged(repo);
+			},
+			refetch: (keys) => {
+				for (const [repoKey, items] of Object.entries(groupByRepo(keys))) {
+					void this.route(repoKey)
+						.then((repo) =>
+							typeof repo === "string"
+								? undefined
+								: repoObject(this.env, repo).refetchItems(
+										items.flatMap((key) => itemOf(key) ?? []),
+									),
+						)
+						.catch((error: unknown) =>
+							log.warn("board.refetch.failed", { board: this.name, error }),
+						);
+				}
 			},
 			alarmAt: (at) => this.alarmAt(at),
 		});

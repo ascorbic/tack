@@ -341,8 +341,12 @@ export class FakeGitHub {
 	/** Comments, oldest first. */
 	readonly comments: FakeComment[] = [];
 	readonly discussions: FakeDiscussion[] = [];
-	/** Sub-issue links: parent `repoId#number` → child database ids. */
+	/** Sub-issue links: parent `repoId#number` → child database ids. One parent each, as on GitHub. */
 	readonly subIssues = new Map<string, number[]>();
+	/** How many sub-issues a parent may have (GitHub allows 100). */
+	maxSubIssues = 100;
+	/** Whether REST issues say which parent they have (`parent_issue_url`). */
+	restParentUrls = false;
 	/** Dependencies: blocked `repoId#number` → blocking database ids. */
 	readonly blockedBy = new Map<string, number[]>();
 	/** Releases by repository id, oldest first. */
@@ -859,6 +863,11 @@ export class FakeGitHub {
 					),
 				);
 			}
+			if ((match = /^\/issues\/(\d+)\/parent$/.exec(rest))) {
+				const parent = this.parentOf(this.databaseId(repo.id, Number(match[1])));
+				const issue = parent === null ? null : this.issueByDatabaseId(parent);
+				return issue ? json(issue) : json({ message: "Not Found" }, 404);
+			}
 			if ((match = /^\/issues\/(\d+)\/(sub_issues|dependencies\/blocked_by)$/.exec(rest))) {
 				const links = (match[2] === "sub_issues" ? this.subIssues : this.blockedBy).get(
 					`${repo.id}#${match[1]}`,
@@ -1116,14 +1125,36 @@ export class FakeGitHub {
 			if (list.includes(id)) {
 				return json({ message: "Validation Failed", errors: [{ message: "already linked" }] }, 422);
 			}
+			const own = this.databaseId(repo.id, item.number);
+			// GitHub's refusals, worded as GitHub words them.
+			const refuse = (message: string) => json({ message, status: "422" }, 422);
 			if (sub === "/sub_issues") {
-				for (const children of this.subIssues.values()) {
-					if (children.includes(id)) {
-						return json(
-							{ message: "Validation Failed", errors: [{ message: "Issue already has a parent" }] },
-							422,
-						);
-					}
+				if (own === id) return refuse("Sub issue cannot be the same as the parent issue");
+				if (this.ancestorsOf(own).includes(id)) {
+					return refuse(
+						"An error occurred while adding the sub-issue to the parent issue. Sub issue cannot be an ancestor of the parent issue",
+					);
+				}
+				if (list.length >= this.maxSubIssues) {
+					return refuse("Parent issue has reached the maximum number of sub-issues");
+				}
+				// One parent per sub-issue, as on GitHub, unless it's moved.
+				const had = [...this.subIssues].find(([, children]) => children.includes(id));
+				if (had && !body.replace_parent) {
+					return refuse(
+						"An error occurred while adding the sub-issue to the parent issue. Sub issue may only have one parent",
+					);
+				}
+				if (had && !drop) {
+					this.subIssues.set(
+						had[0],
+						had[1].filter((child) => child !== id),
+					);
+				}
+			} else {
+				if (own === id) return refuse("Issue cannot be blocked by itself");
+				if (this.blockersOf(id).includes(own)) {
+					return refuse("Adding this dependency would create a circular dependency");
 				}
 			}
 			if (!drop) links.set(key, [...list, id]);
@@ -1760,7 +1791,19 @@ export class FakeGitHub {
 			...(item.kind === "pull"
 				? { pull_request: { merged_at: item.state === "merged" ? this.closedAt(item) : null } }
 				: {}),
+			...(this.restParentUrls && item.kind !== "pull"
+				? { parent_issue_url: this.parentUrl(this.databaseId(repo.id, item.number)) }
+				: {}),
 		};
+	}
+
+	/** An issue's parent's API URL, or null. */
+	private parentUrl(id: number): string | null {
+		const parent = this.parentOf(id);
+		const repo = parent === null ? undefined : this.repos.get(Math.floor(parent / 1_000_000));
+		return parent === null || !repo
+			? null
+			: `https://api.github.com/repos/${repo.name}/issues/${parent % 1_000_000}`;
 	}
 
 	private restPull(repo: FakeRepo, item: FakeItem) {

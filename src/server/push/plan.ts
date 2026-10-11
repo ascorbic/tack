@@ -69,7 +69,13 @@ const OperationSchema = v.variant("kind", [
 		state: v.picklist(["open", "closed"]),
 		reason: v.optional(v.picklist(["completed", "not_planned", "duplicate"])),
 	}),
-	v.object({ kind: v.literal("item.subIssue"), parent: TargetSchema, child: TargetSchema }),
+	v.object({
+		kind: v.literal("item.subIssue"),
+		parent: TargetSchema,
+		child: TargetSchema,
+		replaceParent: v.optional(v.boolean()),
+		previousParent: v.optional(ItemKey),
+	}),
 	v.object({ kind: v.literal("item.blockedBy"), target: TargetSchema, blockedBy: TargetSchema }),
 	v.object({
 		kind: v.literal("item.comment"),
@@ -301,7 +307,9 @@ function describe(op: Operation, byId: ReadonlyMap<string, { op: Operation }>): 
 				? `Reopen ${describeTarget(op.target, byId)}`
 				: `Close ${describeTarget(op.target, byId)}${op.reason && op.reason !== "completed" ? ` as ${op.reason.replace("_", " ")}` : ""}`;
 		case "item.subIssue":
-			return `Make ${describeTarget(op.child, byId)} a sub-issue of ${describeTarget(op.parent, byId)}`;
+			return op.replaceParent
+				? `Move ${describeTarget(op.child, byId)}${op.previousParent ? ` from ${shortKey(op.previousParent)}` : ""} to ${describeTarget(op.parent, byId)}`
+				: `Make ${describeTarget(op.child, byId)} a sub-issue of ${describeTarget(op.parent, byId)}`;
 		case "item.blockedBy":
 			return `Mark ${describeTarget(op.target, byId)} as blocked by ${describeTarget(op.blockedBy, byId)}`;
 		case "item.comment":

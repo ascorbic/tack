@@ -1,6 +1,6 @@
 import type { Card, MissingCard } from "../../shared/cards.ts";
 import type { Command } from "../../shared/commands.ts";
-import type { Operation, OperationKind, PushAs } from "../../shared/changes.ts";
+import type { ChangeProblem, Operation, OperationKind, PushAs } from "../../shared/changes.ts";
 import type { ItemMention } from "../../shared/mentions.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import type {
@@ -164,6 +164,8 @@ export type ApplyResult =
 			 * shown behind "Details", for whoever needs to look it up.
 			 */
 			detail?: string;
+			/** What kind of refusal it was, when the board can offer a way out (see `ChangeProblem`). */
+			problem?: ChangeProblem;
 	  };
 
 /** Files to commit to a branch of their own (backups, #59). */

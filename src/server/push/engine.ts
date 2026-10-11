@@ -26,6 +26,7 @@ import * as Y from "yjs";
 import type { Card, MissingCard } from "../../shared/cards.ts";
 import {
 	type ChangeEffect,
+	type ChangeProblem,
 	type ChangeStatus,
 	changesMap,
 	listChanges,
@@ -107,6 +108,11 @@ export interface PushHost {
 	 * the board's widgets reading them should look again.
 	 */
 	wrote?(repoKeys: string[]): void;
+	/**
+	 * Read these items again: a write changed something about them that
+	 * their cards show but no delivery may say (a sub-issue's parent).
+	 */
+	refetch?(keys: string[]): void;
 }
 
 const DEFAULT_TIMING: PushTiming = { spacingMs: 1_000, confirmMs: 2 * 60_000, backoffMs: 5_000 };
@@ -157,6 +163,8 @@ type ItemRow = {
 	result_url: string | null;
 	error: string | null;
 	error_detail: string | null;
+	/** What kind of refusal it was (`ChangeProblem`, JSON). */
+	problem: string | null;
 	updated_at: number;
 };
 
@@ -203,6 +211,7 @@ export class PushEngine {
 				result_url TEXT,
 				error TEXT,
 				error_detail TEXT,
+				problem TEXT,
 				updated_at INTEGER NOT NULL,
 				PRIMARY KEY (push_id, change_id)
 			);
@@ -403,6 +412,7 @@ export class PushEngine {
 				if (item.error) change.set("error", item.error);
 				else if (change.has("error")) change.delete("error");
 				if (change.has("errorDetail")) change.delete("errorDetail");
+				if (change.has("problem")) change.delete("problem");
 				// A create that already happened keeps its result, so it isn't made again.
 				const kind = item.op?.kind ?? "";
 				if (change.has("result") && !(CREATES.has(kind) && this.previousResult(item.change.id))) {
@@ -611,6 +621,7 @@ export class PushEngine {
 					? `Gave up after ${row.attempts} tries. ${result.error}`
 					: result.error,
 				result.detail,
+				result.problem,
 			);
 			return "done";
 		}
@@ -646,7 +657,7 @@ export class PushEngine {
 		const now = Date.now();
 		this.host.sql.exec(
 			`UPDATE push_changes SET state = ?, applied_op = ?, watch_key = ?, sent_at = ?,
-				result_key = ?, result_url = ?, error = NULL, error_detail = NULL, retry_at = NULL, updated_at = ?
+				result_key = ?, result_url = ?, error = NULL, error_detail = NULL, problem = NULL, retry_at = NULL, updated_at = ?
 			WHERE push_id = ? AND change_id = ?`,
 			state,
 			JSON.stringify(op),
@@ -666,9 +677,12 @@ export class PushEngine {
 			},
 			error: undefined,
 			errorDetail: undefined,
+			problem: undefined,
 		});
 		const written = [operationRepo(op), result.key ? repoKeyOf(result.key) : null];
 		this.host.wrote?.([...new Set(written.filter((repo): repo is string => repo !== null))]);
+		// Its card says which parent it has, now this one.
+		if (op.kind === "item.subIssue" && "key" in op.child) this.host.refetch?.([op.child.key]);
 		const logger = this.logger(push.id);
 		if (state === "applied") {
 			logger.info("push.change.applied", {
@@ -684,23 +698,31 @@ export class PushEngine {
 		}
 	}
 
-	private fail(push: PushRow | string, row: ItemRow, error: string, detail?: string): void {
+	private fail(
+		push: PushRow | string,
+		row: ItemRow,
+		error: string,
+		detail?: string,
+		problem?: ChangeProblem,
+	): void {
 		const pushId = typeof push === "string" ? push : push.id;
 		this.host.sql.exec(
-			"UPDATE push_changes SET state = 'failed', error = ?, error_detail = ?, retry_at = NULL, updated_at = ? WHERE push_id = ? AND change_id = ?",
+			"UPDATE push_changes SET state = 'failed', error = ?, error_detail = ?, problem = ?, retry_at = NULL, updated_at = ? WHERE push_id = ? AND change_id = ?",
 			error,
 			detail ?? null,
+			problem ? JSON.stringify(problem) : null,
 			Date.now(),
 			row.push_id,
 			row.change_id,
 		);
-		this.updateChange(row.change_id, { status: "failed", error, errorDetail: detail });
+		this.updateChange(row.change_id, { status: "failed", error, errorDetail: detail, problem });
 		this.logger(pushId).warn("push.change.failed", {
 			change: row.change_id,
 			kind: row.kind,
 			attempts: row.attempts,
 			error,
 			detail,
+			...(problem ? { problem: problem.code } : {}),
 		});
 	}
 
@@ -1109,6 +1131,7 @@ export class PushEngine {
 						pushId: row.push_id,
 						...(row.error ? { error: row.error } : {}),
 						...(row.error_detail ? { errorDetail: row.error_detail } : {}),
+						...(row.problem ? { problem: readProblem(row.problem) } : {}),
 						...(row.result_key || row.result_url
 							? {
 									result: {
@@ -1174,6 +1197,14 @@ function repositoriesOf(items: { repo: string | null }[]): string[] {
 
 function summarizeSafely(item: PlanItem, byId: Map<string, PendingChange>): string {
 	return item.op ? summarizeOp(item.op, byId) : "A change Tack couldn't read";
+}
+
+function readProblem(json: string): ChangeProblem | undefined {
+	try {
+		return JSON.parse(json) as ChangeProblem;
+	} catch {
+		return undefined;
+	}
 }
 
 function shortRepo(repoKey: string): string {
