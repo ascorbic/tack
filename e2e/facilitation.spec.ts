@@ -25,10 +25,12 @@ test.describe("facilitating a retro", () => {
 	test("a shared timer counts down, pauses, gains time and rings at zero", async ({ page }) => {
 		await page.getByRole("button", { name: "Facilitate" }).click();
 		const menu = page.getByRole("dialog", { name: "Facilitate" });
+		await menu.getByRole("textbox", { name: "What it’s for (optional)" }).fill("Warm-up");
 		await menu.getByRole("button", { name: "1 minutes", exact: true }).click();
 		const timer = page.getByRole("timer");
 		await expect(timer).toHaveAttribute("data-state", "running");
 		await expect(timer).toContainText(/0:5\d|1:00/);
+		await expect(timer).toContainText("Warm-up");
 
 		await timer.hover();
 		await timer.getByRole("button", { name: "Pause" }).click();
@@ -43,6 +45,10 @@ test.describe("facilitating a retro", () => {
 		await play(page, "+1 minute").click();
 		await expect(timer).toHaveAttribute("data-state", "done");
 		await expect(timer).toContainText("Time’s up");
+		// After a while it settles into a small chip, out of the way.
+		await play(page, "+1 minute").click();
+		await expect(timer).toHaveAttribute("data-state", "settled");
+		await timer.hover();
 		await timer.getByRole("button", { name: "Stop the timer" }).click();
 		await expect(page.getByRole("timer")).toHaveCount(0);
 	});
@@ -74,6 +80,35 @@ test.describe("facilitating a retro", () => {
 		await expect(
 			page.getByRole("button", { name: /^🎉 2: Priya Shah, Kai Andersen/ }),
 		).toBeVisible();
+	});
+
+	test("the keyboard reaches all of it", async ({ page }) => {
+		// ⇧T opens the menu at the timer, ready to type what it's for.
+		await page.keyboard.press("Shift+T");
+		const menu = page.getByRole("dialog", { name: "Facilitate" });
+		await expect(menu.getByRole("textbox", { name: "What it’s for (optional)" })).toBeFocused();
+		// Escape gives focus back to the button.
+		await page.keyboard.press("Escape");
+		await expect(menu).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "Facilitate" })).toBeFocused();
+		// ⇧F opens it, with focus in it.
+		await page.keyboard.press("Shift+F");
+		await expect(menu).toBeVisible();
+		await expect(menu.locator(":focus")).toHaveCount(1);
+		await page.keyboard.press("Escape");
+		await expect(menu).toHaveCount(0);
+		// ⇧S spotlights you, and stops.
+		await page.locator(".react-flow__pane").click({ position: { x: 300, y: 600 } });
+		await page.keyboard.press("Shift+S");
+		await expect(page.locator(".spotlight-pill")).toBeVisible();
+		await page.keyboard.press("Shift+S");
+		await expect(page.locator(".spotlight-pill")).toHaveCount(0);
+		// With the stamp tool on, numbers pick a stamp.
+		await page.keyboard.press("m");
+		await page.keyboard.press("3");
+		await expect(
+			page.getByRole("radiogroup", { name: "Stamp" }).getByRole("radio").nth(2),
+		).toBeChecked();
 	});
 
 	test("emotes float up from your cursor, and people high-five", async ({ page }) => {
@@ -226,4 +261,18 @@ test.describe("dot voting", () => {
 		await expect(bar).toContainText("results hidden");
 		await expect(bar.getByRole("img", { name: "4 of 4 dots left" })).toBeVisible();
 	});
+});
+
+test("on a board without sections, silent mode makes one in view", async ({ page }) => {
+	await openScenario(page, "empty");
+	await page.getByRole("button", { name: "Facilitate" }).click();
+	await page
+		.getByRole("dialog", { name: "Facilitate" })
+		.getByRole("button", { name: "Start on a section…" })
+		.click();
+	const hint = page.getByRole("status").filter({ hasText: "No sections yet" });
+	await hint.getByRole("button", { name: "Make one here" }).click();
+	const section = page.locator(".react-flow__node-section", { hasText: "Silent writing" });
+	await expect(section).toBeVisible();
+	await expect(section.locator(".section-silent")).toBeVisible();
 });

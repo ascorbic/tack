@@ -298,3 +298,39 @@ test("clicking an avatar follows them until you pan", async ({ page }) => {
 	await page.mouse.wheel(0, 200);
 	await expect(pill).toHaveCount(0);
 });
+
+test("everyone's in reach past the avatars that fit, each in their own colour", async ({
+	page,
+}) => {
+	await openScenario(page, "planning");
+	const joins = page.getByRole("button", { name: "Someone joins" });
+	for (let i = 0; i < 9; i++) await joins.click();
+	const people = page.getByLabel("People here");
+	const more = people.getByRole("button", { name: "Everyone here: 10 people" });
+	await expect(more).toHaveText("+2");
+	await more.click();
+	const list = page.getByRole("dialog", { name: "Everyone here" });
+	await expect(list.getByRole("listitem")).toHaveCount(9);
+	// Nobody here shares a colour, you included.
+	const colours = await page
+		.locator(".people .avatar:not(.avatar-more), .people-list .avatar")
+		.evaluateAll((avatars) =>
+			avatars.map((a) => getComputedStyle(a).getPropertyValue("--avatar").trim()),
+		);
+	expect(new Set(colours).size).toBe(10);
+	// Follow someone from the list.
+	await list.getByRole("button", { name: "Follow" }).last().click();
+	await expect(list).toHaveCount(0);
+	await expect(page.locator(".follow-pill")).toContainText("Following");
+});
+
+test("you can see when someone's following you", async ({ page }) => {
+	await openScenario(page, "planning");
+	await page.getByRole("button", { name: "Someone joins" }).click();
+	await page.getByRole("button", { name: "Follow me (toggle)" }).click();
+	await expect(page.getByLabel("People here").getByRole("status")).toContainText(
+		"is following you",
+	);
+	await page.getByRole("button", { name: "Follow me (toggle)" }).click();
+	await expect(page.getByLabel("People here").getByRole("status")).toHaveCount(0);
+});
