@@ -36,7 +36,7 @@ Start from **Pull requests beside their issues** or **New matches into a section
 ## What rules will and won't do
 
 - Rules run when **GitHub sends the board a webhook**, so they only see repositories with the [GitHub App installed](/self-hosting/repositories/).
-- They run with the app's access, and only place items from **repositories already on the board** (with at least one card).
+- They run with the app's access, and only place items from **repositories already on the board** (with at least one card), or **chosen for it** when it was made from a template.
 - They never place an item that's already on the board, and **each rule places an item at most once**, even if someone removes it afterwards.
 - Cards a rule places can't be undone, since nobody placed them; remove them like any card.
 - Cards a rule placed remember it, and are marked if they stop matching. See [Where cards come from](/automation/provenance/).

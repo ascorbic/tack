@@ -19,6 +19,7 @@ import {
 	sameRule,
 	setRuleEnabled,
 	shortRef,
+	setScopeRepos,
 } from "../src/shared/rules.ts";
 import { boxOf } from "../src/shared/sections.ts";
 import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
@@ -144,6 +145,23 @@ describe("rules: a pull request beside what it links", () => {
 			memoryOfRules(),
 		);
 		expect(entries).toEqual([]);
+	});
+
+	it("also places items from repositories the board was made for", () => {
+		const doc = board();
+		addRule(doc, { kind: "pull-links" }, { kind: "beside-linked" }, ME);
+		setScopeRepos(doc, ["github.com/acme/secret"], "template");
+		const secret = card({ repo: "acme/secret", item: "#1", kind: "pull" });
+		const entries = runRules(
+			doc,
+			activity({
+				repo: "github.com/acme/secret",
+				cards: [secret],
+				mentions: { [secret.key]: [{ key: `${REPO}#12`, closes: true }] },
+			}),
+			memoryOfRules(),
+		);
+		expect(entries.map((entry) => entry.outcome)).toEqual(["placed"]);
 	});
 });
 

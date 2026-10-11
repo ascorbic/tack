@@ -26,7 +26,7 @@ import {
 } from "../shared/commands.ts";
 import { INBOX_ORIGIN, type InboxPreviewRequest } from "../shared/inbox.ts";
 import { parseRepoKey, repoKeyOf } from "../shared/refs.ts";
-import { RULE_ORIGIN, type RepoActivity } from "../shared/rules.ts";
+import { RULE_ORIGIN, type RepoActivity, setScopeRepos } from "../shared/rules.ts";
 import {
 	type Actor,
 	type Digest,
@@ -45,6 +45,7 @@ import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import {
 	type Extracted,
 	type InstantiateResult,
+	TEMPLATE_ORIGIN,
 	type TemplateContent,
 	extractTemplate,
 	instantiateTemplate,
@@ -997,6 +998,8 @@ export class Board extends YServer<Env> {
 			repos: input.repos,
 			by: input.by,
 		});
+		// Rules may place items from the repositories chosen for the board.
+		setScopeRepos(this.document, input.repos, TEMPLATE_ORIGIN);
 		this.writeSnapshot();
 		await this.updateIndex();
 		log.info("board.seeded", {

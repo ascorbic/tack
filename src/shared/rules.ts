@@ -25,11 +25,31 @@ import type { SearchQuery } from "./widgets.ts";
 // move, change or remove anything people placed.
 //
 // Who can see what: rules run with the app's access, so they only place
-// items from repositories that already have a card on the board. Someone
-// who could add a card from a repository decided its items belong here;
-// nothing else reaches the board by a rule, however public the board is.
+// items from repositories that already have a card on the board, or that
+// were chosen for it when it was made from a template (`scopeRepos`).
+// Someone who could add a card from a repository, or picked it for the
+// board, decided its items belong here; nothing else reaches the board by a
+// rule, however public the board is.
 // Card data still goes to each viewer as their own access allows (#10), and
 // the log holds keys only, never titles.
+
+/**
+ * The repositories a board was made for (`scope.repos` in the document: keys
+ * like `github.com/owner/repo`), chosen when it was created from a template.
+ * Written by the server only.
+ */
+export function scopeRepos(doc: Y.Doc): string[] {
+	const repos = doc.getMap("scope").get("repos");
+	return Array.isArray(repos)
+		? repos.filter((repo): repo is string => typeof repo === "string")
+		: [];
+}
+
+/** Record the repositories a board was made for (see `scopeRepos`). */
+export function setScopeRepos(doc: Y.Doc, repos: readonly string[], origin: unknown): void {
+	if (repos.length === 0) return;
+	doc.transact(() => doc.getMap("scope").set("repos", [...repos]), origin);
+}
 
 /** The origin of the server's writes for rules: never undoable. */
 export const RULE_ORIGIN = "rule";
@@ -320,8 +340,10 @@ export function runRules(
 		if (activity.event !== "pull_request") return [];
 	}
 	const onBoard = cardRefs(doc);
-	// Only items from repositories already on the board (see above).
-	const boardRepos = new Set([...onBoard].map(repoKeyOf));
+	// Only items from repositories already on the board, or chosen for it (see above).
+	const boardRepos = new Set(
+		[...[...onBoard].map(repoKeyOf), ...scopeRepos(doc)].map((repo) => repo.toLowerCase()),
+	);
 	const at = (options.now ?? new Date()).toISOString();
 	const entries: RuleLogEntry[] = [];
 	let shapes: Map<string, ShapeProps> | null = null;
@@ -329,7 +351,7 @@ export function runRules(
 
 	doc.transact(() => {
 		for (const card of activity.cards) {
-			if (!boardRepos.has(repoKeyOf(card.key))) continue;
+			if (!boardRepos.has(repoKeyOf(card.key).toLowerCase())) continue;
 			for (const rule of rules) {
 				if (onBoard.has(card.key)) break;
 				if (memory.placed(rule.id, card.key)) continue;
