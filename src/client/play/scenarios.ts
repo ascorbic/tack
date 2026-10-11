@@ -615,6 +615,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 			"You've been away three days: people added, moved and edited things, GitHub closed and merged cards, someone pushed and mentioned you. Highlights fade once you've looked.",
 		seed: seedCommentsRetro,
 	},
+	digest: {
+		name: "Weekly digest",
+		description:
+			"A week on a retro: a decision made, action items done, new and late, GitHub closing and merging cards, a push. The Weekly digest previews what goes out as a Discussion and by email.",
+		seed: seedCommentsRetro,
+	},
 	actions: {
 		name: "Action items",
 		description:

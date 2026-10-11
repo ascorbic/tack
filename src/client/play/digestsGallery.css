@@ -1,0 +1,49 @@
+/* The weekly digests gallery (/play/digests). */
+
+.digests-gallery figure {
+	margin: 0 0 28px;
+}
+
+.digests-gallery-stage {
+	display: flex;
+	justify-content: center;
+}
+
+/* The dialog, as it sits open, without the board behind it. */
+.digest-dialog.digests-gallery-dialog {
+	width: min(960px, 100%);
+	max-height: none;
+	overflow: hidden;
+	animation: none;
+}
+
+.digests-gallery-papers {
+	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+
+.digests-gallery-papers .digest-paper {
+	width: 100%;
+}
+
+.digests-gallery-links {
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.digests-gallery-links .digests-gallery-stage {
+	overflow: hidden;
+	border: 1px solid var(--line);
+	border-radius: 18px;
+}
+
+/* The page, at the size of its figure. */
+.digests-gallery-links .digest-link-page {
+	width: 100%;
+	min-height: 360px;
+}
+
+@media (max-width: 520px) {
+	.digests-gallery-papers,
+	.digests-gallery-links {
+		grid-template-columns: 1fr;
+	}
+}

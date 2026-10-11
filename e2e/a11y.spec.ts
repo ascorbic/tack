@@ -65,6 +65,7 @@ const GALLERIES = [
 	"/play/lists",
 	"/play/templates",
 	"/play/mobile",
+	"/play/digests",
 ];
 
 const SCENARIOS = [
@@ -80,6 +81,7 @@ const SCENARIOS = [
 	"inbox",
 	"comments",
 	"history",
+	"digest",
 	"empty",
 ];
 

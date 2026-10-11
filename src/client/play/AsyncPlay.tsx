@@ -1,21 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
+import { addActionItem, addDays, localDate, setActionDone } from "../../shared/actionItems.ts";
 import { type CommentAuthor, anchorAt } from "../../shared/comments.ts";
+import { addDecision, setDecisionStatus } from "../../shared/decisions.ts";
 import { boxOf } from "../../shared/sections.ts";
 import { addShape, nextZ, readShape, shapesMap } from "../../shared/shapes.ts";
 import { cardStore } from "../cardStore.ts";
 import { commentStore } from "../comments/store.ts";
+import { localTimeZone } from "../digests/api.ts";
+import { DigestDialog } from "../digests/DigestDialog.tsx";
 import type { User } from "../presence.ts";
 import { sinceStore } from "../since/store.ts";
 import { RETRO, RETRO_PULL } from "./asyncScenarios.ts";
 import { checkFailed } from "./ci.ts";
 import { PLAY_PEOPLE, PLAY_YOU_ID, SimulatedComments } from "./comments.ts";
+import { PlayDigests } from "./digests.ts";
 import type { RemotePerson, SimulatedBoard } from "./simulator.ts";
 import { SimulatedSince } from "./since.ts";
 
-// The playground's controls for comments (#51) and "since you were here"
-// (#46): simulated people comment, reply, mention you and resolve threads
-// through a pretend comments server, and time can pass while they work, so
-// you come back to a digest and highlights.
+// The playground's controls for comments (#51), "since you were here"
+// (#46) and weekly digests (#68): simulated people comment, reply, mention
+// you and resolve threads through a pretend comments server, and time can
+// pass while they work, so you come back to a digest and highlights, and
+// the week's digest has something to say.
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -82,11 +88,25 @@ export function AsyncPlay({
 		// A new board, a new server; who you are is kept in step below.
 		[sim, since, board],
 	);
+	const digests = useMemo(
+		() =>
+			new PlayDigests(
+				{ since: () => since.digest(), doc: sim.doc, now: () => since.now() },
+				{ id: `play-${scenario}`, title: board },
+				localTimeZone(),
+			),
+		[since, sim, scenario, board],
+	);
 	const [note, setNote] = useState<string | null>(null);
+	const [digesting, setDigesting] = useState(false);
 
 	useEffect(() => {
 		comments.me = me;
 	}, [comments, me]);
+
+	useEffect(() => {
+		digests.access = { canManage: signedIn && !viewOnly, canEdit: !viewOnly };
+	}, [digests, signedIn, viewOnly]);
 
 	useEffect(() => {
 		commentStore.reset();
@@ -98,13 +118,30 @@ export function AsyncPlay({
 		if (scenario === "comments") seedThreads(sim, comments, comments.me);
 		if (scenario === "since")
 			void awayForDays(sim, since, comments, comments.me, 3).then(() => since.comeBack());
-		else since.comeBack();
+		else if (scenario === "digest") {
+			// A week of work, a digest already set up, and its dialog open on the preview.
+			digests.settings = {
+				discussion: { repo: "github.com/acme/imagekit", category: "Announcements" },
+				email: true,
+				weekday: 1,
+				hour: 9,
+				timeZone: localTimeZone(),
+			};
+			digests.repoPublic = true;
+			digests.subscription = { email: "you@example.com", confirmed: true, at: 0 };
+			void awayForDays(sim, since, comments, comments.me, 6)
+				.then(() => aWeekOfDecisions(sim, since))
+				.then(() => {
+					since.comeBack();
+					setDigesting(true);
+				});
+		} else since.comeBack();
 		setNote(null);
 		return () => {
 			disconnect();
 			stop();
 		};
-	}, [comments, since, sim, scenario]);
+	}, [comments, since, sim, scenario, digests]);
 
 	useEffect(() => {
 		comments.setAccess({ signedIn, role: viewOnly ? "viewer" : "owner" });
@@ -200,8 +237,96 @@ export function AsyncPlay({
 				{note ??
 					"Press B to comment. Toggle view-only or sign out above to see what viewers and guests can do."}
 			</p>
+			<h2 className="play-label">Weekly digest</h2>
+			<div className="play-buttons">
+				<button type="button" onClick={() => setDigesting(true)}>
+					Weekly digest…
+				</button>
+				<button
+					type="button"
+					onClick={async () => {
+						since.leave();
+						setNote("A week passes: people decide things, tick off actions and push…");
+						await awayForDays(sim, since, comments, me, 6, someone);
+						await aWeekOfDecisions(sim, since);
+						since.comeBack();
+						setNote("A week of work: open the Weekly digest to see what it’d say.");
+					}}
+				>
+					A busy week
+				</button>
+				<button type="button" onClick={() => setNote(digests.send())}>
+					The digest goes out
+				</button>
+				<button
+					type="button"
+					onClick={() =>
+						setNote(
+							digests.confirm()
+								? "You followed the link: the digest comes to you now."
+								: "No email to confirm: ask for it in the dialog first.",
+						)
+					}
+				>
+					Follow the email’s link
+				</button>
+			</div>
+			<DigestDialog
+				board={{ id: `play-${scenario}`, title: board, visibility: "private" }}
+				open={digesting}
+				onClose={() => setDigesting(false)}
+				api={digests}
+			/>
 		</div>
 	);
+}
+
+/**
+ * Over the week: a decision's made, action items come and go (one done,
+ * one new, one late), by simulated people so they count as theirs.
+ */
+async function aWeekOfDecisions(sim: SimulatedBoard, since: SimulatedSince): Promise<void> {
+	const person = sim.join();
+	await sleep(30);
+	const today = localDate(since.now());
+	const doc = person.doc;
+	const decision = "digest-decision";
+	if (!shapesMap(doc).has(decision)) {
+		addDecision(doc, decision, {
+			x: 1340,
+			y: 600,
+			title: "Move image tests off the shared runners",
+			author: { name: person.user.name, color: person.user.color },
+		});
+	}
+	setDecisionStatus(doc, decision, "decided", {
+		by: { name: person.user.name, color: person.user.color },
+	});
+	const action = (id: string, y: number, text: string, due: string, done?: boolean) => {
+		if (shapesMap(doc).has(id)) return;
+		doc.transact(() =>
+			addActionItem(doc, id, {
+				x: 980,
+				y,
+				text,
+				due,
+				owner: { login: "kai", name: "Kai Andersen" },
+				parent: shapesMap(doc).has(RETRO.actions) ? RETRO.actions : null,
+			}),
+		);
+		if (done) setActionDone(doc, id, true, new Date(since.now() - DAY).toISOString());
+	};
+	action(
+		"digest-action-done",
+		620,
+		"Turn on retries for image downloads",
+		addDays(today, -1),
+		true,
+	);
+	action("digest-action-new", 720, "Write up the runner costs", addDays(today, 4));
+	action("digest-action-late", 820, "Rotate the CI cache keys", addDays(today, -2));
+	await sleep(30);
+	sim.leave(person);
 }
 
 /** Threads on the retro board, a few days old, one unread and mentioning you. */
