@@ -441,7 +441,7 @@ export const SHORTCUTS: Shortcut[] = [
 		label: "Stack the selected stickies",
 		group: "Arrange",
 		combos: [{ code: "KeyG", alt: true, shift: false }],
-		keywords: "stack pile group cluster theme stickies",
+		keywords: "stack group cluster theme stickies",
 	},
 	{
 		id: "groupThese",
