@@ -177,3 +177,22 @@ test("a card's title selects it first; once selected, or with ⌘, it opens", as
 		/fake\.tack\/acme\/imagekit\/412/,
 	);
 });
+
+test("a selected card keeps its ring while the pointer's over it", async ({ page }) => {
+	const card = page
+		.locator(".react-flow__node-card")
+		.filter({ has: page.locator(".card-title", { hasText: "Drop Node 18 support" }) });
+	// A first click on its title selects it, opening nothing.
+	await card.locator("a.card-title").click();
+	await expect(card).toHaveClass(/selected/);
+	const face = card.locator(".card");
+	await page.mouse.move(0, 0);
+	await expect(face).toHaveAttribute("data-selected", "true");
+	const ring = () => face.evaluate((el) => getComputedStyle(el).boxShadow);
+	await expect.poll(ring).toContain("0px 0px 0px");
+	const resting = await ring();
+	await face.hover();
+	// Past any shadow transition: the ring is still there, unchanged.
+	await page.waitForTimeout(500);
+	expect(await ring()).toBe(resting);
+});
