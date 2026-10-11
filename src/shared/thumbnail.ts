@@ -12,7 +12,7 @@ import {
 	type ThumbnailKind,
 	type ThumbnailShape,
 } from "./boards.ts";
-import { STACK_SIZE } from "./stacks.ts";
+import { stackSize } from "./stacks.ts";
 import { shapesMap } from "./shapes.ts";
 
 /** Rendered sizes of shapes the document doesn't size, from styles.css. */
@@ -47,11 +47,20 @@ export function boardThumbnail(
 	);
 }
 
-/** A stack: a sticky's size and colour (its top one's), with the stack's room around it. */
-function stackBox(props: Record<string, unknown>, top: { color: string } | undefined): Box | null {
+/** A stack: a theme card, as big as what it holds, tinted by its top sticky's colour. */
+function stackBox(
+	props: Record<string, unknown>,
+	top: { color: string; count: number } | undefined,
+): Box | null {
 	const { x, y } = props;
 	if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null;
-	return { kind: "stack", x, y, width: STACK_SIZE.w, height: STACK_SIZE.w, tone: top?.color ?? "" };
+	const size = stackSize(top?.count ?? 2, 2);
+	return { kind: "stack", x, y, width: size.w, height: size.h, tone: top?.color ?? "" };
+}
+
+/** A sticky or card that says it's in a stack. */
+function isMember(shape: Record<string, unknown>): boolean {
+	return (shape.type === "sticky" || shape.type === "card") && typeof shape.stack === "string";
 }
 
 /**
@@ -63,22 +72,23 @@ export function sketch(
 	cardTone: (ref: string) => string = () => "",
 ): Thumbnail | null {
 	const all = [...shapes];
-	// A stack draws as one stack, in its top sticky's colour (stacks.ts).
-	const stackTops = new Map<string, { z: string; color: string }>();
+	// A stack draws as one theme card, in its top sticky's colour (stacks.ts).
+	const stackTops = new Map<string, { z: string; color: string; count: number }>();
 	for (const shape of all) {
-		if (shape.type !== "sticky" || typeof shape.stack !== "string") continue;
+		if (!isMember(shape)) continue;
+		const stack = shape.stack as string;
 		const z = typeof shape.z === "string" ? shape.z : "";
-		const top = stackTops.get(shape.stack);
-		if (!top || z > top.z) {
-			stackTops.set(shape.stack, {
-				z,
-				color: typeof shape.color === "string" ? shape.color : "yellow",
-			});
+		const top = stackTops.get(stack) ?? { z: "", color: "", count: 0 };
+		top.count++;
+		if (shape.type === "sticky" && (!top.color || z > top.z)) {
+			top.z = z;
+			top.color = typeof shape.color === "string" ? shape.color : "yellow";
 		}
+		stackTops.set(stack, top);
 	}
 	const boxes: Box[] = [];
 	for (const shape of all) {
-		if (shape.type === "sticky" && typeof shape.stack === "string") continue;
+		if (isMember(shape)) continue;
 		const box =
 			shape.type === "stack"
 				? stackBox(shape, stackTops.get(typeof shape.id === "string" ? shape.id : ""))

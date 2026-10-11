@@ -90,9 +90,14 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 				/>
 			);
 		case "stack": {
-			// A stack: two papers peeking out behind the top sticky.
-			const step = Math.max(1, width * 0.05);
+			// A stack: a theme card, its name in bold and a few excerpts, on two
+			// papers in its top sticky's colour peeking out behind.
+			const step = Math.max(1, width * 0.035);
 			const fill = { fill: `var(--sticky-${tone || "yellow"}, var(--sticky-yellow))` };
+			const w = width - step * 2;
+			const h = height - step * 2;
+			const line = Math.max(1, h * 0.07);
+			const rows = Math.max(1, Math.min(4, Math.floor((h * 0.62) / (line * 2.2))));
 			return (
 				<g className="thumb-stack">
 					{[2, 1].map((n) => (
@@ -101,21 +106,40 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 							className="thumb-stack-under"
 							x={x + step * n}
 							y={y + step * n}
-							width={width - step * 2}
-							height={height - step * 2}
-							rx={r * 0.5}
+							width={w}
+							height={h}
+							rx={r}
 							style={fill}
 						/>
 					))}
+					<rect className="thumb-card" x={x} y={y} width={w} height={h} rx={r} />
 					<rect
-						className="thumb-sticky"
-						x={x}
-						y={y}
-						width={width - step * 2}
-						height={height - step * 2}
-						rx={r * 0.5}
-						style={fill}
+						className="thumb-stack-name"
+						x={x + w * 0.09}
+						y={y + h * 0.12}
+						width={w * 0.62}
+						height={line * 1.5}
+						rx={line * 0.75}
 					/>
+					{Array.from({ length: rows }, (_, i) => (
+						<g key={i}>
+							<circle
+								cx={x + w * 0.09 + line * 0.5}
+								cy={y + h * 0.36 + i * line * 2.2 + line / 2}
+								r={line * 0.5}
+								style={fill}
+								className="thumb-stack-dot"
+							/>
+							<rect
+								className="thumb-line"
+								x={x + w * 0.09 + line * 1.6}
+								y={y + h * 0.36 + i * line * 2.2}
+								width={w * (0.66 - (i % 2) * 0.16)}
+								height={line}
+								rx={line / 2}
+							/>
+						</g>
+					))}
 				</g>
 			);
 		}

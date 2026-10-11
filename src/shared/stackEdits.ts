@@ -5,6 +5,7 @@ import { type Point, type Rect, intersects } from "./geometry.ts";
 import {
 	STACK_SIZE,
 	cleanName,
+	isStackable,
 	memberAt,
 	membersOf,
 	namingTexts,
@@ -24,10 +25,10 @@ import { commitMoves, readShapes, settleStacks } from "./structure.ts";
 // call them inside `transactLocal` for one undo step.
 
 /**
- * Drop `dropped` on `target`: on a stack, they join it; on a sticky, the two
- * become a stack where the sticky was (or, if it's a sticky in an open stack,
- * they join its stack). Stickies join on top; stacks dropped along bring
- * their stickies and go, as do stacks left with one sticky by stickies
+ * Drop `dropped` on `target`: on a stack, they join it; on a sticky or card,
+ * the two become a stack where it was (or, if it's in an open stack, they
+ * join its stack). Stickies and cards join on top; stacks dropped along
+ * bring their members and go, as do stacks left with one member by members
  * leaving them. Returns the stack, or null if nothing could be stacked.
  */
 export function stackUp(
@@ -47,7 +48,7 @@ export function stackUp(
 		let made = false;
 		if (targetShape.type === "stack") {
 			stack = target;
-		} else if (targetShape.type === "sticky") {
+		} else if (isStackable(targetShape.type)) {
 			const existing = stackOf(shapes, target);
 			if (existing) stack = existing;
 			else {
@@ -67,7 +68,7 @@ export function stackUp(
 			if (seen.has(id)) continue;
 			seen.add(id);
 			const shape = shapes.get(id);
-			if (shape?.type === "sticky") {
+			if (isStackable(shape?.type)) {
 				const from = stackOf(shapes, id);
 				if (from === stack) continue;
 				if (from) thinned.add(from);
@@ -134,12 +135,15 @@ export function stackUp(
 	return result;
 }
 
-/** Stack up a selection of stickies (and stacks) where the first of them, in reading order, is. */
+/**
+ * Stack up a selection of stickies, cards and stacks where the first of
+ * them, in reading order, is.
+ */
 export function stackSelection(doc: Y.Doc, ids: readonly string[], sizeOf?: SizeOf): string | null {
 	const shapes = readShapes(doc);
 	const candidates = ids.filter((id) => {
 		const type = shapes.get(id)?.type;
-		return type === "sticky" || type === "stack";
+		return isStackable(type) || type === "stack";
 	});
 	if (candidates.length < 2) return null;
 	const order = readingOrder(
@@ -148,7 +152,7 @@ export function stackSelection(doc: Y.Doc, ids: readonly string[], sizeOf?: Size
 			return { id, x: shape.x, y: shape.y };
 		}),
 	);
-	// Onto a stack if there's one, else the first sticky.
+	// Onto a stack if there's one, else the first sticky or card.
 	const target = order.find((id) => shapes.get(id)?.type === "stack") ?? order[0];
 	if (!target) return null;
 	return stackUp(
@@ -204,9 +208,9 @@ export function reorderInStack(doc: Y.Doc, id: string, index: number): void {
 }
 
 /**
- * Spread a stack out for good: its stickies laid out in a grid where it is
+ * Spread a stack out for good: its members laid out in a grid where it is
  * (as it shows open), themselves again, and the stack gone. Connectors to it
- * go to its top sticky.
+ * go to its top member.
  */
 export function spreadStack(doc: Y.Doc, stack: string, sizeOf?: SizeOf): string[] {
 	let spread: string[] = [];
@@ -215,7 +219,11 @@ export function spreadStack(doc: Y.Doc, stack: string, sizeOf?: SizeOf): string[
 		const shape = shapes.get(stack);
 		if (shape?.type !== "stack") return;
 		const members = membersOf(shapes, stack);
-		const layout = openLayout(shape, members);
+		const layout = openLayout(shape, members, {
+			typeOf: (id) => shapes.get(id)?.type,
+			sizeOf: (id) => sizeOf?.(id),
+			size: sizeOf?.(stack),
+		});
 		const map = shapesMap(doc);
 		for (const id of members) map.get(id)?.set("stack", null);
 		const [top] = members;
@@ -280,7 +288,7 @@ export function planGrouping(
 	for (const stack of proposal) {
 		const ids = stack.ids.filter((id) => {
 			const shape = shapes.get(id);
-			if (used.has(id) || shape?.type !== "sticky" || shape.silent !== undefined) return false;
+			if (used.has(id) || !isStackable(shape?.type) || shape?.silent !== undefined) return false;
 			used.add(id);
 			return true;
 		});
@@ -333,7 +341,7 @@ export function applyGrouping(
 		const thinned = new Set<string>();
 		for (const planned of plan) {
 			const shapes = readShapes(doc);
-			const ids = planned.ids.filter((id) => shapes.get(id)?.type === "sticky");
+			const ids = planned.ids.filter((id) => isStackable(shapes.get(id)?.type));
 			if (ids.length < 2) continue;
 			const stack = newId();
 			const section = shapes.get(ids[0] as string)?.parent;

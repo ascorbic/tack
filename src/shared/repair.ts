@@ -2,7 +2,7 @@ import * as Y from "yjs";
 import { isDate, isOwner } from "./actionItems.ts";
 import { isAnchor, isEnd } from "./connectors.ts";
 import { readVotes } from "./decisions.ts";
-import { memberAt, stackMembers, stackOf } from "./stacks.ts";
+import { isStackable, memberAt, stackMembers, stackOf } from "./stacks.ts";
 import { readStructure } from "./sections.ts";
 import { shapesMap } from "./shapes.ts";
 import { readShapes, settleStacks } from "./structure.ts";
@@ -170,13 +170,13 @@ function repairStacks(doc: Y.Doc): number {
 	let fixed = 0;
 	const map = shapesMap(doc);
 	let shapes = readShapes(doc);
-	// A `stack` on anything but a sticky, or pointing at something that isn't a
-	// stack. (Null is a sticky that's left its stack: set, never deleted, so it
+	// A `stack` on anything but a sticky or card, or pointing at something that
+	// isn't a stack. (Null is one that's left its stack: set, never deleted, so it
 	// resolves against a concurrent move of the stack as x, y and parent do.)
 	for (const [id, shape] of shapes) {
 		const value = map.get(id)?.get("stack");
 		if (value === undefined || value === null) continue;
-		if (shape.type === "sticky" && stackOf(shapes, id) !== null) continue;
+		if (isStackable(shape.type) && stackOf(shapes, id) !== null) continue;
 		map.get(id)?.set("stack", null);
 		fixed++;
 	}

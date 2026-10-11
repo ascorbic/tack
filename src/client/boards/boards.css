@@ -620,7 +620,19 @@ a.brand {
 	vector-effect: non-scaling-stroke;
 }
 
-/* The papers under a stack's top sticky: the same colour, a shade back. */
+/* A stack's theme card: its name in ink, its excerpts' dots in its colour. */
+.thumb-stack-name {
+	fill: var(--ink);
+	opacity: 0.72;
+}
+
+.thumb-stack-dot {
+	stroke: rgb(0 0 0 / 14%);
+	stroke-width: 1;
+	vector-effect: non-scaling-stroke;
+}
+
+/* The papers behind a stack's card, in its top sticky's colour. */
 .thumb-stack-under {
 	stroke: rgb(0 0 0 / 9%);
 	stroke-width: 1;

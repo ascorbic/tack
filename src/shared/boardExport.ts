@@ -102,7 +102,7 @@ export interface ExportOmissions {
 
 /** Properties copied for each type, beyond `id`, `type`, `x`, `y`, `parent` and `order`. */
 const KEEP: Record<ShapeType, readonly string[]> = {
-	card: ["ref"],
+	card: ["ref", "stack"],
 	sticky: ["text", "color", "font", "author", "stack"],
 	text: ["text", "color", "font", "size"],
 	section: ["title", "color", "w", "h", "display", "sort", "inbox"],
@@ -199,7 +199,7 @@ export function exportBoard(
 		if (type === "decision" && typeof shape.supersededBy === "string") {
 			if (!kept.has(shape.supersededBy)) delete shape.supersededBy;
 		}
-		if (type === "sticky" && shape.stack !== undefined) {
+		if ((type === "sticky" || type === "card") && shape.stack !== undefined) {
 			if (typeof shape.stack !== "string" || !kept.has(shape.stack)) delete shape.stack;
 		}
 		shapes.push(shape);
@@ -312,7 +312,7 @@ const common = {
 };
 
 const ShapeSchema = v.variant("type", [
-	v.object({ ...common, type: v.literal("card"), ref: ItemKey }),
+	v.object({ ...common, type: v.literal("card"), ref: ItemKey, stack: v.optional(ShapeId) }),
 	v.object({
 		...common,
 		type: v.literal("sticky"),
@@ -644,7 +644,7 @@ export function importBoard(
 				map.set("votes", new Y.Map());
 			}
 			if (type === "section" && props.inbox) map.set("dismissed", new Y.Map());
-			if (type === "sticky" && props.stack !== undefined) {
+			if ((type === "sticky" || type === "card") && props.stack !== undefined) {
 				const old = typeof props.stack === "string" ? props.stack : "";
 				const stack = types.get(old) === "stack" ? ids.get(old) : null;
 				if (stack) map.set("stack", stack);

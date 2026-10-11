@@ -118,13 +118,59 @@ describe("stacking up", () => {
 		void newId;
 	});
 
-	it("only stacks stickies and stacks", () => {
-		const { doc, sticky, newId } = board();
+	it("stacks cards too, either way round, but nothing else", () => {
+		const { doc, sticky, members, newId } = board();
 		sticky("a", 0, 0);
-		addShape(doc, "card", { type: "card", ref: "github.com/a/b#1", x: 0, y: 0, z: nextZ(doc) });
-		expect(stackUp(doc, "card", ["a"], undefined, newId)).toBeNull();
-		expect(stackUp(doc, "a", ["card"], undefined, newId)).toBeNull();
-		expect(readShapes(doc).size).toBe(2);
+		const card = (id: string, n: number) =>
+			addShape(doc, id, {
+				type: "card",
+				ref: `github.com/tack/tack#${n}`,
+				x: 0,
+				y: 0,
+				z: nextZ(doc),
+			});
+		card("issue", 1);
+		card("pull", 2);
+		addShape(doc, "words", { type: "text", text: "Hi", x: 0, y: 0, z: nextZ(doc) });
+		// A sticky held over a card makes a stack of the two.
+		const stack = stackUp(doc, "issue", ["a"], undefined, newId) as string;
+		expect(stack).toBe("stack-1");
+		expect(members(stack)).toEqual(["a", "issue"]);
+		// A card joins a stack.
+		expect(stackUp(doc, stack, ["pull"], undefined, newId)).toBe(stack);
+		expect(members(stack)).toEqual(["pull", "a", "issue"]);
+		expect(readShapes(doc).get("pull")).toMatchObject({ stack, x: -STACK_INSET.x + STACK_INSET.x });
+		// Text never does.
+		expect(stackUp(doc, stack, ["words"], undefined, newId)).toBeNull();
+		expect(stackUp(doc, "words", ["a"], undefined, newId)).toBeNull();
+	});
+
+	it("stacks a mixed selection of stickies and cards", () => {
+		const { doc, sticky, members } = board();
+		sticky("a", 0, 0);
+		addShape(doc, "c", {
+			type: "card",
+			ref: "github.com/tack/tack#3",
+			x: 300,
+			y: 0,
+			z: nextZ(doc),
+		});
+		const stack = stackSelection(doc, ["c", "a"]);
+		expect(stack).not.toBeNull();
+		expect(members(stack as string).sort()).toEqual(["a", "c"]);
+	});
+
+	it("keeps cards in their stack through repair, and settles one left alone", () => {
+		const { doc, sticky, get, members, newId } = board();
+		sticky("a", 0, 0);
+		addShape(doc, "c", { type: "card", ref: "github.com/tack/tack#4", x: 0, y: 0, z: nextZ(doc) });
+		const stack = stackUp(doc, "a", ["c"], undefined, newId) as string;
+		repairBoard(doc);
+		expect(members(stack)).toEqual(["c", "a"]);
+		removeShapes(doc, ["a"]);
+		repairBoard(doc);
+		expect(get(stack)).toBeUndefined();
+		expect(get("c")?.stack ?? null).toBeNull();
 	});
 });
 
@@ -329,6 +375,19 @@ describe("repairing stacks", () => {
 });
 
 describe("the open grid", () => {
+	it("gives cards room: columns as wide, and rows as tall, as what's in them", () => {
+		const layout = openLayout({ x: 0, y: 0 }, ["s", "c", "t"], {
+			typeOf: (id) => (id === "c" ? "card" : "sticky"),
+			sizeOf: (id) => (id === "c" ? { w: 252, h: 210 } : undefined),
+		});
+		const [s, c, t] = ["s", "c", "t"].map((id) => layout.slots.get(id) as { x: number; y: number });
+		expect(c?.x).toBe((s?.x ?? 0) + 176 + 16);
+		expect(t?.x).toBe((c?.x ?? 0) + 252 + 16);
+		expect(layout.cells.get("s")).toEqual({ w: 176, h: 210 });
+		expect(layout.tray.h).toBe(52 + 210 + 20);
+		expect(nearestSlot(layout, { x: (c?.x ?? 0) + 200, y: (c?.y ?? 0) + 180 })).toBe(1);
+	});
+
 	it("lays stickies out in tidy columns, centred on the stack", () => {
 		expect([1, 2, 3, 4, 5, 9, 10, 30].map(gridColumns)).toEqual([1, 2, 3, 2, 3, 3, 4, 5]);
 		const layout = openLayout({ x: 0, y: 0 }, ["a", "b", "c", "d"]);
@@ -409,6 +468,25 @@ describe("stacks in exports, templates and thumbnails", () => {
 		const shapes = readShapes(target);
 		const stack = [...shapes].find(([, shape]) => shape.type === "stack")?.[0] as string;
 		expect(membersOf(shapes, stack)).toHaveLength(2);
+	});
+
+	it("exports a card's stack with it, and keeps it on import", () => {
+		const { doc, sticky, newId } = board();
+		sticky("a", 0, 0, "One");
+		addShape(doc, "c", { type: "card", ref: "github.com/tack/tack#9", x: 0, y: 0, z: nextZ(doc) });
+		stackUp(doc, "a", ["c"], undefined, newId);
+		const { data } = exportBoard(doc, { title: "Board", includeCard: () => true });
+		expect(readBoardExport(JSON.parse(JSON.stringify(data))).ok).toBe(true);
+		const target = new Y.Doc();
+		let n = 0;
+		importBoard(target, data, { by: { name: "Me" }, newId: () => `new-${++n}` });
+		const shapes = readShapes(target);
+		const stack = [...shapes].find(([, shape]) => shape.type === "stack")?.[0] as string;
+		expect(
+			membersOf(shapes, stack)
+				.map((id) => shapes.get(id)?.type ?? "")
+				.sort((a, b) => a.localeCompare(b)),
+		).toEqual(["card", "sticky"]);
 	});
 
 	it("sketches a stack as one stack in its top sticky's colour", () => {

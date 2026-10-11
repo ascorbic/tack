@@ -1,13 +1,14 @@
 import type { Point, Rect } from "./geometry.ts";
-import type { StackSuggestion, ShapeProps } from "./shapes.ts";
+import type { ShapeType, StackSuggestion, ShapeProps } from "./shapes.ts";
 
-// Stacks (#73): stickies gathered into a stack, as people do when theming a
-// planning session, and named from what's in them. A stack is a shape of its
-// own (`type: "stack"`), and a sticky in one says so with its own `stack` key,
-// as a shape says which section it's in with `parent`. Membership lives on
-// the stickies, so two people dragging different stickies onto a stack at
-// once both land, and one person dragging a sticky out while another drags
-// it somewhere else resolves to one of them, never a mix.
+// Stacks (#73): stickies (and issues and pull requests) gathered into a
+// stack, as people do when theming a planning session, and named from what's
+// in them. A stack is a shape of its own (`type: "stack"`), and a sticky or
+// card in one says so with its own `stack` key, as a shape says which section
+// it's in with `parent`. Membership lives on the members, so two people
+// dragging different stickies onto a stack at once both land, and one person
+// dragging a sticky out while another drags it somewhere else resolves to
+// one of them, never a mix.
 //
 // While it's in a stack, a sticky's x and y are the stack's top sticky's, and
 // its parent is the stack's: moving a stack writes them on every sticky in it
@@ -24,19 +25,60 @@ import type { StackSuggestion, ShapeProps } from "./shapes.ts";
 //
 // Names: `title` is a name a person gave it, and is never touched by
 // anything else. `suggested` is a name the server suggested from the
-// stickies' visible text (stacks' naming, src/shared/stackNamer.ts), with a
-// hash of that text, so it's made again only when the text changes. Silent
-// mode's face-down stickies have no text in the document, so they can't
-// lend a stack their words until they're revealed.
+// stickies' visible text and the titles of cards that everyone who can see
+// the board can read (stacks' naming, src/shared/stackNamer.ts), with a hash
+// of that text, so it's made again only when the text changes. Silent mode's
+// face-down stickies have no text in the document, so they can't lend a
+// stack their words until they're revealed.
+//
+// On the board a stack is a theme card (client/stacks/StackNode.tsx): its
+// name as the headline with its count beside it, then its first few members
+// as one-line excerpts, sized to what it shows (`stackSize`).
 //
 // Repair (repair.ts) settles what concurrent edits leave behind: a sticky
 // pointing at a stack that's gone, a stack left with one sticky (it dissolves
 // back into that sticky) or none (it goes), stickies whose parent drifted
 // from their stack's.
 
-/** A stack's box: the stack, with room for its name below. */
-export const STACK_SIZE = { w: 200, h: 240 } as const;
-/** Where its top sticky sits inside its box (and so where a stacked sticky's x and y are). */
+/**
+ * A theme card's layout, in board units, as stacks.css draws it: its width,
+ * padding, a line of its name, the gap below the name, an excerpt row, and
+ * how many rows show at most (the last of them "+N more" when there are more).
+ */
+export const STACK_CARD = {
+	w: 216,
+	pad: 14,
+	nameLine: 25,
+	gap: 10,
+	row: 26,
+	rows: 4,
+} as const;
+
+/** How many excerpts a stack of `count` shows: all of up to four, else three, then "+N more". */
+export function excerptCount(count: number): number {
+	return count <= STACK_CARD.rows ? count : STACK_CARD.rows - 1;
+}
+
+/**
+ * A theme card's size, from what's in it: what the server, placement and
+ * images assume (the board draws it to its content, and measures that).
+ * `nameLines` is how many lines its name wraps to.
+ */
+export function stackSize(count: number, nameLines = 1): { w: number; h: number } {
+	const rows = Math.max(1, Math.min(count, STACK_CARD.rows));
+	return {
+		w: STACK_CARD.w,
+		h:
+			STACK_CARD.pad * 2 +
+			Math.max(1, nameLines) * STACK_CARD.nameLine +
+			STACK_CARD.gap +
+			rows * STACK_CARD.row,
+	};
+}
+
+/** A stack's box when nothing's measured: a theme card of three, its name on two lines. */
+export const STACK_SIZE = stackSize(3, 2);
+/** Where its top member sits inside its box (and so where a stacked shape's x and y are). */
 export const STACK_INSET = { x: 12, y: 10 } as const;
 /** A sticky's size, as drawn. */
 export const STICKY = 176;
@@ -52,18 +94,23 @@ export const UNTITLED_STACK = "Untitled stack";
 
 type Shapes = ReadonlyMap<string, ShapeProps>;
 
-/** The stack a shape is in, if it's a sticky that says it's in one (which may be gone). */
-export function stackKey(shape: Pick<ShapeProps, "type" | "stack"> | undefined): string | null {
-	return shape?.type === "sticky" && typeof shape.stack === "string" ? shape.stack : null;
+/** What can go in a stack: stickies, and cards (issues and pull requests). */
+export function isStackable(type: ShapeType | undefined): boolean {
+	return type === "sticky" || type === "card";
 }
 
-/** The stack a sticky is in, if that stack is still there. */
+/** The stack a shape is in, if it's a sticky or card that says it's in one (which may be gone). */
+export function stackKey(shape: Pick<ShapeProps, "type" | "stack"> | undefined): string | null {
+	return isStackable(shape?.type) && typeof shape?.stack === "string" ? shape.stack : null;
+}
+
+/** The stack a sticky or card is in, if that stack is still there. */
 export function stackOf(shapes: Shapes, id: string): string | null {
 	const stack = stackKey(shapes.get(id));
 	return stack && stack !== id && shapes.get(stack)?.type === "stack" ? stack : null;
 }
 
-/** Whether a shape is a sticky in a stack that's there: drawn as part of the stack, not itself. */
+/** Whether a shape is in a stack that's there: drawn as part of the stack, not itself. */
 export function isStacked(shapes: Shapes, id: string): boolean {
 	return stackOf(shapes, id) !== null;
 }
@@ -77,7 +124,7 @@ function topFirst(shapes: Shapes) {
 	};
 }
 
-/** Every stack's stickies, top of the stack first (stacks with none are left out). */
+/** Every stack's members, top of the stack first (stacks with none are left out). */
 export function stackMembers(shapes: Shapes): Map<string, string[]> {
 	const out = new Map<string, string[]>();
 	for (const [id] of shapes) {
@@ -92,12 +139,12 @@ export function stackMembers(shapes: Shapes): Map<string, string[]> {
 	return out;
 }
 
-/** One stack's stickies, top of the stack first. */
+/** One stack's members, top of the stack first. */
 export function membersOf(shapes: Shapes, stack: string): string[] {
 	return stackMembers(shapes).get(stack) ?? [];
 }
 
-/** Where a sticky in a stack at `stack` (its top left) sits. */
+/** Where a sticky or card in a stack at `stack` (its top left) sits, in the document. */
 export function memberAt(stack: Point): Point {
 	return { x: stack.x + STACK_INSET.x, y: stack.y + STACK_INSET.y };
 }
@@ -174,15 +221,33 @@ export function usableName(name: string): boolean {
 // --- What a stack says -------------------------------------------------------------------
 
 /**
+ * A card's title, if it may be used in a name everyone on the board sees
+ * (the server decides: see `Stacks` in src/server/stacks.ts), else null.
+ */
+export type SharedTitle = (ref: string) => string | null | undefined;
+
+/**
  * The text a stack can be named from: its stickies' visible text, never a
  * face-down sticky's (whose text isn't in the document anyway; this makes
- * sure a stray value never is used either), trimmed, cut short, the empty
- * ones left out, top of the stack first.
+ * sure a stray value never is used either), and the titles of its cards
+ * that `titleOf` says may be shared, trimmed, cut short, the empty ones left
+ * out, top of the stack first. A card whose title can't be shared still
+ * counts toward the stack; its title is never sent.
  */
-export function namingTexts(shapes: Shapes, members: readonly string[]): string[] {
+export function namingTexts(
+	shapes: Shapes,
+	members: readonly string[],
+	titleOf: SharedTitle = () => null,
+): string[] {
 	const out: string[] = [];
 	for (const id of members) {
 		const shape = shapes.get(id);
+		if (shape?.type === "card") {
+			const title = typeof shape.ref === "string" ? cleanText(titleOf(shape.ref) ?? "") : "";
+			if (title) out.push(title);
+			if (out.length >= NAMING_LIMITS.stickies) break;
+			continue;
+		}
 		if (!shape || shape.type !== "sticky" || shape.silent !== undefined) continue;
 		const text = typeof shape.text === "string" ? cleanText(shape.text) : "";
 		if (!text) continue;
@@ -234,15 +299,29 @@ export function wantsSuggestion(shape: ShapeProps | undefined, hash: string | nu
 
 // --- The open grid ----------------------------------------------------------------------
 
+/** A card's size in an open stack, when it hasn't been measured. */
+export const CARD_CELL = { w: 252, h: 150 } as const;
+
 export interface OpenLayout {
-	/** The tray the stickies spread out on, header included. */
+	/** The tray its members spread out on, header included. */
 	tray: Rect;
-	/** Each sticky's top left, in the stack's order. */
+	/** Each member's top left, in the stack's order. */
 	slots: Map<string, Point>;
+	/** Each member's cell: as wide as its column, as tall as its row. */
+	cells: Map<string, { w: number; h: number }>;
 	columns: number;
 }
 
-/** How many columns a grid of `count` stickies has: tidy, and never wider than it's tall by much. */
+export interface OpenOptions {
+	/** Each member's type, for its size: a sticky's square, or a card's. */
+	typeOf?: (id: string) => ShapeType | undefined;
+	/** Members' sizes where they're known (measured cards). */
+	sizeOf?: (id: string) => { w: number; h: number } | undefined;
+	/** The closed stack's size, to centre the tray on. */
+	size?: { w: number; h: number };
+}
+
+/** How many columns a grid of `count` members has: tidy, and never wider than it's tall by much. */
 export function gridColumns(count: number): number {
 	if (count <= 3) return Math.max(1, count);
 	if (count === 4) return 2;
@@ -250,43 +329,69 @@ export function gridColumns(count: number): number {
 }
 
 /**
- * An open stack: its stickies in a grid on a tray centred where the stack
+ * An open stack: its members in a grid on a tray centred where the stack
  * is, in the stack's order (top of the stack first, reading left to right).
+ * Each column is as wide as its widest member and each row as tall as its
+ * tallest, so stickies and cards share a grid.
  */
-export function openLayout(stack: Point, members: readonly string[]): OpenLayout {
+export function openLayout(
+	stack: Point,
+	members: readonly string[],
+	options: OpenOptions = {},
+): OpenLayout {
 	const count = Math.max(1, members.length);
 	const columns = gridColumns(count);
 	const rows = Math.ceil(count / columns);
-	const gridW = columns * STICKY + (columns - 1) * STACK_GRID.gap;
-	const gridH = rows * STICKY + (rows - 1) * STACK_GRID.gap;
+	const sizeOf = (id: string) => {
+		if (options.typeOf?.(id) !== "card") return { w: STICKY, h: STICKY };
+		const known = options.sizeOf?.(id);
+		return known && known.w > 0 && known.h > 0 ? known : CARD_CELL;
+	};
+	const widths = Array.from({ length: columns }, () => STICKY);
+	const heights = Array.from({ length: rows }, () => STICKY);
+	members.forEach((id, i) => {
+		const size = sizeOf(id);
+		const column = i % columns;
+		const row = Math.floor(i / columns);
+		widths[column] = Math.max(widths[column] ?? 0, Math.round(size.w));
+		heights[row] = Math.max(heights[row] ?? 0, Math.round(size.h));
+	});
+	const sum = (list: number[]) => list.reduce((total, n) => total + n, 0);
+	const gridW = sum(widths) + (columns - 1) * STACK_GRID.gap;
+	const gridH = sum(heights) + (rows - 1) * STACK_GRID.gap;
 	const w = gridW + STACK_GRID.pad * 2;
 	const h = STACK_GRID.head + gridH + STACK_GRID.pad;
-	const centre = { x: stack.x + STACK_SIZE.w / 2, y: stack.y + STACK_INSET.y + STICKY / 2 };
+	const closed = options.size ?? STACK_SIZE;
+	const centre = { x: stack.x + closed.w / 2, y: stack.y + closed.h / 2 };
 	const tray = {
 		x: Math.round(centre.x - w / 2),
 		y: Math.round(centre.y - (STACK_GRID.head + gridH / 2)),
 		w,
 		h,
 	};
+	const left = (column: number) =>
+		sum(widths.slice(0, column)) + column * STACK_GRID.gap + tray.x + STACK_GRID.pad;
+	const top = (row: number) =>
+		sum(heights.slice(0, row)) + row * STACK_GRID.gap + tray.y + STACK_GRID.head;
 	const slots = new Map<string, Point>();
+	const cells = new Map<string, { w: number; h: number }>();
 	members.forEach((id, i) => {
 		const column = i % columns;
 		const row = Math.floor(i / columns);
-		slots.set(id, {
-			x: tray.x + STACK_GRID.pad + column * (STICKY + STACK_GRID.gap),
-			y: tray.y + STACK_GRID.head + row * (STICKY + STACK_GRID.gap),
-		});
+		slots.set(id, { x: left(column), y: top(row) });
+		cells.set(id, { w: widths[column] ?? STICKY, h: heights[row] ?? STICKY });
 	});
-	return { tray, slots, columns };
+	return { tray, slots, cells, columns };
 }
 
-/** The slot in an open grid nearest `point` (a dragged sticky's centre), for reordering. */
+/** The slot in an open grid nearest `point` (a dragged member's centre), for reordering. */
 export function nearestSlot(layout: OpenLayout, point: Point): number {
 	let best = 0;
 	let bestDistance = Number.POSITIVE_INFINITY;
-	[...layout.slots.values()].forEach((slot, i) => {
-		const dx = slot.x + STICKY / 2 - point.x;
-		const dy = slot.y + STICKY / 2 - point.y;
+	[...layout.slots].forEach(([id, slot], i) => {
+		const cell = layout.cells.get(id) ?? { w: STICKY, h: STICKY };
+		const dx = slot.x + cell.w / 2 - point.x;
+		const dy = slot.y + cell.h / 2 - point.y;
 		const d = dx * dx + dy * dy;
 		if (d < bestDistance) {
 			bestDistance = d;
@@ -296,8 +401,19 @@ export function nearestSlot(layout: OpenLayout, point: Point): number {
 	return best;
 }
 
+/** What a stack holds, in words: "5 stickies", "2 cards", or "3 items" for a mix. */
+export function countMembers(types: readonly (ShapeType | undefined)[]): string {
+	const n = types.length;
+	if (n > 0 && types.every((type) => type === "card")) return `${n} ${n === 1 ? "card" : "cards"}`;
+	if (types.every((type) => type !== "card")) return `${n} ${n === 1 ? "sticky" : "stickies"}`;
+	return `${n} ${n === 1 ? "item" : "items"}`;
+}
+
 /** A stack in words: "Docs gaps · 5 stickies". */
-export function describeStack(shape: ShapeProps | undefined, count: number): string {
+export function describeStack(
+	shape: ShapeProps | undefined,
+	members: readonly (ShapeType | undefined)[],
+): string {
 	const name = stackName(shape) ?? UNTITLED_STACK;
-	return `${name} · ${count} ${count === 1 ? "sticky" : "stickies"}`;
+	return `${name} · ${countMembers(members)}`;
 }
