@@ -929,15 +929,42 @@
 	font-size: 11.5px;
 }
 
-.decision-menu-heading {
-	margin: 6px 0 0;
-	padding: 6px 10px 3px;
-	border-top: 1px solid var(--line);
+/* Choosing what superseded it: its own step, with the way back at the top. */
+.decision-menu-back {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	margin-bottom: 4px;
+	padding: 6px 10px 8px 6px;
+	border: 0;
+	border-bottom: 1px solid var(--line);
+	border-radius: 8px 8px 0 0;
+	background: transparent;
 	color: var(--muted);
-	font-size: 10.5px;
-	font-weight: 650;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	font-size: 12px;
+	font-weight: 620;
+	text-align: left;
+	cursor: pointer;
+}
+
+.decision-menu-back span {
+	font-size: 16px;
+	line-height: 1;
+	transition: transform var(--t-quick) var(--ease-out);
+}
+
+.decision-menu-back:is(:hover, :focus-visible) {
+	color: var(--ink);
+	outline: none;
+}
+
+.decision-menu-back:is(:hover, :focus-visible) span {
+	transform: translateX(-2px);
+}
+
+.decision-menu[data-step="pick"] {
+	animation: fade-in var(--t-quick) var(--ease-out);
 }
 
 .decision-menu-dot {

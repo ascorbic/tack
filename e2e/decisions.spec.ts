@@ -203,6 +203,22 @@ test("the write-back can be a Discussion post, and staging it can be undone", as
 	expect(await stagedChange(page, PROPOSED)).toBeNull();
 });
 
+test("marking it superseded by another decision is a step of its own", async ({ page }) => {
+	const proposed = decision(page, PROPOSED);
+	await proposed.getByRole("button", { name: "Decision options" }).click();
+	// The other decisions aren't listed as though they already superseded it.
+	await expect(page.getByRole("menuitem", { name: "Serve AVIF by default" })).toHaveCount(0);
+	await page.getByRole("menuitem", { name: "Mark as superseded by…" }).click();
+	const pick = page.getByRole("menu", { name: "Superseded by which decision?" });
+	await expect(pick).toBeVisible();
+	await pick.getByRole("menuitem", { name: /Back|Superseded by which/ }).click();
+	await expect(page.getByRole("menu", { name: "Decision" })).toBeVisible();
+	await page.getByRole("menuitem", { name: "Mark as superseded by…" }).click();
+	await pick.getByRole("menuitem", { name: "Serve AVIF by default" }).click();
+	await expect(proposed.locator(".decision")).toHaveAttribute("data-status", "superseded");
+	await expect(proposed.locator(".decision-superseded")).toContainText("Serve AVIF by default");
+});
+
 test("superseding with a new decision links the two", async ({ page }) => {
 	const decided = page.locator(".decision[data-status=decided]");
 	await expect(decided).toHaveCount(2);

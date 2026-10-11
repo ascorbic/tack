@@ -698,8 +698,12 @@ function DecisionMenu({
 	onSupersededBy?: (id: string) => void;
 }) {
 	const menu = useRef<HTMLDivElement>(null);
+	/** Choosing which decision this one was superseded by: a step of its own. */
+	const [picking, setPicking] = useState(false);
 	useEffect(() => {
 		menu.current?.querySelector<HTMLButtonElement>("button")?.focus();
+	}, [picking]);
+	useEffect(() => {
 		const onDown = (event: globalThis.PointerEvent) => {
 			const target = event.target as Element | null;
 			if (!menu.current?.contains(target) && !target?.closest(".decision-more")) onClose();
@@ -736,6 +740,45 @@ function DecisionMenu({
 	);
 
 	const candidates = others.filter((other) => other.status !== "superseded");
+	if (picking) {
+		return (
+			<div
+				ref={menu}
+				className="decision-menu nodrag nowheel"
+				role="menu"
+				aria-label="Superseded by which decision?"
+				data-step="pick"
+			>
+				<button
+					type="button"
+					role="menuitem"
+					className="decision-menu-back"
+					onPointerDown={(event) => event.stopPropagation()}
+					onClick={act(() => setPicking(false))}
+				>
+					<span aria-hidden="true">‹</span>
+					Superseded by which decision?
+				</button>
+				{candidates.map((other) => (
+					<button
+						key={other.id}
+						type="button"
+						role="menuitem"
+						className="decision-menu-item"
+						data-status={other.status}
+						onPointerDown={(event) => event.stopPropagation()}
+						onClick={act(() => {
+							onSupersededBy?.(other.id);
+							onClose();
+						})}
+					>
+						<span className="decision-menu-dot" data-status={other.status} />
+						<span className="decision-menu-title">{other.title || "Untitled decision"}</span>
+					</button>
+				))}
+			</div>
+		);
+	}
 	return (
 		<div ref={menu} className="decision-menu nodrag nowheel" role="menu" aria-label="Decision">
 			{status === "proposed" && item("Mark decided", () => onStatus?.("decided"))}
@@ -744,26 +787,19 @@ function DecisionMenu({
 			{status !== "superseded" &&
 				item("Supersede with a new decision", onSupersedeWithNew, "Adds one beside it")}
 			{status !== "superseded" && candidates.length > 0 && (
-				<>
-					<p className="decision-menu-heading">Superseded by</p>
-					{candidates.map((other) => (
-						<button
-							key={other.id}
-							type="button"
-							role="menuitem"
-							className="decision-menu-item"
-							data-status={other.status}
-							onPointerDown={(event) => event.stopPropagation()}
-							onClick={act(() => {
-								onSupersededBy?.(other.id);
-								onClose();
-							})}
-						>
-							<span className="decision-menu-dot" data-status={other.status} />
-							<span className="decision-menu-title">{other.title || "Untitled decision"}</span>
-						</button>
-					))}
-				</>
+				<button
+					type="button"
+					role="menuitem"
+					aria-haspopup="menu"
+					className="decision-menu-item"
+					onPointerDown={(event) => event.stopPropagation()}
+					onClick={act(() => setPicking(true))}
+				>
+					<span>Mark as superseded by…</span>
+					<span className="decision-menu-hint" aria-hidden="true">
+						›
+					</span>
+				</button>
 			)}
 		</div>
 	);
