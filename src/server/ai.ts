@@ -1,19 +1,10 @@
 import type { AiStatus } from "../shared/auth.ts";
-import { fakeStackAi } from "../shared/fakeStackAi.ts";
-import type { StackAi } from "../shared/stackNamer.ts";
-import {
-	GROUP_SCHEMA,
-	GROUP_SYSTEM,
-	NAME_SCHEMA,
-	NAME_SYSTEM,
-	answerOf,
-	groupMessage,
-	nameMessage,
-} from "../shared/stackNaming.ts";
 
-// Workers AI, for stacks' names and "Group these" (#73). The prompts and
-// reading the answers are shared (src/shared/stackNaming.ts); this is just
-// the asking.
+// Workers AI, for the board's AI suggestions: stacks' names and "Group
+// these" (#73, src/server/stacks.ts). This module is only the asking:
+// whether AI is on (`TACK_AI` and the `AI` binding, cloudflare.config.ts),
+// and `askModel`, one structured-output request. What's asked, and reading
+// what comes back, belongs to each feature.
 //
 // The model: Gemma 4 26B A4B (Google's mixture-of-experts instruction model,
 // 4B parameters active per token), as of October 2026 a current, fast and
@@ -22,75 +13,91 @@ import {
 // out; a general instruct model writes better theme names than the coding-
 // and agent-tuned ones, and its context (256k) is far more than sixty
 // stickies need. Thinking is off: it adds latency and tokens for nothing
-// here. GLM-4.7 Flash (`@cf/zai-org/glm-4.7-flash`) takes the same request
-// and answer, if this one's ever retired.
+// here. The fallback, if Gemma is ever retired or misbehaves, is GLM-4.7
+// Flash (`AI_FALLBACK_MODEL`): it takes the same request (messages, a JSON
+// schema, `chat_template_kwargs`) and answers in the same chat-completions
+// shape, so switching is changing `AI_MODEL`.
 
-export const STACK_MODEL = "@cf/google/gemma-4-26b-a4b-it";
-
-/** Most tokens an answer may take: a name is a few, a grouping of sixty stickies a few hundred. */
-const MAX_TOKENS = { name: 48, group: 1500 } as const;
+export const AI_MODEL = "@cf/google/gemma-4-26b-a4b-it";
+export const AI_FALLBACK_MODEL = "@cf/zai-org/glm-4.7-flash";
 
 interface AiRunner {
 	run(model: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
-/** Whether this Worker has Workers AI to ask (it doesn't in local dev). */
+/** Whether this Worker has Workers AI to ask (it doesn't in local dev, or if the binding's removed). */
 export function hasAi(env: Env): boolean {
 	const binding = (env as { AI?: unknown }).AI as Partial<AiRunner> | undefined;
 	return !!binding && typeof binding.run === "function";
 }
 
 /**
- * Whether AI suggestions are on (`TACK_AI` in cloudflare.config.ts), and with
- * what: `workers-ai` (the default) when the Worker has its AI binding, the
- * fake in local dev, or off (`TACK_AI=off`, or no binding to ask).
+ * Whether AI suggestions are on (`TACK_AI` in cloudflare.config.ts), and
+ * with what: on (the default) when the Worker has its AI binding, local
+ * development's stand-in when it's `fake`, off when it's `off`, and
+ * unavailable (off, but not by choice) when there's no binding to ask.
  */
 export function aiStatus(env: Env): AiStatus {
 	const raw = (env as { TACK_AI?: unknown }).TACK_AI;
-	const setting = (typeof raw === "string" ? raw : "workers-ai").trim().toLowerCase();
-	if (setting === "off" || setting === "") {
-		return { state: "off", provider: null, model: STACK_MODEL };
+	const setting = (typeof raw === "string" ? raw : "on").trim().toLowerCase();
+	if (setting === "off" || setting === "false" || setting === "0") {
+		return { state: "off", provider: null, model: AI_MODEL };
 	}
 	if (setting === "fake") return { state: "on", provider: "fake", model: "fake" };
 	return hasAi(env)
-		? { state: "on", provider: "workers-ai", model: STACK_MODEL }
-		: { state: "unavailable", provider: null, model: STACK_MODEL };
+		? { state: "on", provider: "workers-ai", model: AI_MODEL }
+		: { state: "unavailable", provider: null, model: AI_MODEL };
 }
 
-/** What names stacks here, or null when suggestions are off. */
-export function stackAi(env: Env): StackAi | null {
-	const status = aiStatus(env);
-	if (status.provider === "fake") return fakeStackAi();
-	return status.provider === "workers-ai" ? workersAi(env) : null;
+export interface ModelRequest {
+	/** The instructions. */
+	system: string;
+	/** What to work on: keep people's text in here, as data, never in `system`. */
+	user: string;
+	/** A JSON schema the answer must follow, and its name. */
+	schema: object;
+	schemaName: string;
+	/** The most tokens the answer may take. */
+	maxTokens: number;
+	/** Default 0.2: steady, with a little room. */
+	temperature?: number;
 }
 
-/** Workers AI as stacks' namer asks it, or null if this Worker has none. */
-export function workersAi(env: Env): StackAi | null {
-	if (!hasAi(env)) return null;
+/**
+ * Ask Workers AI for a structured answer: the answer itself (usually a JSON
+ * string, sometimes already parsed), for the caller to read defensively.
+ * Throws when there's no binding, or the request fails.
+ */
+export async function askModel(env: Env, request: ModelRequest): Promise<unknown> {
+	if (!hasAi(env)) throw new Error("No Workers AI binding");
 	const binding = (env as unknown as { AI: AiRunner }).AI;
-	const ask = async (
-		system: string,
-		user: string,
-		schema: object,
-		name: string,
-		maxTokens: number,
-	): Promise<unknown> => {
-		const result = await binding.run(STACK_MODEL, {
-			messages: [
-				{ role: "system", content: system },
-				{ role: "user", content: user },
-			],
-			response_format: { type: "json_schema", json_schema: { name, schema, strict: true } },
-			max_completion_tokens: maxTokens,
-			temperature: 0.2,
-			chat_template_kwargs: { enable_thinking: false },
-		});
-		return answerOf(result);
-	};
-	return {
-		name: (texts) =>
-			ask(NAME_SYSTEM, nameMessage(texts), NAME_SCHEMA, "stack_name", MAX_TOKENS.name),
-		group: (notes) =>
-			ask(GROUP_SYSTEM, groupMessage(notes), GROUP_SCHEMA, "stack_groups", MAX_TOKENS.group),
-	};
+	const result = await binding.run(AI_MODEL, {
+		messages: [
+			{ role: "system", content: request.system },
+			{ role: "user", content: request.user },
+		],
+		response_format: {
+			type: "json_schema",
+			json_schema: { name: request.schemaName, schema: request.schema, strict: true },
+		},
+		max_completion_tokens: request.maxTokens,
+		temperature: request.temperature ?? 0.2,
+		chat_template_kwargs: { enable_thinking: false },
+	});
+	return answerOf(result);
+}
+
+/**
+ * The answer in a Workers AI result: chat-completions models put it in
+ * `choices[0].message.content`, older ones in `response` (a string, or
+ * already parsed in JSON mode).
+ */
+export function answerOf(result: unknown): unknown {
+	if (!result || typeof result !== "object") return result;
+	const { choices, response } = result as { choices?: unknown; response?: unknown };
+	if (Array.isArray(choices)) {
+		const message = (choices[0] as { message?: { content?: unknown } } | undefined)?.message;
+		if (message?.content !== undefined && message.content !== null) return message.content;
+	}
+	return response ?? result;
 }

@@ -8,17 +8,54 @@ import {
 	type StackMessage,
 	type StackRequest,
 } from "../shared/stackNamer.ts";
-import { aiStatus, stackAi } from "./ai.ts";
+import { fakeStackAi } from "../shared/fakeStackAi.ts";
+import {
+	GROUP_SCHEMA,
+	GROUP_SYSTEM,
+	NAME_SCHEMA,
+	NAME_SYSTEM,
+	groupMessage,
+	nameMessage,
+} from "../shared/stackNaming.ts";
+import { aiStatus, askModel } from "./ai.ts";
 import type { ConnectionAccess } from "./board.ts";
 import { log } from "./log.ts";
 
 // Stacks on the board's server (#73): names suggested from what's in them,
-// and "Group these", asked of Workers AI (src/server/ai.ts) while AI
+// and "Group these", asked of Workers AI (`askModel`, src/server/ai.ts) while AI
 // suggestions are on (`TACK_AI`, on by default). The naming itself (what's
 // sent, when, caching, the budget) is `StackNamer`, shared with the
 // playground; here it gets its model, a cache in the board's SQLite, and the
 // board's connections: editors ask for groupings, and everyone's told
 // whether suggestions are on.
+
+/** Most tokens an answer may take: a name is a few, a grouping of sixty stickies a few hundred. */
+const MAX_TOKENS = { name: 48, group: 1500 } as const;
+
+/** What names stacks here: Workers AI, local development's stand-in, or null when suggestions are off. */
+export function stackAi(env: Env): StackAi | null {
+	const status = aiStatus(env);
+	if (status.provider === "fake") return fakeStackAi();
+	if (status.provider !== "workers-ai") return null;
+	return {
+		name: (texts) =>
+			askModel(env, {
+				system: NAME_SYSTEM,
+				user: nameMessage(texts),
+				schema: NAME_SCHEMA,
+				schemaName: "stack_name",
+				maxTokens: MAX_TOKENS.name,
+			}),
+		group: (notes) =>
+			askModel(env, {
+				system: GROUP_SYSTEM,
+				user: groupMessage(notes),
+				schema: GROUP_SCHEMA,
+				schemaName: "stack_groups",
+				maxTokens: MAX_TOKENS.group,
+			}),
+	};
+}
 
 /** Names kept per board. */
 const CACHE_ROWS = 1000;

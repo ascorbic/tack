@@ -56,16 +56,17 @@ export default defineConfig(({ isPreview, mode }) => ({
 			// is someone's real GitHub login, and every command would notify them.
 			TACK_COMMAND_ALIAS: bindings.text(""),
 			// AI suggestions (#73): naming stacks of stickies from what they say,
-			// and sorting a selection into named stacks. `workers-ai` (the
-			// default) asks Workers AI through the AI binding below, which counts
-			// against the account's Workers AI allocation (a free daily amount,
-			// then billed); `off` turns them off (stacks are "Untitled stack" until
-			// someone names them), as does removing the binding. Local dev has
-			// no Workers AI (a binding there always reaches the remote, billed
-			// service and needs a Cloudflare login), so it uses `fake`, a stand-in
-			// that answers from the stickies' words; start it with
-			// TACK_DEV_AI=workers-ai to ask the real thing.
-			TACK_AI: bindings.text(mode === "development" && !realAiInDev() ? "fake" : "workers-ai"),
+			// and sorting a selection into named stacks. On by default: they ask
+			// Workers AI through the AI binding below (src/server/ai.ts), which
+			// counts against the account's Workers AI allocation (a free daily
+			// amount, then billed). `off` turns them off (stacks are "Untitled
+			// stack" until someone names them); without the binding they're off
+			// too, and /setup says so. Local dev has no Workers AI (a binding
+			// there always reaches the remote, billed service and needs a
+			// Cloudflare login), so it uses `fake`, a stand-in that answers from
+			// the stickies' words; start it with TACK_DEV_AI=workers-ai to ask the
+			// real thing.
+			TACK_AI: bindings.text(mode === "development" && !realAiInDev() ? "fake" : "on"),
 			...(mode !== "development" || realAiInDev()
 				? { AI: bindings.ai(realAiInDev() ? { dev: { remote: true } } : undefined) }
 				: {}),
