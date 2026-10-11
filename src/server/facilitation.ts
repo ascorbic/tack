@@ -187,7 +187,7 @@ export class Facilitation {
 				if (!mayChangeTimer(you, action, readTimer(this.host.doc), this.present(), now)) {
 					return this.refuse(connection, "timer", "not_facilitator");
 				}
-				const author = cleanAuthor(by);
+				const author = cleanAuthor(by, access);
 				// Their own edit, as far as history goes: "Olive set the timer".
 				const changed = applyTimer(
 					this.host.doc,
@@ -235,7 +235,7 @@ export class Facilitation {
 				this.setSpotlight({
 					connection: connection.id,
 					clientId: request.clientId,
-					user: cleanAuthor(request.user),
+					user: cleanAuthor(request.user, access),
 					since: Date.now(),
 				});
 				return;
@@ -318,8 +318,15 @@ function publicSpotlight({
 	return spotlight;
 }
 
-function cleanAuthor(by: Author | undefined): Author {
-	const name = typeof by?.name === "string" ? by.name.slice(0, 80) : "";
+/**
+ * Who did something, for "Kai stopped the timer". Signed-in people are who
+ * the Worker's access check says, whatever their client claims (#60); only
+ * a guest's colour and made-up name come from the client.
+ */
+function cleanAuthor(by: Author | undefined, access: ConnectionAccess): Author {
+	const person = access.person;
+	const claimed = typeof by?.name === "string" ? by.name : "";
+	const name = (person ? person.name || person.login : claimed).slice(0, 80);
 	const color = typeof by?.color === "string" ? by.color.slice(0, 32) : "";
 	return { name: name || "Someone", color };
 }

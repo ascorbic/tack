@@ -9,6 +9,7 @@ import * as syncProtocol from "y-protocols/sync";
 import * as Y from "yjs";
 
 const MESSAGE_SYNC = 0;
+const MESSAGE_AWARENESS = 1;
 const REMOTE = Symbol("remote");
 
 export interface BoardClient {
@@ -23,6 +24,12 @@ export interface BoardClient {
 	roundTrip(): Promise<void>;
 	/** Send a custom message (JSON), as the provider's `sendMessage` does. */
 	send(message: unknown): void;
+	/** Send bytes as they are: a sync or awareness message made by hand. */
+	sendRaw(bytes: Uint8Array): void;
+	/** Publish presence (awareness) states, as `{ clientId: [clock, state] }`. */
+	sendAwareness(states: Record<number, [clock: number, state: unknown]>): void;
+	/** Presence states received, by client id (the latest of each). */
+	awareness: Map<number, unknown>;
 	close(): void;
 }
 
@@ -60,6 +67,9 @@ export async function connectBoard(
 				send(syncStep1(doc));
 			}),
 		send: (message) => ws.send(`__YPS:${JSON.stringify(message)}`),
+		sendRaw: (bytes) => send(bytes),
+		sendAwareness: (states) => send(awarenessMessage(states)),
+		awareness: new Map(),
 		close: () => {
 			if (client.closed) return;
 			client.closed = { code: 1000, reason: "closed by test" };
@@ -77,7 +87,18 @@ export async function connectBoard(
 			return;
 		}
 		const decoder = decoding.createDecoder(new Uint8Array(data as ArrayBuffer));
-		if (decoding.readVarUint(decoder) !== MESSAGE_SYNC) return; // awareness
+		const kind = decoding.readVarUint(decoder);
+		if (kind === MESSAGE_AWARENESS) {
+			const update = decoding.createDecoder(decoding.readVarUint8Array(decoder));
+			const count = decoding.readVarUint(update);
+			for (let i = 0; i < count; i++) {
+				const clientId = decoding.readVarUint(update);
+				decoding.readVarUint(update);
+				client.awareness.set(clientId, JSON.parse(decoding.readVarString(update)));
+			}
+			return;
+		}
+		if (kind !== MESSAGE_SYNC) return;
 		const encoder = encoding.createEncoder();
 		encoding.writeVarUint(encoder, MESSAGE_SYNC);
 		const type = syncProtocol.readSyncMessage(decoder, encoder, doc, REMOTE);
@@ -102,6 +123,24 @@ export async function connectBoard(
 	// Ask for the server's state, as the real provider does.
 	await client.roundTrip();
 	return { ok: true, client };
+}
+
+/** An awareness message, as y-protocols encodes one. */
+export function awarenessMessage(
+	states: Record<number, [clock: number, state: unknown]>,
+): Uint8Array {
+	const update = encoding.createEncoder();
+	const entries = Object.entries(states);
+	encoding.writeVarUint(update, entries.length);
+	for (const [clientId, [clock, state]] of entries) {
+		encoding.writeVarUint(update, Number(clientId));
+		encoding.writeVarUint(update, clock);
+		encoding.writeVarString(update, JSON.stringify(state));
+	}
+	const encoder = encoding.createEncoder();
+	encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+	encoding.writeVarUint8Array(encoder, encoding.toUint8Array(update));
+	return encoding.toUint8Array(encoder);
 }
 
 function syncStep1(doc: Y.Doc): Uint8Array {

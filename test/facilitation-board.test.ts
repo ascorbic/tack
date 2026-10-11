@@ -50,10 +50,10 @@ beforeAll(async () => {
 	});
 	const setup = await (await instanceStub(mf)).completeSetup(github.manifestCode);
 	expect(setup.ok).toBe(true);
-	olive = await signIn(mf, "olive", { name: "Olive Owner" });
-	eddie = await signIn(mf, "eddie");
-	erin = await signIn(mf, "erin");
-	vera = await signIn(mf, "vera");
+	olive = await signIn(mf, "olive", { name: "Olive" });
+	eddie = await signIn(mf, "eddie", { name: "Eddie" });
+	erin = await signIn(mf, "erin", { name: "Erin" });
+	vera = await signIn(mf, "vera", { name: "Vera" });
 });
 afterAll(() => mf.dispose());
 

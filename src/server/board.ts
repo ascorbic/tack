@@ -1,6 +1,9 @@
-import type { Connection, ConnectionContext } from "partyserver";
+import * as decoding from "lib0/decoding";
+import * as encoding from "lib0/encoding";
+import type { Connection, ConnectionContext, WSMessage } from "partyserver";
 import { YServer } from "y-partyserver";
 import * as Y from "yjs";
+import { sanitizeAwareness } from "./awareness.ts";
 import { type BoardMessage, type Role, canEdit } from "../shared/boards.ts";
 import {
 	type CompactResult,
@@ -102,6 +105,9 @@ export interface ConnectionAccess extends VisitorKey {
 
 /** WebSocket close code for a connection whose access was taken away. */
 export const ACCESS_REVOKED = 4403;
+
+/** y-protocols' message type for presence (awareness) updates. */
+const MESSAGE_AWARENESS = 1;
 
 // Durable Object storage rows max out at 2 MB, so snapshots are chunked.
 const CHUNK_SIZE = 512 * 1024;
@@ -219,6 +225,8 @@ export class Board extends YServer<Env> {
 	private migration: MigrationReport | null = null;
 	/** Backups of the board's JSON to a branch, if its owner turned them on (#59). */
 	private backups: Backups | null = null;
+	/** Presence client ids, by the connection that speaks for them (see awareness.ts). */
+	private awarenessOwners = new Map<number, string>();
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -695,10 +703,74 @@ export class Board extends YServer<Env> {
 		if (leaving?.userId != null) this.visits?.touch(leaving.userId);
 		this.viewing.delete(connection.id);
 		this.commentBudget.delete(connection.id);
+		for (const [clientId, owner] of this.awarenessOwners) {
+			if (owner === connection.id) this.awarenessOwners.delete(clientId);
+		}
 		this.widgets?.disconnect(connection.id);
 		this.facilitation?.closed(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
 		return super.onClose(connection, code, reason, wasClean);
+	}
+
+	/**
+	 * Every binary message: presence (awareness) is checked before it's
+	 * relayed (see awareness.ts); document sync goes to y-partyserver, which
+	 * drops writes from read-only connections.
+	 */
+	override handleMessage(connection: Connection, message: WSMessage): void {
+		if (typeof message === "string") {
+			super.handleMessage(connection, message);
+			return;
+		}
+		const bytes =
+			message instanceof Uint8Array
+				? message
+				: message instanceof ArrayBuffer
+					? new Uint8Array(message)
+					: new Uint8Array(message.buffer, message.byteOffset, message.byteLength);
+		const checked = this.checkMessage(connection as Connection<ConnectionAccess>, bytes);
+		if (checked) super.handleMessage(connection, checked);
+	}
+
+	private checkMessage(
+		connection: Connection<ConnectionAccess>,
+		bytes: Uint8Array,
+	): Uint8Array | null {
+		let type: number;
+		let decoder: decoding.Decoder;
+		try {
+			decoder = decoding.createDecoder(bytes);
+			type = decoding.readVarUint(decoder);
+		} catch {
+			return null;
+		}
+		if (type !== MESSAGE_AWARENESS) return bytes;
+		const access = connection.state;
+		if (!access) return null;
+		let update: Uint8Array;
+		try {
+			update = decoding.readVarUint8Array(decoder);
+		} catch {
+			return null;
+		}
+		const result = sanitizeAwareness(
+			update,
+			{ connection: connection.id, ...(access.person ? { person: access.person } : {}) },
+			(clientId) => this.awarenessOwners.get(clientId),
+		);
+		for (const clientId of result.claimed) this.awarenessOwners.set(clientId, connection.id);
+		if (result.dropped > 0) {
+			log.warn("board.awareness.refused", {
+				board: this.name,
+				connection: connection.id,
+				dropped: result.dropped,
+			});
+		}
+		if (!result.update) return null;
+		const encoder = encoding.createEncoder();
+		encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+		encoding.writeVarUint8Array(encoder, result.update);
+		return encoding.toUint8Array(encoder);
 	}
 
 	override onCustomMessage(connection: Connection, message: string): void {
