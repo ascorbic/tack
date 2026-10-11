@@ -55,6 +55,6 @@ The pill in the top bar says **Synced** while the board's in step with everyone 
 
 ## Light and dark
 
-The sun and moon switch in the top bar changes the theme. Tack follows your system's setting until you choose, and remembers your choice in this browser. Stickies stay paper-coloured in both, like paper on a dark desk.
+**Theme** in the account menu (your avatar) changes the theme: light, dark, or following your system. Tack follows your system's setting until you choose, and remembers your choice in this browser. Signed out, the sun and moon switch is in the top bar. Stickies stay paper-coloured in both, like paper on a dark desk.
 
 The board's motion follows your system's reduced motion setting.

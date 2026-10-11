@@ -47,7 +47,7 @@ When a card changes on GitHub while you're looking, it pulses and the changed pa
 How fresh a card is depends on whether the [GitHub App](/self-hosting/github-app/) is installed on its repository:
 
 - **Installed**: the card is live. GitHub sends Tack a webhook when the item changes, and the card updates within seconds.
-- **Not installed** (public repositories only): the card shows **Not live**. Tack checks the repository every minute or so while someone has the board open (every five minutes when nobody watching is signed in): "The Tack app isn't installed on owner/repo, so changes show up within a minute or so, and Tack can't make changes there." The tooltip links to **Install the app for live updates**.
+- **Not installed** (public repositories only): the card shows **Not live**. Tack checks the repository every minute or so while someone has the board open (every five minutes when nobody watching is signed in): Its tooltip leads with what that means, "Read-only: Tack can't push here", and links to **Install the app**, which takes an owner of the account (GitHub asks one if that isn't you).
 
 Checks and reviews need the app too: without it, a pull request card says "Checks and reviews need the GitHub App".
 

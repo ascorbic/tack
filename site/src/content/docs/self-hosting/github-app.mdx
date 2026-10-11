@@ -55,12 +55,14 @@ On `/setup`, choose **Install on repositories**, then pick the repositories on G
 
 You don't have to install it everywhere. **Public repositories work without it**, read-only and not live; installing it makes their cards live, lets Tack write to them, and makes private repositories visible to the people who can read them. See [Repositories, live and not](/self-hosting/repositories/).
 
-People can also install it from a board: a card that's **Not live** links to **Install the app for live updates**, and comes back to the board afterwards. If they're not an owner of the organisation, GitHub asks an owner to approve it: "Installation requested. An organisation owner needs to approve it on GitHub."
+People can also install it from a board: a card that's **Not live** links to **Install the app**, as does a read-only repository in the Share dialog, and comes back to the board afterwards. If they're not an owner of the organisation, GitHub asks an owner to approve it: "Installation requested. An organisation owner needs to approve it on GitHub."
 
 To change which repositories the app is installed on later, open **App settings** from `/setup`, or the app's page under the account's Settings → Applications → Installed GitHub Apps → Configure.
 
 ## After setup
 
-`/setup` stays as the instance's settings page, for admins: **Install on repositories**, **App settings** (the app on GitHub), and [who can use the instance](/self-hosting/access/). Admins also find it in the account menu, as **Instance settings**.
+`/setup` stays as the instance's settings page, for admins: **Install on repositories**, **App settings** (the app on GitHub), **Where it's installed**, and [who can use the instance](/self-hosting/access/).
+
+**Where it's installed** lists every account the app is installed on, the repositories each covers, and whether Tack can push there: "Live · Tack can push", "Live, read-only" (the account hasn't accepted the permissions Tack asks for), or "Suspended". Before a planning session, check every repository you'll plan with is listed and can be pushed to. Admins also find it in the account menu, as **Instance settings**.
 
 There's one app per instance: setup can't be run again once it's done.
