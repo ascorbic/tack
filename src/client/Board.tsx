@@ -21,7 +21,7 @@ import { readVotes } from "../shared/dotvotes.ts";
 import { STAMPS, type StampEmoji } from "../shared/facilitation.ts";
 import { type CardRun, addCardsInRun, cardsOnBoard, searchScopeOf } from "../shared/addCards.ts";
 import { intersects } from "../shared/geometry.ts";
-import { itemKey, parseKey, parseRef } from "../shared/refs.ts";
+import { parseKey } from "../shared/refs.ts";
 import { boxOf } from "../shared/sections.ts";
 import {
 	type DisplayKind,
@@ -319,8 +319,6 @@ export function Board({
 	const history = useMemo(() => new History(liveDoc), [liveDoc]);
 	useEffect(() => () => history.destroy(), [history]);
 	const [toasts] = useState(() => new ToastStore());
-<<<<<<< HEAD
-	useSilentToasts(liveDoc, toasts);
 	// Someone else deleting the sticky or text you're typing in says so, and
 	// offers it back as you last had it.
 	useEffect(() => {
@@ -352,8 +350,6 @@ export function Board({
 		map.observe(onChange);
 		return () => map.unobserve(onChange);
 	}, [liveDoc, toasts]);
-=======
->>>>>>> aa66773 (feat(presence): colours nobody present shares, and everyone in reach)
 	// Selection actions: staging changes for the forge (src/client/actions/).
 	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
 	const [actionRequests] = useState(() => new ActionRequests());
