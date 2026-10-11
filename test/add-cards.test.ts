@@ -62,9 +62,9 @@ describe("reading the card tool's input", () => {
 			kind: "ref",
 			key: "github.com/emdash-cms/emdash#412",
 		});
-		expect(readCardInput("withastro/astro#9", scope)).toEqual({
+		expect(readCardInput("ascorbic/cirrus#9", scope)).toEqual({
 			kind: "ref",
-			key: "github.com/withastro/astro#9",
+			key: "github.com/ascorbic/cirrus#9",
 		});
 		expect(readCardInput("#412", scope)).toEqual({
 			kind: "ref",
@@ -82,11 +82,11 @@ describe("reading the card tool's input", () => {
 			q: "repo:emdash-cms/emdash repo:emdash-cms/docs migration guide",
 			where: "2 repositories on this board",
 		});
-		expect(readCardInput("withastro/astro image service", scope)).toEqual({
+		expect(readCardInput("ascorbic/cirrus blob storage", scope)).toEqual({
 			kind: "search",
 			host: "github.com",
-			q: "repo:withastro/astro image service",
-			where: "withastro/astro",
+			q: "repo:ascorbic/cirrus blob storage",
+			where: "ascorbic/cirrus",
 		});
 	});
 

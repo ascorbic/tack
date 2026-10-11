@@ -1,7 +1,7 @@
 import { type SearchTerm, formatTerm, parseSearch, searchScope } from "./search.ts";
 
 // Help for people writing searches who don't speak GitHub's search syntax
-// (#38, #40, #44). "bugs in imagekit" is a search for those three words
+// (#38, #40, #44). "bugs in unpic" is a search for those three words
 // everywhere you can see: on github.com, random results from all of GitHub;
 // on a board, nothing, ever. Read with what the board knows (its busiest
 // repository and that repository's labels), most such searches have an
@@ -17,7 +17,7 @@ export interface QueryContext {
 export interface QueryRescue {
 	/** The search as it was probably meant. */
 	q: string;
-	/** What changed, as phrases: "“bugs” as the bug label", "only in acme/imagekit". */
+	/** What changed, as phrases: "“bugs” as the bug label", "only in acme/unpic". */
 	changes: string[];
 	/** Whether the only change is limiting it to the repository. */
 	scopeOnly: boolean;

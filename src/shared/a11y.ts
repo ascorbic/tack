@@ -229,7 +229,7 @@ const STATE_WORDS: Record<CardState, string> = {
 	draft: "draft",
 };
 
-/** The item a card shows, from its key alone: `imagekit #412`. */
+/** The item a card shows, from its key alone: `unpic #412`. */
 export function itemFromKey(key: string): { repo: string; item: string } | null {
 	const match = /^[^/]+\/(?:[^/#!]+\/)*([^/#!]+)([#!]\d+)$/.exec(key);
 	return match ? { repo: match[1] ?? "", item: match[2] ?? "" } : null;

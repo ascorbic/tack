@@ -4,7 +4,7 @@ import { repoKeyOf } from "../../shared/refs.ts";
 // Whether a board's repositories are ready for a session: live (the app
 // is installed, so updates arrive as they happen) and writable (staged
 // changes can be pushed). Read from the cards the board already has, so
-// the Share dialog can say "lovell/sharp: read-only" before anyone tries.
+// the Share dialog can say "pixelmill/pixelmill: read-only" before anyone tries.
 
 export type RepoState =
 	/** Live, and Tack can push. */

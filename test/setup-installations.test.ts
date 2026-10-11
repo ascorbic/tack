@@ -12,11 +12,11 @@ import { instanceStub, signIn, startWorker } from "./harness.ts";
 const github = new FakeGitHub();
 github.addRepo(1, "emdash-cms/emdash");
 github.addRepo(2, "emdash-cms/docs", { private: true });
-github.addRepo(3, "lovell/sharp");
+github.addRepo(3, "pixelmill/pixelmill");
 github.addRepo(4, "acme/old");
 github.install(11, "emdash-cms", ["emdash-cms/emdash", "emdash-cms/docs"]);
 // Installed before Tack asked for write access, and never updated.
-github.install(12, "lovell", ["lovell/sharp"], {
+github.install(12, "pixelmill", ["pixelmill/pixelmill"], {
 	permissions: { issues: "read", pull_requests: "read", metadata: "read" },
 });
 github.install(13, "acme", ["acme/old"], { suspended: true });
@@ -58,9 +58,9 @@ describe("where the app is installed", () => {
 			more: 0,
 			settingsUrl: "https://github.com/organizations/emdash-cms/settings/installations/11",
 		});
-		expect(byAccount.lovell).toMatchObject({
+		expect(byAccount.pixelmill).toMatchObject({
 			writable: false,
-			repositories: [{ name: "lovell/sharp" }],
+			repositories: [{ name: "pixelmill/pixelmill" }],
 		});
 		// Suspended: nothing flows, so its repositories aren't asked for.
 		expect(byAccount.acme).toMatchObject({ suspended: true, repositories: [] });

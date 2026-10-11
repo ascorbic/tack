@@ -96,7 +96,7 @@ export interface RepoOption {
 	recent?: boolean;
 }
 
-/** `acme/` muted, `imagekit` strong. */
+/** `acme/` muted, `unpic` strong. */
 export function RepoName({ repo }: { repo: string }) {
 	const name = repoName(repo);
 	const slash = name.lastIndexOf("/");

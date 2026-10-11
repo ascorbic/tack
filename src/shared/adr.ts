@@ -59,7 +59,7 @@ export function detectRecordDir(listings: ReadonlyMap<string, readonly string[]>
 
 /** An item linked to the decision, as it appears in the record. */
 export interface AdrLink {
-	/** The item's key, e.g. `github.com/acme/imagekit#412`. */
+	/** The item's key, e.g. `github.com/acme/unpic#412`. */
 	key: string;
 	/** Its title, if known. */
 	title?: string;
@@ -186,7 +186,7 @@ function section(text: string, placeholder: string): string {
 }
 
 function shortRef(key: string): string {
-	// `github.com/acme/imagekit#412` → `acme/imagekit#412`
+	// `github.com/acme/unpic#412` → `acme/unpic#412`
 	const slash = key.indexOf("/");
 	return slash === -1 ? key : key.slice(slash + 1);
 }

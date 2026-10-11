@@ -107,15 +107,15 @@ describe("shapes in words", () => {
 	const context = {
 		sectionTitle: (id: string) => (id === "s" ? "Went well" : undefined),
 		card: (key: string) =>
-			key === "github.com/acme/imagekit#412"
+			key === "github.com/acme/unpic#412"
 				? {
 						item: "#412",
-						repo: "imagekit",
-						title: "Netlify ignores quality",
+						repo: "unpic",
+						title: "Portside ignores quality",
 						state: "open" as const,
 						kind: "issue" as const,
 					}
-				: key === "github.com/acme/imagekit#9"
+				: key === "github.com/acme/unpic#9"
 					? { missing: true }
 					: undefined,
 		contents: () => ["sticky", "sticky", "card"] as const,
@@ -151,14 +151,14 @@ describe("shapes in words", () => {
 	});
 
 	it("says a card's item, title and state, or what it knows", () => {
-		expect(describeShape("1", { type: "card", ref: "github.com/acme/imagekit#412" }, context)).toBe(
-			"imagekit #412: Netlify ignores quality, open issue",
+		expect(describeShape("1", { type: "card", ref: "github.com/acme/unpic#412" }, context)).toBe(
+			"unpic #412: Portside ignores quality, open issue",
 		);
-		expect(describeShape("1", { type: "card", ref: "github.com/acme/imagekit#7" }, context)).toBe(
-			"imagekit #7",
+		expect(describeShape("1", { type: "card", ref: "github.com/acme/unpic#7" }, context)).toBe(
+			"unpic #7",
 		);
-		expect(describeShape("1", { type: "card", ref: "github.com/acme/imagekit#9" }, context)).toBe(
-			"imagekit #9, couldn’t be loaded",
+		expect(describeShape("1", { type: "card", ref: "github.com/acme/unpic#9" }, context)).toBe(
+			"unpic #9, couldn’t be loaded",
 		);
 		expect(itemFromKey("gitlab.com/group/sub/project!12")).toEqual({
 			repo: "project",

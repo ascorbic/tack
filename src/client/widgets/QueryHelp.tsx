@@ -11,7 +11,7 @@ import "./queryHelp.css";
 // finder's, a timeline's or a dependency map's panel, an inbox's editor and
 // the rule composer. A search that reads as plain words, or that could match
 // anything anywhere, gets a suggestion of what it probably meant ("Did you
-// mean repo:acme/imagekit label:bug?"), one click to take; and one about
+// mean repo:acme/unpic label:bug?"), one click to take; and one about
 // whoever's looking (`@me`) offers to name you instead, so everyone sees the
 // same thing. Suggestions only: nothing changes unless it's taken.
 

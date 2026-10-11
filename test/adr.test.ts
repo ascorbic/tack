@@ -24,11 +24,11 @@ const DECISION: AdrInput = {
 	consequences: "Users on Node 18 stay on 4.x.\nThe engines field changes.",
 	links: [
 		{
-			key: "github.com/acme/imagekit#412",
+			key: "github.com/acme/unpic#412",
 			title: "Drop Node 18 support",
-			url: "https://github.com/acme/imagekit/issues/412",
+			url: "https://github.com/acme/unpic/issues/412",
 		},
-		{ key: "github.com/acme/imagekit#418", url: "https://github.com/acme/imagekit/pull/418" },
+		{ key: "github.com/acme/unpic#418", url: "https://github.com/acme/unpic/pull/418" },
 	],
 	boardUrl: "https://tack.example/b/abc/planning",
 	votes: { agree: 4, disagree: 1 },
@@ -59,8 +59,8 @@ The engines field changes.
 
 ## Links
 
-- [acme/imagekit#412: Drop Node 18 support](https://github.com/acme/imagekit/issues/412)
-- [acme/imagekit#418](https://github.com/acme/imagekit/pull/418)
+- [acme/unpic#412: Drop Node 18 support](https://github.com/acme/unpic/issues/412)
+- [acme/unpic#418](https://github.com/acme/unpic/pull/418)
 - Decided on [the Tack board](https://tack.example/b/abc/planning)
 `);
 	});
@@ -215,12 +215,12 @@ describe("write-back operations", () => {
 	it("opens a pull request adding the record on its own branch", () => {
 		const op = writeBackOperation(DECISION, {
 			kind: "pr",
-			repo: "github.com/acme/imagekit",
+			repo: "github.com/acme/unpic",
 			number: 7,
 		});
 		expect(op).toMatchObject({
 			kind: "pr.create",
-			repo: "github.com/acme/imagekit",
+			repo: "github.com/acme/unpic",
 			title: "ADR 0007: Drop Node 18 in 5.0",
 			branch: "tack/adr-0007-drop-node-18-in-5-0",
 		});
@@ -229,18 +229,18 @@ describe("write-back operations", () => {
 		expect(op.files[0]?.path).toBe("docs/decisions/0007-drop-node-18-in-5-0.md");
 		expect(op.files[0]?.content.startsWith("# 7. Drop Node 18 in 5.0\n")).toBe(true);
 		expect(op.body).toContain("[the Tack board](https://tack.example/b/abc/planning)");
-		expect(op.body).toContain("Linked: acme/imagekit#412, acme/imagekit#418");
+		expect(op.body).toContain("Linked: acme/unpic#412, acme/unpic#418");
 	});
 
 	it("posts a Discussion in the chosen category", () => {
 		const op = writeBackOperation(DECISION, {
 			kind: "discussion",
-			repo: "github.com/acme/imagekit",
+			repo: "github.com/acme/unpic",
 			category: "Decisions",
 		});
 		expect(op).toEqual({
 			kind: "discussion.create",
-			repo: "github.com/acme/imagekit",
+			repo: "github.com/acme/unpic",
 			category: "Decisions",
 			title: "Decision: Drop Node 18 in 5.0",
 			body: discussionMarkdown(DECISION),
@@ -248,9 +248,7 @@ describe("write-back operations", () => {
 	});
 
 	it("links items on GitHub when their card's URL isn't known", () => {
-		expect(itemUrl("github.com/acme/imagekit#412")).toBe(
-			"https://github.com/acme/imagekit/issues/412",
-		);
-		expect(itemUrl("fake.tack/acme/imagekit#412")).toBeUndefined();
+		expect(itemUrl("github.com/acme/unpic#412")).toBe("https://github.com/acme/unpic/issues/412");
+		expect(itemUrl("fake.tack/acme/unpic#412")).toBeUndefined();
 	});
 });

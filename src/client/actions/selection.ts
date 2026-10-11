@@ -117,7 +117,7 @@ export function reposOf(cards: readonly SelectedCard[]): string[] {
 	return [...new Set(cards.map((c) => repoKeyOf(c.key)))];
 }
 
-/** `acme/imagekit` from `github.com/acme/imagekit`. */
+/** `acme/unpic` from `github.com/acme/unpic`. */
 export function repoName(repo: string): string {
 	const slash = repo.indexOf("/");
 	return slash === -1 ? repo : repo.slice(slash + 1);

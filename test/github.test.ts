@@ -96,9 +96,9 @@ describe("GitHub pull requests over GraphQL", () => {
 											},
 											{
 												__typename: "StatusContext",
-												context: "ci/netlify",
+												context: "ci/preview",
 												state: "ERROR",
-												targetUrl: "https://netlify/1",
+												targetUrl: "https://preview.example/1",
 											},
 										],
 									},
@@ -119,7 +119,7 @@ describe("GitHub pull requests over GraphQL", () => {
 			failing: [
 				{ name: "test (20)", url: "https://ci/1" },
 				{ name: "e2e", url: null },
-				{ name: "ci/netlify", url: "https://netlify/1" },
+				{ name: "ci/preview", url: "https://preview.example/1" },
 			],
 		});
 		expect(card.pull?.mergeable).toBe("conflicting");

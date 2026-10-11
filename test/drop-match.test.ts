@@ -6,10 +6,10 @@ import { addShape } from "../src/shared/shapes.ts";
 import { planDrop, previewOf, stageDrop } from "../src/client/widgets/match.ts";
 
 const card = (item: string, overrides: Partial<Card> = {}): Card => ({
-	key: `fake.tack/acme/imagekit${item}`,
+	key: `fake.tack/acme/unpic${item}`,
 	forge: "fake",
 	host: "fake.tack",
-	repo: "acme/imagekit",
+	repo: "acme/unpic",
 	item,
 	kind: "issue",
 	title: `Item ${item}`,
@@ -34,7 +34,7 @@ function board(cards: Card[]) {
 	return { doc, cardOf: (key: string) => data.get(key) };
 }
 
-const LIST = { q: "repo:acme/imagekit is:open label:bug", host: "fake.tack" };
+const LIST = { q: "repo:acme/unpic is:open label:bug", host: "fake.tack" };
 
 describe("drop to match", () => {
 	it("plans and stages every dropped card's changes as one undo step", () => {
@@ -54,9 +54,9 @@ describe("drop to match", () => {
 		const undo = new Y.UndoManager(doc.getMap("changes"), { trackedOrigins: new Set(["local"]) });
 		stageDrop(doc, plans, { name: "Kai", login: "kai" });
 		expect(listChanges(doc).map((change) => [change.op, change.shapes])).toEqual([
-			[{ kind: "item.labels", target: { key: "fake.tack/acme/imagekit#1" }, add: ["bug"] }, ["s0"]],
-			[{ kind: "item.labels", target: { key: "fake.tack/acme/imagekit#2" }, add: ["bug"] }, ["s1"]],
-			[{ kind: "item.state", target: { key: "fake.tack/acme/imagekit#2" }, state: "open" }, ["s1"]],
+			[{ kind: "item.labels", target: { key: "fake.tack/acme/unpic#1" }, add: ["bug"] }, ["s0"]],
+			[{ kind: "item.labels", target: { key: "fake.tack/acme/unpic#2" }, add: ["bug"] }, ["s1"]],
+			[{ kind: "item.state", target: { key: "fake.tack/acme/unpic#2" }, state: "open" }, ["s1"]],
 		]);
 		undo.undo();
 		expect(listChanges(doc)).toEqual([]);

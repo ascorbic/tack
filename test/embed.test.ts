@@ -25,7 +25,7 @@ import {
 } from "../src/shared/embed.ts";
 import type { ShapeProps } from "../src/shared/shapes.ts";
 
-const PUBLIC_KEY = "github.com/withastro/astro#12";
+const PUBLIC_KEY = "github.com/ascorbic/cirrus#12";
 const PRIVATE_KEY = "github.com/acme/secret#5";
 
 function card(key: string, overrides: Partial<Card> = {}): Card {
@@ -37,7 +37,7 @@ function card(key: string, overrides: Partial<Card> = {}): Card {
 		repo,
 		item,
 		kind: "issue",
-		title: "Images break on Windows",
+		title: "Blob uploads fail over 5 MB",
 		state: "open",
 		stateReason: null,
 		labels: [{ name: "bug", color: "d73a4a" }],
@@ -188,7 +188,7 @@ describe("the scene", () => {
 		const scene = buildScene(board(), cards(card(PUBLIC_KEY), placeholder), { kind: "board" });
 		expect(byId(scene, "c1")).toMatchObject({
 			kind: "card",
-			card: { status: "ok", ref: "astro#12", title: "Images break on Windows", state: "open" },
+			card: { status: "ok", ref: "cirrus#12", title: "Blob uploads fail over 5 MB", state: "open" },
 		});
 		expect(byId(scene, "c2")).toMatchObject({ kind: "card", card: { status: "private" } });
 		// Not even the repository's name.
@@ -282,8 +282,8 @@ describe("the scene", () => {
 		expect(byId(scene, "c1")).toMatchObject({
 			kind: "row",
 			mode: "row",
-			text: "Images break on Windows",
-			ref: "astro#12",
+			text: "Blob uploads fail over 5 MB",
+			ref: "cirrus#12",
 			face: "card",
 		});
 		expect(byId(scene, "c2")).toMatchObject({
@@ -311,10 +311,10 @@ describe("link previews", () => {
 			stickies: 2,
 			sections: 1,
 			decisions: 0,
-			repos: ["withastro/astro"],
+			repos: ["ascorbic/cirrus"],
 		});
 		expect(describeBoard(counts)).toBe(
-			"A board with 2 cards, 2 stickies and 1 section from withastro/astro, on Tack.",
+			"A board with 2 cards, 2 stickies and 1 section from ascorbic/cirrus, on Tack.",
 		);
 		expect(describeBoard(countBoard(new Map(), new Map()))).toBe("An empty board, on Tack.");
 	});

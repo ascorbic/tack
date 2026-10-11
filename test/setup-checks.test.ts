@@ -100,7 +100,10 @@ describe("the setup checklist", () => {
 
 	it("points at what needs a look", () => {
 		const broken = steps(health({ state: "failing", reason: "rejected", failed: 3 }), {
-			installations: [installation(), installation({ id: 2, account: "lovell", writable: false })],
+			installations: [
+				installation(),
+				installation({ id: 2, account: "pixelmill", writable: false }),
+			],
 		});
 		expect(broken.webhooks).toMatchObject({ tone: "fail", detail: "Refused" });
 		expect(broken.repositories).toMatchObject({ tone: "warn", detail: "1 account to check" });
@@ -108,7 +111,7 @@ describe("the setup checklist", () => {
 
 		const missing = steps(health(), {
 			installations: [installation()],
-			notInstalled: ["withastro/astro"],
+			notInstalled: ["ascorbic/cirrus"],
 		});
 		expect(missing.repositories).toMatchObject({ tone: "warn", detail: "1 on boards without it" });
 

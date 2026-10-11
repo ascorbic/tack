@@ -20,7 +20,7 @@ import { LabelChip, stagerName } from "./parts.tsx";
 import { useHighlighted, useShapeChanges } from "./store.ts";
 
 // What's staged, shown on the shapes it's about: one mark above each shape
-// that sums up everything staged on it ("New issue in imagekit · Sub-issue
+// that sums up everything staged on it ("New issue in unpic · Sub-issue
 // of “Docs” · +enhancement"), opening into a list of each change on hover or
 // focus, and shrinking to a dot when the board is zoomed out. A sticky about
 // to become an issue shows the card it'll be behind it while it's pointed

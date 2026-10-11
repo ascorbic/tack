@@ -6,10 +6,10 @@ import { addShape, cardRefs, nextZ, topZ } from "../src/shared/shapes.ts";
 
 describe("parseRef", () => {
 	it("parses bare refs against the default host", () => {
-		expect(parseRef("withastro/astro#123")).toEqual({
+		expect(parseRef("ascorbic/cirrus#123")).toEqual({
 			forge: "github",
 			host: "github.com",
-			repo: "withastro/astro",
+			repo: "ascorbic/cirrus",
 			item: "#123",
 		});
 	});

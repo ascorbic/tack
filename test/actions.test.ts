@@ -37,7 +37,7 @@ import { History } from "../src/client/undo.ts";
 
 const PRIYA: Stager = { login: "priya", name: "Priya Shah", color: "#b4467a" };
 const KAI: Stager = { login: "kai", name: "Kai Andersen" };
-const REPO = "github.com/acme/imagekit";
+const REPO = "github.com/acme/unpic";
 
 function board() {
 	const doc = new Y.Doc();
@@ -718,7 +718,7 @@ describe("other helpers", () => {
 
 describe("parseRepoInput", () => {
 	it("reads owner/repo on the board's forge, a host path, or a URL", () => {
-		expect(parseRepoInput("Acme/ImageKit", "github.com")).toBe("github.com/acme/imagekit");
+		expect(parseRepoInput("Acme/Unpic", "github.com")).toBe("github.com/acme/unpic");
 		expect(parseRepoInput("fake.tack/acme/x", "github.com")).toBe("fake.tack/acme/x");
 		expect(parseRepoInput("https://github.com/a/b.git", "fake.tack")).toBe("github.com/a/b");
 		expect(parseRepoInput("https://github.com/a/b/", "fake.tack")).toBe("github.com/a/b");
@@ -747,12 +747,12 @@ describe("parseRepoInput", () => {
 });
 
 describe("toasts", () => {
-	const k = (n: number, repo = "acme/imagekit") => `github.com/${repo}#${n}`;
+	const k = (n: number, repo = "acme/unpic") => `github.com/${repo}#${n}`;
 
 	it("say which items, and what was staged on them", () => {
 		expect(itemsInWords([k(412)])).toBe("#412");
 		expect(itemsInWords([k(412), k(377)])).toBe("#412 and #377");
-		expect(itemsInWords([k(412), k(7, "acme/vault")])).toBe("imagekit#412 and vault#7");
+		expect(itemsInWords([k(412), k(7, "acme/vault")])).toBe("unpic#412 and vault#7");
 		expect(itemsInWords([k(1), k(2), k(3)])).toBe("3 items");
 		expect(setEditsInWords("item.labels", [{ key: k(412), add: ["docs"], remove: [] }])).toBe(
 			"Staged +docs on #412",

@@ -203,8 +203,8 @@ describe("a board's repositories", () => {
 			["github.com/emdash-cms/emdash#1", card("github.com/emdash-cms/emdash#1", {})],
 			["github.com/emdash-cms/emdash#2", card("github.com/emdash-cms/emdash#2", {})],
 			[
-				"github.com/lovell/sharp#9",
-				card("github.com/lovell/sharp#9", { live: false, writable: false }),
+				"github.com/pixelmill/pixelmill#9",
+				card("github.com/pixelmill/pixelmill#9", { live: false, writable: false }),
 			],
 			[
 				"github.com/acme/vault#3",
@@ -217,7 +217,7 @@ describe("a board's repositories", () => {
 		]);
 		const repos = boardRepos([...cards.keys(), "github.com/new/repo#1"], (key) => cards.get(key));
 		expect(repos.map((r) => [r.name, r.state, r.cards])).toEqual([
-			["lovell/sharp", "readonly", 1],
+			["pixelmill/pixelmill", "readonly", 1],
 			["acme/vault", "unreadable", 1],
 			["acme/gone", "loading", 1],
 			["new/repo", "loading", 1],
