@@ -63,6 +63,13 @@ When it's done, the board catches up by itself: stickies turn into their issues'
 - **Rate limits, timeouts and GitHub outages** are waited out and retried, in order, for up to eight attempts. A rate limit that won't lift within 70 minutes fails instead.
 - **Refusals** (no permission, an item that's gone) fail that change, and changes that needed it fail too. The reason is in plain words, with what to do ("Tack's GitHub App doesn't have permission to assign people in acme/app. An owner of the repository may need to accept the app's new permissions"); **Details** shows what GitHub said itself.
 - A failed change stays in the changes panel. **Retry** pushes it again (as you or as the bot, whichever it was pushed as before), or unstage it to let it go.
+- **Sub-issues and blocked-by** have refusals of their own, each with a way out instead of a Retry that can't work:
+  - "#5 already has a parent issue (#4), and an issue can only have one." **Move it here** takes it off #4 and pushes it again; **Leave it out** unstages it. There's no Retry: it would be refused again.
+  - An issue can't be its own sub-issue, or block itself: **Leave it out**.
+  - A link that would make a loop ("#8 is already under #5…"), a parent with as many sub-issues as GitHub allows, sub-issues nested deeper than it allows, or issues it won't link across repositories: the reason says what to change on GitHub. **Retry** once you have, or **Leave it out**.
+- **Retry all** in the push sheet only retries what could work as it is.
+
+A sub-issue being moved says so wherever it shows: "Move #5 from #4 to “Resizing”" in the changes panel, push sheet and history, "Moves to “Resizing” from #4" on its card's mark. Moving one that's already under the new parent does nothing more.
 
 Tack never writes anything twice. A change being pushed or already done is never pushed again, and a retried create first looks for what an unanswered earlier attempt made.
 

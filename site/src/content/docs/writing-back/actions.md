@@ -47,6 +47,18 @@ Select a section on its own (**Parent issue**), or several stickies and cards, t
 
 **Stage with N sub-issues** stages the parent, any new issues, and a sub-issue link for each. A dashed card hovers above the section to show where the parent will land. When it's pushed, the parent's card lands above the section (or above the cards, for a selection), connected to each sub-issue.
 
+### When some already have a parent
+
+An issue can only have one parent on GitHub. Before you stage, the panel checks which cards already have one ("Checking which already have a parent…": from the card, or by asking GitHub, as [Expand related](/boards/cards/#expand-related) does). It also knows a section this board already made a parent issue, from the card connected down into it.
+
+If they do, it says so, "#5 and #6 are already sub-issues of #4 Resizing.", and offers:
+
+- **Add to #4 Resizing** (the default, when the section or every card that has a parent shares one): no new parent issue. What's new (stickies, and cards with no parent) is staged under #4. What's already under it is left alone.
+- **Make a new parent and move them**: a new parent issue, with each card taken off the parent it has. Each row says "moves from #4", and so do the changes: "Move #5 from #4 to “Resizing”".
+- **Make a new parent without them**: a new parent issue for the rest. Cards with a parent stay where they are.
+
+Each sub-issue in the list says what will happen to it.
+
 ## Labels, assignees and milestone
 
 Select one or more cards.
