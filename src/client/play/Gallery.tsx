@@ -31,7 +31,7 @@ import {
 } from "./ci.ts";
 import { DecisionGallery } from "./DecisionGallery.tsx";
 import { StackGallery } from "./StackGallery.tsx";
-import { ACCESS_GALLERY, GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
+import { ACCESS_GALLERY, FORGE_GALLERY, GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
 import { PROVENANCE_GALLERY } from "./related.ts";
 
 const MISSING: { label: string; card: MissingCard }[] = [
@@ -67,6 +67,18 @@ const PRIVATE: { label: string; card: MissingCard }[] = [
 			reason: "not_found",
 			installed: false,
 		},
+	},
+];
+
+/** Other forges' items nobody may see on a board (#65): Tack only shows what's public there. */
+const FORGE_HIDDEN: { label: string; card: MissingCard }[] = [
+	{
+		label: "GitLab: a confidential issue",
+		card: { key: "gitlab.com/inkscape/inkscape#4600", missing: true, reason: "forbidden" },
+	},
+	{
+		label: "Codeberg: a private repository",
+		card: { key: "codeberg.org/acme/vault#3", missing: true, reason: "private" },
 	},
 ];
 
@@ -432,6 +444,24 @@ function Sections({
 						</figure>
 					))}
 					{PRIVATE.map(({ label, card }) => (
+						<figure key={label}>
+							<CardView card={card} cardKey={card.key} />
+							<figcaption>{label}</figcaption>
+						</figure>
+					))}
+				</div>
+			</section>
+
+			<section>
+				<h2>Other forges</h2>
+				<div className="gallery-grid">
+					{FORGE_GALLERY.map(({ label, card }) => (
+						<figure key={card.key}>
+							<CardView card={card} cardKey={card.key} />
+							<figcaption>{label}</figcaption>
+						</figure>
+					))}
+					{FORGE_HIDDEN.map(({ label, card }) => (
 						<figure key={label}>
 							<CardView card={card} cardKey={card.key} />
 							<figcaption>{label}</figcaption>

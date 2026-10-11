@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Checks, PullDetails, Reviewer, ReviewState } from "../shared/cards.ts";
+import type { Card, Checks, PullDetails, Reviewer, ReviewState } from "../shared/cards.ts";
 import { safeUrl } from "./changes/inline.ts";
 
 // The pull request part of a card: a CI bar with the failing checks, who's
@@ -75,7 +75,15 @@ function usePullChanges(pull: PullDetails): PullChanges {
 	return changes;
 }
 
-export function PullStatus({ pull }: { pull: PullDetails }) {
+export function PullStatus({
+	pull,
+	forge = "github",
+}: {
+	pull: PullDetails;
+	forge?: Card["forge"];
+}) {
+	// Only GitHub's checks and reviews wait on an app; other forges' arrive with the next read.
+	const needsApp = forge === "github" || forge === "fake";
 	const changes = usePullChanges(pull);
 	const { checks } = pull;
 	const reviewers = pull.reviewers.slice(0, SHOWN_REVIEWERS);
@@ -88,7 +96,7 @@ export function PullStatus({ pull }: { pull: PullDetails }) {
 				<span key={changes.ci} className="card-pulse" data-tone={changes.tone} aria-hidden="true" />
 			)}
 
-			{checks === null && pull.detail === "basic" ? (
+			{checks === null && pull.detail === "basic" && needsApp ? (
 				<p className="ci-unavailable">
 					<PlugIcon />
 					Checks and reviews need the GitHub App

@@ -307,7 +307,7 @@ test.describe("changes gallery", () => {
 		await expect(marks.locator(".staged-marks[data-highlighted]")).toHaveCount(1);
 
 		const sheets = section(page, "Push sheet");
-		await expect(sheets.locator(".push-sheet")).toHaveCount(21);
+		await expect(sheets.locator(".push-sheet")).toHaveCount(22);
 		for (const title of [
 			"Sign in to push",
 			"You can stage but not push here",
@@ -319,6 +319,18 @@ test.describe("changes gallery", () => {
 			await expect(sheets.locator(".push-refusal strong", { hasText: title })).toHaveCount(1);
 		}
 		await expect(sheets.locator(".push-ring[data-done]")).toHaveCount(1);
+
+		// Other forges (#65): written by the instance's own account, so no "push as".
+		const forges = sheets
+			.locator("figure")
+			.filter({ has: page.locator("figcaption", { hasText: "Review: GitLab and Codeberg" }) });
+		await expect(forges.locator(".push-repo-note")).toContainText(
+			"Written on GitLab by this instance’s own account",
+		);
+		await expect(forges.locator(".push-repo-warning")).toContainText(
+			"This instance doesn’t write to Codeberg",
+		);
+		await expect(forges.locator(".push-as")).toBeHidden();
 
 		// Sub-issues that already have a parent: no hopeless Retry, but a way out.
 		const second = sheets
@@ -355,7 +367,7 @@ test.describe("changes gallery", () => {
 
 	test("both themes render side by side", async ({ page }) => {
 		await page.getByLabel("Both themes side by side").check();
-		await expect(page.locator(".gallery-pane[data-theme=dark] .push-sheet")).toHaveCount(21);
+		await expect(page.locator(".gallery-pane[data-theme=dark] .push-sheet")).toHaveCount(22);
 	});
 });
 

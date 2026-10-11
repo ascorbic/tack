@@ -154,6 +154,18 @@ const REPOS: BoardRepo[] = [
 	},
 	{ key: "github.com/emdash-cms/docs", name: "emdash-cms/docs", cards: 4, state: "loading" },
 	{ key: "github.com/emdash-cms/emdash", name: "emdash-cms/emdash", cards: 18, state: "ready" },
+	{
+		key: "gitlab.com/inkscape/inkscape",
+		name: "gitlab.com/inkscape/inkscape",
+		cards: 5,
+		state: "checked",
+	},
+	{
+		key: "codeberg.org/forgejo/forgejo",
+		name: "codeberg.org/forgejo/forgejo",
+		cards: 2,
+		state: "readonly",
+	},
 ];
 
 /** Sharing, simulated: invite "ghost" to see an error. */

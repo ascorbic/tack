@@ -168,6 +168,23 @@ export function someStaged(): PendingChange[] {
 }
 
 /**
+ * Changes to GitLab and Codeberg (#65): the instance writes there with its
+ * own token, whoever pushes, so there's no "push as"; Codeberg's writes
+ * aren't turned on.
+ */
+export function otherForges(): PendingChange[] {
+	const gitlab = "gitlab.com/inkscape/inkscape";
+	return [
+		change({ kind: "issue.create", repo: gitlab, title: "Snap rotated guides" }, "ascorbic"),
+		change({ kind: "item.labels", target: { key: `${gitlab}#4512` }, add: ["bug"] }, "ascorbic"),
+		change(
+			{ kind: "item.comment", target: { key: "codeberg.org/forgejo/forgejo#7" }, body: "Planned" },
+			"ascorbic",
+		),
+	];
+}
+
+/**
  * A section made a parent issue twice: the new parent landed, but its
  * sub-issues already have one (#4) and GitHub refused them, with a way
  * out; one moved instead; and a blocked-by that would make a loop.

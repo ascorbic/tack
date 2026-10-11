@@ -5,7 +5,7 @@ import { type Credit, type CreditBoard, creditFor } from "../../shared/credit.ts
 import { ServicesContext } from "../actions/services.ts";
 import { type PendingChange, type PushAs, retryCanWork } from "../../shared/changes.ts";
 import type { AuditEntry, RepoMeta } from "../../shared/push.ts";
-import { forgeName, forgeNameOf, sentenceCase } from "../../shared/refs.ts";
+import { forgeForHost, forgeName, forgeNameOf, sentenceCase } from "../../shared/refs.ts";
 import { relativeTime } from "../boards/api.ts";
 import { useScrollFocusable } from "../a11y.ts";
 import { scaledDuration } from "../motion.ts";
@@ -419,7 +419,7 @@ function ReviewView({
 	onPush,
 	onResolve,
 	onClose,
-	forge,
+	forge: _forge,
 }: PushSheetViewProps & { forge: string }) {
 	const index = useMemo(() => indexChanges(changes), [changes]);
 	const pending = changes.filter(isPending);
@@ -431,6 +431,7 @@ function ReviewView({
 	const refusal = state.phase === "refused" ? state.refusal : null;
 	const you = signedIn(user);
 	const repoCount = new Set(groupByRepo(included, index).map((group) => group.repo)).size;
+	const appRepos = groups.map((group) => group.repo).filter(hasApp);
 	const creditable = credit ? included.filter((change) => credit.of(change)) : [];
 	const bodyRef = useScrollFocusable<HTMLDivElement>();
 
@@ -488,14 +489,32 @@ function ReviewView({
 									</span>
 								)}
 							</header>
-							{info?.writable === false && (
-								<p className="push-repo-warning">
-									<WarningIcon size={14} />
+							{info?.writable === false &&
+								(hasApp(group.repo) ? (
+									<p className="push-repo-warning">
+										<WarningIcon size={14} />
+										<span>
+											Tack’s app isn’t installed here, so it can’t write these yet.{" "}
+											<a href={installHref} target="_blank" rel="noreferrer">
+												Install the app
+											</a>
+										</span>
+									</p>
+								) : (
+									<p className="push-repo-warning">
+										<WarningIcon size={14} />
+										<span>
+											This instance doesn’t write to {forgeName(hostOf(group.repo))}, so these can’t
+											be pushed yet. An admin can turn that on.
+										</span>
+									</p>
+								))}
+							{info?.writable && !hasApp(group.repo) && (
+								<p className="push-repo-note">
+									<BotIcon size={14} />
 									<span>
-										Tack’s app isn’t installed here, so it can’t write these yet.{" "}
-										<a href={installHref} target="_blank" rel="noreferrer">
-											Install the app
-										</a>
+										Written on {forgeName(hostOf(group.repo))} by this instance’s own account,
+										whoever pushes.
 									</span>
 								</p>
 							)}
@@ -598,7 +617,8 @@ function ReviewView({
 			</div>
 
 			<footer className="push-foot">
-				<fieldset className="push-as" disabled={readOnly || !you}>
+				{/* Only forges with an app write as you or as the bot: the others always as the instance (#65). */}
+				<fieldset className="push-as" disabled={readOnly || !you} hidden={appRepos.length === 0}>
 					<legend>Push as</legend>
 					<label data-checked={as === "user"}>
 						<input
@@ -610,7 +630,7 @@ function ReviewView({
 						<StagerAvatar stager={stagerFor(user)} avatarUrl={user.avatarUrl} size={26} />
 						<span>
 							<strong>{you ? `You, @${user.login}` : "You"}</strong>
-							<small>{sentenceCase(forge)} shows it’s you, “via Tack”</small>
+							<small>{sentenceCase(forgeNameOf(appRepos))} shows it’s you, “via Tack”</small>
 						</span>
 					</label>
 					<label data-checked={as === "app"}>
@@ -699,6 +719,20 @@ function ReviewView({
 			</footer>
 		</>
 	);
+}
+
+function hostOf(repo: string): string {
+	return repo.slice(0, repo.indexOf("/"));
+}
+
+/**
+ * Forges with an app (GitHub, and the test forge standing in for it), where
+ * pushing as you or as the bot means something. Elsewhere (#65) the
+ * instance writes with its own token for the host, whoever pushes.
+ */
+function hasApp(repo: string): boolean {
+	const forge = forgeForHost(hostOf(repo));
+	return forge === "github" || forge === "fake";
 }
 
 function listRepos(repos: string[]): string {

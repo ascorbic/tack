@@ -40,7 +40,35 @@ test("every card state renders", async ({ page }) => {
 	await expect(page.locator(".card.compact .ci-bar")).toHaveCount(6);
 	await expect(page.locator(".card[data-selected=true]")).toHaveCount(1);
 	await expect(page.locator(".card.loading")).toHaveCount(1);
-	await expect(page.locator(".card.missing")).toHaveCount(6);
+	await expect(page.locator(".card.missing")).toHaveCount(8);
+});
+
+test("cards from other forges say how they're kept up to date", async ({ page }) => {
+	const section = page
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Other forges", exact: true }) });
+	const figures = section.locator("figure");
+	await expect(figures).toHaveCount(6);
+	// GitLab, writable but no webhook yet: checked while open, no app to install.
+	const gitlab = figures.nth(0);
+	await expect(gitlab.locator(".liveness[data-live=false]")).toBeVisible();
+	await expect(gitlab.locator(".liveness-tip")).toContainText("Checked while you look");
+	await expect(gitlab.locator(".liveness-tip")).toContainText("A webhook from the project");
+	// A merge request's pipeline, without "needs the GitHub App".
+	await expect(figures.nth(1).locator(".ci")).toHaveAttribute("data-ci", "failing");
+	await expect(figures.nth(1).locator(".ci-unavailable")).toHaveCount(0);
+	await expect(figures.nth(2).locator(".liveness-tip")).toContainText(
+		"This instance doesn’t write to Codeberg",
+	);
+	await expect(figures.nth(3).locator(".liveness-tip")).toContainText("Tack only reads Tangled");
+	// Nobody sees what isn't public there, and there's nothing to check again.
+	await expect(figures.nth(4).locator(".missing-message")).toHaveText(
+		"Tack can’t show this: it’s confidential, or not public.",
+	);
+	await expect(figures.nth(5).locator(".missing-message")).toContainText(
+		"isn’t public on Codeberg",
+	);
+	await expect(figures.nth(5).getByRole("button")).toHaveCount(0);
 });
 
 test("every provenance state renders", async ({ page }) => {
@@ -297,6 +325,15 @@ test.describe("boards gallery", () => {
 		await expect(shares.first().getByRole("listitem")).toHaveCount(4);
 		await expect(shares.nth(1).getByRole("button", { name: "Leave board" })).toBeVisible();
 		await expect(shares.nth(1).getByLabel("Who can open this board")).toHaveCount(0);
+		// A board's repositories on three forges: GitHub's offer the app, the others don't (#65).
+		const repos = page.getByRole("region", { name: "Repositories on this board" });
+		await expect(repos.getByRole("heading", { name: /^Repositories/ })).toBeVisible();
+		await expect(repos.locator("li[data-state=checked]")).toContainText(
+			"Updates while open · Tack can push",
+		);
+		await expect(
+			repos.locator("li", { hasText: "codeberg.org/forgejo/forgejo" }),
+		).not.toContainText("Install");
 
 		// View only, and View only signed out on a public board, which says to sign in.
 		const viewOnly = section("Board top bar").locator(".view-only");

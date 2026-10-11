@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { type Card, type MissingCard, isMissing } from "../shared/cards.ts";
-import { forgeName } from "../shared/refs.ts";
+import { forgeForHost, forgeName, sentenceCase } from "../shared/refs.ts";
 import { cardStore } from "./cardStore.ts";
 import { type Entrance, entranceStyle } from "./entering.ts";
 import {
@@ -295,7 +295,7 @@ function LiveCard({
 					))}
 				</div>
 			)}
-			{card.pull && <PullStatus pull={card.pull} />}
+			{card.pull && <PullStatus pull={card.pull} forge={card.forge} />}
 			<div className="card-foot">
 				{card.assignees.length > 0 && (
 					<span className="avatars">
@@ -325,7 +325,7 @@ function LiveCard({
 					</span>
 				)}
 				{origin && <ProvenanceBadge origin={origin} />}
-				{liveness && <Liveness state={liveness} repo={card.repo} />}
+				{liveness && <Liveness state={liveness} card={card} />}
 			</div>
 			{unmatched && <UnmatchedBand unmatched={unmatched} card={card} />}
 		</article>
@@ -391,7 +391,13 @@ function useLiveness(live: boolean | undefined): "lazy" | "upgraded" | null {
 	return upgraded ? "upgraded" : null;
 }
 
-function Liveness({ state, repo }: { state: "lazy" | "upgraded"; repo: string }) {
+/** Forges with an app to install: GitHub (and the test forge, which stands in for it). */
+function hasApp(forge: Card["forge"]): boolean {
+	return forge === "github" || forge === "fake";
+}
+
+function Liveness({ state, card }: { state: "lazy" | "upgraded"; card: Card }) {
+	const repo = card.repo;
 	if (state === "upgraded") {
 		return (
 			<span className="liveness" data-live="true" role="status">
@@ -400,6 +406,7 @@ function Liveness({ state, repo }: { state: "lazy" | "upgraded"; repo: string })
 			</span>
 		);
 	}
+	if (!hasApp(card.forge)) return <Checked card={card} />;
 	return (
 		<span className="liveness" data-live="false" tabIndex={0} aria-label="Not live">
 			<span className="liveness-dot" aria-hidden="true" />
@@ -422,6 +429,42 @@ function Liveness({ state, repo }: { state: "lazy" | "upgraded"; repo: string })
 	);
 }
 
+/**
+ * Not live on a forge without an app (#65): GitLab and Forgejo until a
+ * webhook arrives from the repository, Tangled always. Whether Tack can
+ * push there is a separate thing: the instance's own token for the host.
+ */
+function Checked({ card }: { card: Card }) {
+	const forge = forgeName(card.host);
+	const webhooks = card.forge === "gitlab" || card.forge === "forgejo";
+	const where = card.forge === "gitlab" ? "project" : "repository";
+	return (
+		<span className="liveness" data-live="false" tabIndex={0} aria-label="Not live">
+			<span className="liveness-dot" aria-hidden="true" />
+			Not live
+			<span className="liveness-tip nodrag nopan" role="tooltip">
+				<strong>
+					{card.writable ? "Checked while you look" : "Read-only, and checked while you look"}
+				</strong>
+				<span>
+					Tack checks {forge} for changes to <span className="mono">{card.repo}</span> while the
+					board’s open, so updates take a minute or so to show up.
+					{webhooks
+						? ` A webhook from the ${where} to this instance brings them as they happen.`
+						: ` ${sentenceCase(forge)} has no webhooks to send them sooner.`}
+				</span>
+				{!card.writable && (
+					<span className="liveness-who">
+						{card.forge === "tangled"
+							? `Tack only reads ${forge}: changes staged here can’t be pushed to it.`
+							: `This instance doesn’t write to ${forge}: an admin can turn that on.`}
+					</span>
+				)}
+			</span>
+		</span>
+	);
+}
+
 function LockIcon() {
 	return (
 		<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" className="lock-icon">
@@ -434,6 +477,9 @@ function LockIcon() {
 /** A card from a private repository this viewer can't read: nothing but its key. */
 function PrivateCardView({ card, selected }: { card: MissingCard; selected?: boolean }) {
 	const [checking, setChecking] = useState(false);
+	const host = card.key.slice(0, card.key.indexOf("/"));
+	// Only GitHub knows who may read what; other forges' private items are hidden from everyone.
+	const github = hasApp(forgeForHost(host) ?? "github");
 	useEffect(() => {
 		if (!checking) return;
 		const timer = setTimeout(() => setChecking(false), 1800);
@@ -450,20 +496,29 @@ function PrivateCardView({ card, selected }: { card: MissingCard; selected?: boo
 				<span style={{ width: "82%" }} />
 				<span style={{ width: "54%" }} />
 			</div>
-			<div className="missing-message">
-				This is in a private repository you can’t see on GitHub, so its details stay hidden.
-			</div>
-			<button
-				type="button"
-				className="card-action nodrag"
-				disabled={checking}
-				onClick={() => {
-					setChecking(true);
-					cardStore.recheck();
-				}}
-			>
-				{checking ? "Checking…" : "Got access? Check again"}
-			</button>
+			{github ? (
+				<>
+					<div className="missing-message">
+						This is in a private repository you can’t see on GitHub, so its details stay hidden.
+					</div>
+					<button
+						type="button"
+						className="card-action nodrag"
+						disabled={checking}
+						onClick={() => {
+							setChecking(true);
+							cardStore.recheck();
+						}}
+					>
+						{checking ? "Checking…" : "Got access? Check again"}
+					</button>
+				</>
+			) : (
+				<div className="missing-message">
+					This isn’t public on {forgeName(host)}, and Tack only shows what’s public there, so its
+					details stay hidden.
+				</div>
+			)}
 		</article>
 	);
 }
@@ -476,7 +531,9 @@ function MissingCardView({ card, selected }: { card: MissingCard; selected?: boo
 	const message = installable
 		? `Tack can’t read ${repoOfKey(card.key)}. If it’s private, an owner of ${repoOfKey(card.key).split("/")[0]} can install the app on it.`
 		: {
-				forbidden: "You don’t have access to this repository.",
+				forbidden: hasApp(forgeForHost(card.key.slice(0, card.key.indexOf("/"))) ?? "github")
+					? "You don’t have access to this repository."
+					: "Tack can’t show this: it’s confidential, or not public.",
 				not_found: "This item doesn’t exist, or was deleted.",
 				unsupported: "This forge isn’t supported yet.",
 				error: "Couldn’t reach the forge. Retrying…",

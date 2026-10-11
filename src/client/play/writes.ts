@@ -32,7 +32,8 @@ export function fakeMeta(repo: string): RepoMeta | null {
 	const name = repo.split("/").slice(1).join("/");
 	if (!name.includes("/")) return null;
 	// The upstream repository doesn't have the app: read-only.
-	const writable = !name.startsWith("pixelmill/");
+	// Nor do Codeberg's, whose writes this pretend instance hasn't turned on (#65).
+	const writable = !name.startsWith("pixelmill/") && !repo.startsWith("codeberg.org/");
 	return {
 		repo,
 		labels: [

@@ -20,6 +20,7 @@ import {
 	midPush,
 	movingSubIssue,
 	secondParent,
+	otherForges,
 	someStaged,
 } from "./changeFixtures.ts";
 import { ACCESS_GALLERY, PLANNING_CARDS } from "./fixtures.ts";
@@ -451,6 +452,7 @@ function sheetSamples(): SheetSample[] {
 		{ label: "Progress: everything landed", changes: landed, state: pushing(landed) },
 		{ label: "Progress: already has a parent", changes: second, state: pushing(second) },
 		{ label: "Review: moving a sub-issue", changes: movingSubIssue(), state: IDLE },
+		{ label: "Review: GitLab and Codeberg", changes: otherForges(), state: IDLE },
 		{ label: "History", changes: [], state: IDLE, mode: "history", history: HISTORY },
 		{
 			label: "History: none yet",

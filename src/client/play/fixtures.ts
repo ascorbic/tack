@@ -312,3 +312,79 @@ export const ACCESS_GALLERY: { label: string; card: Card }[] = [
 		}),
 	},
 ];
+
+/** A card on another forge (#65): its host and kind of key, with the fixture's defaults. */
+function elsewhere(
+	forge: Card["forge"],
+	host: string,
+	repo: string,
+	item: string,
+	page: string,
+	overrides: Overrides,
+): Card {
+	return fixture({
+		forge,
+		host,
+		repo,
+		item,
+		key: itemKey({ host, repo, item }),
+		url: `https://${host}/${repo}/${page}/${item.slice(1)}`,
+		...overrides,
+	});
+}
+
+/** Cards from GitLab, Codeberg and Tangled (#65), as instances serve them. */
+export const FORGE_GALLERY: { label: string; card: Card }[] = [
+	{
+		label: "GitLab issue: Tack can push, no webhook yet",
+		card: elsewhere("gitlab", "gitlab.com", "inkscape/inkscape", "#4512", "-/issues", {
+			title: "Snap to guides ignores rotated objects",
+			labels: [LABELS.bug],
+			comments: 6,
+			reactions: 3,
+			thumbsUp: { count: 3 },
+			live: false,
+			writable: true,
+			visibility: "public",
+		}),
+	},
+	{
+		label: "GitLab merge request, live: its pipeline and reviewers",
+		card: elsewhere("gitlab", "gitlab.com", "inkscape/inkscape", "!7021", "-/merge_requests", {
+			kind: "pull",
+			title: "Rotate snapping candidates with their object",
+			comments: 4,
+			live: true,
+			writable: true,
+			visibility: "public",
+			pull: pullDetails({
+				checks: makeChecks({ failed: 1, failing: ["test:linux"] }),
+				review: "changes_requested",
+				reviewers: [reviewer("priya", "changes_requested")],
+			}),
+		}),
+	},
+	{
+		label: "Codeberg pull request: read-only, checked while open",
+		card: elsewhere("forgejo", "codeberg.org", "forgejo/forgejo", "#7", "pulls", {
+			kind: "pull",
+			title: "Show a repository's licence on its home page",
+			comments: 2,
+			live: false,
+			writable: false,
+			visibility: "public",
+			pull: pullDetails({ checks: makeChecks({ passed: 5 }), review: null, reviewers: [] }),
+		}),
+	},
+	{
+		label: "Tangled issue: read-only, no webhooks",
+		card: elsewhere("tangled", "tangled.org", "tangled.org/core", "#775", "issues", {
+			title: "Spindle logs stop streaming after a reconnect",
+			comments: 5,
+			author: { login: "anirudh.fi", avatarUrl: "" },
+			live: false,
+			writable: false,
+			visibility: "public",
+		}),
+	},
+];

@@ -2105,6 +2105,11 @@ a.brand {
 	color: var(--open);
 }
 
+.share-repos li[data-state="checked"] .share-repo-glyph {
+	background: color-mix(in srgb, var(--open-bg) 70%, var(--chip));
+	color: var(--open);
+}
+
 .share-repos li[data-state="readonly"] .share-repo-glyph {
 	background: var(--pending-bg);
 	color: var(--pending-ink);
