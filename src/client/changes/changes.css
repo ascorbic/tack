@@ -138,17 +138,14 @@
 	animation: pop-in var(--t-settle) var(--ease-spring);
 }
 
-/* Something failed: a red dot on the badge, not a red count, since most
-   of what's staged is fine. */
-.changes-badge {
-	position: relative;
-}
-
-.changes-button[data-failed] .changes-badge::after {
+/* Something failed: a red dot on the tray, not a red count (most of what's
+   staged is fine), and clear of the count so "11" never reads as "1". */
+.changes-button[data-failed] .changes-button-icon::before {
 	content: "";
 	position: absolute;
-	top: -3px;
-	right: -3px;
+	top: -4px;
+	right: -5px;
+	z-index: 1;
 	width: 9px;
 	height: 9px;
 	border-radius: 50%;
