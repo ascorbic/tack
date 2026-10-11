@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import {
 	type AccessSettings,
 	type AccessUpdateResponse,
+	type AiSettings,
 	type InstallationList,
 	type Person,
 	type SetupInfo,
@@ -10,6 +11,7 @@ import {
 } from "../../shared/auth.ts";
 import { Avatar } from "../People.tsx";
 import { AuthPage } from "./AccessGate.tsx";
+import { AiSuggestions } from "./AiSuggestions.tsx";
 import { Installations } from "./Installations.tsx";
 import { Checklist, SecretHelp, WebhookCheck } from "./SetupChecks.tsx";
 import { type Loaded, configuredSteps, firstSteps, isReady } from "./setupChecks.ts";
@@ -66,6 +68,7 @@ export function SetupView({
 	params,
 	loadInstallations,
 	loadWebhooks,
+	saveAi,
 	onRecheck,
 }: {
 	info: SetupInfo;
@@ -74,6 +77,8 @@ export function SetupView({
 	loadInstallations?: () => Promise<InstallationList>;
 	/** Whether webhooks arrive (the gallery fakes it). */
 	loadWebhooks?: () => Promise<WebhookHealth>;
+	/** Turning AI suggestions on or off (the gallery fakes it). */
+	saveAi?: (enabled: boolean) => Promise<AiSettings>;
 	/** Ask the server for the page's state again. */
 	onRecheck?: () => void;
 }) {
@@ -89,6 +94,7 @@ export function SetupView({
 					params={params}
 					loadInstallations={loadInstallations}
 					loadWebhooks={loadWebhooks}
+					saveAi={saveAi}
 				/>
 			);
 	}
@@ -227,11 +233,13 @@ function Configured({
 	params,
 	loadInstallations,
 	loadWebhooks,
+	saveAi,
 }: {
 	info: Extract<SetupInfo, { status: "configured" }>;
 	params: URLSearchParams;
 	loadInstallations?: () => Promise<InstallationList>;
 	loadWebhooks?: () => Promise<WebhookHealth>;
+	saveAi?: (enabled: boolean) => Promise<AiSettings>;
 }) {
 	const installed = params.get("installed");
 	const [webhooks, setWebhooks] = useState<Loaded<WebhookHealth>>({ status: "loading" });
@@ -331,6 +339,7 @@ function Configured({
 				<p className="auth-note">Only this instance’s admins can change who can use it.</p>
 			)}
 			{info.admin && info.access && <AccessEditor initial={info.access} onSaved={setAccess} />}
+			{info.admin && info.ai && <AiSuggestions initial={info.ai} save={saveAi} />}
 		</AuthPage>
 	);
 }

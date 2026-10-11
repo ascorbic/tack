@@ -47,6 +47,7 @@ import {
 	carryable,
 	placeCarried,
 } from "../shared/actionItems.ts";
+import { isPileRequest } from "../shared/pileNamer.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import type { BackupSettings, BackupStatus } from "../shared/backups.ts";
 import { type BoardExport, type ImportResult, importBoard } from "../shared/boardExport.ts";
@@ -76,6 +77,7 @@ import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts"
 import { Facilitation } from "./facilitation.ts";
 import { type Commenter, CommentsService } from "./comments.ts";
 import { attributeOrigin, sqlHistoryStore } from "./history.ts";
+import { Piles } from "./piles.ts";
 import { userToken } from "./identity.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
@@ -243,6 +245,8 @@ export class Board extends YServer<Env> {
 	private awarenessTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Compacting very old documents, and keeping old copies of them out (#60). */
 	private compaction: BoardCompaction | null = null;
+	/** Piles' suggested names and "Group these" (#73). */
+	private piles: Piles | null = null;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -388,6 +392,14 @@ export class Board extends YServer<Env> {
 			maxWait: SYNC_MAX_WAIT_MS,
 		});
 		this.widgets = this.startWidgets();
+		this.piles = new Piles({
+			board: this.name,
+			env: this.env,
+			doc: this.document,
+			sql,
+			connections: () => this.getConnections<ConnectionAccess>(),
+			send: (connection, message) => this.sendCustomMessage(connection, message),
+		});
 		this.watchForRepairs();
 		await this.syncSubscriptions();
 	}
@@ -515,6 +527,15 @@ export class Board extends YServer<Env> {
 	async historyCompact(now?: number): Promise<CompactResult | null> {
 		this.historyTimeline();
 		return this.history?.compact(now) ?? null;
+	}
+
+	/**
+	 * For tests: name every pile that wants a name now (rather than a moment
+	 * after its text changes), with the instance's AI setting read afresh.
+	 */
+	async namePiles(): Promise<void> {
+		await this.piles?.enabled(true);
+		await this.piles?.namer.scan();
 	}
 
 	/** For tests: change history's limits (its budget, how often keyframes are written). */
@@ -669,6 +690,7 @@ export class Board extends YServer<Env> {
 		});
 		this.noteReader(access.userId);
 		this.facilitation?.connected(connection);
+		this.piles?.connected(connection);
 		// Since you were here: a new visit, if they've been away a while.
 		const visit = access.userId !== null ? (this.visits?.arrive(access.userId) ?? null) : null;
 		this.sendComments(connection, visit?.firstAt ?? null);
@@ -752,6 +774,7 @@ export class Board extends YServer<Env> {
 		this.awarenessClients.delete(connection.id);
 		this.widgets?.disconnect(connection.id);
 		this.facilitation?.closed(connection.id);
+		this.piles?.closed(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
 		return super.onClose(connection, code, reason, wasClean);
 	}
@@ -867,6 +890,10 @@ export class Board extends YServer<Env> {
 		try {
 			request = JSON.parse(message) as BoardRequest | WidgetRequest | InboxPreviewRequest;
 		} catch {
+			return;
+		}
+		if (isPileRequest(request)) {
+			void this.piles?.receive(connection as Connection<ConnectionAccess>, request);
 			return;
 		}
 		if (this.facilitation?.handles(request?.type)) {

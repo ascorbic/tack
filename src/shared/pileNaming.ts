@@ -116,6 +116,21 @@ export function groupMessage(notes: readonly GroupNote[]): string {
 	return JSON.stringify({ notes });
 }
 
+/**
+ * The answer in a Workers AI result: chat-completions models put it in
+ * `choices[0].message.content`, older ones in `response` (a string, or
+ * already parsed in JSON mode).
+ */
+export function answerOf(result: unknown): unknown {
+	if (!result || typeof result !== "object") return result;
+	const { choices, response } = result as { choices?: unknown; response?: unknown };
+	if (Array.isArray(choices)) {
+		const message = (choices[0] as { message?: { content?: unknown } } | undefined)?.message;
+		if (message?.content !== undefined && message.content !== null) return message.content;
+	}
+	return response ?? result;
+}
+
 /** What came back, as an object: models answer with an object, a JSON string, or text around JSON. */
 function asObject(output: unknown): Record<string, unknown> | null {
 	if (output && typeof output === "object" && !Array.isArray(output)) {

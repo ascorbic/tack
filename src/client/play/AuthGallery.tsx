@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type {
 	AccessUpdateResponse,
+	AiSettings,
 	InstallationList,
 	InstallationSummary,
 	Me,
@@ -120,13 +121,34 @@ const hooks = (health: Partial<WebhookHealth>) => () =>
 		...health,
 	});
 
-const configured = (access: Extract<SetupInfo, { status: "configured" }>["access"]): SetupInfo => ({
+const AI_MODEL = "@cf/google/gemma-4-26b-a4b-it";
+const AI_OFF: AiSettings = { available: true, enabled: false, model: AI_MODEL };
+const AI_ON: AiSettings = {
+	available: true,
+	enabled: true,
+	model: AI_MODEL,
+	by: "octocat",
+	at: minutesAgo(60 * 26),
+};
+const AI_LOCAL: AiSettings = { available: false, enabled: false, model: AI_MODEL };
+
+const configured = (
+	access: Extract<SetupInfo, { status: "configured" }>["access"],
+	ai: AiSettings = AI_OFF,
+): SetupInfo => ({
 	status: "configured",
 	app: APP,
 	viewer: OCTOCAT,
 	admin: true,
 	access,
+	ai,
 });
+
+/** Turning AI suggestions on or off: saves after a beat. */
+async function fakeSaveAi(enabled: boolean): Promise<AiSettings> {
+	await new Promise((resolve) => setTimeout(resolve, 500));
+	return { ...AI_ON, enabled, at: new Date().toISOString() };
+}
 
 const SETUPS: {
 	label: string;
@@ -153,7 +175,7 @@ const SETUPS: {
 		label: "All set",
 		installations: allLive,
 		webhooks: hooks({}),
-		info: configured({ users: ["mallory"], orgs: ["emdash-cms"], admins: [OCTOCAT, PRIYA] }),
+		info: configured({ users: ["mallory"], orgs: ["emdash-cms"], admins: [OCTOCAT, PRIYA] }, AI_ON),
 	},
 	{
 		label: "Installed: one read-only, one suspended",
@@ -196,7 +218,7 @@ const SETUPS: {
 		label: "Running locally",
 		installations: nowhere,
 		webhooks: hooks({ state: "local", last: null }),
-		info: configured({ users: [], orgs: [], admins: [OCTOCAT] }),
+		info: configured({ users: [], orgs: [], admins: [OCTOCAT] }, AI_LOCAL),
 	},
 	{
 		label: "Installed, GitHub unreachable",
@@ -324,6 +346,7 @@ export default function AuthGallery() {
 								params={new URLSearchParams(params)}
 								loadInstallations={installations}
 								loadWebhooks={webhooks}
+								saveAi={fakeSaveAi}
 								onRecheck={() => {}}
 							/>
 						</Frame>

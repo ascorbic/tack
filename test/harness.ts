@@ -9,6 +9,7 @@ import type { Board } from "../src/server/board.ts";
 import type { Directory } from "../src/server/directory.ts";
 import type { Instance } from "../src/server/instance.ts";
 import type { Repo } from "../src/server/repo.ts";
+import { FAKE_AI_SCRIPT, FakeAi } from "./fake-ai.ts";
 import type { FakeGitHub, FakeUser } from "./fake-github.ts";
 
 const BUNDLE_DIR = ".cloudflare/output/v0/workers/default/bundle";
@@ -33,6 +34,12 @@ export interface WorkerOptions {
 	 * an `index.html`. Without it, the binding isn't there at all.
 	 */
 	assets?: (request: Request) => Response | Promise<Response>;
+	/**
+	 * Workers AI, as the `AI` binding (`cloudflare.config.ts` declares it in
+	 * production): a fake that answers from Node (see `fake-ai.ts`). Every
+	 * Worker has one, as production does; pass `null` for none, as in dev.
+	 */
+	ai?: FakeAi | null;
 }
 
 type ModuleType = "ESModule" | "CompiledWasm" | "Data" | "Text";
@@ -60,31 +67,47 @@ function bundleModules(): { type: ModuleType; path: string }[] {
 }
 
 export function startWorker(options: WorkerOptions = {}): Miniflare {
+	const ai = options.ai === undefined ? new FakeAi() : options.ai;
+	const tack = {
+		name: "tack",
+		// The bundle, and its chunks, WebAssembly and fonts (board images) beside it.
+		modules: bundleModules(),
+		modulesRoot: BUNDLE_DIR,
+		compatibilityDate,
+		compatibilityFlags,
+		durableObjects: {
+			Board: { className: "Board", useSQLite: true },
+			Repo: { className: "Repo", useSQLite: true },
+			Instance: { className: "Instance", useSQLite: true },
+			Directory: { className: "Directory", useSQLite: true },
+		},
+		bindings: {
+			GITHUB_WEBHOOK_SECRET: "test-secret",
+			GITHUB_TOKEN: "",
+			TACK_SECRET,
+			// An alias, so tests cover one (production's default is none).
+			TACK_COMMAND_ALIAS: "tack",
+			...(options.devAuth ? { TACK_DEV_AUTH: "1" } : {}),
+			...(options.clock ? { TACK_TEST_CLOCK: "1" } : {}),
+			...options.bindings,
+		},
+		serviceBindings: {
+			...(ai ? { AI: { name: "fake-ai", entrypoint: "FakeAi" } } : {}),
+			...(options.assets ? { ASSETS: options.assets } : {}),
+		},
+		...(options.outboundService ? { outboundService: options.outboundService } : {}),
+	};
+	const fakeAi = {
+		name: "fake-ai",
+		modules: true,
+		script: FAKE_AI_SCRIPT,
+		compatibilityDate,
+		compatibilityFlags,
+		serviceBindings: { NODE: (ai ?? new FakeAi()).fetch },
+	};
 	return new Miniflare(
 		convertV4MiniflareOptions({
-			// The bundle, and its chunks, WebAssembly and fonts (board images) beside it.
-			modules: bundleModules(),
-			modulesRoot: BUNDLE_DIR,
-			compatibilityDate,
-			compatibilityFlags,
-			durableObjects: {
-				Board: { className: "Board", useSQLite: true },
-				Repo: { className: "Repo", useSQLite: true },
-				Instance: { className: "Instance", useSQLite: true },
-				Directory: { className: "Directory", useSQLite: true },
-			},
-			bindings: {
-				GITHUB_WEBHOOK_SECRET: "test-secret",
-				GITHUB_TOKEN: "",
-				TACK_SECRET,
-				// An alias, so tests cover one (production's default is none).
-				TACK_COMMAND_ALIAS: "tack",
-				...(options.devAuth ? { TACK_DEV_AUTH: "1" } : {}),
-				...(options.clock ? { TACK_TEST_CLOCK: "1" } : {}),
-				...options.bindings,
-			},
-			...(options.outboundService ? { outboundService: options.outboundService } : {}),
-			...(options.assets ? { serviceBindings: { ASSETS: options.assets } } : {}),
+			workers: [tack, fakeAi],
 			...(options.persist ? { resourcePersistencePath: options.persist } : {}),
 		}),
 	);

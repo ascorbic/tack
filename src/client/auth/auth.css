@@ -1467,3 +1467,87 @@
 .setup-ready + * {
 	margin-top: 28px;
 }
+
+/* AI suggestions (#73): a heading with its switch, and what it does. */
+.setup-ai {
+	margin-top: 28px;
+}
+
+.setup-ai-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.setup-ai-head h2 {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+}
+
+.setup-ai-spark {
+	font-size: 0.85em;
+}
+
+.setup-ai-state[data-state="on"] {
+	color: var(--open);
+	font-weight: 600;
+}
+
+.setup-ai-state[data-state="error"] {
+	color: var(--danger);
+}
+
+.setup-switch {
+	position: relative;
+	display: inline-block;
+	flex: none;
+	width: 38px;
+	height: 22px;
+	cursor: pointer;
+}
+
+.setup-switch input {
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	opacity: 0;
+	cursor: inherit;
+}
+
+.setup-switch span {
+	position: absolute;
+	inset: 0;
+	border-radius: 11px;
+	background: var(--line-strong);
+	transition: background var(--t-base) var(--ease-out);
+	pointer-events: none;
+}
+
+.setup-switch span::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: var(--surface);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 25%);
+	transition: translate var(--t-base) var(--ease-spring);
+}
+
+.setup-switch input:checked + span {
+	background: var(--accent);
+}
+
+.setup-switch input:checked + span::after {
+	translate: 16px 0;
+}
+
+.setup-switch input:focus-visible + span {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}

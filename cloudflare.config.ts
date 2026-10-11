@@ -48,6 +48,12 @@ export default defineConfig(({ isPreview, mode }) => ({
 			// empty for the slug alone. Empty by default: a short alias like `tack`
 			// is someone's real GitHub login, and every command would notify them.
 			TACK_COMMAND_ALIAS: bindings.text(""),
+			// Workers AI, for suggesting piles' names and grouping stickies (#73).
+			// Nothing's sent to it until an admin turns AI suggestions on at
+			// /setup, as each request is billed to the account. Not in local dev,
+			// where an AI binding always reaches the real (remote, billed) service
+			// and needs a Cloudflare login; the playground fakes it.
+			...(mode === "development" ? {} : { AI: bindings.ai() }),
 			// The one secret an instance needs. A declared secret is required: the
 			// first deploy fails without it (give it with `--secrets-file`, or the
 			// Deploy to Cloudflare button asks for it), and later deploys keep it.
