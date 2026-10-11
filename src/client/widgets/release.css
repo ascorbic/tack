@@ -55,6 +55,11 @@
 	--bump-bg: var(--fail-bg);
 }
 
+/* The chip's words in the ink that reads on its tint. */
+.release-next[data-bump="major"] .release-bump {
+	color: var(--fail-ink);
+}
+
 .release-next[data-bump="patch"] {
 	--bump: var(--open);
 	--bump-bg: var(--open-bg);

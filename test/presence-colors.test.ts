@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vite-plus/test";
+import { AA_TEXT, contrastRatio } from "../src/client/contrast.ts";
 import { COLORS, pickColor, yieldsColor } from "../src/client/presence.ts";
 
 describe("people's colours on a board", () => {
 	it("has twelve distinct colours", () => {
 		expect(COLORS).toHaveLength(12);
 		expect(new Set(COLORS).size).toBe(12);
+	});
+
+	it("are dark enough for white initials and names (WCAG AA)", () => {
+		for (const color of COLORS) {
+			expect(contrastRatio("#ffffff", color), color).toBeGreaterThanOrEqual(AA_TEXT);
+		}
 	});
 
 	it("keeps your colour while nobody else has it", () => {

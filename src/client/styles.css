@@ -314,6 +314,25 @@
 	}
 }
 
+/*
+ * Looping animations (spinners, shimmers, pulses, a blinking caret) would
+ * loop a thousand times faster with motion reduced, which reads as flicker:
+ * they play once instead, and rest in their normal state.
+ */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	::before,
+	::after {
+		animation-iteration-count: 1 !important;
+	}
+}
+
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] ::before,
+:root[data-motion="reduced"] ::after {
+	animation-iteration-count: 1 !important;
+}
+
 * {
 	box-sizing: border-box;
 }
@@ -528,7 +547,7 @@ button.primary:hover {
 }
 
 .status[data-synced="false"]::before {
-	animation: status-wait 1.4s ease-in-out infinite;
+	animation: status-wait calc(1400ms * var(--motion)) ease-in-out infinite;
 }
 
 .status[data-synced="true"]::before {
@@ -1232,7 +1251,7 @@ a.card-title {
 
 .chip.label {
 	background: color-mix(in srgb, var(--label) 16%, white);
-	color: color-mix(in srgb, var(--label) 55%, black);
+	color: color-mix(in srgb, var(--label) 42%, black);
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--label) 28%, transparent);
 }
 
@@ -3584,18 +3603,34 @@ a.card-title {
 	box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
 }
 
-/* Idle and away people fade back, but stay where they were. */
-.cursor[data-status="idle"] {
+/*
+ * Idle and away people fade back, but stay where they were. Their arrow
+ * fades; their name turns to an outline in their colour, so it still reads
+ * (a faded name on its colour wouldn't, in either theme).
+ */
+.cursor[data-status="idle"] svg {
 	opacity: 0.45;
 }
 
-.cursor[data-status="away"] {
+.cursor[data-status="away"] svg {
 	opacity: 0.28;
+}
+
+.cursor:is([data-status="idle"], [data-status="away"]) .cursor-name {
+	background: var(--surface);
+	color: var(--ink-soft);
+	box-shadow:
+		inset 0 0 0 1.5px var(--cursor),
+		0 2px 6px rgb(0 0 0 / 8%);
+}
+
+.cursor[data-status="away"] .cursor-name {
+	color: var(--muted);
+	box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cursor) 55%, transparent);
 }
 
 .cursor-status {
 	font-weight: 500;
-	opacity: 0.8;
 }
 
 /* ---------------------------------------------------------------------------
@@ -3643,7 +3678,6 @@ a.card-title {
 	font-size: 10.5px;
 	font-weight: 650;
 	letter-spacing: 0.01em;
-	opacity: 0.8;
 }
 
 .cursor-chat-text {
@@ -4083,7 +4117,8 @@ a.card-title {
 	padding: 0 11px;
 	border: 0;
 	border-radius: 999px;
-	background: rgb(255 255 255 / 22%);
+	/* Darker than the pill, not lighter, so its words keep their contrast. */
+	background: rgb(0 0 0 / 18%);
 	color: #fff;
 	font-size: 12px;
 	font-weight: 650;
@@ -4092,7 +4127,7 @@ a.card-title {
 }
 
 .follow-pill > button:hover {
-	background: rgb(255 255 255 / 34%);
+	background: rgb(0 0 0 / 28%);
 }
 
 @keyframes pill-in {

@@ -204,8 +204,10 @@
 	text-overflow: ellipsis;
 }
 
+/* A placeholder, set apart by its style rather than faded, so it stays readable. */
 .section-name[data-empty="true"] {
-	opacity: 0.55;
+	font-style: italic;
+	font-weight: 500;
 }
 
 /* An input that grows with its text. */

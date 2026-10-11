@@ -131,8 +131,10 @@
 		scale: 1;
 		box-shadow: 0 0 0 calc(10px / var(--zoom, 1)) color-mix(in srgb, var(--mark) 22%, transparent);
 	}
+	/* Settles back, outline and all, but its name stays solid to read. */
 	100% {
-		opacity: 0.6;
+		opacity: 1;
+		outline-color: color-mix(in srgb, var(--mark) 60%, transparent);
 		box-shadow: 0 0 0 0 transparent;
 	}
 }
@@ -156,7 +158,8 @@
 		opacity: 1;
 	}
 	100% {
-		opacity: 0.5;
+		opacity: 1;
+		outline-color: color-mix(in srgb, var(--mark) 50%, transparent);
 		scale: 0.985;
 	}
 }
@@ -194,7 +197,6 @@
 }
 
 .replay-mark-op {
-	opacity: 0.8;
 	font-weight: 500;
 }
 

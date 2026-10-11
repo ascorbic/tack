@@ -107,6 +107,60 @@ describe.each([
 	});
 });
 
+// Label chips take any colour a repository gives a label, mixed towards
+// black (light) or white (dark) for their text: GitHub's defaults and the
+// extremes must all read.
+describe("label chips", () => {
+	const LABELS = [
+		"#ffffff",
+		"#000000",
+		"#fbca04",
+		"#a2eeef",
+		"#e4e669",
+		"#f9d0c4",
+		"#c5def5",
+		"#d4c5f9",
+		"#cfd3d7",
+		"#fef2c0",
+		"#0e8a16",
+		"#d73a4a",
+		"#7057ff",
+		"#008672",
+		"#0075ca",
+		"#b60205",
+		"#5319e7",
+	];
+	const rule = (selector: string) => {
+		const start = css.indexOf(`${selector} {`);
+		return css.slice(start, css.indexOf("}", start));
+	};
+	const percent = (body: string, property: string) => {
+		const match = new RegExp(
+			`\\n\\t${property}: color-mix\\(in srgb, var\\(--label\\) (\\d+)%`,
+		).exec(body);
+		if (!match) throw new Error(`No ${property} mix`);
+		return Number(match[1]) / 100;
+	};
+	const mix = (label: string, amount: number, other: string) => {
+		const { r, g, b } = composite({ ...parseColor(label), a: amount }, parseColor(other));
+		return `rgb(${r} ${g} ${b})`;
+	};
+
+	it.each(LABELS)("%s passes AA in the light theme", (label) => {
+		const body = rule("\n.chip.label");
+		const text = mix(label, percent(body, "color"), "#000000");
+		const ground = mix(label, percent(body, "background"), "#ffffff");
+		expect(contrastRatio(text, ground)).toBeGreaterThanOrEqual(AA_TEXT);
+	});
+
+	it.each(LABELS)("%s passes AA in the dark theme", (label) => {
+		const body = rule('[data-theme="dark"] .chip.label');
+		const text = mix(label, percent(body, "color"), "#ffffff");
+		const ground = mix(label, percent(body, "background"), solid(dark, "surface"));
+		expect(contrastRatio(text, ground)).toBeGreaterThanOrEqual(AA_TEXT);
+	});
+});
+
 describe("contrastRatio", () => {
 	it("is 21 for black on white and 1 for a colour on itself", () => {
 		expect(contrastRatio("#000", "#fff")).toBeCloseTo(21, 5);

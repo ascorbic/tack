@@ -611,7 +611,8 @@
 	padding: 0 11px;
 	border: 0;
 	border-radius: 999px;
-	background: rgb(255 255 255 / 22%);
+	/* Darker than the pill, not lighter, so its words keep their contrast. */
+	background: rgb(0 0 0 / 18%);
 	color: inherit;
 	font-size: 12px;
 	font-weight: 650;
@@ -620,7 +621,7 @@
 }
 
 .spotlight-pill > button:hover {
-	background: rgb(255 255 255 / 34%);
+	background: rgb(0 0 0 / 28%);
 }
 
 .spotlight-pill[data-kind="away"] > button {

@@ -65,7 +65,7 @@ export function useHighlights(doc: Y.Doc, digest: Digest | null): Highlight[] {
 function actorUser(actor: Actor) {
 	return {
 		name: actorName(actor),
-		color: actor.id !== undefined ? personColor(actor.id) : "#7a7f87",
+		color: actor.id !== undefined ? personColor(actor.id) : "#70757c",
 		avatarUrl: actor.avatarUrl,
 	};
 }

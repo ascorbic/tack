@@ -3265,8 +3265,13 @@ a.push-button {
 	}
 }
 
-.push-step[data-status="staged"] {
+/* Waiting its turn: its mark fades back; its words stay readable, a shade quieter. */
+.push-step[data-status="staged"] > :not(.push-step-main) {
 	opacity: 0.6;
+}
+
+.push-step[data-status="staged"] .push-step-summary {
+	color: var(--ink-soft);
 }
 
 .push-step-main {

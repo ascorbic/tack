@@ -270,7 +270,14 @@
 	transition: opacity var(--t-base) var(--ease-out);
 }
 
+/* Switched off: struck through and quieter, not faded past reading. */
 .related-group[data-on="false"] .related-items {
+	color: var(--muted);
+	text-decoration: line-through;
+	text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+.related-group[data-on="false"] .related-state {
 	opacity: 0.42;
 }
 

@@ -362,6 +362,11 @@
 	font-style: italic;
 }
 
+/* On a sticky's paper, which is light in either theme. */
+.display-mini.display-sticky .display-mini-title[data-empty] {
+	color: var(--sticky-ink-soft);
+}
+
 .display-author {
 	flex: none;
 	max-width: 110px;

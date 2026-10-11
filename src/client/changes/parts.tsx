@@ -37,7 +37,7 @@ export function StagerAvatar({
 		<span
 			className="stager-avatar"
 			style={
-				{ "--avatar": stager.color ?? "var(--muted)", "--size": `${size}px` } as React.CSSProperties
+				{ "--avatar": stager.color ?? "#70757c", "--size": `${size}px` } as React.CSSProperties
 			}
 			aria-hidden="true"
 		>

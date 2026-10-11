@@ -385,10 +385,6 @@
 	animation: skeleton-in var(--t-settle) var(--ease-out);
 }
 
-.timeline[data-loading] .timeline-tick {
-	opacity: 0.5;
-}
-
 /* The zoomed-in span, which goes back out. */
 .timeline-unzoom {
 	display: inline-flex;

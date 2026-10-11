@@ -65,14 +65,14 @@ export interface RemotePresence {
 export const COLORS = [
 	"#2f5fd0", // blue
 	"#c25412", // orange
-	"#1f8a4c", // green
+	"#1e864a", // green
 	"#c2257a", // magenta
 	"#0e7f86", // teal
 	"#7a4fd6", // violet
 	"#c7352b", // red
 	"#6b7a12", // olive
-	"#2a87c4", // sky
-	"#a8740a", // gold
+	"#267bb2", // sky
+	"#9c6c09", // gold
 	"#a03fbd", // purple
 	"#8b5a3c", // brown
 ];

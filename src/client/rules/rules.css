@@ -315,9 +315,13 @@
 	background: var(--surface-muted);
 }
 
-.rule[data-enabled="false"] .rule-text,
+/* Paused: the icon fades back; the words stay readable, a shade quieter. */
 .rule[data-enabled="false"] .rule-icon {
 	opacity: 0.6;
+}
+
+.rule[data-enabled="false"] .rule-text {
+	color: var(--ink-soft);
 }
 
 .rule-icon {
