@@ -243,6 +243,9 @@ test("text left empty is removed", async ({ page }) => {
 
 test("the toolbar recolours a sticky and switches its typeface", async ({ page }) => {
 	await openScenario(page, "planning");
+	// The sticky's near the top, so its toolbar is kept inside the canvas,
+	// where the playground's own controls would cover it.
+	await page.addStyleTag({ content: ".play-panel { display: none !important; }" });
 	const sticky = page.locator(".react-flow__node-sticky").first();
 	await sticky.click();
 	const toolbar = page.getByRole("toolbar", { name: "Shape options" });
