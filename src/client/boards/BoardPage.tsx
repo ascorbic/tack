@@ -9,7 +9,10 @@ import {
 	canEdit,
 } from "../../shared/boards.ts";
 import { AuthPage, NotAllowedPage, SignInPage } from "../auth/AccessGate.tsx";
-import { useMe } from "../auth/me.ts";
+import { GitHubMark } from "../auth/GitHubMark.tsx";
+import { signInHref, useMe } from "../auth/me.ts";
+import { BoardEmbeds } from "../embeds/EmbedDialog.tsx";
+import { createEmbedUi } from "../embeds/store.ts";
 import type { LiveBoardEvents } from "../connection.ts";
 import { type Flash, setFlash, takeFlash } from "../flash.ts";
 import { useLinger } from "../useLinger.ts";
@@ -142,6 +145,8 @@ function LoadedBoard({
 	children: (props: BoardPageProps) => ReactNode;
 }) {
 	const [sharing, setSharing] = useState(false);
+	// Copy embed (#57), opened from Share on public boards.
+	const [embedUi] = useState(createEmbedUi);
 	// "Signed out", say, from the page before this one.
 	const [notice, setNotice] = useState<Notice | null>(() => {
 		const flash = takeFlash();
@@ -209,9 +214,12 @@ function LoadedBoard({
 
 	const archived = board.archivedAt !== null;
 	const canShare = me.viewer !== null || board.canManage;
+	const isPublic = board.visibility === "public";
+	// Signed out where people can sign in: say what signing in adds.
+	const signedOut = me.viewer === null && me.signIn === "ready";
 	const actions = (
 		<>
-			{!editable && !archived && <ViewOnlyBadge />}
+			{!editable && !archived && <ViewOnlyBadge signedOut={signedOut} />}
 			{canShare && <ShareButton visibility={board.visibility} onClick={() => setSharing(true)} />}
 			<ShareDialog
 				open={sharing}
@@ -222,6 +230,14 @@ function LoadedBoard({
 				onBoard={setBoard}
 				setupPending={me.signIn === "unconfigured"}
 				repos={editable ? <BoardRepoList returnTo={boardPath(board)} /> : undefined}
+				onEmbed={
+					isPublic
+						? () => {
+								setSharing(false);
+								embedUi.request();
+							}
+						: undefined
+				}
 				onLeft={() => {
 					setFlash({ message: `You left “${board.title}”` });
 					location.assign("/");
@@ -233,7 +249,14 @@ function LoadedBoard({
 	const overlay = (
 		<>
 			{archived && <ArchivedNotice board={board} onRestore={setBoard} />}
+			{isPublic && signedOut && <PublicNotice boardId={board.id} signInHref={signInHref()} />}
 			<NoticeToast notice={notice} />
+			{isPublic && (
+				<BoardEmbeds
+					store={embedUi}
+					board={{ id: board.id, title: board.title, link, origin: location.origin }}
+				/>
+			)}
 		</>
 	);
 
@@ -339,12 +362,79 @@ export function AccessChip({
 	);
 }
 
-export function ViewOnlyBadge() {
+export function ViewOnlyBadge({ signedOut = false }: { signedOut?: boolean }) {
 	return (
-		<span className="view-only" data-tooltip="You can look around and comment, but not change it">
+		<span
+			className="view-only"
+			data-tooltip={
+				signedOut
+					? "You can look around. Sign in to comment"
+					: "You can look around and comment, but not change it"
+			}
+		>
 			<EyeIcon />
 			View only
 		</span>
+	);
+}
+
+/** Where a visitor's "not now" to the public notice is remembered, per board. */
+const PUBLIC_NOTICE_KEY = "tack:public-notice:";
+
+/**
+ * Someone signed out on a public board (#56): what they're looking at, and
+ * what signing in adds. Once dismissed, it stays away on that board in
+ * this browser.
+ */
+export function PublicNotice({
+	boardId,
+	signInHref,
+	initiallyDismissed,
+}: {
+	boardId: string;
+	signInHref: string;
+	/** For the gallery; otherwise read from this browser. */
+	initiallyDismissed?: boolean;
+}) {
+	const [dismissed, setDismissed] = useState(() => {
+		if (initiallyDismissed !== undefined) return initiallyDismissed;
+		try {
+			return localStorage.getItem(PUBLIC_NOTICE_KEY + boardId) !== null;
+		} catch {
+			return false;
+		}
+	});
+	const shown = useLinger(dismissed ? null : boardId, 240);
+	if (!shown.value) return null;
+	const dismiss = () => {
+		setDismissed(true);
+		try {
+			localStorage.setItem(PUBLIC_NOTICE_KEY + boardId, String(Date.now()));
+		} catch {
+			// Private browsing: it comes back next time.
+		}
+	};
+	return (
+		<div className="public-notice" role="status" data-leaving={shown.leaving}>
+			<span className="public-notice-icon" aria-hidden="true">
+				<VisibilityIcon visibility="public" />
+			</span>
+			<span className="public-notice-text">
+				<strong>You’re viewing a public board</strong>
+				<span>
+					Sign in with GitHub to comment, and to see cards from private repositories you can read.
+				</span>
+			</span>
+			<a className="signin-button public-notice-signin" href={signInHref}>
+				<GitHubMark />
+				Sign in
+			</a>
+			<button type="button" className="public-notice-close" aria-label="Dismiss" onClick={dismiss}>
+				<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+					<path d="M2.5 2.5l7 7M9.5 2.5l-7 7" />
+				</svg>
+			</button>
+		</div>
 	);
 }
 

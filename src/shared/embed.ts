@@ -417,7 +417,9 @@ export function buildScene(
 			missing = true;
 			frame = null;
 		} else {
-			frame = inflate(box, EMBED.sectionPad);
+			// Its title too, above it.
+			const item = items.find((candidate) => candidate.id === region.id);
+			frame = inflate(item ? itemBounds(item) : box, EMBED.sectionPad);
 		}
 	} else {
 		frame = boundsOfItems(items);
@@ -708,7 +710,14 @@ function sceneCard(ref: string | undefined, cards: ReadonlyMap<string, Entry>): 
 
 // --- Geometry -------------------------------------------------------------------------
 
+/** Room above a section for its title, which sits outside it. */
+const SECTION_TITLE_ROOM = 34;
+
 function itemBounds(item: SceneItem): Rect {
+	if (item.kind === "section" && item.title) {
+		const { x, y, w, h } = item.rect;
+		return { x, y: y - SECTION_TITLE_ROOM, w, h: h + SECTION_TITLE_ROOM };
+	}
 	if (item.kind !== "connector") return item.rect;
 	// Connectors: the bounds of the numbers in their path, generously.
 	const numbers = item.d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];

@@ -73,6 +73,7 @@ export function SharePanel({
 	headingId,
 	setupPending = false,
 	repos,
+	onEmbed,
 }: {
 	board: BoardInfo;
 	me: Person | null;
@@ -90,6 +91,8 @@ export function SharePanel({
 	setupPending?: boolean;
 	/** Whether the board's repositories are live and writable (for editors). */
 	repos?: ReactNode;
+	/** Open Copy embed (#57): public boards only. */
+	onEmbed?: () => void;
 }) {
 	const [members, setMembers] = useState<BoardMember[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -282,6 +285,8 @@ export function SharePanel({
 				)}
 			</section>
 
+			{board.visibility === "public" && onEmbed && <EmbedRow onEmbed={onEmbed} />}
+
 			{repos}
 
 			<ShareFoot
@@ -321,6 +326,32 @@ function AccessRow({
 			</div>
 			{role}
 		</div>
+	);
+}
+
+/** Public boards can be shown elsewhere: a live image for a README or a doc (#57). */
+function EmbedRow({ onEmbed }: { onEmbed: () => void }) {
+	return (
+		<section className="share-access share-embed" aria-label="Embed">
+			<div className="share-access-row" data-entering>
+				<span className="share-access-icon share-embed-icon" aria-hidden="true">
+					<svg className="icon" width="16" height="16" viewBox="0 0 16 16">
+						<rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" />
+						<path d="M1.75 10.5l3.5-3.25 2.75 2.5 1.75-1.5 4.5 3.75" />
+						<circle cx="10.75" cy="5.75" r="1.1" />
+					</svg>
+				</span>
+				<div className="share-access-text">
+					<strong>Embed in a README</strong>
+					<span className="share-access-describe">
+						A live image of the board, or part of it, that links back here.
+					</span>
+				</div>
+				<button type="button" className="share-embed-button" onClick={onEmbed}>
+					Get embed
+				</button>
+			</div>
+		</section>
 	);
 }
 

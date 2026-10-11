@@ -1,0 +1,362 @@
+/* Copy embed (#57): the dialog, and picking a part of the board on the
+   canvas. Builds on the share dialog's styles (boards.css) and the tokens
+   in styles.css. */
+
+/* Taller than Share: nearer the top, scrolling inside if the window's short. */
+.share-dialog.embed-dialog {
+	width: min(580px, calc(100vw - 32px));
+	max-height: calc(100dvh - 48px);
+	margin-top: max(24px, min(8vh, 72px));
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+.embed .share-head {
+	margin-bottom: 4px;
+}
+
+.embed-lede {
+	margin: 0 0 14px;
+	color: var(--muted);
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+/* The image as the server draws it, on the board's ground. */
+.embed-preview {
+	position: relative;
+	display: grid;
+	place-items: center;
+	height: 200px;
+	overflow: hidden;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 16px 16px;
+}
+
+.embed-preview img {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	padding: 12px;
+	object-fit: contain;
+	filter: drop-shadow(0 2px 6px rgb(0 0 0 / 12%));
+	opacity: 0;
+	transform: translateY(4px) scale(0.985);
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		transform var(--t-settle) var(--ease-spring),
+		filter var(--t-base) var(--ease-out);
+}
+
+.embed-preview img[data-ready] {
+	opacity: 1;
+	transform: none;
+}
+
+/* Drawing the next one: the last stays, softened, under a sheen. */
+.embed-preview[data-state="loading"] img[data-ready] {
+	filter: drop-shadow(0 2px 6px rgb(0 0 0 / 12%)) saturate(0.6) opacity(0.7);
+}
+
+.embed-preview[data-state="loading"]::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		100deg,
+		transparent 30%,
+		color-mix(in srgb, var(--surface) 55%, transparent) 50%,
+		transparent 70%
+	);
+	background-size: 220% 100%;
+	animation: embed-sheen calc(1.3s * var(--motion)) linear infinite;
+	pointer-events: none;
+}
+
+@keyframes embed-sheen {
+	from {
+		background-position: 120% 0;
+	}
+	to {
+		background-position: -100% 0;
+	}
+}
+
+.embed-preview-error {
+	max-width: 340px;
+	margin: 0;
+	padding: 0 16px;
+	color: var(--muted);
+	font-size: 13px;
+	line-height: 1.45;
+	text-align: center;
+}
+
+.embed-options {
+	display: grid;
+	gap: 10px;
+	margin-top: 14px;
+}
+
+.embed-field {
+	display: grid;
+	grid-template-columns: 56px 1fr;
+	align-items: center;
+	gap: 10px;
+}
+
+.embed-field-label {
+	color: var(--muted);
+	font-size: 12.5px;
+	font-weight: 600;
+}
+
+.embed-field-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.embed .segmented {
+	flex: 1;
+	min-width: 0;
+	font-size: 12.5px;
+}
+
+.embed .segmented label {
+	padding: 5px 8px;
+	white-space: nowrap;
+}
+
+.embed .segmented label[data-disabled] {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.embed .embed-image {
+	flex: none;
+}
+
+.embed-picked {
+	display: inline-block;
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	vertical-align: bottom;
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+.embed-pick {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 30px;
+	padding: 0 11px 0 9px;
+	border: 1px solid var(--line-strong);
+	border-radius: 9px;
+	background: var(--surface);
+	color: var(--ink);
+	font-size: 12.5px;
+	font-weight: 600;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.embed-pick:hover {
+	background: var(--hover);
+}
+
+.embed-pick:active {
+	transform: scale(0.96);
+}
+
+.embed-pick svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.embed-snippet {
+	max-height: 112px;
+	margin: 14px 0 0;
+	padding: 10px 12px;
+	overflow: auto;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: var(--surface-muted);
+	color: var(--ink-soft);
+	font-family: var(--font-mono);
+	font-size: 11.5px;
+	line-height: 1.55;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.embed-snippet:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.embed-note {
+	margin: 10px 0 0;
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.embed .share-foot {
+	margin-top: 14px;
+}
+
+.embed .embed-copy-link {
+	margin-left: auto;
+}
+
+.embed .embed-copy {
+	margin-left: 0;
+	border-color: transparent;
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.embed .embed-copy:hover {
+	background: var(--accent-hover);
+}
+
+.embed .embed-copy[data-copied] {
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+/* Picking on the canvas ------------------------------------------------------ */
+
+.region-picker {
+	position: absolute;
+	inset: 0;
+	z-index: 40;
+	overflow: hidden;
+	cursor: crosshair;
+	touch-action: none;
+	animation: picker-in var(--t-base) var(--ease-out);
+}
+
+@keyframes picker-in {
+	from {
+		opacity: 0;
+	}
+}
+
+.region-picker-scrim {
+	position: absolute;
+	inset: 0;
+	background: var(--scrim);
+}
+
+/* What would be picked stays bright; everything else dims around it. */
+.region-picker-hole {
+	position: absolute;
+	border: 2px solid var(--accent);
+	border-radius: 14px;
+	box-shadow: 0 0 0 100vmax var(--scrim);
+	transition:
+		left var(--t-quick) var(--ease-out),
+		top var(--t-quick) var(--ease-out),
+		width var(--t-quick) var(--ease-out),
+		height var(--t-quick) var(--ease-out);
+}
+
+.region-picker[data-state="area"] .region-picker-hole {
+	border-style: dashed;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--accent) 6%, transparent);
+	transition: none;
+}
+
+.region-picker-label {
+	position: absolute;
+	top: -30px;
+	left: -2px;
+	padding: 3px 9px;
+	border-radius: 7px;
+	background: var(--accent);
+	color: var(--on-accent);
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+/* Below a section, so its own title stays readable above it. */
+.region-picker[data-state="section"] .region-picker-label {
+	top: auto;
+	bottom: -30px;
+}
+
+.region-picker-hint {
+	position: absolute;
+	top: 16px;
+	left: 50%;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 6px 6px 14px;
+	border-radius: 12px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 13px;
+	font-weight: 550;
+	white-space: nowrap;
+	cursor: default;
+	box-shadow: var(--shadow-lifted);
+	translate: -50% 0;
+	animation: notice-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.region-picker-hint button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
+	padding: 0 6px 0 10px;
+	border: 0;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--on-tooltip) 14%, transparent);
+	color: inherit;
+	font-size: 12.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.region-picker-hint button:hover {
+	background: color-mix(in srgb, var(--on-tooltip) 22%, transparent);
+}
+
+.region-picker-hint kbd {
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--on-tooltip) 16%, transparent);
+	font-family: var(--font-mono);
+	font-size: 11px;
+}
+
+@media (max-width: 640px) {
+	.embed-field {
+		grid-template-columns: 1fr;
+		gap: 6px;
+	}
+
+	.region-picker-hint {
+		white-space: normal;
+		width: calc(100% - 32px);
+	}
+}

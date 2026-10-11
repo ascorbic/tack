@@ -14,6 +14,7 @@ import type { ApiResult } from "../boards/api.ts";
 import {
 	AccessChip,
 	ArchivedNotice,
+	PublicNotice,
 	RoleToastView,
 	ShareButton,
 	ViewOnlyBadge,
@@ -25,6 +26,9 @@ import { HomeView } from "../boards/HomePage.tsx";
 import type { BoardRepo } from "../boards/repoStatus.ts";
 import { type ShareActions, SharePanel } from "../boards/SharePanel.tsx";
 import { BrandMark } from "../BrandMark.tsx";
+import { EmbedPanel } from "../embeds/EmbedPanel.tsx";
+import "../embeds/embeds.css";
+import type { EmbedRegion } from "../../shared/embed.ts";
 import { ThemeToggle } from "../ThemeToggle.tsx";
 import {
 	EMPTY,
@@ -355,6 +359,7 @@ function Sections({ round }: { round: number }) {
 							actions={sharePublic}
 							onBoard={() => undefined}
 							repos={<RepoList repos={REPOS} returnTo="/b/demo/demo" />}
+							onEmbed={() => undefined}
 						/>
 					</ShareFrame>
 					<ShareFrame label="Before setup" key={`setup-${round}`}>
@@ -366,6 +371,29 @@ function Sections({ round }: { round: number }) {
 							setupPending
 						/>
 					</ShareFrame>
+				</div>
+			</section>
+
+			<section>
+				<h2>Embed</h2>
+				<p className="gallery-note">
+					Copy embed, from Share on public boards. The preview is a stand-in here; on a board it’s
+					the server’s image. “Pick on the board” picks an area.
+				</p>
+				<div className="gallery-grid gallery-shares">
+					<EmbedFrame label="Whole board" key={`embed-board-${round}`} start={{ kind: "board" }} />
+					<EmbedFrame
+						label="A section, which the image follows"
+						key={`embed-section-${round}`}
+						start={{ kind: "section", id: "s1" }}
+						sectionTitle="Up next"
+					/>
+					<EmbedFrame
+						label="Couldn’t draw it"
+						key={`embed-error-${round}`}
+						start={{ kind: "rect", rect: { x: 0, y: 0, w: 800, h: 450 } }}
+						failing
+					/>
 				</div>
 			</section>
 
@@ -428,6 +456,31 @@ function Sections({ round }: { round: number }) {
 						<figcaption>Archived</figcaption>
 					</figure>
 					<figure>
+						<TopBar>
+							<BoardTitle title="Good first issues" editable={false} onRename={() => delay(0)} />
+							<AccessChip visibility="public" instanceRole="viewer" />
+							<span className="gallery-bar-end">
+								<ViewOnlyBadge signedOut />
+								<a className="signin-button" href="#sign-in">
+									Sign in
+								</a>
+							</span>
+						</TopBar>
+						<figcaption>Signed out, on a public board</figcaption>
+					</figure>
+					<figure>
+						<div className="gallery-frame gallery-canvas gallery-public">
+							<PublicNotice
+								boardId={`gallery-${round}`}
+								signInHref="#sign-in"
+								initiallyDismissed={false}
+							/>
+						</div>
+						<figcaption>
+							Signed out, on a public board: what signing in adds (dismiss to see it go)
+						</figcaption>
+					</figure>
+					<figure>
 						<div className="gallery-frame gallery-canvas">
 							<RoleToastView role="editor" />
 						</div>
@@ -442,6 +495,52 @@ function Sections({ round }: { round: number }) {
 				</div>
 			</section>
 		</>
+	);
+}
+
+/** A board as an image, for the embed panel's preview without a server. */
+const PREVIEW = `data:image/svg+xml,${encodeURIComponent(
+	'<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540"><rect width="960" height="540" fill="#f4f3ef"/><rect x="40" y="70" width="420" height="420" rx="14" fill="#e5eefd" stroke="#a7c2ef" stroke-width="1.5"/><rect x="40" y="36" width="92" height="26" rx="9" fill="#cddbf7"/><rect x="500" y="70" width="420" height="420" rx="14" fill="#fcf5d6" stroke="#e6d27a" stroke-width="1.5"/><rect x="500" y="36" width="120" height="26" rx="9" fill="#f5e7a6"/><rect x="70" y="100" width="252" height="124" rx="10" fill="#fff" stroke="#e2e1dc"/><rect x="70" y="250" width="252" height="124" rx="10" fill="#fff" stroke="#e2e1dc"/><rect x="530" y="100" width="150" height="150" rx="4" fill="#ffe58f"/><rect x="710" y="100" width="150" height="150" rx="4" fill="#ffc9da"/><rect x="530" y="280" width="150" height="150" rx="4" fill="#c9efcf"/></svg>',
+)}`;
+
+const EMBED_BOARD = {
+	id: "gallery",
+	title: "unpic 5.0 release",
+	link: "https://tack.example/b/gallery/unpic-5-0-release",
+	origin: "https://tack.example",
+};
+
+/** The embed panel with its own region, as the board's store would keep it. */
+function EmbedFrame({
+	label,
+	start,
+	sectionTitle = null,
+	failing = false,
+}: {
+	label: string;
+	start: EmbedRegion;
+	sectionTitle?: string | null;
+	failing?: boolean;
+}) {
+	const [region, setRegion] = useState(start);
+	return (
+		<ShareFrame label={label}>
+			<EmbedPanel
+				board={EMBED_BOARD}
+				region={region}
+				sectionTitle={region.kind === "section" ? sectionTitle : null}
+				onRegion={setRegion}
+				onPick={() =>
+					setRegion(
+						start.kind === "board"
+							? { kind: "rect", rect: { x: 0, y: 0, w: 1200, h: 640 } }
+							: start,
+					)
+				}
+				thisView={() => ({ kind: "rect", rect: { x: -120, y: -40, w: 1440, h: 810 } })}
+				previewSrc={() => (failing ? "data:image/svg+xml,broken" : PREVIEW)}
+			/>
+		</ShareFrame>
 	);
 }
 

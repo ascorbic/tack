@@ -234,13 +234,14 @@ describe("the scene", () => {
 		const all = buildScene(board(), cards(), { kind: "board" });
 		expect(all.frame).toEqual({
 			x: -EMBED.pad,
-			y: -EMBED.pad,
+			// The section's title sits 34 units above it.
+			y: -34 - EMBED.pad,
 			w: 1360 + EMBED.pad * 2,
-			h: 500 + EMBED.pad * 2,
+			h: 534 + EMBED.pad * 2,
 		});
 
 		const section = buildScene(board(), cards(), { kind: "section", id: "s1" });
-		expect(section.frame).toEqual({ x: -24, y: -24, w: 948, h: 548 });
+		expect(section.frame).toEqual({ x: -24, y: -58, w: 948, h: 582 });
 		expect(byId(section, "w1")).toBeUndefined();
 
 		const area = buildScene(board(), cards(), {

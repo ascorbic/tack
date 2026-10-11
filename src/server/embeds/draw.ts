@@ -170,7 +170,8 @@ function drawItems(scene: Scene, ctx: Ctx, width: number, height: number): Child
 			continue;
 		}
 		const drawn = drawItem(item, ctx);
-		if (drawn) out.push(drawn);
+		if (Array.isArray(drawn)) out.push(...drawn);
+		else if (drawn) out.push(drawn);
 	}
 	for (const connector of connectors) {
 		const label = connectorLabel(connector, ctx);
@@ -179,7 +180,7 @@ function drawItems(scene: Scene, ctx: Ctx, width: number, height: number): Child
 	return out;
 }
 
-function drawItem(item: Exclude<SceneItem, { kind: "connector" }>, ctx: Ctx): El | null {
+function drawItem(item: Exclude<SceneItem, { kind: "connector" }>, ctx: Ctx): El | El[] | null {
 	switch (item.kind) {
 		case "section":
 			return section(item, ctx);
@@ -235,69 +236,70 @@ function bars(ctx: Ctx, size: number, count: number, color: string, widthPct = 1
 	return box({ flexDirection: "column", width: "100%" }, ...rows);
 }
 
-function section(item: Extract<SceneItem, { kind: "section" }>, ctx: Ctx): El {
+/**
+ * A section: its frame, and its title in a pill just above it, which grows
+ * as the board zooms out (up to ten times), as it does on the board.
+ */
+function section(item: Extract<SceneItem, { kind: "section" }>, ctx: Ctx): El[] {
 	const { p, k } = ctx;
 	const colors = p.section[item.color] ?? p.section.grey!;
-	// Titles grow as the board zooms out, as they do on the board, within the section.
-	const size = Math.min(Math.max(16, 13 / ctx.s), item.rect.h * 0.18, item.rect.w * 0.12);
-	const title =
-		item.title &&
-		(legible(size, ctx)
-			? box(
-					{
-						position: "absolute",
-						left: k(12),
-						top: k(10),
-						maxWidth: Math.max(1, k(item.rect.w - 24)),
-						alignItems: "center",
-						background: colors.title,
-						borderRadius: k(size * 0.5),
-						padding: `${k(size * 0.22)}px ${k(size * 0.6)}px`,
-					},
-					text(
-						{
-							fontSize: k(size),
-							lineHeight: 1.2,
-							fontWeight: 700,
-							fontFamily: FONTS.display,
-							color: colors.ink,
-							whiteSpace: "nowrap",
-							textOverflow: "ellipsis",
-						},
-						item.title,
-						1,
-					),
-					item.silent &&
-						text(
-							{
-								marginLeft: k(size * 0.5),
-								fontSize: k(size * 0.7),
-								color: colors.ink,
-								opacity: 0.75,
-								whiteSpace: "nowrap",
-							},
-							"· silent writing",
-							1,
-						),
-				)
-			: box({
-					position: "absolute",
-					left: k(12),
-					top: k(10),
-					width: Math.max(1, k(Math.min(item.rect.w * 0.4, item.title.length * size * 0.55))),
-					height: Math.max(1, k(size * 1.4)),
-					borderRadius: k(size * 0.5),
-					background: colors.title,
-				}));
-	return box(
-		{
-			...place(item.rect, ctx),
-			background: colors.fill,
-			border: `${Math.max(1, k(1.5))}px solid ${colors.edge}`,
-			borderRadius: k(16),
-		},
-		title || null,
+	const frame = box({
+		...place(item.rect, ctx),
+		background: colors.fill,
+		border: `${Math.max(1, k(1.5))}px solid ${colors.edge}`,
+		borderRadius: k(14),
+	});
+	if (!item.title) return [frame];
+	const grow = Math.min(10, Math.max(1, 1 / ctx.s));
+	const size = 13 * grow;
+	const height = 26 * grow;
+	const top = item.rect.y - 6 * grow - height;
+	const width = Math.min(
+		item.rect.w,
+		(item.title.length * 7.4 + 18 + (item.silent ? 96 : 0)) * grow,
 	);
+	const pill = {
+		position: "absolute",
+		left: k(item.rect.x - ctx.frame.x),
+		top: k(top - ctx.frame.y),
+		height: Math.max(1, k(height)),
+		maxWidth: Math.max(1, k(item.rect.w)),
+		alignItems: "center",
+		background: colors.title,
+		borderRadius: k(9 * grow),
+	} as const;
+	if (!legible(size, ctx)) return [frame, box({ ...pill, width: Math.max(1, k(width)) })];
+	return [
+		frame,
+		box(
+			{ ...pill, padding: `0 ${k(10 * grow)}px` },
+			text(
+				{
+					fontSize: k(size),
+					lineHeight: 1.2,
+					fontWeight: 600,
+					color: colors.ink,
+					whiteSpace: "nowrap",
+					textOverflow: "ellipsis",
+					flexShrink: 1,
+				},
+				item.title,
+				1,
+			),
+			item.silent &&
+				text(
+					{
+						marginLeft: k(6 * grow),
+						fontSize: k(size * 0.85),
+						color: colors.ink,
+						opacity: 0.75,
+						whiteSpace: "nowrap",
+						flexShrink: 0,
+					},
+					"· silent writing",
+				),
+		),
+	];
 }
 
 function sticky(item: Extract<SceneItem, { kind: "sticky" }>, ctx: Ctx): El {
@@ -491,7 +493,6 @@ function card(rect: Rect, data: SceneCard, ctx: Ctx): El {
 						textOverflow: "ellipsis",
 					},
 					label.name,
-					1,
 				);
 			}),
 		);

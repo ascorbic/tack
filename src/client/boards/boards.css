@@ -1138,6 +1138,159 @@ a.brand {
 	}
 }
 
+/* Signed out on a public board (#56): what it is, and what signing in adds.
+   At the bottom, clear of the title and the view-only toolbar. */
+.public-notice {
+	position: absolute;
+	bottom: 86px;
+	left: 50%;
+	z-index: 6;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	/* Its own width (not half the canvas, as left: 50% would leave it), within the canvas. */
+	width: max-content;
+	max-width: min(620px, calc(100% - 32px));
+	padding: 10px 10px 10px 12px;
+	border-radius: 14px;
+	border: 1px solid var(--line);
+	background: var(--chrome-strong);
+	backdrop-filter: blur(12px) saturate(1.4);
+	box-shadow: var(--shadow-lifted);
+	color: var(--ink);
+	font-size: 13px;
+	translate: -50% 0;
+	animation: public-notice-in var(--t-settle) var(--ease-spring) calc(600ms * var(--motion))
+		backwards;
+}
+
+.public-notice[data-leaving="true"] {
+	animation: public-notice-out var(--t-base) var(--ease-out) forwards;
+}
+
+@keyframes public-notice-in {
+	from {
+		opacity: 0;
+		transform: translateY(16px) scale(0.96);
+	}
+}
+
+@keyframes public-notice-out {
+	to {
+		opacity: 0;
+		transform: translateY(10px) scale(0.97);
+	}
+}
+
+.public-notice-icon {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 10px;
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.public-notice-text {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+	line-height: 1.35;
+}
+
+.public-notice-text strong {
+	font-weight: 650;
+}
+
+.public-notice-text span {
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.public-notice-signin {
+	flex: none;
+}
+
+.public-notice-close {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: none;
+	color: var(--muted);
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring);
+}
+
+.public-notice-close svg {
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+}
+
+.public-notice-close:hover {
+	background: var(--hover);
+	color: var(--ink);
+	transform: rotate(90deg);
+}
+
+@media (max-width: 640px) {
+	.public-notice {
+		flex-wrap: wrap;
+		bottom: 80px;
+	}
+
+	.public-notice-text {
+		flex: 1 1 200px;
+	}
+}
+
+/* Share's row for Copy embed, on public boards (#57). */
+.share-access-icon.share-embed-icon {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.share-embed-icon svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.share-embed-button {
+	flex: none;
+	height: 32px;
+	padding: 0 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 9px;
+	background: var(--surface);
+	color: var(--ink);
+	font-size: 13px;
+	font-weight: 600;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.share-embed-button:hover {
+	background: var(--hover);
+}
+
+.share-embed-button:active {
+	transform: scale(0.96);
+}
+
 /* Share dialog ------------------------------------------------------------ */
 
 /* Pinned by its top edge, so the field under your cursor stays put as

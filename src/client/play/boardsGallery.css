@@ -62,3 +62,13 @@
 	height: 90px;
 	margin-top: 0;
 }
+
+/* Room for the public notice, which sits near the bottom of the canvas. */
+.gallery-public {
+	position: relative;
+	height: 150px;
+}
+
+.gallery-public .public-notice {
+	bottom: 16px;
+}
