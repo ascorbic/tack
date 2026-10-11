@@ -52,6 +52,7 @@ const GALLERIES = [
 	"/play/auth",
 	"/play/boards",
 	"/play/actions",
+	"/play/ai",
 	"/play/changes",
 	"/play/inbox",
 	"/play/widgets",
@@ -64,6 +65,7 @@ const GALLERIES = [
 
 const SCENARIOS = [
 	"planning",
+	"ai",
 	"retro",
 	"decisions",
 	"widgets",
