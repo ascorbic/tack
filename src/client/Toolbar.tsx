@@ -69,6 +69,11 @@ interface ToolbarProps {
 	viewOnly?: boolean;
 	/** Whether there's a comment tool: you can comment here. */
 	commenting?: boolean;
+	/**
+	 * A word about the last click ("No dots left…"), in place of the tool's
+	 * hint for a moment rather than stacked above it. `key` replays it.
+	 */
+	note?: { text: string; key: number } | null;
 }
 
 const CommentPaths = () => <path d="M4 16.5V10a6 6 0 1 1 6 6Z" />;
@@ -88,6 +93,7 @@ export function Toolbar({
 	onStamp,
 	viewOnly = false,
 	commenting = true,
+	note = null,
 }: ToolbarProps) {
 	const commentHint = tool === "comment" && (
 		<ToolHint>Click anything to comment on it, or anywhere on the board</ToolHint>
@@ -114,11 +120,16 @@ export function Toolbar({
 	return (
 		<div className="toolbar-dock">
 			{tool === "stamp" && <StampOptions stamp={stamp} onStamp={onStamp} />}
-			{tool === "vote" && (
-				<ToolHint>
-					Click shapes to put your dots on them; click one of yours to take it back
-				</ToolHint>
-			)}
+			{tool === "vote" &&
+				(note ? (
+					<ToolHint key={note.key} note>
+						{note.text}
+					</ToolHint>
+				) : (
+					<ToolHint>
+						Click shapes to put your dots on them; click one of yours to take it back
+					</ToolHint>
+				))}
 			{commentHint}
 			{tool === "sticky" && <StickyOptions color={stickyColor} onColor={onStickyColor} />}
 			{tool === "text" && (
@@ -290,10 +301,12 @@ function StickyButton({
 	);
 }
 
-function ToolHint({ children }: { children: React.ReactNode }) {
+function ToolHint({ children, note = false }: { children: React.ReactNode; note?: boolean }) {
 	return (
-		<div className="toolbar-options">
-			<span className="toolbar-hint">{children}</span>
+		<div className="toolbar-options" data-note={note || undefined}>
+			<span className="toolbar-hint" role={note ? "status" : undefined}>
+				{children}
+			</span>
 		</div>
 	);
 }

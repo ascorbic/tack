@@ -918,6 +918,19 @@ export function Board({
 		if (tool !== "sticky") setGhost(null);
 	}, [tool]);
 
+	// A word about the last click with a tool, in place of its hint for a moment.
+	const [toolNote, setToolNote] = useState<{ text: string; key: number } | null>(null);
+	const showToolNote = useCallback(
+		(text: string) => setToolNote((note) => ({ text, key: (note?.key ?? 0) + 1 })),
+		[],
+	);
+	useEffect(() => {
+		if (!toolNote) return;
+		const timer = setTimeout(() => setToolNote(null), 3200);
+		return () => clearTimeout(timer);
+	}, [toolNote]);
+	useEffect(() => setToolNote(null), [tool]);
+
 	// With the stamp tool on, 1–8 pick a stamp, as they pick an emote.
 	useEffect(() => {
 		if (tool !== "stamp") return;
@@ -1305,10 +1318,11 @@ export function Board({
 												user,
 												event.altKey,
 											);
+											// Said in place of the tool's hint, not in a toast above it.
 											if (result === "none_left") {
-												toasts.show({ message: "No dots left: click one of yours to move it" });
+												showToolNote("No dots left: click one of yours to move it");
 											} else if (result === "no_vote") {
-												toasts.show({ message: "That’s not part of a vote" });
+												showToolNote("That’s not part of a vote");
 											}
 											return;
 										}
@@ -1534,6 +1548,7 @@ export function Board({
 									onStamp={setStamp}
 									viewOnly={readOnly}
 									commenting={comments.canComment}
+									note={toolNote}
 								/>
 							)}
 							<PanelBoundary name="What’s new">

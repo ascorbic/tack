@@ -215,7 +215,12 @@ test.describe("dot voting", () => {
 		for (let i = 0; i < 3; i++) await card.click();
 		await expect(bar.getByRole("img", { name: "0 of 3 dots left" })).toBeVisible();
 		await card.click();
-		await expect(page.locator(".toast", { hasText: "No dots left" })).toBeVisible();
+		// Said in place of the tool's hint, not stacked over it in a toast.
+		await expect(page.locator(".toolbar-dock").getByRole("status")).toHaveText(
+			"No dots left: click one of yours to move it",
+		);
+		await expect(page.locator(".toast", { hasText: "No dots left" })).toHaveCount(0);
+		await expect(page.locator(".toolbar-dock")).not.toContainText("Click shapes to put");
 		// Take one back by clicking it.
 		await page.getByRole("button", { name: "Take this dot back" }).first().click();
 		await expect(bar.getByRole("img", { name: "1 of 3 dots left" })).toBeVisible();

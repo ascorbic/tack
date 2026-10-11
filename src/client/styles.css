@@ -2387,6 +2387,28 @@ a.card-title {
 	white-space: nowrap;
 }
 
+/* A word about the last click, in the hint's place: warmer, with a nudge. */
+.toolbar-options[data-note] {
+	animation: tool-note-nudge calc(360ms * var(--motion)) var(--ease-out);
+}
+
+.toolbar-options[data-note] .toolbar-hint {
+	color: var(--ink);
+	font-weight: 600;
+}
+
+@keyframes tool-note-nudge {
+	20% {
+		translate: -4px 0;
+	}
+	45% {
+		translate: 3px 0;
+	}
+	70% {
+		translate: -1px 0;
+	}
+}
+
 .swatch {
 	width: 24px;
 	height: 24px;
