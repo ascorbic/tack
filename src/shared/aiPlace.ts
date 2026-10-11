@@ -56,15 +56,16 @@ export function textSize(text: string): { w: number; h: number } {
 	return { w: Math.round(longest * 10.6 + 12), h: Math.round(lines.length * 26.4 + 8) };
 }
 
-/** Put a summary on the board as a text block beside `near`; returns its id. */
+/** Put a summary on the board as a text block beside `near`; returns its id and where it went. */
 export function placeSummary(
 	doc: Y.Doc,
 	text: string,
 	near: readonly string[],
 	sizeOf?: SizeOf,
 	id: string = crypto.randomUUID(),
-): string {
-	const at = spotBesideAll(doc, near, textSize(text), sizeOf);
+): { id: string; box: Rect } {
+	const size = textSize(text);
+	const at = spotBesideAll(doc, near, size, sizeOf);
 	addShape(doc, id, {
 		type: "text",
 		text,
@@ -74,13 +75,13 @@ export function placeSummary(
 		z: nextZ(doc),
 	});
 	placeInSections(doc, [id], sizeOf);
-	return id;
+	return { id, box: { x: Math.round(at.x), y: Math.round(at.y), ...size } };
 }
 
 /**
  * Put a drafted decision on the board beside `near`, proposed, and linked to
  * the cards among `near` (and in sections among it) as any decision is: by
- * a connector to each. Returns its id and the connectors'.
+ * a connector to each. Returns its id, the connectors' and where it went.
  */
 export function placeDecision(
 	doc: Y.Doc,
@@ -89,7 +90,7 @@ export function placeDecision(
 	author?: Author,
 	sizeOf?: SizeOf,
 	id: string = crypto.randomUUID(),
-): { decision: string; connectors: string[] } {
+): { decision: string; connectors: string[]; box: Rect } {
 	const size = { w: 320, h: 260 };
 	const at = spotBesideAll(doc, near, size, sizeOf);
 	addDecision(doc, id, { x: at.x, y: at.y, title: draft.title, text: draft.text, author });
@@ -109,5 +110,5 @@ export function placeDecision(
 			withFallbacks({ x: 0, y: 0, shape: id }, { x: 0, y: 0, shape: card }, boxFor),
 		),
 	);
-	return { decision: id, connectors };
+	return { decision: id, connectors, box: { ...at, ...size } };
 }

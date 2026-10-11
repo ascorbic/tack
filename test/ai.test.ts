@@ -14,6 +14,7 @@ import {
 	readSummary,
 	schemaFields,
 	summaryText,
+	wrapForBoard,
 	widgetFormat,
 	widgetMessages,
 	wrap,
@@ -172,6 +173,10 @@ describe("reading the model's answers", () => {
 				20,
 			),
 		).toBe("Docs\n\nPeople want more\nexamples in the\ndocs.\n\n• Examples\n• Search");
+		// Edited unwrapped, wrapped as it's placed: points keep their indent.
+		expect(wrapForBoard("Docs\n\nPeople want more examples.\n• Examples for every one", 16)).toBe(
+			"Docs\n\nPeople want more\nexamples.\n• Examples for\n  every one",
+		);
 		expect(
 			decisionBody({ context: "Search is slow.", options: [{ name: "Cache", summary: "Quick." }] }),
 		).toBe("Search is slow.\n\nOptions considered:\n• Cache: Quick.");

@@ -37,6 +37,7 @@ import { type User, authorFor } from "../presence.ts";
 import { DraftPanel } from "../ai/DraftPanel.tsx";
 import { DraftDecisionIcon, SummariseIcon } from "../ai/icons.tsx";
 import { useAi } from "../ai/service.ts";
+import { useReveal } from "../reveal.ts";
 import { countWords } from "../../shared/a11y.ts";
 import type { ShapeType } from "../../shared/shapes.ts";
 import { isApplePlatform, shortcutHint } from "../shortcuts.ts";
@@ -174,6 +175,7 @@ export function ActionBar(props: ActionBarProps) {
 	const { doc, selected, dragging, user, toasts, history, requests } = props;
 	const services = useServices();
 	const boardAi = useAi();
+	const reveal = useReveal();
 	const store = useStoreApi();
 	const bar = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState<ActionCommand | null>(null);
@@ -899,10 +901,11 @@ export function ActionBar(props: ActionBarProps) {
 							const size = props.sizeOf(id);
 							return size ? { w: size.width, h: size.height } : undefined;
 						}}
-						onPlaced={(placed, message) => {
+						onPlaced={(placed, box, message) => {
 							close();
 							store.getState().resetSelectedElements();
 							requestAnimationFrame(() => store.getState().addSelectedNodes(placed));
+							reveal([box]);
 							toast(message);
 						}}
 					/>

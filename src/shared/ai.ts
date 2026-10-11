@@ -375,6 +375,17 @@ export function summaryText(
 	return parts.filter(Boolean).join("\n\n");
 }
 
+/**
+ * A summary as edited (a line per paragraph and point) wrapped for a text
+ * block, which doesn't wrap by itself: points keep their bullet's indent.
+ */
+export function wrapForBoard(text: string, width = 56): string {
+	return text
+		.split("\n")
+		.map((line) => (/^\s*[•\-*] /.test(line) ? wrap(line, width, "  ") : wrap(line, width)))
+		.join("\n");
+}
+
 /** Wrap text at spaces to lines of at most `width` characters (long words stay whole). */
 export function wrap(text: string, width: number, indent = ""): string {
 	const out: string[] = [];

@@ -103,15 +103,17 @@ export function AskWidgetView({
 						}
 					}}
 				/>
-				<button
-					type="submit"
-					className="ai-ask-go"
-					disabled={!prompt.trim() || state.status === "asking"}
-					aria-label={ready && prompt.trim() === asked ? "Place on board" : "Ask"}
-				>
-					{ready && prompt.trim() !== asked ? "Ask again" : "Ask"}
-					<kbd aria-hidden="true">↵</kbd>
-				</button>
+				{/* With a proposal for these words, Enter places it (Place on board, below). */}
+				{!(ready && prompt.trim() === asked) && (
+					<button
+						type="submit"
+						className="ai-ask-go"
+						disabled={!prompt.trim() || state.status === "asking"}
+					>
+						{ready ? "Ask again" : "Ask"}
+						<kbd aria-hidden="true">↵</kbd>
+					</button>
+				)}
 			</form>
 
 			{state.status === "idle" && (

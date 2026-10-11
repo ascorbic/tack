@@ -7,8 +7,10 @@ import {
 	type SummaryDraft,
 	decisionBody,
 	summaryText,
+	wrapForBoard,
 } from "../../shared/ai.ts";
 import { placeDecision, placeSummary } from "../../shared/aiPlace.ts";
+import type { Rect } from "../../shared/geometry.ts";
 import type { SizeOf } from "../../shared/sections.ts";
 import type { Author } from "../../shared/shapes.ts";
 import { Notice, PopoverHead, SUBMIT_HINT } from "../actions/Popover.tsx";
@@ -41,7 +43,8 @@ export type DraftState =
 /** A draft as the panel edits it. */
 export function draftEdit(draft: SummaryDraft | DecisionDraft): DraftEdit {
 	return draft.kind === "summary"
-		? { title: "", text: summaryText(draft) }
+		? // Edited unwrapped, so the panel's own wrapping reads well; wrapped as it's placed.
+			{ title: "", text: summaryText(draft, Infinity) }
 		: { title: draft.title, text: decisionBody(draft) };
 }
 
@@ -199,8 +202,8 @@ export function DraftPanel({
 	what: string;
 	author?: Author;
 	sizeOf?: SizeOf;
-	/** Placed: select these, and say so (undoably). */
-	onPlaced: (ids: string[], message: string) => void;
+	/** Placed: select these, show where they went, and say so (undoably). */
+	onPlaced: (ids: string[], box: Rect, message: string) => void;
 }) {
 	const [state, setState] = useState<DraftState>({ status: "loading" });
 	const [attempt, setAttempt] = useState(0);
@@ -234,8 +237,10 @@ export function DraftPanel({
 		if (state.status !== "ready") return;
 		const { edit } = state;
 		if (mode === "summary") {
-			const id = transactLocal(doc, () => placeSummary(doc, edit.text.trim(), shapes, sizeOf));
-			onPlaced([id], `Placed a summary of ${what}`);
+			const placed = transactLocal(doc, () =>
+				placeSummary(doc, wrapForBoard(edit.text.trim()), shapes, sizeOf),
+			);
+			onPlaced([placed.id], placed.box, `Placed a summary of ${what}`);
 		} else {
 			const placed = transactLocal(doc, () =>
 				placeDecision(
@@ -249,6 +254,7 @@ export function DraftPanel({
 			const links = placed.connectors.length;
 			onPlaced(
 				[placed.decision],
+				placed.box,
 				`Placed a decision to make${links > 0 ? `, linked to ${links} ${links === 1 ? "card" : "cards"}` : ""}`,
 			);
 		}
