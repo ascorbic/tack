@@ -85,5 +85,15 @@ export interface AuditEntry {
 		error?: string;
 		/** What the forge itself said, when that's different from `error`. */
 		detail?: string;
+		/**
+		 * The repository it went to (a repository key), for the board to
+		 * decide what each viewer is told. Never sent: see `private`.
+		 */
+		repo?: string;
+		/**
+		 * The change went to a repository this viewer can't read, so all
+		 * they're told is that it happened (#56): no summary, link or error.
+		 */
+		private?: true;
 	}[];
 }

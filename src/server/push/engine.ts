@@ -988,6 +988,7 @@ export class PushEngine {
 				...(row.result_url ? { url: row.result_url } : {}),
 				...(row.error ? { error: row.error } : {}),
 				...(row.error_detail ? { detail: row.error_detail } : {}),
+				...withRepo(row),
 			})),
 		}));
 	}
@@ -1189,6 +1190,17 @@ function replacedBy(items: PlanItem[]): string[] {
 			? item.change.effect.shapes
 			: [],
 	);
+}
+
+/** The repository an audit row went to, so the board can say only as much as each viewer may know. */
+function withRepo(row: ItemRow): { repo?: string } {
+	if (row.repo) return { repo: row.repo };
+	try {
+		const repo = operationRepo(JSON.parse(row.op) as Operation);
+		return repo ? { repo } : {};
+	} catch {
+		return {};
+	}
 }
 
 function repositoriesOf(items: { repo: string | null }[]): string[] {

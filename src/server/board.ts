@@ -60,7 +60,7 @@ import {
 	migrateBoard,
 } from "../shared/schema.ts";
 import { readShapes } from "../shared/structure.ts";
-import { cardRefs, shapesMap } from "../shared/shapes.ts";
+import { type ShapeProps, cardRefs, shapesMap } from "../shared/shapes.ts";
 import type { WidgetRequest } from "../shared/widgets.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "../shared/thumbnail.ts";
@@ -142,6 +142,9 @@ export const CARRY_ORIGIN = "carry";
 const CARRY_MAX = 100;
 
 type Entry = Card | MissingCard;
+
+/** What a pushed change says to someone who can't read its repository. */
+const PRIVATE_CHANGE = "A change to a private repository";
 
 /** Per connection: who it is (a GitHub user id, or null if signed out), and its queue of card messages. */
 interface Viewing {
@@ -860,17 +863,18 @@ export class Board extends YServer<Env> {
 		}
 		const cards = activity.filter((entry) => readable.get(repoKeyOf(entry.key)));
 		const login = access.person?.login.toLowerCase();
-		const pushes = (this.pushes?.audit() ?? [])
+		const recent = (this.pushes?.audit() ?? [])
 			.filter((entry) => Date.parse(entry.at) > since && entry.by.login.toLowerCase() !== login)
-			.slice(0, 20)
-			.map((entry) => ({
-				pushId: entry.pushId,
-				at: Date.parse(entry.at),
-				by: entry.by,
-				applied: entry.changes.filter((change) => change.status !== "failed").length,
-				failed: entry.changes.filter((change) => change.status === "failed").length,
-				summaries: entry.changes.slice(0, 3).map((change) => change.summary),
-			}));
+			.slice(0, 20);
+		// What went to repositories this viewer can't read stays unsaid (#56).
+		const pushes = (await this.redactAudit(recent, access.userId)).map((entry) => ({
+			pushId: entry.pushId,
+			at: Date.parse(entry.at),
+			by: entry.by,
+			applied: entry.changes.filter((change) => change.status !== "failed").length,
+			failed: entry.changes.filter((change) => change.status === "failed").length,
+			summaries: entry.changes.slice(0, 3).map((change) => change.summary),
+		}));
 		log.info("since.digest", {
 			board: this.name,
 			user: access.userId,
@@ -1175,9 +1179,85 @@ export class Board extends YServer<Env> {
 		return this.pushEngine().push(command);
 	}
 
-	/** The board's audit log of pushes, newest first. */
+	/**
+	 * The board's audit log of pushes, newest first, unfiltered: for tests
+	 * over RPC. The route uses `pushLogFor`.
+	 */
 	pushLog(): AuditEntry[] {
 		return this.pushEngine().audit();
+	}
+
+	/**
+	 * The audit log as a viewer may see it (#56): changes to repositories
+	 * that aren't public, which they can't read, say only that they happened.
+	 */
+	async pushLogFor(userId: number | null): Promise<AuditEntry[]> {
+		return this.redactAudit(this.pushEngine().audit(), userId);
+	}
+
+	private async redactAudit(entries: AuditEntry[], userId: number | null): Promise<AuditEntry[]> {
+		const repos = new Set(
+			entries.flatMap((entry) =>
+				entry.changes.flatMap((change) => (change.repo ? [change.repo] : [])),
+			),
+		);
+		const readable = new Map<string, boolean>();
+		for (const repoKey of repos) {
+			readable.set(
+				repoKey,
+				this.knownPublic(repoKey) || (await this.canRead(userId, repoKey).catch(() => false)),
+			);
+		}
+		return entries.map((entry) => ({
+			...entry,
+			changes: entry.changes.map(({ repo, ...change }) =>
+				// Unknown repository, unknown audience: say no more than that it happened.
+				repo && readable.get(repo)
+					? change
+					: {
+							id: change.id,
+							summary: PRIVATE_CHANGE,
+							status: change.status,
+							private: true as const,
+						},
+			),
+		}));
+	}
+
+	/**
+	 * Whether a repository is known to be public: its forge has no private
+	 * repositories, or its cards (or, without any, its route) say so. Any
+	 * card that isn't public means no.
+	 */
+	private knownPublic(repoKey: string): boolean {
+		const route = this.routes.get(repoKey);
+		if (route && !forge(route.forge).canRead) return true;
+		const cards = [...this.cards.values()].filter(
+			(card): card is Card => repoKeyOf(card.key) === repoKey && !("missing" in card),
+		);
+		if (cards.some((card) => !isPublic(card))) return false;
+		return cards.length > 0 || route?.private === false;
+	}
+
+	// --- Board images (#57) --------------------------------------------------------
+
+	/**
+	 * What an image of the board draws: its shapes, and its cards exactly as
+	 * someone who isn't signed in gets them (anything from a repository that
+	 * isn't public is a bare placeholder). Waits a moment for cards on a
+	 * board that's just woken, unless `wait` is false.
+	 */
+	async embedData(options: { wait?: boolean } = {}): Promise<{
+		shapes: [string, ShapeProps][];
+		cards: Entry[];
+	}> {
+		if (options.wait !== false && this.syncing) {
+			await Promise.race([this.syncing, new Promise((resolve) => setTimeout(resolve, 2_000))]);
+		}
+		const refs = cardRefs(this.document);
+		const entries = [...this.cards.values()].filter((entry) => refs.has(entry.key));
+		const cards = await this.visibleTo(null, entries);
+		return { shapes: [...readShapes(this.document)], cards };
 	}
 
 	/** For tests: shorten the push engine's pauses. */

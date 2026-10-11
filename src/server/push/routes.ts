@@ -89,7 +89,8 @@ async function boardRoute(
 	if (!role) return json({ error: "not_found" }, { status: 404 });
 
 	const stub = await getServerByName<Env, Board>(boards(env), id);
-	if (route === "pushes") return json(await stub.pushLog());
+	// Changes to repositories the viewer can't read say only that they happened.
+	if (route === "pushes") return json(await stub.pushLogFor(viewer?.id ?? null));
 
 	if (!canEdit(role)) return json({ error: "forbidden" }, { status: 403 });
 	const body = v.safeParse(PushBody, await request.json().catch(() => null));
