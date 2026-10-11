@@ -27,6 +27,7 @@ import { seedRelated } from "./related.ts";
 import { seedWrites } from "./writes.ts";
 import { IMAGEKIT, PEOPLE, failChange, stageAs } from "./push.ts";
 import { seedRoadmap } from "./roadmap.ts";
+import { seedStacks } from "./stacks.ts";
 import { seedTracking, seedWidgets } from "./widgets.ts";
 
 export interface Scenario {
@@ -493,6 +494,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 				sticky(doc, "Ask about a 5.1 freeze", "green", 1320, 120);
 			});
 		},
+	},
+	stacks: {
+		name: "Stacks: theming a planning session",
+		description:
+			"Drag a sticky onto another and hold: they become a stack, named ✨ from what they say. Click a stack to spread it out (Esc gathers it), drag one out to take it back, or select a few stickies and Group these.",
+		seed: seedStacks,
 	},
 	lists: {
 		name: "Lists and mini cards",

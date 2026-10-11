@@ -218,6 +218,11 @@ export class StackNamer {
 		this.timer = null;
 	}
 
+	/** Forget which requests failed, so they're asked again straight away (the playground's switch). */
+	forgetFailures(): void {
+		this.failed.clear();
+	}
+
 	/** Name what needs naming, a moment from now. */
 	schedule(ms = this.options.debounceMs ?? NAME_DEBOUNCE_MS): void {
 		if (this.timer !== null) this.clearTimer(this.timer);

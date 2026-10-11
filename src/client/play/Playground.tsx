@@ -31,6 +31,7 @@ import { NotificationsButton } from "../comments/Notifications.tsx";
 import { fixture, LABELS } from "./fixtures.ts";
 import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
+import { SimulatedStacks, type StackAiMode } from "./stacks.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
 import { playServices } from "./writes.ts";
 import { ChangeControls } from "./ChangeControls.tsx";
@@ -107,6 +108,14 @@ export default function Playground() {
 		Object.assign(window, { tackFacilitator: facilitator });
 		return uninstall;
 	}, [facilitator, scenario]);
+	// The board's server for stacks (#73): names and "Group these", with a fake model.
+	const stacks = useMemo(() => new SimulatedStacks(sim.doc), [sim]);
+	const [stackAi, setStackAi] = useState<StackAiMode>("on");
+	useEffect(() => {
+		setStackAi("on");
+		return stacks.install();
+	}, [stacks]);
+	useEffect(() => stacks.setMode(stackAi), [stacks, stackAi]);
 	// For poking at from the console, e.g. to measure things.
 	useEffect(() => {
 		Object.assign(window, { tackPlayground: sim, tackCards: cardStore });
@@ -189,6 +198,13 @@ export default function Playground() {
 			delete document.documentElement.dataset.motion;
 		};
 	}, [motion]);
+
+	/** Someone else on the board, for stacks' buttons: whoever's here, or someone new. */
+	const stacker = () => {
+		const person = sim.people[0] ?? sim.join();
+		setPeople([...sim.people]);
+		return person;
+	};
 
 	const chooseScenario = (name: string) => {
 		const url = new URL(location.href);
@@ -643,6 +659,42 @@ export default function Playground() {
 						</div>
 						<p className="play-hint">
 							⌘⌥⇧H opens History. Scrub, play, then select something from the past to bring it back.
+						</p>
+					</div>
+
+					<div className="play-section">
+						<h2 className="play-label">Stacks and AI suggestions</h2>
+						<div className="segmented" role="radiogroup" aria-label="AI suggestions">
+							{(
+								[
+									["on", "On"],
+									["slow", "Slow"],
+									["failing", "Failing"],
+									["off", "Off"],
+								] as const
+							).map(([mode, label]) => (
+								<label key={mode} data-checked={stackAi === mode}>
+									<input
+										type="radio"
+										name="stack-ai"
+										checked={stackAi === mode}
+										onChange={() => setStackAi(mode)}
+									/>
+									{label}
+								</label>
+							))}
+						</div>
+						<div className="play-buttons">
+							<button type="button" onClick={() => stacks.someoneStacks(stacker().doc)}>
+								Someone stacks two
+							</button>
+							<button type="button" onClick={() => stacks.someoneEdits(stacker().doc)}>
+								Someone edits a stacked sticky
+							</button>
+						</div>
+						<p className="play-hint">
+							A stand-in model names stacks from their stickies’ words. Hold a dragged sticky over
+							another to stack them; select three or more and Group these.
 						</p>
 					</div>
 
