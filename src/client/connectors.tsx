@@ -45,6 +45,7 @@ import {
 } from "../shared/shapes.ts";
 import { addConnector } from "../shared/structure.ts";
 import { type ShapeNode, deleteShapes } from "./board.ts";
+import { useInsideCanvas } from "./useInsideCanvas.ts";
 import { type SectionDrag, nodeBox } from "./canvasStructure.ts";
 import { ReadOnlyContext } from "./DocContext.ts";
 import { entranceOf } from "./entering.ts";
@@ -870,6 +871,8 @@ function ConnectorToolbar({
 	onDelete: () => void;
 	extra?: ReactNode;
 }) {
+	const inner = useRef<HTMLDivElement>(null);
+	useInsideCanvas(inner);
 	return (
 		<div
 			className="connector-toolbar connector-ui nodrag nopan"
@@ -880,7 +883,7 @@ function ConnectorToolbar({
 			onPointerDown={(event) => event.stopPropagation()}
 			onClick={(event) => event.stopPropagation()}
 		>
-			<div className="connector-toolbar-inner">
+			<div ref={inner} className="connector-toolbar-inner">
 				{ROUTES.map(({ route, label, icon }) => (
 					<button
 						key={route}

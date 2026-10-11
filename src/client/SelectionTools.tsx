@@ -1,8 +1,9 @@
 import { NodeToolbar, Position, ViewportPortal, useStore } from "@xyflow/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import type { ShapeNode } from "./board.ts";
 import { type CommandId, isApplePlatform, shortcutHint } from "./shortcuts.ts";
 import { unionRect } from "./snapping.ts";
+import { useInsideCanvas } from "./useInsideCanvas.ts";
 
 // The frame around a multi-selection, and the small contextual toolbar above
 // it for aligning, distributing and tidying.
@@ -36,6 +37,8 @@ export function SelectionTools({
 	onCommand,
 }: SelectionToolsProps) {
 	const zoom = useStore((state) => state.transform[2]);
+	const toolbar = useRef<HTMLDivElement>(null);
+	useInsideCanvas(toolbar);
 	if (selected.size < 2) return null;
 	const rects = [];
 	for (const node of nodes) {
@@ -71,7 +74,7 @@ export function SelectionTools({
 				position={Position.Top}
 				offset={stacked ? STACKED_OFFSET : OFFSET}
 			>
-				<div className="arrange" role="toolbar" aria-label="Arrange selection">
+				<div ref={toolbar} className="arrange" role="toolbar" aria-label="Arrange selection">
 					<span className="arrange-count">{selected.size}</span>
 					<ArrangeButton id="alignLeft" label="Align left" onCommand={onCommand}>
 						<path d="M3 2.5v13" />

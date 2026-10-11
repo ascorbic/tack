@@ -1,7 +1,9 @@
 import { NodeToolbar, Position } from "@xyflow/react";
+import { useRef } from "react";
 import type * as Y from "yjs";
 import { type ShapeFont, type TextSize, updateShapes } from "../shared/shapes.ts";
 import { STICKY_COLORS, type ShapeNode, type StickyColor } from "./board.ts";
+import { useInsideCanvas } from "./useInsideCanvas.ts";
 
 const SIZES: { size: TextSize; label: string; name: string }[] = [
 	{ size: "s", label: "S", name: "Small" },
@@ -46,36 +48,49 @@ export function ShapeToolbar({
 	const stickies = selected.filter((node) => node.type === "sticky");
 	const texts = selected.filter((node) => node.type === "text");
 	const shapes = [...stickies, ...texts];
+	const toolbar = useRef<HTMLDivElement>(null);
+	// With two or more selected, the arrange toolbar sits above this one.
+	const stacked = selected.length >= 2;
+	useInsideCanvas(toolbar, { top: stacked ? 60 : undefined });
 	if (shapes.length === 0) return null;
 	const ids = shapes.map((node) => node.id);
 
 	return (
-		<NodeToolbar nodeId={ids} isVisible={!dragging} position={Position.Top} offset={18}>
-			<ShapeToolbarView
-				color={
-					stickies.length > 0
-						? common(stickies.map((node) => node.data.shape.color ?? "yellow"))
-						: null
-				}
-				size={texts.length > 0 ? common(texts.map((node) => node.data.shape.size ?? "m")) : null}
-				font={common(shapes.map((node) => node.data.shape.font ?? "sans"))}
-				onColor={(color) => {
-					updateShapes(
-						doc,
-						stickies.map((node) => node.id),
-						{ color },
-					);
-					onStickyColor?.(color);
-				}}
-				onSize={(size) =>
-					updateShapes(
-						doc,
-						texts.map((node) => node.id),
-						{ size },
-					)
-				}
-				onFont={(font) => updateShapes(doc, ids, { font })}
-			/>
+		// Above the whole selection, as the arrange toolbar is: not in the
+		// middle of it, over a card, when only some of it is stickies.
+		<NodeToolbar
+			nodeId={selected.map((node) => node.id)}
+			isVisible={!dragging}
+			position={Position.Top}
+			offset={18}
+		>
+			<div ref={toolbar} className="shape-toolbar-clamp">
+				<ShapeToolbarView
+					color={
+						stickies.length > 0
+							? common(stickies.map((node) => node.data.shape.color ?? "yellow"))
+							: null
+					}
+					size={texts.length > 0 ? common(texts.map((node) => node.data.shape.size ?? "m")) : null}
+					font={common(shapes.map((node) => node.data.shape.font ?? "sans"))}
+					onColor={(color) => {
+						updateShapes(
+							doc,
+							stickies.map((node) => node.id),
+							{ color },
+						);
+						onStickyColor?.(color);
+					}}
+					onSize={(size) =>
+						updateShapes(
+							doc,
+							texts.map((node) => node.id),
+							{ size },
+						)
+					}
+					onFont={(font) => updateShapes(doc, ids, { font })}
+				/>
+			</div>
 		</NodeToolbar>
 	);
 }

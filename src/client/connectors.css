@@ -284,7 +284,8 @@
 	border: 1px solid var(--line);
 	box-shadow: var(--shadow-lifted);
 	pointer-events: auto;
-	translate: -50% 0;
+	/* Nudged inside the canvas near its edges (useInsideCanvas.ts). */
+	translate: calc(-50% + var(--clamp-x, 0px)) var(--clamp-y, 0px);
 	white-space: nowrap;
 	animation: connector-toolbar-in var(--t-settle) var(--ease-spring);
 }

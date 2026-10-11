@@ -612,6 +612,13 @@ button.primary:hover {
 	border-bottom-color: var(--line);
 }
 
+/* Toolbars over the selection, nudged inside the canvas near its edges
+   (useInsideCanvas.ts). */
+.arrange,
+.shape-toolbar-clamp {
+	translate: var(--clamp-x, 0px) var(--clamp-y, 0px);
+}
+
 /* The zoom controls (ZoomControls.tsx): the level sits between in and out,
    and opens a menu beside the controls, so they can't clip it. */
 .react-flow__controls.zoom-controls {

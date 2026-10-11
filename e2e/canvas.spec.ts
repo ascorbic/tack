@@ -349,3 +349,31 @@ test("tidying up never lands the selection on shapes that weren't selected", asy
 	expect(first.x).toBe(second.x);
 	expect(second.y).toBeGreaterThan(first.y + 176);
 });
+
+test("toolbars over the selection stay inside the canvas, and out of each other's way", async ({
+	page,
+}) => {
+	// Everything selected: its top is near the top bar, so the toolbars above
+	// it would reach under the bar.
+	await page.locator(".react-flow__pane").click({ position: { x: 900, y: 600 } });
+	await page.keyboard.press("ControlOrMeta+a");
+	const arrange = page.getByRole("toolbar", { name: "Arrange selection" });
+	const shape = page.getByRole("toolbar", { name: "Shape options" });
+	await expect(arrange).toBeVisible();
+	await expect(shape).toBeVisible();
+	const canvas = (await page.locator(".react-flow").boundingBox())!;
+	await expect
+		.poll(async () => {
+			const a = (await arrange.boundingBox())!;
+			const s = (await shape.boundingBox())!;
+			return (
+				a.y >= canvas.y &&
+				s.y >= canvas.y &&
+				a.x >= canvas.x &&
+				a.x + a.width <= canvas.x + canvas.width &&
+				// One above the other.
+				a.y + a.height <= s.y
+			);
+		})
+		.toBe(true);
+});
