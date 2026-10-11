@@ -6,7 +6,7 @@ import {
 	type Stager,
 	changesMap,
 } from "../../shared/changes.ts";
-import { IMAGEKIT, PEOPLE, ROADMAP, SHARP } from "./push.ts";
+import { UNPIC, PEOPLE, ROADMAP, PIXELMILL } from "./push.ts";
 
 // Pending changes as plain objects, for the changes gallery: every kind,
 // every status, from a few people.
@@ -36,14 +36,14 @@ export function change(
 	};
 }
 
-const key = (item: string) => `${IMAGEKIT}${item}`;
+const key = (item: string) => `${UNPIC}${item}`;
 
 /** One of everything, in two repositories plus one without the app. */
 export function everyKind(): PendingChange[] {
 	const migration = change(
 		{
 			kind: "issue.create",
-			repo: IMAGEKIT,
+			repo: UNPIC,
 			title: "Write the 5.0 migration guide",
 			body: "Before the code: what changes, why, and a codemod where we can.\n\n- [x] list the breaking changes\n- [ ] draft the guide\n\ncc @jo",
 			labels: ["docs"],
@@ -57,7 +57,7 @@ export function everyKind(): PendingChange[] {
 		change(
 			{
 				kind: "issue.create",
-				repo: IMAGEKIT,
+				repo: UNPIC,
 				title: "Better errors when the CDN isn’t recognised",
 				body: "When `detect()` can’t match a URL it silently falls back to the default provider.\n\n**Instead**, warn once with the URL.",
 				labels: ["enhancement", "provider"],
@@ -117,7 +117,7 @@ export function everyKind(): PendingChange[] {
 		change(
 			{
 				kind: "pr.create",
-				repo: IMAGEKIT,
+				repo: UNPIC,
 				title: "Decision: drop Node 18 in 5.0",
 				body: "Records the decision from the planning board.",
 				branch: "tack/decision-drop-node-18",
@@ -142,10 +142,14 @@ export function everyKind(): PendingChange[] {
 			"tom",
 			{ minutesAgo: 4 },
 		),
-		change({ kind: "item.labels", target: { key: `${SHARP}#4012` }, add: ["question"] }, "tom", {
-			minutesAgo: 3,
-			leftOut: true,
-		}),
+		change(
+			{ kind: "item.labels", target: { key: `${PIXELMILL}#4012` }, add: ["question"] },
+			"tom",
+			{
+				minutesAgo: 3,
+				leftOut: true,
+			},
+		),
 	];
 }
 
@@ -157,7 +161,7 @@ export function someStaged(): PendingChange[] {
 		{
 			...(all[6] as PendingChange),
 			status: "failed",
-			error: "Milestone “5.0” is closed on acme/imagekit",
+			error: "Milestone “5.0” is closed on acme/unpic",
 		},
 		...all.slice(7, 9),
 	];
@@ -169,12 +173,12 @@ export function someStaged(): PendingChange[] {
  * out; one moved instead; and a blocked-by that would make a loop.
  */
 export function secondParent(): PendingChange[] {
-	const parent = change({ kind: "issue.create", repo: IMAGEKIT, title: "Resizing" }, "ascorbic", {
+	const parent = change({ kind: "issue.create", repo: UNPIC, title: "Resizing" }, "ascorbic", {
 		minutesAgo: 3,
 		status: "applied",
 		pushId: "gallery-push",
 		pushedAs: "user",
-		result: { key: key("#8"), url: "https://fake.tack/acme/imagekit/issues/8" },
+		result: { key: key("#8"), url: "https://fake.tack/acme/unpic/issues/8" },
 	});
 	const refusal = (n: number) =>
 		change(
@@ -254,11 +258,11 @@ export function midPush(): PendingChange[] {
 				pushedAs: "user",
 				result:
 					status === "applied" || status === "sent"
-						? { key: key(`#${530 + i}`), url: `https://fake.tack/acme/imagekit/issues/${530 + i}` }
+						? { key: key(`#${530 + i}`), url: `https://fake.tack/acme/unpic/issues/${530 + i}` }
 						: undefined,
 				error:
 					status === "failed"
-						? "Tack's GitHub App doesn't have permission to assign people in acme/imagekit. An owner of the repository may need to accept the app's new permissions."
+						? "Tack's GitHub App doesn't have permission to assign people in acme/unpic. An owner of the repository may need to accept the app's new permissions."
 						: undefined,
 				errorDetail:
 					status === "failed"

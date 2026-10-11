@@ -19,8 +19,8 @@ const CHECK_NAMES = [
 	"e2e (webkit)",
 	"bundle size",
 	"docs / links",
-	"codecov/patch",
-	"netlify/deploy-preview",
+	"coverage/patch",
+	"preview/deploy",
 	"test (node 22, ubuntu)",
 	"e2e (chromium)",
 ];

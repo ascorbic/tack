@@ -45,8 +45,8 @@ import { GroupTheseGallery } from "./StackGallery.tsx";
 // Every state of the selection actions (#32, #33): the bars, each picker
 // and panel, and the warnings. `/play/actions`.
 
-const REPO = "fake.tack/acme/imagekit";
-const UPSTREAM = "fake.tack/lovell/sharp";
+const REPO = "fake.tack/acme/unpic";
+const UPSTREAM = "fake.tack/pixelmill/pixelmill";
 const meta = fakeMeta(REPO);
 
 const REPOS = [
@@ -221,7 +221,7 @@ function useBlockedDoc() {
 
 const NODE18 = RELATED_CARDS[0];
 const NODE18_RELATED = NODE18 ? relatedFor(NODE18.key) : null;
-const ON_BOARD = new Set(["fake.tack/acme/imagekit#444"]);
+const ON_BOARD = new Set(["fake.tack/acme/unpic#444"]);
 const NONE = { add: 0, connect: 0, links: 0 };
 
 /** Expand related's panel in each state it can be in. */

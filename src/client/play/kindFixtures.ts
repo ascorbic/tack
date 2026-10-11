@@ -69,7 +69,7 @@ export function reviewCards(now: number): Card[] {
 		),
 		pull(
 			"#455",
-			"Add a Cloudflare Images provider",
+			"Add a Glint Images provider",
 			9 * DAY,
 			[612, 48, 11],
 			{ reviewers: [you, team] },
@@ -88,7 +88,7 @@ export function reviewCards(now: number): Card[] {
 		),
 		pull(
 			"#461",
-			"Move the docs site to Astro 5",
+			"Move the docs site to emdash",
 			3 * DAY,
 			[2210, 1904, 63],
 			{ checks: makeChecks({ passed: 6, pending: 5 }), reviewers: [you] },
@@ -120,7 +120,7 @@ export function reviewCards(now: number): Card[] {
 		),
 		pull(
 			"#469",
-			"Bump sharp to 0.34",
+			"Bump pixelmill to 0.34",
 			1 * DAY,
 			[3, 3, 1],
 			{ review: "approved", reviewers: [reviewer("kai", "approved")] },
@@ -229,7 +229,7 @@ export function staleCards(now: number): Card[] {
 			}),
 		}),
 		item(262, "Explain cache headers for each CDN", 70, { labels: [LABELS.docs] }),
-		item(287, "Imgix: respect fit=facearea", 52, {
+		item(287, "Pixfold: respect fit=facearea", 52, {
 			labels: [LABELS.provider],
 			assignees: [PEOPLE.priya],
 			comments: 4,
@@ -239,7 +239,7 @@ export function staleCards(now: number): Card[] {
 			labels: [LABELS.enhancement],
 			comments: 3,
 		}),
-		item(336, "The Vue component doesn't forward refs", 31, {
+		item(336, "The image component doesn't forward refs", 31, {
 			labels: [MORE_LABELS.vue],
 			author: PEOPLE.kai,
 		}),

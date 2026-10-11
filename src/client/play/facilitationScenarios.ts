@@ -55,7 +55,7 @@ export const VOTE_CARDS = [
 	}),
 	fixture({
 		item: "#498",
-		title: "A Svelte 5 adapter",
+		title: "An emdash image plugin",
 		labels: [LABELS.enhancement],
 		thumbsUp: { count: 6, logins: ["kai", "dev"] },
 		reactions: 6,

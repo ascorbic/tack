@@ -241,7 +241,7 @@ export function RoadmapGallery() {
 					title="New timeline"
 					config={timelineConfig({ q: "" })}
 					state={{ kind: "unconfigured" }}
-					suggestions={[{ label: "Opened in imagekit", q: `repo:${REPO}` }]}
+					suggestions={[{ label: "Opened in unpic", q: `repo:${REPO}` }]}
 					selected
 				/>
 			),
@@ -500,7 +500,7 @@ export function RoadmapGallery() {
 					source="A search"
 					state={{ kind: "unconfigured" }}
 					suggestions={[
-						{ label: "Open issues in imagekit", run: () => {} },
+						{ label: "Open issues in unpic", run: () => {} },
 						{ label: "Cards in 5.0 launch", run: () => {} },
 					]}
 				/>

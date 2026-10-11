@@ -51,9 +51,9 @@ export const PEOPLE: Record<string, Stager> = {
 	jo: { login: "jo", name: "Jo Rivera", color: "#5b5fc7" },
 };
 
-export const IMAGEKIT = "fake.tack/acme/imagekit";
+export const UNPIC = "fake.tack/acme/unpic";
 export const ROADMAP = "fake.tack/acme/roadmap";
-export const SHARP = `fake.tack/${UPSTREAM}`;
+export const PIXELMILL = `fake.tack/${UPSTREAM}`;
 
 /** How the pretend server answers. */
 export type PushMode =
@@ -76,7 +76,7 @@ export const PUSH_MODES: { mode: PushMode; label: string }[] = [
 ];
 
 const ERRORS = [
-	"Label “wontfix” doesn’t exist in acme/imagekit",
+	"Label “wontfix” doesn’t exist in acme/unpic",
 	"GitHub accepted it, but it never showed up. Reconciliation found nothing",
 	"Validation Failed: title is too long (maximum is 256 characters)",
 ];
@@ -87,7 +87,7 @@ let nextNumber = 520;
  * Every playground repository's metadata, from the same fakes the
  * selection actions' pickers use (play/writes.ts), so the pretend push
  * server, the push sheet and the pickers agree. Repositories under
- * `lovell/` don't have the app.
+ * `pixelmill/` don't have the app.
  */
 export function playMeta(repo: string): RepoMeta {
 	return (
@@ -296,7 +296,7 @@ export class SimulatedPush implements PushClient {
 		created: Map<string, string>,
 	): { key?: string; url?: string } {
 		const op = resolveTargets(change.op, created) ?? change.op;
-		const repo = changeRepo(change, indexChanges(listChanges(this.doc))) ?? IMAGEKIT;
+		const repo = changeRepo(change, indexChanges(listChanges(this.doc))) ?? UNPIC;
 		const path = repoName(repo);
 		if (op.kind === "issue.create" || op.kind === "pr.create" || op.kind === "discussion.create") {
 			const number = nextNumber++;
@@ -331,7 +331,7 @@ export class SimulatedPush implements PushClient {
 			case "issue.create": {
 				const key = created.get(change.id);
 				if (!key) return;
-				const [, path = "acme/imagekit"] = /^[^/]+\/(.+)#\d+$/.exec(key) ?? [];
+				const [, path = "acme/unpic"] = /^[^/]+\/(.+)#\d+$/.exec(key) ?? [];
 				const card = fixture({
 					repo: path,
 					item: key.slice(key.lastIndexOf("#")),
@@ -374,7 +374,7 @@ export class SimulatedPush implements PushClient {
 			case "pr.create": {
 				const key = created.get(change.id);
 				if (!key) return;
-				const [, path = "acme/imagekit"] = /^[^/]+\/(.+)#\d+$/.exec(key) ?? [];
+				const [, path = "acme/unpic"] = /^[^/]+\/(.+)#\d+$/.exec(key) ?? [];
 				const card = fixture({
 					repo: path,
 					item: key.slice(key.lastIndexOf("#")),
@@ -489,7 +489,7 @@ export function pastPushes(now = Date.now()): AuditEntry[] {
 					id: "p2a",
 					summary: "Create issue “Benchmark AVIF against WebP”",
 					status: "applied",
-					url: "https://fake.tack/acme/imagekit/issues/431",
+					url: "https://fake.tack/acme/unpic/issues/431",
 				},
 				{ id: "p2b", summary: "Add performance to #431", status: "applied" },
 				{
@@ -510,13 +510,13 @@ export function pastPushes(now = Date.now()): AuditEntry[] {
 					id: "p1a",
 					summary: "Close #391 as completed",
 					status: "applied",
-					url: "https://fake.tack/acme/imagekit/issues/391",
+					url: "https://fake.tack/acme/unpic/issues/391",
 				},
 				{
 					id: "p1b",
 					summary: "Comment on #409",
 					status: "applied",
-					url: "https://fake.tack/acme/imagekit/pull/409",
+					url: "https://fake.tack/acme/unpic/pull/409",
 				},
 			],
 		},

@@ -31,7 +31,7 @@ export function fakeMeta(repo: string): RepoMeta | null {
 	const name = repo.split("/").slice(1).join("/");
 	if (!name.includes("/")) return null;
 	// The upstream repository doesn't have the app: read-only.
-	const writable = !name.startsWith("lovell/");
+	const writable = !name.startsWith("pixelmill/");
 	return {
 		repo,
 		labels: [
@@ -140,7 +140,7 @@ const CARDS: Card[] = [
 	}),
 	fixture({
 		item: "#377",
-		title: "Custom domains aren’t detected for Cloudinary",
+		title: "Custom domains aren’t detected for Skyfold",
 		labels: [LABELS.bug, LABELS.provider],
 		comments: 9,
 		visibility: "public",

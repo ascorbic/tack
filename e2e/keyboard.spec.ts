@@ -107,7 +107,7 @@ test("Home and End reach shapes out of view, bringing them into it", async ({ pa
 	await page.keyboard.press("End");
 	const last = focused(page);
 	await expect(last).toHaveAccessibleName(
-		"imagekit #477: Blurhash placeholders, open issue, in Ideas",
+		"unpic #477: Blurhash placeholders, open issue, in Ideas",
 	);
 	await settleCanvas(page);
 	await expect(last).toBeInViewport({ ratio: 1 });
@@ -118,7 +118,7 @@ test("Home and End reach shapes out of view, bringing them into it", async ({ pa
 test("Tab past the last shape leaves the board, and Tab back returns to it", async ({ page }) => {
 	await intoBoard(page);
 	await page.keyboard.press("End");
-	await expect(focused(page)).toHaveAccessibleName(/^imagekit #477/);
+	await expect(focused(page)).toHaveAccessibleName(/^unpic #477/);
 	await page.keyboard.press("Tab");
 	await expect(focused(page)).toHaveCount(0);
 	const outside = await page.evaluate(
@@ -128,13 +128,13 @@ test("Tab past the last shape leaves the board, and Tab back returns to it", asy
 	);
 	expect(outside).toBe(true);
 	await page.keyboard.press("Shift+Tab");
-	await expect(focused(page)).toHaveAccessibleName(/^imagekit #477/);
+	await expect(focused(page)).toHaveAccessibleName(/^unpic #477/);
 });
 
 test("O opens the item behind the card you're on", async ({ page }) => {
 	await intoBoard(page);
 	await page.keyboard.press("End");
-	await expect(focused(page)).toHaveAccessibleName(/^imagekit #477/);
+	await expect(focused(page)).toHaveAccessibleName(/^unpic #477/);
 	await page.evaluate(() => {
 		window.open = (url) => {
 			document.body.dataset.opened = String(url);

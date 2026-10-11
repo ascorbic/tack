@@ -14,7 +14,7 @@ import { LABELS, PLANNING_CARDS, fixture } from "./fixtures.ts";
 // without a server, and cards an inbox, a rule and a list brought, one of
 // which no longer matches.
 
-const REPO = "acme/imagekit";
+const REPO = "acme/unpic";
 const key = (n: number, repo = REPO) => `fake.tack/${repo}#${n}`;
 
 const node18 = PLANNING_CARDS.find((card) => card.item === "#412") as Card;
@@ -59,7 +59,7 @@ export const RELATED_CARDS: Card[] = [
 	}),
 	fixture({
 		item: "#444",
-		title: "Upgrade sharp to 0.34 first",
+		title: "Upgrade pixelmill to 0.34 first",
 		labels: [LABELS.bug],
 		comments: 7,
 		visibility: "public",
@@ -113,7 +113,7 @@ export const RELATED_CARDS: Card[] = [
 	}),
 	fixture({
 		item: "#453",
-		title: "Astro adapter warns during SSR build",
+		title: "Web component warns during SSR build",
 		labels: [LABELS.bug],
 		visibility: "public",
 	}),

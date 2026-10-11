@@ -119,7 +119,7 @@ test("a shape that can't be drawn says so in its place, and the board carries on
 	await expect(broken).toBeVisible();
 	expect((await report).request().postDataJSON()).toMatchObject({ source: "boundary" });
 	// Everything else is still there.
-	await expect(page.getByText("Custom domains aren’t detected for Cloudinary")).toBeVisible();
+	await expect(page.getByText("Custom domains aren’t detected for Skyfold")).toBeVisible();
 	await expect(page.getByRole("toolbar", { name: "Tools" })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Something came unstuck" })).toHaveCount(0);
 

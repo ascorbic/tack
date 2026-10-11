@@ -84,7 +84,7 @@ const SAMPLES: Sample[] = [
 		label: "Votes coming in, you agree",
 		status: "proposed",
 		props: {
-			title: "Require Node 20 in imagekit 5.0",
+			title: "Require Node 20 in unpic 5.0",
 			text: "Node 18 is end-of-life in April. Keeping it costs a CI runner per job and blocks the native fetch cleanup.",
 			votes: votes(
 				[PRIYA, "agree"],
@@ -145,7 +145,7 @@ const SAMPLES: Sample[] = [
 				kind: "discussion",
 				status: "applied",
 				label: "Decisions",
-				url: "https://fake.tack/acme/imagekit/discussions/18",
+				url: "https://fake.tack/acme/unpic/discussions/18",
 			},
 		},
 	},
@@ -172,7 +172,7 @@ const SAMPLES: Sample[] = [
 			votes: votes([KAI, "agree"], [PRIYA, "disagree"]),
 			decidedBy: KAI,
 			decidedAt: "2026-03-02T10:00:00Z",
-			supersededBy: { title: "Require Node 20 in imagekit 5.0" },
+			supersededBy: { title: "Require Node 20 in unpic 5.0" },
 		},
 	},
 	{
@@ -190,7 +190,7 @@ const SAMPLES: Sample[] = [
 		label: "View only",
 		status: "proposed",
 		props: {
-			title: "Require Node 20 in imagekit 5.0",
+			title: "Require Node 20 in unpic 5.0",
 			text: "Node 18 is end-of-life in April.",
 			votes: votes([PRIYA, "agree"], [TOM, "disagree"]),
 			author: PRIYA,

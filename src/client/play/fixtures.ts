@@ -4,7 +4,7 @@ import { makeChecks, pullDetails, reviewer } from "./ci.ts";
 
 // Fixture cards on the fake forge, for the playground and gallery.
 
-const REPO = "acme/imagekit";
+const REPO = "acme/unpic";
 
 type Overrides = Partial<Card> & Pick<Card, "title">;
 
@@ -76,7 +76,7 @@ export const PLANNING_CARDS: Card[] = [
 	}),
 	fixture({
 		item: "#377",
-		title: "Custom domains aren’t detected for Cloudinary",
+		title: "Custom domains aren’t detected for Skyfold",
 		labels: [LABELS.bug, LABELS.provider],
 		comments: 9,
 		reactions: 31,
@@ -85,14 +85,14 @@ export const PLANNING_CARDS: Card[] = [
 		item: "#409",
 		kind: "pull",
 		state: "merged",
-		title: "Document the Bunny provider",
+		title: "Document the Wombat provider",
 		labels: [LABELS.docs],
 		comments: 3,
 		pull: pullDetails({
 			checks: makeChecks({ passed: 9, skipped: 2 }),
 			review: "approved",
 			reviewers: [reviewer("jo", "approved")],
-			linked: [linked("#391", "Bunny provider has no docs", "closed")],
+			linked: [linked("#391", "Wombat provider has no docs", "closed")],
 		}),
 	}),
 	fixture({
@@ -106,7 +106,7 @@ export const PLANNING_CARDS: Card[] = [
 		item: "#423",
 		kind: "pull",
 		state: "draft",
-		title: "Add ImageKit transformations",
+		title: "Add Pictura transformations",
 		labels: [LABELS.provider, LABELS.goodFirst],
 		comments: 1,
 		pull: pullDetails({
@@ -126,7 +126,7 @@ export const GALLERY_CARDS: { label: string; card: Card }[] = [
 		card: fixture({
 			state: "closed",
 			stateReason: "completed",
-			title: "Netlify provider ignores quality=auto",
+			title: "Portside provider ignores quality=auto",
 			comments: 4,
 		}),
 	},
@@ -150,7 +150,7 @@ export const PULL_GALLERY: { label: string; card: Card }[] = [
 		label: "Checks running, review requested",
 		card: fixture({
 			kind: "pull",
-			title: "Support signed URLs for Cloudinary",
+			title: "Support signed URLs for Skyfold",
 			labels: [LABELS.provider],
 			comments: 2,
 			pull: pullDetails({
@@ -170,7 +170,7 @@ export const PULL_GALLERY: { label: string; card: Card }[] = [
 				checks: makeChecks({ passed: 9, failed: 2 }),
 				review: "changes_requested",
 				reviewers: [reviewer("priya", "changes_requested"), reviewer("kai", "approved")],
-				linked: [linked("#377", "Custom domains aren’t detected for Cloudinary")],
+				linked: [linked("#377", "Custom domains aren’t detected for Skyfold")],
 			}),
 		}),
 	},
@@ -178,14 +178,14 @@ export const PULL_GALLERY: { label: string; card: Card }[] = [
 		label: "All green, approved",
 		card: fixture({
 			kind: "pull",
-			title: "Add width and height to the Vercel docs example",
+			title: "Add width and height to the Larkspur docs example",
 			labels: [LABELS.docs],
 			comments: 1,
 			pull: pullDetails({
 				checks: makeChecks({ passed: 14, skipped: 2 }),
 				review: "approved",
 				reviewers: [reviewer("jo", "approved"), reviewer("kai", "approved")],
-				linked: [linked("#402", "Vercel example is missing dimensions")],
+				linked: [linked("#402", "Larkspur example is missing dimensions")],
 			}),
 		}),
 	},
@@ -260,7 +260,7 @@ export const PULL_GALLERY: { label: string; card: Card }[] = [
 ];
 
 /** A public upstream repository the app isn't installed on: read lazily, not live (#9). */
-export const UPSTREAM = "lovell/sharp";
+export const UPSTREAM = "pixelmill/pixelmill";
 
 /** Cards from repositories with and without the app, and private references (#9, #10). */
 export const ACCESS_GALLERY: { label: string; card: Card }[] = [

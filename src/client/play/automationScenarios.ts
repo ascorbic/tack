@@ -12,7 +12,7 @@ import { LABELS, PLANNING_CARDS, fixture } from "./fixtures.ts";
 // Scenarios for inbox frames and rules (M3): a triage board whose inbox
 // fills itself, and a board with rules that place cards as webhooks arrive.
 
-const REPO = "acme/imagekit";
+const REPO = "acme/unpic";
 const HOST = "fake.tack";
 const AUTHOR = { name: "Priya Shah", color: "#b4467a" };
 
@@ -21,7 +21,7 @@ function untriaged(): Card[] {
 	return [
 		fixture({ item: "#501", title: "Width is ignored when `fill` is set", comments: 2 }),
 		fixture({ item: "#502", title: "Contentful provider drops focal point", comments: 0 }),
-		fixture({ item: "#503", title: "Add an example for Remix", comments: 4 }),
+		fixture({ item: "#503", title: "Add an example for emdash", comments: 4 }),
 		fixture({ item: "#504", title: "srcset has duplicate entries at 3x", comments: 1 }),
 		fixture({ item: "#505", title: "Support `quality` per breakpoint", comments: 7 }),
 	];
@@ -32,13 +32,13 @@ export const TRIAGE_QUERY = `repo:${REPO} is:issue is:open no:label`;
 export function seedInbox(doc: Y.Doc): void {
 	const sorted = fixture({
 		item: "#498",
-		title: "Cloudflare Images: wrong default format",
+		title: "Glint Images: wrong default format",
 		// Labelled since it was sorted: it no longer matches the inbox.
 		labels: [LABELS.bug, LABELS.provider],
 	});
 	const triaged = fixture({ item: "#497", title: "Docs: the `unpic` CLI flags", labels: [] });
 	const elsewhere = [
-		fixture({ item: "#480", title: "Next.js 15 app router support", labels: [LABELS.enhancement] }),
+		fixture({ item: "#480", title: "Streaming SSR support", labels: [LABELS.enhancement] }),
 		fixture({ item: "#470", title: "Old issue that is closed", state: "closed", labels: [] }),
 	];
 	seedForge([...untriaged(), sorted, triaged, ...elsewhere]);

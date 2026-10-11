@@ -26,7 +26,7 @@ import { RELEASE_PULLS, relatedOf, releaseOf, stampTimes } from "./roadmap.ts";
 // pushes change the fake items and lists refresh, as webhooks would make
 // them. Modes slow every answer down, or fail them, to show each state.
 
-export const REPO = "acme/imagekit";
+export const REPO = "acme/unpic";
 
 const T = (days: number) => new Date(Date.UTC(2026, 9, 9) - days * 86_400_000).toISOString();
 
@@ -34,7 +34,7 @@ const T = (days: number) => new Date(Date.UTC(2026, 9, 9) - days * 86_400_000).t
 export const WIDGET_CARDS: Card[] = [
 	fixture({
 		item: "#431",
-		title: "Cloudinary URLs lose the format when resized twice",
+		title: "Skyfold URLs lose the format when resized twice",
 		labels: [LABELS.bug, LABELS.provider],
 		assignees: [PEOPLE.kai],
 		comments: 6,
@@ -42,14 +42,14 @@ export const WIDGET_CARDS: Card[] = [
 	}),
 	fixture({
 		item: "#430",
-		title: "Netlify provider ignores quality=auto",
+		title: "Portside provider ignores quality=auto",
 		labels: [LABELS.bug],
 		comments: 2,
 		updatedAt: T(0.3),
 	}),
 	fixture({
 		item: "#429",
-		title: "Add a Vercel OG image recipe to the docs",
+		title: "Add a Larkspur OG image recipe to the docs",
 		labels: [LABELS.docs, LABELS.goodFirst],
 		comments: 1,
 		updatedAt: T(0.5),
@@ -90,21 +90,21 @@ export const WIDGET_CARDS: Card[] = [
 		item: "#424",
 		kind: "pull",
 		state: "draft",
-		title: "Add ImageKit transformations",
+		title: "Add Pictura transformations",
 		labels: [LABELS.provider, LABELS.goodFirst],
 		updatedAt: T(1.6),
 		pull: pullDetails({ checks: makeChecks({ passed: 4, pending: 3 }) }),
 	}),
 	fixture({
 		item: "#422",
-		title: "Bunny CDN: support the optimizer class",
+		title: "Wombat CDN: support the optimizer class",
 		labels: [LABELS.provider, LABELS.enhancement],
 		comments: 5,
 		updatedAt: T(2),
 	}),
 	fixture({
 		item: "#421",
-		title: "Typo in the Astro guide",
+		title: "Typo in the emdash guide",
 		labels: [LABELS.docs, LABELS.goodFirst],
 		updatedAt: T(2.5),
 	}),
@@ -162,7 +162,7 @@ export const WIDGET_CARDS: Card[] = [
 		item: "#411",
 		kind: "pull",
 		state: "merged",
-		title: "Document the Bunny provider",
+		title: "Document the Wombat provider",
 		labels: [LABELS.docs],
 		updatedAt: T(7),
 		pull: pullDetails({ checks: makeChecks({ passed: 9 }), review: "approved" }),

@@ -3,7 +3,7 @@ import { expect, openScenario, test } from "./fixtures.ts";
 
 // Adding issues and pull requests at session speed (the card tool, pasted
 // links) on the /play "arrange" board, whose cards are the playground's
-// acme/imagekit fixtures, and what a click on a card does.
+// acme/unpic fixtures, and what a click on a card does.
 
 /** The board's cards, from its document (React Flow only draws those in view). */
 function cardIds(page: Page): Promise<string[]> {
@@ -91,14 +91,14 @@ test("the card tool searches the board's repository, and says what's already her
 	// One already on the board isn't added again: it's shown, with a copy on offer.
 	await options.filter({ hasText: "Drop Node 18 support" }).click();
 	const status = page.locator(".card-status");
-	await expect(status).toContainText("imagekit#412 is already on the board");
+	await expect(status).toContainText("unpic#412 is already on the board");
 	expect(await added(page, before)).toHaveLength(1);
 	await status.getByRole("button", { name: "Add another copy" }).click();
 	await expect.poll(async () => (await added(page, before)).length).toBe(2);
 
 	// Words that match nothing, and junk, say so.
 	await field.fill("zebra crossing");
-	await expect(status).toContainText("Nothing in acme/imagekit matches");
+	await expect(status).toContainText("Nothing in acme/unpic matches");
 	await field.fill("https://example.com/not/an/issue");
 	await field.press("Enter");
 	await expect(status).toContainText("not a link to an issue or pull request");
@@ -129,20 +129,20 @@ test("pasting links adds cards in free space, and a link Tack can't show says so
 }) => {
 	const before = await cardIds(page);
 	await page.mouse.move(640, 420);
-	await paste(page, "fake.tack/acme/imagekit#20\nhttps://fake.tack/acme/imagekit/issues/21");
+	await paste(page, "fake.tack/acme/unpic#20\nhttps://fake.tack/acme/unpic/issues/21");
 	await expect.poll(async () => (await added(page, before)).length).toBe(2);
 	await expect.poll(async () => overlapsOf(page, await added(page, before))).toEqual([]);
 
 	// Again: it's here already, so nothing's added, and the toast says why.
-	await paste(page, "fake.tack/acme/imagekit#20");
+	await paste(page, "fake.tack/acme/unpic#20");
 	// The one showing, not one still sliding away.
 	const toast = page.getByRole("status").locator('.toast:not([data-leaving="true"])');
-	await expect(toast).toContainText("imagekit#20 is already on the board");
+	await expect(toast).toContainText("unpic#20 is already on the board");
 	expect(await added(page, before)).toHaveLength(2);
 	await toast.getByRole("button", { name: "Add another copy" }).click();
 	await expect.poll(async () => (await added(page, before)).length).toBe(3);
 
-	await paste(page, "https://github.com/acme/imagekit/discussions/4");
+	await paste(page, "https://github.com/acme/unpic/discussions/4");
 	await expect(toast).toContainText("Added as a sticky");
 	await expect(page.locator(".react-flow__node-sticky", { hasText: "discussions/4" })).toHaveCount(
 		1,
@@ -174,7 +174,7 @@ test("a card's title selects it first; once selected, or with ⌘, it opens", as
 	// The ↗ beside its state opens it in one click.
 	await expect(card.getByRole("link", { name: "Open on the test forge" })).toHaveAttribute(
 		"href",
-		/fake\.tack\/acme\/imagekit\/412/,
+		/fake\.tack\/acme\/unpic\/412/,
 	);
 });
 

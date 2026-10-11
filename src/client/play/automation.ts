@@ -48,13 +48,13 @@ export function seedForge(items: Card[]): void {
 
 const NEW_ISSUES = [
 	"Blurry thumbnails on retina screens",
-	"Support AVIF in the Netlify provider",
+	"Support AVIF in the Portside provider",
 	"Docs: explain the `layout` prop",
-	"Imgix crop is ignored with fit=fill",
+	"Pixfold crop is ignored with fit=fill",
 	"Breakpoints are off by one at 640px",
 	"TypeScript: `priority` missing from types",
 	"Lazy loading fires too early in Safari",
-	"Add a Bunny CDN provider",
+	"Add a Wombat CDN provider",
 ];
 
 let nextNumber = 520;

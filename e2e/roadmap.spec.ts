@@ -30,7 +30,7 @@ function shapes(page: Page): Promise<(Shape & { id: string })[]> {
 
 const widget = (page: Page, kind: string) =>
 	page.locator(`.react-flow__node-widget:has(.widget-${kind})`);
-const key = (n: number) => `fake.tack/acme/imagekit#${n}`;
+const key = (n: number) => `fake.tack/acme/unpic#${n}`;
 
 /** Drag with the mouse in steps, as a person would. */
 async function drag(page: Page, from: Locator, to: { x: number; y: number }) {
@@ -60,11 +60,11 @@ test("the timeline plots what was opened, says what each is, and drags them out 
 	await expect(timeline.locator(".timeline-dot")).toHaveCount(count);
 	await expect(timeline.locator(".timeline-today")).toBeVisible();
 
-	const dot = timeline.getByRole("button", { name: /#430 Netlify provider/ });
+	const dot = timeline.getByRole("button", { name: /#430 Portside provider/ });
 	await dot.hover();
 	// Drawn over the page, so the widget's edges never cut it off.
 	const peek = page.getByRole("tooltip");
-	await expect(peek).toContainText("Netlify provider ignores quality=auto");
+	await expect(peek).toContainText("Portside provider ignores quality=auto");
 	await expect(peek).toContainText("Click to add it beside the timeline");
 
 	const self = (await shapes(page)).find((s) => s.widget === "timeline");
@@ -83,7 +83,7 @@ test("the timeline has a key, and a clicked item lands beside it as a card", asy
 	await expect(key_).toContainText("Merged PR");
 
 	const self = (await shapes(page)).find((s) => s.widget === "timeline");
-	const dot = timeline.getByRole("button", { name: /#430 Netlify provider/ });
+	const dot = timeline.getByRole("button", { name: /#430 Portside provider/ });
 	await dot.click();
 	await expect
 		.poll(async () => (await shapes(page)).find((s) => s.ref === key(430))?.provenance)
@@ -115,7 +115,7 @@ test("the release draft sorts what's merged, and copies its notes", async ({ pag
 	await expect(page.locator(".toast")).toContainText("Copied the notes for v5.4.0");
 	const notes = await page.evaluate(() => navigator.clipboard.readText());
 	expect(notes).toContain("## What's changed");
-	expect(notes).toContain("- Add an ImageKit provider (#446) by @ana");
+	expect(notes).toContain("- Add a Pictura provider (#446) by @ana");
 	expect(notes).toContain("Thanks to @kai, @ana, @priya");
 });
 
@@ -183,16 +183,12 @@ test("the widget tool adds a timeline, which opens its panel to be set up", asyn
 		.click();
 	const panel = page.getByRole("dialog", { name: "Edit timeline" });
 	await expect(panel).toBeVisible();
-	await panel.getByLabel("What to follow").fill("repo:acme/imagekit");
+	await panel.getByLabel("What to follow").fill("repo:acme/unpic");
 	await panel.getByLabel("What to follow").press("Enter");
 	await panel.getByRole("radio", { name: "Merged" }).click();
 	// The search it runs reads as chips, not a column of a character or two a line.
 	const runs = panel.getByLabel("The search it runs");
-	await expect(runs.locator(".widget-chip")).toHaveText([
-		"repo:acme/imagekit",
-		"is:pr",
-		/^merged:/,
-	]);
+	await expect(runs.locator(".widget-chip")).toHaveText(["repo:acme/unpic", "is:pr", /^merged:/]);
 	expect((await runs.boundingBox())!.height).toBeLessThan(80);
 	await panel.getByRole("button", { name: "Done" }).click();
 	const merged = page

@@ -40,7 +40,7 @@ import { SimulatedWidgets, WIDGET_CARDS, type WidgetMode, addWidgetCard } from "
 import { widgetStore } from "../widgets/store.ts";
 
 const NEW_BUGS = [
-	"Imgix provider drops the crop rectangle",
+	"Pixfold provider drops the crop rectangle",
 	"Lazy loading flickers in Firefox",
 	"Placeholder blur is the wrong colour on dark images",
 ];

@@ -43,7 +43,7 @@ function connectorEnds(page: Page) {
 test("draw a section around cards, then move it with them", async ({ page }) => {
 	await openScenario(page, "planning");
 	// The second row, so the section's title has room above it.
-	const first = card(page, "Document the Bunny provider");
+	const first = card(page, "Document the Wombat provider");
 	const second = card(page, "Keep Node 18 support");
 	const a = await box(first);
 	const b = await box(second);

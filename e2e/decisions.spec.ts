@@ -12,7 +12,7 @@ const decision = (page: Page, title: string) =>
 		has: page.getByRole("article", { name: `Decision: ${title}`, exact: true }),
 	});
 
-const PROPOSED = "Require Node 20 in imagekit 5.0";
+const PROPOSED = "Require Node 20 in unpic 5.0";
 
 /** What the board's document holds for the change a decision staged. */
 async function stagedChange(page: Page, title: string) {
@@ -123,16 +123,16 @@ test("deciding stamps it, then the write-back stages an ADR pull request", async
 	const dialog = page.getByRole("dialog", { name: PROPOSED });
 	await expect(dialog).toBeVisible();
 	// Numbered after the repository's records and the one staged on this board.
-	const path = "docs/decisions/0004-require-node-20-in-imagekit-5-0.md";
+	const path = "docs/decisions/0004-require-node-20-in-unpic-5-0.md";
 	await expect(dialog.getByRole("textbox", { name: "Folder" })).toHaveValue("docs/decisions");
 	await expect(dialog.locator(".writeback-preview-label")).toHaveText(path);
 	// The repository reads as a value, and the folder can be changed in place.
-	await expect(dialog.locator(".repo-value")).toContainText("acme/imagekit");
+	await expect(dialog.locator(".repo-value")).toContainText("acme/unpic");
 	const folder = dialog.getByRole("textbox", { name: "Folder" });
 	await folder.fill("docs/adr");
 	await folder.press("Enter");
 	await expect(dialog.locator(".writeback-preview-label")).toHaveText(
-		"docs/adr/0001-require-node-20-in-imagekit-5-0.md",
+		"docs/adr/0001-require-node-20-in-unpic-5-0.md",
 	);
 	await folder.fill("docs/decisions");
 	await folder.press("Enter");
@@ -169,15 +169,15 @@ test("deciding stamps it, then the write-back stages an ADR pull request", async
 		status: "staged",
 		op: {
 			kind: "pr.create",
-			repo: "fake.tack/acme/imagekit",
+			repo: "fake.tack/acme/unpic",
 			title: `ADR 0004: ${PROPOSED}`,
-			branch: "tack/adr-0004-require-node-20-in-imagekit-5-0",
+			branch: "tack/adr-0004-require-node-20-in-unpic-5-0",
 			files: [{ path }],
 		},
 	});
 	const content = (change as { op: { files: { content: string }[] } }).op.files[0]?.content;
 	expect(content).toContain("## Consequences\n\nUsers on 18 stay on 4.x.");
-	expect(content).toContain("fake.tack/acme/imagekit/412");
+	expect(content).toContain("fake.tack/acme/unpic/412");
 
 	// Nothing's written until a push; then it shows the pull request, live.
 	await page.getByRole("button", { name: "Push write-backs" }).click();

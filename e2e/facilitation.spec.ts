@@ -224,7 +224,7 @@ test.describe("dot voting", () => {
 		await expect(bar).toContainText(/closes in 2d [34]h/);
 		await expect(bar.getByRole("img", { name: "3 of 3 dots left" })).toBeVisible();
 		await bar.getByRole("button", { name: "Place dots" }).click();
-		const card = page.locator(".react-flow__node", { hasText: "A Svelte 5 adapter" });
+		const card = page.locator(".react-flow__node", { hasText: "An emdash image plugin" });
 		for (let i = 0; i < 3; i++) await card.click();
 		await expect(bar.getByRole("img", { name: "0 of 3 dots left" })).toBeVisible();
 		await card.click();

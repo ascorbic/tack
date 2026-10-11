@@ -434,7 +434,7 @@ export function KindGallery() {
 					<Sample state="stale-invalid" label="A search GitHub can't read" h={360}>
 						<StaleView
 							title={staleTitle(stale())}
-							config={stale({ q: "repo:acme/imagekit is:open label:" })}
+							config={stale({ q: "repo:acme/unpic is:open label:" })}
 							status={failed("invalid", "The search is missing a label after “label:”.")}
 							now={NOW}
 							onConfigure={() => {}}

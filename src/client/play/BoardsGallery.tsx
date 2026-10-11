@@ -146,7 +146,12 @@ async function fakeSuggest(q: string): Promise<ApiResult<PeopleSuggestions>> {
 
 /** The repositories of a board that's mostly ready, for the Share dialog's pre-flight. */
 const REPOS: BoardRepo[] = [
-	{ key: "github.com/lovell/sharp", name: "lovell/sharp", cards: 3, state: "readonly" },
+	{
+		key: "github.com/pixelmill/pixelmill",
+		name: "pixelmill/pixelmill",
+		cards: 3,
+		state: "readonly",
+	},
 	{ key: "github.com/emdash-cms/docs", name: "emdash-cms/docs", cards: 4, state: "loading" },
 	{ key: "github.com/emdash-cms/emdash", name: "emdash-cms/emdash", cards: 18, state: "ready" },
 ];

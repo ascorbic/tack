@@ -25,7 +25,7 @@ import type { Stager } from "../../shared/changes.ts";
 import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 import { seedRelated } from "./related.ts";
 import { seedWrites } from "./writes.ts";
-import { IMAGEKIT, PEOPLE, failChange, stageAs } from "./push.ts";
+import { UNPIC, PEOPLE, failChange, stageAs } from "./push.ts";
 import { seedRoadmap } from "./roadmap.ts";
 import { seedStacks } from "./stacks.ts";
 import { seedTracking, seedWidgets } from "./widgets.ts";
@@ -137,7 +137,7 @@ const BRAINSTORM: { theme: string; color: string; notes: string[] }[] = [
 			"Credit contributors in release notes",
 			"Write the migration guide first, then the code",
 			"Yes",
-			"Pair on the Astro adapter",
+			"Pair on the web component",
 			"Ship 5.0 beta by the end of the month",
 		],
 	},
@@ -189,7 +189,7 @@ function seedPush(doc: Y.Doc): void {
 		if (upstream) ids.set("upstream", card(doc, upstream.key, 40, 740));
 	});
 	const shape = (item: string) => ids.get(item) ?? "";
-	const key = (item: string) => `${IMAGEKIT}${item}`;
+	const key = (item: string) => `${UNPIC}${item}`;
 	nextAuthor = 0;
 	const errors = sticky(doc, "Better errors when the CDN isn’t recognised", "yellow", 980, 90);
 	const guide = sticky(doc, "Write the 5.0 migration guide first", "green", 1200, 110);
@@ -202,7 +202,7 @@ function seedPush(doc: Y.Doc): void {
 		doc,
 		{
 			kind: "issue.create",
-			repo: IMAGEKIT,
+			repo: UNPIC,
 			title: "Better errors when the CDN isn’t recognised",
 			body: "When `detect()` can’t match a URL to a provider, it silently falls back to the default and drops every transform.\n\n**Instead**, warn once with the URL and a link to the provider list:\n\n- say which URL didn’t match\n- suggest the closest provider\n- [ ] add a test for custom domains\n\nCame out of the 5.0 planning session. cc @kai",
 			labels: ["enhancement", "provider"],
@@ -214,7 +214,7 @@ function seedPush(doc: Y.Doc): void {
 		doc,
 		{
 			kind: "issue.create",
-			repo: IMAGEKIT,
+			repo: UNPIC,
 			title: "Write the 5.0 migration guide",
 			body: "Before the code: what changes, why, and a codemod where we can.",
 			labels: ["docs"],
@@ -278,12 +278,12 @@ function seedPush(doc: Y.Doc): void {
 		kai,
 		{ shapes: [shape("#409")], minutesAgo: 30 },
 	);
-	failChange(doc, milestone, "Milestone “5.0” is closed on acme/imagekit");
+	failChange(doc, milestone, "Milestone “5.0” is closed on acme/unpic");
 	stageAs(
 		doc,
 		{
 			kind: "pr.create",
-			repo: IMAGEKIT,
+			repo: UNPIC,
 			title: "Decision: drop Node 18 in 5.0",
 			body: "Records the decision from the planning board, so the reasoning lives next to the code.",
 			branch: "tack/decision-drop-node-18",
@@ -361,11 +361,11 @@ export const SCENARIOS: Record<string, Scenario> = {
 		seed(doc) {
 			const titles = [
 				"srcset width off by one at 2x density",
-				"Astro adapter warns during SSR build",
+				"Web component warns during SSR build",
 				"Type error with exactOptionalPropertyTypes",
 				"Support fit=cover in the Contentful provider",
 				"Shopify provider drops the crop parameter",
-				"Add width and height to the Vercel docs example",
+				"Add width and height to the Larkspur docs example",
 				"Images flicker when the layout changes",
 				"Unknown CDN should warn, not throw",
 				"Investigate AVIF quality defaults",
@@ -456,12 +456,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 					addCard(doc, card.key, { x: 60 + i * 300 + ((i * 37) % 50), y: 60 + ((i * 53) % 70) });
 				});
 				const notes = [
-					["Ship the Astro adapter first", "yellow"],
+					["Ship the web component first", "yellow"],
 					["Docs before features", "pink"],
 					["Who owns the CDN list?", "blue"],
 					["Benchmark AVIF vs WebP", "green"],
 					["Cut scope for 5.0", "purple"],
-					["Ask Kai about the Vercel example", "yellow"],
+					["Ask Kai about the Larkspur example", "yellow"],
 				] as const;
 				notes.forEach(([note, color], i) => {
 					const x = 80 + (i % 3) * 215 + ((i * 29) % 40);

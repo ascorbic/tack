@@ -151,7 +151,7 @@ test("a row dragged out becomes a card again, and dropped back joins where it la
 	await settled(page);
 	expect((await shapes(page))[id]?.parent).toBeNull();
 	const card = page.locator(".react-flow__node-card", {
-		has: page.locator(".card", { hasText: "Bunny" }),
+		has: page.locator(".card", { hasText: "Wombat" }),
 	});
 	await expect(card).toBeVisible();
 	await expect(page.locator(".display-row")).toHaveCount(9);

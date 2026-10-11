@@ -23,7 +23,7 @@ import {
 	someStaged,
 } from "./changeFixtures.ts";
 import { ACCESS_GALLERY, PLANNING_CARDS } from "./fixtures.ts";
-import { IMAGEKIT, SimulatedPush, pastPushes, playMeta } from "./push.ts";
+import { UNPIC, SimulatedPush, pastPushes, playMeta } from "./push.ts";
 import "./changesGallery.css";
 
 // Every pending-changes state: the top bar button, the panel, the marks on
@@ -37,7 +37,7 @@ for (const card of [...PLANNING_CARDS, ...ACCESS_GALLERY.map((entry) => entry.ca
 const ME: User = { name: "Ana Lima", color: "#7444c4", login: "ana" };
 const GUEST: User = { name: "Curious Otter", color: "#2a7ab0" };
 const meta = (repo: string) => playMeta(repo);
-const key = (item: string) => `${IMAGEKIT}${item}`;
+const key = (item: string) => `${UNPIC}${item}`;
 const card = (item: string) => PLANNING_CARDS.find((c) => c.item === item);
 
 /** A board's worth of changes UI around some fixture changes. */
@@ -128,7 +128,7 @@ function newIssueFromSticky(extra: Partial<PendingChange> = {}): PendingChange {
 	return change(
 		{
 			kind: "issue.create",
-			repo: IMAGEKIT,
+			repo: UNPIC,
 			title: "Better errors when the CDN isn’t recognised",
 			labels: ["enhancement"],
 		},
@@ -138,7 +138,7 @@ function newIssueFromSticky(extra: Partial<PendingChange> = {}): PendingChange {
 }
 
 function parentFromSection(extra: Partial<PendingChange> = {}): PendingChange {
-	return change({ kind: "issue.create", repo: IMAGEKIT, title: "Docs for 5.0" }, "kai", {
+	return change({ kind: "issue.create", repo: UNPIC, title: "Docs for 5.0" }, "kai", {
 		shapes: [STICKY_ID],
 		effect: { kind: "place", near: [STICKY_ID] },
 		...extra,
@@ -394,13 +394,13 @@ function settled(failures: number): PendingChange[] {
 						status: "applied" as const,
 						result: {
 							key: key(`#${540 + i}`),
-							url: `https://fake.tack/acme/imagekit/issues/${540 + i}`,
+							url: `https://fake.tack/acme/unpic/issues/${540 + i}`,
 						},
 					}
 				: {
 						...c,
 						status: "failed" as const,
-						error: "Label “wontfix” doesn’t exist in acme/imagekit",
+						error: "Label “wontfix” doesn’t exist in acme/unpic",
 					},
 		);
 }
@@ -428,12 +428,12 @@ function sheetSamples(): SheetSample[] {
 		{
 			label: "Refused: no write access",
 			changes: someStaged(),
-			state: refused("no_write_access", [IMAGEKIT]),
+			state: refused("no_write_access", [UNPIC]),
 		},
 		{
 			label: "Refused: app not installed",
 			changes: someStaged(),
-			state: refused("not_installed", [`fake.tack/lovell/sharp`]),
+			state: refused("not_installed", [`fake.tack/pixelmill/pixelmill`]),
 		},
 		{
 			label: "Refused: missing dependency",
@@ -441,7 +441,7 @@ function sheetSamples(): SheetSample[] {
 			state: refused(
 				"missing_dependency",
 				undefined,
-				"“Make “Write the migration guide” a sub-issue of new issue “Docs for 5.0”” needs “Create issue “Docs for 5.0” in acme/imagekit”, which isn’t in this push.",
+				"“Make “Write the migration guide” a sub-issue of new issue “Docs for 5.0”” needs “Create issue “Docs for 5.0” in acme/unpic”, which isn’t in this push.",
 			),
 		},
 		{ label: "Refused: someone else is pushing", changes: someStaged(), state: refused("busy") },

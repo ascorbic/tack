@@ -64,7 +64,7 @@ export const BACKLOG: Card[] = [
 	fixture({
 		item: "#450",
 		kind: "pull",
-		title: "Experimental Qwik adapter",
+		title: "Experimental lazy-loading strategies",
 		state: "draft",
 		pull: pullDetails({ checks: makeChecks({ passed: 2, failed: 1 }) }),
 	}),
@@ -77,7 +77,7 @@ export const BACKLOG: Card[] = [
 	}),
 	fixture({
 		item: "#455",
-		title: "Typo in the Astro guide",
+		title: "Typo in the emdash guide",
 		labels: [LABELS.docs, LABELS.goodFirst],
 	}),
 ];
@@ -150,10 +150,10 @@ export function seedLists(doc: Y.Doc): void {
 		grid(doc, PLANNING_CARDS.slice(0, 6), now, 70, 180).forEach((id, i) =>
 			ids.set(PLANNING_CARDS[i]?.item ?? "", id),
 		);
-		sticky(doc, "Pair on the Astro adapter", "yellow", 70, 790, now);
+		sticky(doc, "Pair on the web component", "yellow", 70, 790, now);
 		sticky(doc, "Write the migration guide first", "pink", 360, 790, now);
 		const decide = section(doc, "Needs a decision", "orange", 60, 1000, 580, 380, now);
-		sticky(doc, "Drop the Gatsby adapter?", "blue", 80, 1040, decide);
+		sticky(doc, "Drop the legacy entry point?", "blue", 80, 1040, decide);
 		sticky(doc, "Is AVIF worth the CPU?", "purple", 280, 1040, decide);
 		setDisplay(doc, [now], "list");
 

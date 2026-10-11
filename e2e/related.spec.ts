@@ -108,7 +108,7 @@ test("leaves out the groups switched off", async ({ page }) => {
 });
 
 test("says when the forge couldn't answer", async ({ page }) => {
-	await select(page, "Astro adapter warns");
+	await select(page, "Web component warns");
 	await page.keyboard.press("Alt+KeyE");
 	await expect(panel(page)).toContainText("rate limit is used up");
 	await expect(panel(page).getByRole("button", { name: "Try again" })).toBeVisible();

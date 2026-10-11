@@ -69,7 +69,7 @@ test.describe("comments", () => {
 	}) => {
 		await page.keyboard.press("b");
 		await expect(page.locator(".canvas")).toHaveAttribute("data-tool", "comment");
-		const sticky = page.locator(".react-flow__node", { hasText: "Pairing on the Astro adapter" });
+		const sticky = page.locator(".react-flow__node", { hasText: "Pairing on the web component" });
 		const box = (await sticky.boundingBox())!;
 		await page.mouse.click(box.x + 40, box.y + 40);
 		const composer = popover(page).getByRole("combobox", { name: "Add a comment" });

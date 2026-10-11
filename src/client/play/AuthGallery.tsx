@@ -80,13 +80,13 @@ const INSTALLATIONS: InstallationSummary[] = [
 	},
 	{
 		id: 2,
-		account: "lovell",
+		account: "pixelmill",
 		accountType: "User",
 		selection: "selected",
 		suspended: false,
 		writable: false,
 		settingsUrl: "https://github.com/settings/installations/2",
-		repositories: [{ name: "lovell/sharp", private: false }],
+		repositories: [{ name: "pixelmill/pixelmill", private: false }],
 		more: 0,
 	},
 	{
@@ -103,7 +103,7 @@ const INSTALLATIONS: InstallationSummary[] = [
 ];
 
 const installed = () =>
-	Promise.resolve({ installations: INSTALLATIONS, notInstalled: ["withastro/astro", "acme/new"] });
+	Promise.resolve({ installations: INSTALLATIONS, notInstalled: ["ascorbic/cirrus", "acme/new"] });
 const allLive = () =>
 	Promise.resolve({ installations: INSTALLATIONS.slice(0, 1), notInstalled: [] });
 const nowhere = () => Promise.resolve({ installations: [] });

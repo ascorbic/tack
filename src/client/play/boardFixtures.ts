@@ -157,7 +157,7 @@ const TITLES = [
 	"Sprint 42 retro",
 	"Docs restructure",
 	"Image CDN adapters",
-	"Astro integration ideas",
+	"emdash integration ideas",
 	"Bug bash, October",
 	"Perf budget",
 	"Contributor onboarding",

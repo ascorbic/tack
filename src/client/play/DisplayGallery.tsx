@@ -68,7 +68,7 @@ const CASES: Case[] = [
 		state: "sticky-hand",
 		shape: {
 			type: "sticky",
-			text: "Pair on the Astro adapter?",
+			text: "Pair on the web component?",
 			color: "green",
 			font: "hand",
 			author: KAI,

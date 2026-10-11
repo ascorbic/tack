@@ -87,7 +87,7 @@ export function seedCommentsRetro(doc: Y.Doc): void {
 			});
 		sticky(
 			RETRO.pairing,
-			"Pairing on the Astro adapter was great",
+			"Pairing on the web component was great",
 			"green",
 			80,
 			120,

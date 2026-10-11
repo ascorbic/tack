@@ -42,7 +42,7 @@ test("every sign-in, access and setup state renders", async ({ page }) => {
 	await expect(down.getByRole("alert")).toContainText("Couldn’t ask GitHub");
 	// Repositories on boards that the app isn't on.
 	const missing = installed.getByRole("region", { name: "On boards, without the app" });
-	await expect(missing.getByRole("listitem")).toHaveText(["withastro/astro", "acme/new"]);
+	await expect(missing.getByRole("listitem")).toHaveText(["ascorbic/cirrus", "acme/new"]);
 });
 
 test("the setup checklist says where an instance stands, and what to do next", async ({ page }) => {

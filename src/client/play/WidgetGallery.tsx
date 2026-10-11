@@ -112,7 +112,7 @@ const SAMPLES: Sample[] = [
 	},
 	{
 		label: "Nothing matches words, everywhere",
-		q: "bugs in imagekit",
+		q: "bugs in unpic",
 		status: { kind: "ready", result: result([]), at: NOW, stale: false },
 		h: 320,
 	},
@@ -130,13 +130,13 @@ const SAMPLES: Sample[] = [
 	},
 	{
 		label: "A search GitHub can't read",
-		q: "repo:acme/imagekit is:open label:",
+		q: "repo:acme/unpic is:open label:",
 		status: error(
 			"invalid",
 			// As the server says it: GitHub's own words, made plain.
 			plainSearchError(
 				"The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them.",
-				"repo:acme/imagekit is:open label:",
+				"repo:acme/unpic is:open label:",
 			),
 		),
 		h: 320,

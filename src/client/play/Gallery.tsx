@@ -41,7 +41,7 @@ const MISSING: { label: string; card: MissingCard }[] = [
 	},
 	{
 		label: "Not found",
-		card: { key: "fake.tack/acme/imagekit#9999", missing: true, reason: "not_found" },
+		card: { key: "fake.tack/acme/unpic#9999", missing: true, reason: "not_found" },
 	},
 	{
 		label: "Unsupported forge",
@@ -49,7 +49,7 @@ const MISSING: { label: string; card: MissingCard }[] = [
 	},
 	{
 		label: "Forge unreachable",
-		card: { key: "fake.tack/acme/imagekit#77", missing: true, reason: "error" },
+		card: { key: "fake.tack/acme/unpic#77", missing: true, reason: "error" },
 	},
 ];
 
@@ -476,7 +476,7 @@ function Sections({
 						<figcaption>Selected</figcaption>
 					</figure>
 					<figure>
-						<CardView card={undefined} cardKey="fake.tack/acme/imagekit#999" />
+						<CardView card={undefined} cardKey="fake.tack/acme/unpic#999" />
 						<figcaption>Loading</figcaption>
 					</figure>
 					{MISSING.map(({ label, card }) => (

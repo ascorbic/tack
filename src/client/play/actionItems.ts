@@ -14,7 +14,7 @@ import { instantiateTemplate } from "../../shared/templates.ts";
 import { cardStore } from "../cardStore.ts";
 import { clock } from "../clock.ts";
 import { fixture } from "./fixtures.ts";
-import { IMAGEKIT, PEOPLE } from "./push.ts";
+import { UNPIC, PEOPLE } from "./push.ts";
 
 // Action items in the playground (#52): one in every state, on a retro's
 // actions, and a board made from each built-in template (#53).
@@ -94,7 +94,7 @@ export function seedActionItems(doc: Y.Doc): void {
 		owner: OWNERS.jo,
 		due: at(12),
 	});
-	stageActionIssue(doc, staged, IMAGEKIT, PEOPLE.priya ?? { name: "Priya" });
+	stageActionIssue(doc, staged, UNPIC, PEOPLE.priya ?? { name: "Priya" });
 	item(760, 40, {
 		text: "Ask upstream about AVIF support",
 		owner: OWNERS.kai,
@@ -129,7 +129,7 @@ export function seedTemplate(id: string) {
 		const template = builtInTemplate(id);
 		if (!template) return;
 		instantiateTemplate(doc, template.content, {
-			repos: template.repos ? [IMAGEKIT] : [],
+			repos: template.repos ? [UNPIC] : [],
 			by: { name: "Priya Shah", login: "priya", color: "#b4467a" },
 		});
 	};

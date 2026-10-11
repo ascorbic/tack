@@ -59,7 +59,7 @@ test.beforeEach(async ({ page }) => {
 	await page.getByLabel("Playground controls").evaluate((el) => {
 		(el as HTMLElement).style.display = "none";
 	});
-	await expect(row(list(page, "Open bugs"), "Netlify provider")).toBeVisible();
+	await expect(row(list(page, "Open bugs"), "Portside provider")).toBeVisible();
 });
 
 test("lists show their search's matches, with a marker for what's on the board", async ({
@@ -67,10 +67,10 @@ test("lists show their search's matches, with a marker for what's on the board",
 }) => {
 	const bugs = list(page, "Open bugs");
 	await expect(bugs.locator(".widget-count")).toHaveText("6");
-	await expect(bugs.locator(".widget-chip").first()).toHaveText("repo:acme/imagekit");
+	await expect(bugs.locator(".widget-chip").first()).toHaveText("repo:acme/unpic");
 	// #431 is on the board already.
-	await expect(row(bugs, "Cloudinary URLs").locator(".widget-row-marker")).toBeVisible();
-	await expect(row(bugs, "Netlify provider").locator(".widget-row-marker")).toHaveCount(0);
+	await expect(row(bugs, "Skyfold URLs").locator(".widget-row-marker")).toBeVisible();
+	await expect(row(bugs, "Portside provider").locator(".widget-row-marker")).toHaveCount(0);
 	// A search for words that finds nothing says to check it, not to wait.
 	await expect(list(page, "Mentions flaky").getByText("Nothing matches this search")).toBeVisible();
 });
@@ -108,28 +108,28 @@ test("a list's settings open wholly on screen, beside it, even on the right-hand
 
 test("pointing at a row lights its card, and the other way round", async ({ page }) => {
 	const bugs = list(page, "Open bugs");
-	await row(bugs, "Cloudinary URLs").hover();
+	await row(bugs, "Skyfold URLs").hover();
 	await expect(page.locator(".card-link[data-linked]")).toHaveCount(1);
 	await page.mouse.move(5, 400);
 	await expect(page.locator(".card-link[data-linked]")).toHaveCount(0);
 
-	await page.locator(".react-flow__node-card", { hasText: "imagekit #431" }).hover();
-	await expect(row(bugs, "Cloudinary URLs")).toHaveAttribute("data-linked", "true");
+	await page.locator(".react-flow__node-card", { hasText: "unpic #431" }).hover();
+	await expect(row(bugs, "Skyfold URLs")).toHaveAttribute("data-linked", "true");
 });
 
 test("rows drag out onto the board as cards from the list", async ({ page }) => {
 	const bugs = list(page, "Open bugs");
 	const before = (await shapes(page)).filter((s) => s.type === "card").length;
 	const widget = (await shapes(page)).find((s) => s.config?.title === "Open bugs");
-	await drag(page, row(bugs, "Netlify provider"), { x: 640, y: 680 });
+	await drag(page, row(bugs, "Portside provider"), { x: 640, y: 680 });
 
 	await expect
 		.poll(async () => (await shapes(page)).filter((s) => s.type === "card").length)
 		.toBe(before + 1);
-	const card = (await shapes(page)).find((s) => s.ref === "fake.tack/acme/imagekit#430");
+	const card = (await shapes(page)).find((s) => s.ref === "fake.tack/acme/unpic#430");
 	expect(card?.provenance).toEqual({ via: "list", source: widget?.id });
 	// The list keeps its row, which now shows it's on the board.
-	await expect(row(bugs, "Netlify provider").locator(".widget-row-marker")).toBeVisible();
+	await expect(row(bugs, "Portside provider").locator(".widget-row-marker")).toBeVisible();
 	await expect(page.locator(".widget-ghost")).toHaveCount(0);
 });
 
@@ -142,17 +142,17 @@ test("a clicked row, or Enter on one, adds its card beside the list, then shows 
 	const widget = (await shapes(page)).find((s) => s.config?.title === "Open bugs");
 
 	// A click is a button press, not a drag: the card lands beside the list.
-	const netlify = row(bugs, "Netlify provider");
-	await expect(netlify.locator(".widget-row-main")).toHaveAttribute("role", "button");
-	await netlify.click();
+	const portside = row(bugs, "Portside provider");
+	await expect(portside.locator(".widget-row-main")).toHaveAttribute("role", "button");
+	await portside.click();
 	await expect.poll(async () => (await cards()).length).toBe(before + 1);
-	const card = (await shapes(page)).find((s) => s.ref === "fake.tack/acme/imagekit#430");
+	const card = (await shapes(page)).find((s) => s.ref === "fake.tack/acme/unpic#430");
 	expect(card?.provenance).toEqual({ via: "list", source: widget?.id });
-	await expect(netlify.locator(".widget-row-marker")).toBeVisible();
+	await expect(portside.locator(".widget-row-marker")).toBeVisible();
 	await expect(page.locator(".react-flow__node.selected")).toHaveCount(1);
 
 	// Clicked again, it's already there: shown, not added twice.
-	await netlify.click();
+	await portside.click();
 	await page.waitForTimeout(200);
 	expect((await cards()).length).toBe(before + 1);
 
@@ -174,7 +174,7 @@ test("a row dropped back on its list goes home", async ({ page }) => {
 	const bugs = list(page, "Open bugs");
 	const before = (await shapes(page)).length;
 	const box = await bugs.boundingBox();
-	await drag(page, row(bugs, "Netlify provider"), {
+	await drag(page, row(bugs, "Portside provider"), {
 		x: (box?.x ?? 0) + 150,
 		y: (box?.y ?? 0) + 300,
 	});
@@ -209,7 +209,7 @@ test("cards dropped on a list stage what makes them match, then push into it", a
 	expect((await changes(page)).map((c) => c.op)).toEqual([
 		{
 			kind: "item.labels",
-			target: { key: "fake.tack/acme/imagekit#425" },
+			target: { key: "fake.tack/acme/unpic#425" },
 			add: ["good first issue"],
 		},
 	]);
@@ -273,9 +273,9 @@ test("the widget tool adds lists, ready-made or to set up", async ({ page }) => 
 	await page.getByRole("group", { name: "Widgets" }).getByRole("button", { name: /^List/ }).click();
 	const panel = page.getByRole("dialog", { name: "Edit list" });
 	await expect(panel).toBeVisible();
-	await panel.getByLabel("Search").fill("repo:acme/imagekit is:open label:docs");
+	await panel.getByLabel("Search").fill("repo:acme/unpic is:open label:docs");
 	await panel.getByLabel("Search").press("Enter");
-	await expect(list(page, "Open items labelled docs in imagekit")).toBeVisible();
+	await expect(list(page, "Open items labelled docs in unpic")).toBeVisible();
 	expect((await shapes(page)).filter((s) => s.type === "widget").length).toBe(before + 2);
 });
 
@@ -283,20 +283,20 @@ test("a search in plain words gets a suggestion of what it meant", async ({ page
 	await page.keyboard.press("w");
 	await page.getByRole("group", { name: "Widgets" }).getByRole("button", { name: /^List/ }).click();
 	const panel = page.getByRole("dialog", { name: "Edit list" });
-	await panel.getByLabel("Search").fill("bugs in imagekit");
+	await panel.getByLabel("Search").fill("bugs in unpic");
 	await panel.getByLabel("Search").press("Enter");
 	// Read as GitHub reads it, it's three words, everywhere: nothing, ever.
 	await expect(panel.locator(".query-hint")).toContainText("Did you mean");
-	await expect(panel.getByLabel("Suggestion")).toContainText("repo:acme/imagekitlabel:bug");
+	await expect(panel.getByLabel("Suggestion")).toContainText("repo:acme/unpiclabel:bug");
 	await expect(panel.locator(".query-hint")).toContainText("“bugs” as the bug label");
-	const words = list(page, "Items mentioning “bugs in imagekit”");
+	const words = list(page, "Items mentioning “bugs in unpic”");
 	await expect(words.getByText("Nothing matches this search")).toBeVisible();
 
 	await panel.getByRole("button", { name: "Use this" }).click();
-	await expect(panel.getByLabel("Search")).toHaveValue("repo:acme/imagekit label:bug");
+	await expect(panel.getByLabel("Search")).toHaveValue("repo:acme/unpic label:bug");
 	await expect(panel.locator(".query-hint")).toHaveCount(0);
-	const bugs = list(page, "Items labelled bug in imagekit");
-	await expect(row(bugs, "Netlify provider")).toBeVisible();
+	const bugs = list(page, "Items labelled bug in unpic");
+	await expect(row(bugs, "Portside provider")).toBeVisible();
 });
 
 test("the gallery shows every widget state", async ({ page }) => {

@@ -63,7 +63,7 @@ test("the review queue puts the oldest first, with age, size, CI and reviews", a
 	expect(titles[0]).toBe("Drop the legacy URL parser");
 	expect(titles.at(-1)).toBe("Retry provider detection on timeouts");
 	// Approved, and not asked of you: not in your queue.
-	await expect(row(queue, "Bump sharp")).toHaveCount(0);
+	await expect(row(queue, "Bump pixelmill")).toHaveCount(0);
 	await expect(queue.locator(".review-stat").first()).toHaveText("Oldest 12d");
 	const preload = row(queue, "Preload the LCP image");
 	await expect(preload.locator(".review-age")).toHaveText("5d");
@@ -129,13 +129,13 @@ test("the stale finder groups by age, and its quick actions stage changes", asyn
 		"2–4 months",
 		"4 months+",
 	]);
-	const imgix = row(finder, "Imgix: respect fit=facearea");
-	await expect(imgix).toContainText("quiet 52 days");
+	const pixfold = row(finder, "Pixfold: respect fit=facearea");
+	await expect(pixfold).toContainText("quiet 52 days");
 
-	await imgix.hover();
-	await imgix.getByRole("button", { name: /as not planned/ }).click();
-	await expect(imgix.locator(".stale-staged")).toHaveText("Closing");
-	await expect(imgix).toHaveAttribute("data-closing", "true");
+	await pixfold.hover();
+	await pixfold.getByRole("button", { name: /as not planned/ }).click();
+	await expect(pixfold.locator(".stale-staged")).toHaveText("Closing");
+	await expect(pixfold).toHaveAttribute("data-closing", "true");
 	expect(await changes(page)).toEqual([
 		expect.objectContaining({
 			status: "staged",
@@ -143,16 +143,16 @@ test("the stale finder groups by age, and its quick actions stage changes", asyn
 				kind: "item.state",
 				state: "closed",
 				reason: "not_planned",
-				target: { key: "fake.tack/acme/imagekit#287" },
+				target: { key: "fake.tack/acme/unpic#287" },
 			}),
 		}),
 	]);
 
-	await imgix.hover();
-	await imgix.getByRole("button", { name: /still wanted/ }).click();
-	await expect(imgix.locator(".stale-staged")).toHaveText(["Closing", "Pinging"]);
+	await pixfold.hover();
+	await pixfold.getByRole("button", { name: /still wanted/ }).click();
+	await expect(pixfold.locator(".stale-staged")).toHaveText(["Closing", "Pinging"]);
 	// What the ping will say, before anything's pushed.
-	await expect(imgix.locator('.stale-staged[data-action="ping"]')).toHaveAttribute(
+	await expect(pixfold.locator('.stale-staged[data-action="ping"]')).toHaveAttribute(
 		"title",
 		/Will comment, as you: “.*has been quiet for/,
 	);
@@ -164,12 +164,12 @@ test("the stale finder groups by age, and its quick actions stage changes", asyn
 	await cli.getByRole("button", { name: /Label/ }).click();
 	expect((await changes(page)).find((c) => c.op.kind === "item.labels")?.op).toMatchObject({
 		add: ["stale"],
-		target: { key: "fake.tack/acme/imagekit#301" },
+		target: { key: "fake.tack/acme/unpic#301" },
 	});
 
 	// Unstaged from the row.
-	await imgix.getByRole("button", { name: /Unstage: closing/ }).click();
-	await expect(imgix.locator(".stale-staged")).toHaveText(["Pinging"]);
+	await pixfold.getByRole("button", { name: /Unstage: closing/ }).click();
+	await expect(pixfold.locator(".stale-staged")).toHaveText(["Pinging"]);
 	expect((await changes(page)).some((c) => c.op.kind === "item.state")).toBe(false);
 
 	// A whole group at once.
@@ -234,14 +234,14 @@ test("the widget tool adds each kind, set up from the board's repository", async
 		.click();
 	const panel = page.getByRole("dialog", { name: "Edit stale finder" });
 	await expect(panel).toBeVisible();
-	await panel.getByRole("button", { name: "Open issues in imagekit" }).click();
+	await panel.getByRole("button", { name: "Open issues in unpic" }).click();
 	await panel.getByRole("radio", { name: "2 months" }).click();
 	await panel.getByRole("button", { name: "Done" }).click();
 	const quiet = page
 		.locator(".react-flow__node-widget")
 		.filter({ has: page.getByRole("heading", { name: "Quiet for 2 months+" }) });
 	await expect(row(quiet, "Art direction with the picture element")).toBeVisible();
-	await expect(row(quiet, "Imgix")).toHaveCount(0);
+	await expect(row(quiet, "Pixfold")).toHaveCount(0);
 
 	expect((await shapes(page)).filter((s) => s.type === "widget").length).toBe(before + 2);
 });

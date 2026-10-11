@@ -63,7 +63,7 @@ async function marquee(page: Page, from: { x: number; y: number }, to: { x: numb
 test.beforeEach(async ({ page }) => openScenario(page, "arrange"));
 
 test("shift-click and shift-marquee add to the selection", async ({ page }) => {
-	const ship = await centre(sticky(page, "Ship the Astro"));
+	const ship = await centre(sticky(page, "Ship the web component"));
 	await page.mouse.click(ship.x, ship.y);
 	await page.keyboard.down("Shift");
 	const docs = await centre(sticky(page, "Docs before features"));
@@ -80,7 +80,7 @@ test("shift-click and shift-marquee add to the selection", async ({ page }) => {
 	await page.keyboard.press("Escape");
 	// Let the deselect land before starting a marquee that builds on it.
 	await expect(selected(page)).toHaveCount(0);
-	// Down the left column of stickies: "Ship the Astro…" and "Benchmark…".
+	// Down the left column of stickies: "Ship the web component…" and "Benchmark…".
 	await marquee(page, { x: 60, y: 380 }, { x: 120, y: 700 });
 	await expect(selected(page)).toHaveCount(2);
 	await expect(page.getByRole("toolbar", { name: "Arrange selection" })).toBeVisible();
@@ -96,7 +96,7 @@ test("shift-click and shift-marquee add to the selection", async ({ page }) => {
 test("a shift-marquee keeps the shapes already selected, and they move with it", async ({
 	page,
 }) => {
-	const left = [sticky(page, "Ship the Astro"), sticky(page, "Benchmark")];
+	const left = [sticky(page, "Ship the web component"), sticky(page, "Benchmark")];
 	const top = [sticky(page, "Docs before features"), sticky(page, "Who owns")];
 	// Select by clicking this time (the test above starts with a marquee).
 	const ship = await centre(left[0]!);
@@ -137,12 +137,12 @@ test("a shift-marquee keeps the shapes already selected, and they move with it",
 
 test("copy, paste, undo and redo", async ({ page }) => {
 	const count = await shapes(page).count();
-	const ship = await centre(sticky(page, "Ship the Astro"));
+	const ship = await centre(sticky(page, "Ship the web component"));
 	await page.mouse.click(ship.x, ship.y);
 	await page.keyboard.press("ControlOrMeta+c");
 	await page.keyboard.press("ControlOrMeta+v");
 	await expect(shapes(page)).toHaveCount(count + 1);
-	await expect(sticky(page, "Ship the Astro")).toHaveCount(2);
+	await expect(sticky(page, "Ship the web component")).toHaveCount(2);
 	// The copy is selected, on top of and offset from the original.
 	await expect(selected(page)).toHaveCount(1);
 
@@ -183,9 +183,9 @@ test("nudging moves by 1px, or 10px with Shift, as one undo step", async ({ page
 });
 
 test("dragging snaps to a neighbour's edge, with a guide", async ({ page }) => {
-	// "Benchmark" sits 7px right of "Ship the Astro"'s left edge.
+	// "Benchmark" sits 7px right of "Ship the web component"'s left edge.
 	const node = sticky(page, "Benchmark");
-	const target = await nodePosition(sticky(page, "Ship the Astro"));
+	const target = await nodePosition(sticky(page, "Ship the web component"));
 	const from = await centre(node);
 	await drag(page, from, { x: -5, y: 40 }, async () => {
 		await expect(page.locator(".guide[data-axis=x]").first()).toBeVisible();

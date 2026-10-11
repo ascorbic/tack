@@ -16,7 +16,7 @@ import { LABELS, fixture } from "./fixtures.ts";
 // searches, date qualifiers and all (`created:2026-09-01..2026-09-30`), go
 // through the shared matcher, as on the fake forges.
 
-const REPO = "acme/imagekit";
+const REPO = "acme/unpic";
 const DAY = 86_400_000;
 /** Times are relative to when the playground loaded, so “the last two weeks” always has something in it. */
 export const LOADED = Date.now();
@@ -97,10 +97,10 @@ const merged = (
 
 /** Pull requests merged since the latest release. */
 export const RELEASE_PULLS: Card[] = [
-	merged(447, "Respect the crop gravity on Bunny", [LABELS.bug, LABELS.provider], PEOPLE.kai, 0.6),
+	merged(447, "Respect the crop gravity on Wombat", [LABELS.bug, LABELS.provider], PEOPLE.kai, 0.6),
 	merged(
 		446,
-		"Add an ImageKit provider",
+		"Add a Pictura provider",
 		[LABELS.enhancement, LABELS.provider],
 		PEOPLE_MORE.ana,
 		1.2,
@@ -115,11 +115,11 @@ export const RELEASE_PULLS: Card[] = [
 	merged(444, "Explain the default breakpoints", [LABELS.docs], PEOPLE.jo, 3.5),
 	merged(443, "Fix double-encoded spaces in Contentful URLs", [LABELS.bug], PEOPLE.priya, 4.2),
 	merged(442, "Serve AVIF to Safari 16.4 and later", [LABELS.enhancement], PEOPLE.tom, 6.4),
-	merged(441, "Netlify: pass quality=auto through", [LABELS.bug], PEOPLE.kai, 8),
+	merged(441, "Portside: pass quality=auto through", [LABELS.bug], PEOPLE.kai, 8),
 	merged(440, "Tidy the provider test fixtures", [], PEOPLE_MORE.lee, 9.5),
 	merged(
 		439,
-		"A recipe for Astro's image service",
+		"A recipe for emdash's image fields",
 		[LABELS.docs, LABELS.goodFirst],
 		PEOPLE_MORE.ana,
 		12,
@@ -131,7 +131,7 @@ export const RELEASE_PULLS: Card[] = [
 		PEOPLE.priya,
 		15,
 	),
-	merged(437, "Keep the format when resizing Cloudinary URLs twice", [LABELS.bug], PEOPLE.kai, 19),
+	merged(437, "Keep the format when resizing Skyfold URLs twice", [LABELS.bug], PEOPLE.kai, 19),
 ];
 
 /** The repository's release, as the simulated server answers a `release` query. */

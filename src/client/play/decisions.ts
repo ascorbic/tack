@@ -22,7 +22,7 @@ import { fixture, PLANNING_CARDS } from "./fixtures.ts";
 // of the repository endpoints the write-back needs, and a stand-in for the
 // push that applies decisions' write-backs.
 
-const REPO = "fake.tack/acme/imagekit";
+const REPO = "fake.tack/acme/unpic";
 
 const PEOPLE = {
 	priya: { name: "Priya Shah", color: "#b4467a", login: "priya" },
@@ -34,7 +34,7 @@ const PEOPLE = {
 /** What the fake repository's docs/decisions holds. */
 export const EXISTING_RECORDS = [
 	"0001-record-architecture-decisions.md",
-	"0002-use-sharp-for-transforms.md",
+	"0002-use-pixelmill-for-transforms.md",
 	"README.md",
 ];
 
@@ -57,8 +57,8 @@ export const fakeRepoApi: RepoApi = {
 	},
 	async files(repo, path) {
 		await sleep(350);
-		// sharp keeps its records in adr/, as plenty of projects do.
-		const dir = repo.endsWith("/sharp") ? "adr" : "docs/decisions";
+		// pixelmill keeps its records in adr/, as plenty of projects do.
+		const dir = repo.endsWith("/pixelmill") ? "adr" : "docs/decisions";
 		return path === dir ? EXISTING_RECORDS : [];
 	},
 };
@@ -124,7 +124,7 @@ export function seedDecisions(doc: Y.Doc): SeededDecisions {
 		addDecision(doc, ids.proposed, {
 			x: 20,
 			y: 30,
-			title: "Require Node 20 in imagekit 5.0",
+			title: "Require Node 20 in unpic 5.0",
 			text: "Node 18 is end-of-life in April. Keeping it costs a CI runner per job and blocks the native fetch cleanup.",
 			author: PEOPLE.priya,
 		});
@@ -249,7 +249,7 @@ export async function pushWriteBacks(doc: Y.Doc, ms = 500): Promise<number> {
 			setChange(doc, change.id, "applied", { key: card.key, url: card.url });
 		} else if (op.kind === "discussion.create") {
 			setChange(doc, change.id, "applied", {
-				url: `https://fake.tack/acme/imagekit/discussions/${nextDiscussion++}`,
+				url: `https://fake.tack/acme/unpic/discussions/${nextDiscussion++}`,
 			});
 		}
 	}

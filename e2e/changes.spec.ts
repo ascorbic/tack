@@ -26,8 +26,8 @@ test.describe("pending changes panel", () => {
 
 		const groups = panel(page).locator(".changes-group");
 		await expect(groups).toHaveCount(2);
-		await expect(groups.first().locator(".changes-repo")).toContainText("acme/imagekit");
-		await expect(groups.nth(1).locator(".changes-repo")).toContainText("lovell/sharp");
+		await expect(groups.first().locator(".changes-repo")).toContainText("acme/unpic");
+		await expect(groups.nth(1).locator(".changes-repo")).toContainText("pixelmill/pixelmill");
 		await expect(panel(page).locator(".change-row")).toHaveCount(11);
 		await expect(panel(page).getByText("Priya Shah").first()).toBeVisible();
 
@@ -43,7 +43,7 @@ test.describe("pending changes panel", () => {
 
 	test("marks the shapes each change is about", async ({ page }) => {
 		const flags = page.locator(".staged-flag");
-		await expect(flags.filter({ hasText: "New issue in imagekit" })).toHaveCount(2);
+		await expect(flags.filter({ hasText: "New issue in unpic" })).toHaveCount(2);
 		await expect(flags.filter({ hasText: "Will close" })).toHaveCount(1);
 		await expect(flags.filter({ hasText: "Blocked by #418" })).toHaveCount(1);
 		await expect(page.locator(".staged-label").filter({ hasText: "needs review" })).toHaveCount(1);
@@ -168,7 +168,7 @@ test.describe("push sheet", () => {
 			"docs/decisions/0007-drop-node-18.md",
 		);
 		await expect(sheet(page).locator(".push-estimate")).toContainText(
-			"Notifies ~214 people watching acme/imagekit",
+			"Notifies ~214 people watching acme/unpic",
 		);
 		await expect(sheet(page).locator(".push-repo-warning")).toContainText("isn’t installed here");
 
@@ -382,7 +382,7 @@ test.describe("changes gallery, in motion", () => {
 
 test("a decision's write-back goes out through the push sheet", async ({ page }) => {
 	await openScenario(page, "decisions");
-	const title = "Require Node 20 in imagekit 5.0";
+	const title = "Require Node 20 in unpic 5.0";
 	const node = page.locator(".react-flow__node-decision", {
 		has: page.getByRole("article", { name: `Decision: ${title}`, exact: true }),
 	});
@@ -404,7 +404,7 @@ test("a decision's write-back goes out through the push sheet", async ({ page })
 		.getByRole("button", { name: /^Review and push/ })
 		.click();
 	await expect(sheet(page).locator(".preview-files")).toContainText(
-		"docs/decisions/0004-require-node-20-in-imagekit-5-0.md",
+		"docs/decisions/0004-require-node-20-in-unpic-5-0.md",
 	);
 	await sheet(page)
 		.getByRole("button", { name: /^Push \d+ change/ })

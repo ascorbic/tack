@@ -49,7 +49,7 @@ test("stickies become staged issues, one undo step", async ({ page }) => {
 	const panel = page.getByRole("dialog", { name: "Make issues from stickies" });
 	await expect(panel.getByRole("heading", { name: "Make 2 issues" })).toBeVisible();
 	// The board's busiest repository is chosen; the titles are the first lines.
-	await expect(panel.locator(".repo-value")).toContainText("acme/imagekit");
+	await expect(panel.locator(".repo-value")).toContainText("acme/unpic");
 	const list = panel.getByRole("list", { name: "Issues to make" });
 	await expect(list.getByRole("textbox").first()).toHaveValue("Benchmarks in CI");
 	// A description opens to be checked.
@@ -60,17 +60,17 @@ test("stickies become staged issues, one undo step", async ({ page }) => {
 	await expect(node(page, "A provider playground, live")).toBeVisible();
 	await panel.getByRole("button", { name: "Stage 2 issues" }).click();
 	await expect(panel).toHaveCount(0);
-	await expect(page.locator(".toast")).toContainText("Staged 2 issues for acme/imagekit");
+	await expect(page.locator(".toast")).toContainText("Staged 2 issues for acme/unpic");
 
 	const staged = await changes(page);
 	expect(staged.map((c) => c.op)).toEqual([
 		{
 			kind: "issue.create",
-			repo: "fake.tack/acme/imagekit",
+			repo: "fake.tack/acme/unpic",
 			title: "Benchmarks in CI",
 			body: "Run them on every PR and comment with the diff",
 		},
-		{ kind: "issue.create", repo: "fake.tack/acme/imagekit", title: "A provider playground, live" },
+		{ kind: "issue.create", repo: "fake.tack/acme/unpic", title: "A provider playground, live" },
 	]);
 	expect(staged.every((c) => c.status === "staged" && c.effect?.kind === "replace")).toBe(true);
 
@@ -115,14 +115,14 @@ test("stickies become issues that start with labels, a milestone and an assignee
 	expect((await changes(page)).map((c) => c.op)).toEqual([
 		{
 			kind: "issue.create",
-			repo: "fake.tack/acme/imagekit",
+			repo: "fake.tack/acme/unpic",
 			title: "Benchmarks in CI",
 			body: "Run them on every PR and comment with the diff",
 			...extra,
 		},
 		{
 			kind: "issue.create",
-			repo: "fake.tack/acme/imagekit",
+			repo: "fake.tack/acme/unpic",
 			title: "A provider playground",
 			...extra,
 		},
@@ -136,13 +136,13 @@ test("a typed repository, and one without the app", async ({ page }) => {
 	// The board's own repository is chosen, and reads as a value, with the
 	// list folded away until it's wanted.
 	const field = panel.getByRole("combobox", { name: "Repository" });
-	await expect(panel.locator(".repo-value")).toContainText("acme/imagekit");
+	await expect(panel.locator(".repo-value")).toContainText("acme/unpic");
 	await expect(field).toHaveAttribute("aria-expanded", "false");
 	await expect(panel.getByRole("listbox")).toBeHidden();
 	await panel.getByRole("button", { name: "Change" }).click();
-	await panel.getByRole("option", { name: /lovell\/sharp/ }).click();
+	await panel.getByRole("option", { name: /pixelmill\/pixelmill/ }).click();
 	await expect(panel.getByRole("listbox")).toBeHidden();
-	await expect(panel.locator(".repo-value")).toContainText("lovell/sharp");
+	await expect(panel.locator(".repo-value")).toContainText("pixelmill/pixelmill");
 	await expect(panel.getByText("Tack can’t write to")).toBeVisible();
 	await expect(panel.getByRole("button", { name: "Stage issue" })).toBeDisabled();
 
@@ -250,7 +250,7 @@ test("labels, milestone and closing on selected cards", async ({ page }) => {
 	await page.getByRole("menuitem", { name: /Close as not planned/ }).click();
 
 	const ops = (await changes(page)).map((c) => c.op);
-	const key = (n: number) => ({ key: `fake.tack/acme/imagekit#${n}` });
+	const key = (n: number) => ({ key: `fake.tack/acme/unpic#${n}` });
 	expect(ops).toEqual([
 		{ kind: "item.labels", target: key(412), add: ["docs"] },
 		{ kind: "item.labels", target: key(377), add: ["docs"] },
@@ -316,8 +316,8 @@ test("two connected issues offer blocked-by in the action bar", async ({ page })
 	const [change] = await changes(page);
 	expect(change?.op).toEqual({
 		kind: "item.blockedBy",
-		target: { key: "fake.tack/acme/imagekit#377" },
-		blockedBy: { key: "fake.tack/acme/imagekit#412" },
+		target: { key: "fake.tack/acme/unpic#377" },
+		blockedBy: { key: "fake.tack/acme/unpic#412" },
 	});
 	// Not connected: not offered.
 	await select(page, "Custom domains", "Rotate the signing keys");
@@ -337,8 +337,8 @@ test("a connector between issues becomes blocked-by", async ({ page }) => {
 	const [change] = await changes(page);
 	expect(change?.op).toEqual({
 		kind: "item.blockedBy",
-		target: { key: "fake.tack/acme/imagekit#377" },
-		blockedBy: { key: "fake.tack/acme/imagekit#412" },
+		target: { key: "fake.tack/acme/unpic#377" },
+		blockedBy: { key: "fake.tack/acme/unpic#412" },
 	});
 	expect(change?.effect?.kind).toBe("connect");
 	await expect(page.getByRole("button", { name: "Blocked by", exact: true })).toHaveAttribute(
@@ -480,7 +480,7 @@ test("the actions gallery shows every state", async ({ page }) => {
 	const extras = page.locator("figure", { hasText: "With labels and a milestone" });
 	await expect(extras.locator(".issue-extra[data-chosen]")).toHaveCount(2);
 	// The repository reads as a value (its list folded away), and three labels are ticked.
-	await expect(extras.locator(".repo-value")).toContainText("acme/imagekit");
+	await expect(extras.locator(".repo-value")).toContainText("acme/unpic");
 	await expect(extras.getByRole("option", { selected: true })).toHaveCount(3);
 	await expect(page.getByText("Tack can’t write to")).toBeVisible();
 	await expect(page.getByText("Make “Benchmarks in CI” an issue first")).toBeVisible();

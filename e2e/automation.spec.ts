@@ -124,7 +124,7 @@ test.describe("inbox frames", () => {
 		await page.locator(".section-title", { hasText: "Docs" }).click({ position: { x: 12, y: 8 } });
 		await page.getByRole("button", { name: "Make inbox" }).click();
 		const editor = page.getByRole("complementary", { name: "Inbox: Docs" });
-		await editor.getByRole("textbox").fill("repo:acme/imagekit is:issue is:open no:label");
+		await editor.getByRole("textbox").fill("repo:acme/unpic is:issue is:open no:label");
 		await expect(editor.locator(".inbox-count")).toContainText(/\d+ match/);
 		await editor.getByRole("button", { name: /Start collecting/ }).click();
 		// Between Bugs and Later there's no room for its tray: it waits folded.
@@ -134,8 +134,7 @@ test.describe("inbox frames", () => {
 			editor.locator(".inbox-items, .inbox-message, .inbox-elsewhere").first(),
 		).toBeVisible();
 		const docs = (await shapes(page)).find(
-			(shape) =>
-				shape.inbox?.query.q === "repo:acme/imagekit is:issue is:open no:label" && shape.id,
+			(shape) => shape.inbox?.query.q === "repo:acme/unpic is:issue is:open no:label" && shape.id,
 		);
 		expect(docs).toBeTruthy();
 	});
@@ -217,7 +216,7 @@ test.describe("inbox frames", () => {
 		await page.locator(".section-title", { hasText: "Docs" }).click({ position: { x: 12, y: 8 } });
 		await page.getByRole("button", { name: "Make inbox" }).click();
 		const editor = page.getByRole("complementary", { name: "Inbox: Docs" });
-		await editor.getByRole("textbox").fill("repo:acme/imagekit is:issue is:open label:docs");
+		await editor.getByRole("textbox").fill("repo:acme/unpic is:issue is:open label:docs");
 		await editor.getByRole("button", { name: /Start collecting/ }).click();
 		const pill = page.getByRole("button", { name: /Open Docs's inbox/ });
 		await expect(pill).toBeVisible();
@@ -317,17 +316,17 @@ test.describe("rules", () => {
 		await expect(query).not.toHaveValue(/label:bug/);
 		await expect(panel.locator(".rules-count")).toContainText(/\d+ match(es)? now/);
 
-		await query.fill("repo:acme/imagekit is:issue is:open label:bug");
+		await query.fill("repo:acme/unpic is:issue is:open label:bug");
 		await expect(panel.locator(".rules-sentence")).toHaveText(
 			"There’s already a rule that does this.",
 		);
 		await expect(panel.getByRole("button", { name: "Add rule" })).toBeDisabled();
 
-		await query.fill("repo:acme/imagekit is:issue is:open no:label");
+		await query.fill("repo:acme/unpic is:issue is:open no:label");
 		await panel.getByRole("button", { name: "Make “New bugs” an inbox instead" }).click();
 		await expect(page.locator(".toast")).toContainText("“New bugs” is an inbox");
 		const section = (await shapes(page)).find((shape) => shape.title === "New bugs");
-		expect(section?.inbox?.query.q).toBe("repo:acme/imagekit is:issue is:open no:label");
+		expect(section?.inbox?.query.q).toBe("repo:acme/unpic is:issue is:open no:label");
 	});
 
 	test("rules are added and deleted from the panel", async ({ page }) => {
@@ -335,10 +334,10 @@ test.describe("rules", () => {
 		const panel = page.getByRole("dialog", { name: "Rules" });
 		await expect(panel.locator(".rule")).toHaveCount(2);
 		await panel.getByRole("button", { name: "New rule" }).click();
-		await panel.getByRole("textbox").fill("repo:acme/imagekit milestone:v1");
+		await panel.getByRole("textbox").fill("repo:acme/unpic milestone:v1");
 		await expect(panel.locator(".rules-sentence")).toContainText("milestone:v1");
 		await expect(panel.getByRole("button", { name: "Add rule" })).toBeDisabled();
-		await panel.getByRole("textbox").fill("repo:acme/imagekit is:issue label:docs");
+		await panel.getByRole("textbox").fill("repo:acme/unpic is:issue label:docs");
 		await panel.getByRole("button", { name: "Add rule" }).click();
 		await expect(panel.locator(".rule")).toHaveCount(3);
 		await panel.getByRole("button", { name: "Delete this rule" }).last().click();

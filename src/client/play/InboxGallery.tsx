@@ -44,13 +44,13 @@ const noop = () => {};
 const NEW = [
 	fixture({ item: "#611", title: "Width is ignored when `fill` is set", comments: 2 }),
 	fixture({ item: "#612", title: "Contentful provider drops focal point" }),
-	fixture({ item: "#613", title: "Add an example for Remix", comments: 4 }),
+	fixture({ item: "#613", title: "Add an example for emdash", comments: 4 }),
 ];
 const LATER = fixture({ item: "#614", title: "srcset has duplicate entries at 3x" });
 const SORTED = fixture({ item: "#601", title: "Docs: the `unpic` CLI flags" });
 const RELABELLED = fixture({
 	item: "#602",
-	title: "Cloudflare Images: wrong default format",
+	title: "Glint Images: wrong default format",
 	labels: [LABELS.bug, LABELS.provider],
 });
 
@@ -163,7 +163,7 @@ function useMarksDoc() {
 		setInbox(doc, inbox, inboxQuery(TRIAGE_QUERY, HOST));
 		const rule = addRule(
 			doc,
-			{ kind: "matches", query: inboxQuery("repo:acme/imagekit is:issue label:bug", HOST) },
+			{ kind: "matches", query: inboxQuery("repo:acme/unpic is:issue label:bug", HOST) },
 			{ kind: "section", section: inbox },
 			ME,
 		);
@@ -255,7 +255,7 @@ function useRulesDoc(kind: "empty" | "busy" | "paused") {
 		const beside = addRule(doc, { kind: "pull-links" }, { kind: "beside-linked" }, ME);
 		const matching = addRule(
 			doc,
-			{ kind: "matches", query: inboxQuery("repo:acme/imagekit is:issue is:open label:bug", HOST) },
+			{ kind: "matches", query: inboxQuery("repo:acme/unpic is:issue is:open label:bug", HOST) },
 			{ kind: "section", section: bugs },
 			ME,
 		);
@@ -281,7 +281,7 @@ function useRulesDoc(kind: "empty" | "busy" | "paused") {
 				rule: matching,
 				at: ago(65),
 				outcome: "placed",
-				key: "fake.tack/acme/imagekit#377",
+				key: "fake.tack/acme/unpic#377",
 				section: bugs,
 				shape: "x",
 			},
@@ -290,8 +290,8 @@ function useRulesDoc(kind: "empty" | "busy" | "paused") {
 				rule: beside,
 				at: ago(30),
 				outcome: "placed",
-				key: "fake.tack/acme/imagekit#418",
-				near: "fake.tack/acme/imagekit#412",
+				key: "fake.tack/acme/unpic#418",
+				near: "fake.tack/acme/unpic#412",
 				shape: "y",
 			},
 			{
@@ -299,7 +299,7 @@ function useRulesDoc(kind: "empty" | "busy" | "paused") {
 				rule: matching,
 				at: ago(9),
 				outcome: "skipped",
-				key: "fake.tack/acme/imagekit#440",
+				key: "fake.tack/acme/unpic#440",
 				section: "gone",
 				reason: "no_section",
 			},
@@ -308,8 +308,8 @@ function useRulesDoc(kind: "empty" | "busy" | "paused") {
 				rule: beside,
 				at: ago(2),
 				outcome: "placed",
-				key: "fake.tack/acme/imagekit#431",
-				near: "fake.tack/acme/imagekit#412",
+				key: "fake.tack/acme/unpic#431",
+				near: "fake.tack/acme/unpic#412",
 				shape: "z",
 			},
 		];

@@ -7,7 +7,7 @@ import { cardStore } from "../cardStore.ts";
 import { stagerFor, useChangesUI } from "../changes/context.ts";
 import { isPending } from "../changes/describe.ts";
 import type { User } from "../presence.ts";
-import { type PushMode, PUSH_MODES, IMAGEKIT, failChange, type SimulatedPush } from "./push.ts";
+import { type PushMode, PUSH_MODES, UNPIC, failChange, type SimulatedPush } from "./push.ts";
 import type { RemotePerson, SimulatedBoard } from "./simulator.ts";
 
 const LABEL_SETS = [["bug"], ["needs review"], ["performance", "question"], ["good first issue"]];
@@ -81,7 +81,7 @@ export function ChangeControls({
 	// As the Make issues action reads a sticky, so the issue follows it.
 	const newIssue = (text: string): Operation => ({
 		kind: "issue.create",
-		repo: IMAGEKIT,
+		repo: UNPIC,
 		...(issueFromText(text) ?? { title: text }),
 		labels: pick(LABEL_SETS),
 	});
@@ -137,7 +137,7 @@ export function ChangeControls({
 		fail: () => {
 			const change = pick(listChanges(sim.doc).filter((c) => c.status === "staged"));
 			if (change) {
-				const repo = change.op.kind === "issue.create" ? change.op.repo : IMAGEKIT;
+				const repo = change.op.kind === "issue.create" ? change.op.repo : UNPIC;
 				const name = repoKeyOf(repo).replace(/^[^/]+\//, "");
 				failChange(
 					sim.doc,
