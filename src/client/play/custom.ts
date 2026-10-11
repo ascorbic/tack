@@ -1,12 +1,13 @@
-import type * as Y from "yjs";
+import * as Y from "yjs";
 import { CUSTOM_EXAMPLES, exampleConfig } from "../../shared/customWidgetExamples.ts";
 import type { CustomConfig } from "../../shared/customWidgets.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import { addWidget } from "../../shared/widgetRegistry.ts";
 import { cardStore } from "../cardStore.ts";
 import { MILESTONE } from "./kindFixtures.ts";
+import { type CustomDataSource, avatarData, boardCards } from "../widgets/custom/data.ts";
 import { SANDBOX_CHECK } from "./sandboxCheck.ts";
-import { REPO, searchableCards } from "./widgets.ts";
+import { REPO, SimulatedWidgets, searchableCards } from "./widgets.ts";
 
 // Custom widgets in the playground (#66): the examples over the fake
 // repository, a widget that tries every way out of its sandbox and shows
@@ -39,4 +40,21 @@ export function seedCustom(doc: Y.Doc): void {
 		...example("contributors"),
 		data: JSON.stringify({ query: `repo:${REPO} is:pr`, limit: 8 }, null, 2),
 	});
+}
+
+let simulated: SimulatedWidgets | null = null;
+
+/**
+ * The fake repository as a custom widget reads it, without a board: for
+ * the gallery, where nothing's connected to answer its searches.
+ */
+export function fixtureSource(): CustomDataSource {
+	simulated ??= new SimulatedWidgets(new Y.Doc());
+	const sim = simulated;
+	return {
+		search: async (query) => sim.searchNow(query),
+		cards: boardCards,
+		avatar: avatarData,
+		subscribe: () => () => {},
+	};
 }

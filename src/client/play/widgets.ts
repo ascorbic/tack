@@ -246,6 +246,11 @@ export class SimulatedWidgets implements WidgetTransport {
 		};
 	}
 
+	/** A search over the fake repository, answered now (the custom widgets gallery). */
+	searchNow(query: SearchQuery): SearchResult | QueryError {
+		return this.failure() ?? this.search(query);
+	}
+
 	/** Every item there is: the fake repository's, and any other card the board has data for. */
 	private items(): Card[] {
 		const viewer = this.options.viewer;

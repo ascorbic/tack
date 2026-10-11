@@ -73,11 +73,25 @@
 	stroke-linejoin: round;
 	stroke-dasharray: 60;
 	stroke-dashoffset: 0;
-	transition: stroke-dashoffset var(--t-settle) var(--ease-out);
+	transition:
+		stroke var(--t-quick) var(--ease-out),
+		opacity var(--t-quick) var(--ease-out);
 }
 
+/* Off: the code sits quiet. On: it draws itself in, in the accent. */
 .custom-widgets:not([data-enabled]) .custom-widgets-art .code {
-	stroke-dashoffset: 60;
+	stroke: var(--muted);
+	opacity: 0.6;
+}
+
+.custom-widgets[data-enabled] .custom-widgets-art .code {
+	animation: custom-widgets-draw var(--t-settle) var(--ease-out);
+}
+
+@keyframes custom-widgets-draw {
+	from {
+		stroke-dashoffset: 60;
+	}
 }
 
 .custom-widgets-lede {

@@ -590,3 +590,28 @@
 	font-size: 11px;
 	opacity: 0.8;
 }
+
+/* The gallery (/play/widgets): the owner's switch outside its dialog, and a zoomed-out sample. */
+.custom-gallery-dialog {
+	width: min(480px, 100%);
+	overflow: hidden;
+	border: 1px solid var(--line);
+	border-radius: 20px;
+	background: var(--surface);
+	box-shadow: var(--shadow-lifted);
+}
+
+.custom-gallery-far {
+	overflow: hidden;
+	border-radius: 6px;
+}
+
+.gallery-grid.widget-panels.custom-gallery-panels {
+	grid-template-columns: repeat(auto-fill, minmax(min(560px, 100%), 1fr));
+	align-items: start;
+}
+
+.custom-gallery-panels .widget-config {
+	max-height: 760px;
+	animation: none;
+}

@@ -12,6 +12,7 @@ import { ToastStore } from "../Toasts.tsx";
 import { ListConfigPanel, SchemaConfigPanel } from "../widgets/ConfigPanel.tsx";
 import { listTitle } from "../widgets/describe.ts";
 import { DropConfirm } from "../widgets/DropConfirm.tsx";
+import { CustomGallery } from "./CustomGallery.tsx";
 import { KindGallery } from "./KindGallery.tsx";
 import { type DropPreview, type ListStatus, ListView } from "../widgets/ListView.tsx";
 import { planDrop } from "../widgets/match.ts";
@@ -310,6 +311,8 @@ export default function WidgetGallery() {
 			</section>
 
 			<KindGallery />
+
+			<CustomGallery />
 
 			<section>
 				<h2>A card whose row is pointed at</h2>
