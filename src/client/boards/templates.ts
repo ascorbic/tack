@@ -59,6 +59,8 @@ class TemplateLibrary {
 
 	/** One was saved: show it first straight away. */
 	added(template: TemplateInfo): void {
+		// A list fetched before this would overwrite it when it arrives.
+		this.loading = null;
 		const current = this.state.status === "ready" ? this.state.templates : [];
 		this.update({
 			status: "ready",
@@ -68,6 +70,7 @@ class TemplateLibrary {
 
 	/** One was deleted. */
 	removed(id: string): void {
+		this.loading = null;
 		if (this.state.status !== "ready") return;
 		this.update({ status: "ready", templates: this.state.templates.filter((t) => t.id !== id) });
 	}
