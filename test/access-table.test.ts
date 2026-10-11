@@ -481,6 +481,24 @@ describe("the access table: board messages", () => {
 		expect(received(viewer, "silent-refused")[0]?.reason).toBe("not_editor");
 	});
 
+	it("stack-group (Group these): editors only; strangers and viewers are refused", async () => {
+		const viewer = await open("viewer");
+		viewer.send({ type: "stack-group", request: "r1", ids: ["a", "b", "c"] });
+		const stranger = await open("stranger", publicBoard);
+		stranger.send({ type: "stack-group", request: "r2", ids: ["a", "b", "c"] });
+		for (const client of [viewer, stranger]) {
+			await eventually(() => received(client, "stack-group-failed").length === 1);
+			expect(received(client, "stack-group-failed")[0]?.reason).toBe("not_editor");
+		}
+		// An editor is asked, not refused: too few stickies with words here.
+		const editor = await open("editor");
+		editor.send({ type: "stack-group", request: "r3", ids: ["a", "b", "c"] });
+		await eventually(() => received(editor, "stack-group-failed").length === 1);
+		expect(received(editor, "stack-group-failed")[0]?.reason).toBe("too_few");
+		// Whether suggestions are on goes to everyone connected.
+		expect(received(stranger, "stacks-ai")).toHaveLength(1);
+	});
+
 	it("clock, since and widgets: anyone connected, strangers on public boards too", async () => {
 		const stranger = await open("stranger", publicBoard);
 		stranger.send({ type: "clock", t: 1 });
