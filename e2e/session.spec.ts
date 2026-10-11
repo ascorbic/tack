@@ -178,6 +178,8 @@ test.describe.serial("running a session", () => {
 		await lead.keyboard.press("Escape");
 		await expect(lead.getByRole("button", { name: "Facilitate" })).toBeFocused();
 
+		// The button says a session's on, for anyone arriving late.
+		await expect(guest.locator(".facilitate-button .facilitate-live")).toBeVisible();
 		await openMenu(guest);
 		const theirs = menu(guest).getByRole("region", { name: "Running now" });
 		await expect(theirs).toContainText("Voting on “Now”");

@@ -196,7 +196,7 @@ export function FacilitateMenu({
 				aria-expanded={open}
 				aria-controls={id}
 				aria-keyshortcuts="Shift+F"
-				title="Facilitate (⇧F)"
+				title={live ? "Facilitate (⇧F): a session’s running, see what’s on" : "Facilitate (⇧F)"}
 				data-live={live || undefined}
 				data-ready={(ready && !readOnly) || undefined}
 				onClick={(event) => {
@@ -208,8 +208,11 @@ export function FacilitateMenu({
 			>
 				<BatonIcon />
 				Facilitate
-				{ready && !readOnly && (
+				{ready && !readOnly ? (
 					<span className="facilitate-ready" aria-label="Steps ready to start" />
+				) : (
+					// Something's running: a latecomer can see there's a session on.
+					live && <span className="facilitate-live" aria-hidden="true" />
 				)}
 			</button>
 			{open && carrying && services.carryTargets && (

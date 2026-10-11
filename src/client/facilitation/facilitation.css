@@ -33,8 +33,21 @@
 }
 
 /* Something's running: the baton glows. */
-.facilitate-button[data-live] .facilitate-icon {
+.facilitate-button[data-live] svg {
 	color: var(--accent);
+}
+
+/* A session's running: a soft pulse on the button, for latecomers. */
+.facilitate-live {
+	position: absolute;
+	top: 5px;
+	right: 6px;
+	width: 7px;
+	height: 7px;
+	border: 1.5px solid var(--surface);
+	border-radius: 50%;
+	background: var(--accent);
+	animation: running-pulse calc(1800ms * var(--motion)) ease-in-out infinite;
 }
 
 .facilitate-menu {
