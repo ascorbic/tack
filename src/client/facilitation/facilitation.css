@@ -835,10 +835,21 @@
 	position: relative;
 }
 
+/* A small number tucked in the corner, not the app's full keycap: it must
+   never cover the stamp. */
 .stamp-choice-key {
 	position: absolute;
 	right: 1px;
 	bottom: 0;
+	display: block;
+	min-width: 0;
+	height: auto;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: none;
+	box-shadow: none;
+	pointer-events: none;
 	color: var(--muted);
 	font-family: var(--font-mono);
 	font-size: 8.5px;

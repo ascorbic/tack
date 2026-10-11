@@ -112,7 +112,8 @@ test.describe("exporting from the playground", () => {
 		const read = readBoardExport((await saved(json)).toString());
 		expect(read.ok).toBe(true);
 		if (read.ok) expect(read.data.shapes.length).toBeGreaterThan(5);
-		// Remembered for next time.
+		// Remembered for next time (once the dialog has finished closing).
+		await expect(dialog).toBeHidden();
 		const next = await openExport(page);
 		await expect(next.getByRole("radio", { name: "JSON" })).toHaveAttribute("aria-checked", "true");
 	});
