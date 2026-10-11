@@ -298,7 +298,11 @@ test.describe("boards gallery", () => {
 		await expect(shares.nth(1).getByRole("button", { name: "Leave board" })).toBeVisible();
 		await expect(shares.nth(1).getByLabel("Who can open this board")).toHaveCount(0);
 
-		await expect(section("Board top bar").locator(".view-only")).toBeVisible();
+		// View only, and View only signed out on a public board, which says to sign in.
+		const viewOnly = section("Board top bar").locator(".view-only");
+		await expect(viewOnly).toHaveCount(2);
+		await expect(viewOnly.first()).toBeVisible();
+		await expect(viewOnly.nth(1)).toHaveAttribute("data-tooltip", /Sign in to comment/);
 		await expect(section("Board top bar").getByText("This board is archived")).toBeVisible();
 	});
 
