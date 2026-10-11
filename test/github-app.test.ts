@@ -5,6 +5,7 @@ import type { Miniflare, Response } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
 import type { AccessUpdateResponse, Me, SetupInfo } from "../src/shared/auth.ts";
+import { appName } from "../src/server/github/app.ts";
 import { FakeGitHub, type FakeUser } from "./fake-github.ts";
 import { instanceStub, repoStub, startWorker } from "./harness.ts";
 
@@ -95,6 +96,26 @@ async function deliver(event: string, payload: unknown, secret: string) {
 let admin: Record<string, string> = {};
 
 describe("setup", () => {
+	it("acknowledges GitHub's first ping, sent before the app's secret is saved", async () => {
+		// A fresh deploy: no app yet, and no hand-set webhook secret.
+		const fresh = startWorker({ bindings: { GITHUB_WEBHOOK_SECRET: "" } });
+		try {
+			const body = JSON.stringify({ zen: "Keep it logically awesome." });
+			const response = await fresh.dispatchFetch(`${ORIGIN}/webhooks/github`, {
+				method: "POST",
+				body,
+				headers: {
+					"x-github-event": "ping",
+					"x-github-delivery": crypto.randomUUID(),
+					"x-hub-signature-256": await sign("not-saved-yet", body),
+				},
+			});
+			expect(response.status).toBe(202);
+		} finally {
+			await fresh.dispose();
+		}
+	});
+
 	it("offers a manifest for a fresh instance", async () => {
 		const response = await get("/api/setup");
 		const info = (await response.json()) as SetupInfo;
@@ -466,5 +487,18 @@ describe("access control", () => {
 			access: { admins: [{ login: "mallory" }, { login: "Octo-Admin" }] },
 		});
 		expect(await me(mallory)).toMatchObject({ admin: true });
+	});
+});
+
+describe("the app's default name", () => {
+	it("fits GitHub's 34 characters without cutting a word", () => {
+		expect(appName("tack.example.com")).toBe("Tack (tack.example.com)");
+		expect(appName("tack-deploy-test.ascorbic.workers.dev")).toBe(
+			"Tack (tack-deploy-test.ascorbic)",
+		);
+		expect(appName("planning.a-long-organisation-name.example.org")).toBe("Tack (planning)");
+		for (const host of ["localhost", "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s", "x".repeat(60)]) {
+			expect(appName(host).length).toBeLessThanOrEqual(34);
+		}
 	});
 });

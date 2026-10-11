@@ -529,7 +529,13 @@ export const github: ForgeAdapter = {
 	async receiveWebhook(request, env) {
 		const body = await request.text();
 		const verified = await verifyWebhook(env, body, request.headers.get("x-hub-signature-256"));
-		if (verified === "unconfigured") return reply({ error: "webhook secret not configured" }, 500);
+		// GitHub sends its first delivery (a ping) the moment the app is made,
+		// before /setup/callback has saved the app's secret. Nothing is done
+		// with it, so say so rather than fail: setup shouldn't start in red.
+		if (verified === "unconfigured") {
+			log.warn("webhook.ignored", { forge: "github", reason: "not_set_up" });
+			return reply({ ok: true, ignored: "not set up yet" }, 202);
+		}
 		if (verified === "invalid") return reply({ error: "invalid signature" }, 401);
 
 		// Only the body is signed: the delivery id and event name are headers

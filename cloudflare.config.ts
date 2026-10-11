@@ -7,9 +7,14 @@ import * as entrypoint from "./src/index.ts" with { type: "cf-worker" };
 // namespaces automatically. Previews get no secrets: webhooks only go to
 // production, and without a token cards are fetched unauthenticated. Without
 // TACK_SECRET, sign-in and setup are unavailable and boards work anonymously.
+// The Worker's name. To run a second instance on the same account, change it
+// here only: the Durable Object bindings below follow it, so the two never
+// share storage.
+const NAME = "tack";
+
 export default defineConfig(({ isPreview, mode }) => ({
 	worker: {
-		name: "tack",
+		name: NAME,
 		entrypoint,
 		compatibilityDate,
 		compatibilityFlags,
@@ -31,10 +36,10 @@ export default defineConfig(({ isPreview, mode }) => ({
 			],
 		},
 		env: {
-			Board: bindings.durableObject({ worker: "tack", exportName: "Board" }),
-			Repo: bindings.durableObject({ worker: "tack", exportName: "Repo" }),
-			Instance: bindings.durableObject({ worker: "tack", exportName: "Instance" }),
-			Directory: bindings.durableObject({ worker: "tack", exportName: "Directory" }),
+			Board: bindings.durableObject({ worker: NAME, exportName: "Board" }),
+			Repo: bindings.durableObject({ worker: NAME, exportName: "Repo" }),
+			Instance: bindings.durableObject({ worker: NAME, exportName: "Instance" }),
+			Directory: bindings.durableObject({ worker: NAME, exportName: "Directory" }),
 			// The app's own files, for serving public boards' pages with their
 			// link preview meta tags (src/server/embeds/routes.ts).
 			ASSETS: bindings.assets(),

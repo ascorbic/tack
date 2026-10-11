@@ -134,7 +134,8 @@ export function Installations({
 			)}
 			{state.status === "ready" && state.installations.length > 0 && (
 				<>
-					{repositories >= FILTER_FROM && (
+					{(repositories >= FILTER_FROM ||
+						state.installations.some((installation) => installation.selection === "all")) && (
 						<input
 							className="setup-input installs-filter"
 							type="search"
@@ -218,6 +219,9 @@ function InstallationRow({
 		: installation.repositories;
 	if (query && repos.length === 0) return null;
 	const count = installation.repositories.length + installation.more;
+	// "All repositories" means all of them: listing each is noise. They show
+	// when searched for, to check a particular one.
+	const listed = installation.selection === "all" && !query ? [] : repos;
 	return (
 		<li className="install" data-tone={tone} style={{ "--i": index } as React.CSSProperties}>
 			<div className="install-head">
@@ -228,7 +232,7 @@ function InstallationRow({
 					<strong>{installation.account}</strong>
 					<span>
 						{installation.selection === "all"
-							? "All repositories"
+							? `All repositories (${count})`
 							: `${count} ${count === 1 ? "repository" : "repositories"}`}
 					</span>
 				</span>
@@ -243,12 +247,12 @@ function InstallationRow({
 				)}
 			</div>
 			{detail && <p className="install-detail">{detail}</p>}
-			{repos.length > 0 && (
+			{listed.length > 0 && (
 				<ul
 					className="install-repos"
 					aria-label={`Repositories ${installation.account} installed it on`}
 				>
-					{repos.map((repo) => (
+					{listed.map((repo) => (
 						<li key={repo.name}>
 							{repo.private && (
 								<svg
@@ -266,7 +270,7 @@ function InstallationRow({
 							{repo.name}
 						</li>
 					))}
-					{!query && installation.more > 0 && (
+					{!query && installation.selection !== "all" && installation.more > 0 && (
 						<li className="install-more">+{installation.more} more</li>
 					)}
 				</ul>

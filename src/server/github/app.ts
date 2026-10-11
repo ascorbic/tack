@@ -81,13 +81,32 @@ const EVENTS = [
 	"repository",
 ];
 
+/** GitHub's limit on app names. */
+const APP_NAME_MAX = 34;
+
+/**
+ * A default name for the instance's app that fits GitHub's limit without
+ * being cut mid-word: the whole host if it fits, else a workers.dev
+ * instance's Worker name, else as many of the host's labels as fit.
+ */
+export function appName(host: string): string {
+	const named = (part: string) => `Tack (${part})`;
+	if (named(host).length <= APP_NAME_MAX) return named(host);
+	const labels = host.split(".");
+	for (let n = labels.length - 1; n >= 1; n--) {
+		const part = labels.slice(0, n).join(".");
+		if (named(part).length <= APP_NAME_MAX) return named(part);
+	}
+	return named(labels[0]!.slice(0, APP_NAME_MAX - named("").length));
+}
+
 /** The manifest for this instance's GitHub App. */
 export function appManifest(origin: string) {
 	const host = new URL(origin).hostname;
 	// GitHub can't deliver webhooks to a local dev server.
 	const local = host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost");
 	return {
-		name: `Tack (${host})`.slice(0, 34),
+		name: appName(host),
 		url: origin,
 		description: "A GitHub-native whiteboard for open source planning.",
 		hook_attributes: { url: `${origin}/webhooks/github`, active: !local },
