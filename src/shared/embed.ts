@@ -26,6 +26,7 @@ import { parseKey } from "./refs.ts";
 import { NOMINAL_SIZE, readStructure } from "./sections.ts";
 import type { ShapeProps } from "./shapes.ts";
 import { parseSession } from "./silent.ts";
+import { STACK_SIZE, stackMembers, stackName } from "./stacks.ts";
 import { textSize } from "./thumbnail.ts";
 import { widgetDefinition, widgetSize } from "./widgetRegistry.ts";
 
@@ -332,6 +333,16 @@ export function buildScene(
 		const box = shapeBox(shape, layout.slots.get(id)?.rect, layout.sections.get(id)?.box);
 		if (box) boxes.set(id, box);
 	}
+	// A stack (#73) draws its top three stickies, the two under the top one
+	// peeking out, as the board does; the rest aren't drawn.
+	for (const members of stackMembers(shapes).values()) {
+		members.forEach((id, i) => {
+			const box = boxes.get(id);
+			if (!box || layout.slots.has(id)) return;
+			if (i >= 3) boxes.delete(id);
+			else if (i > 0) boxes.set(id, { ...box, x: box.x + 5 * i, y: box.y + 6 * i });
+		});
+	}
 
 	const items: SceneItem[] = [];
 	const zOf = (id: string) => (typeof shapes.get(id)?.z === "string" ? shapes.get(id)!.z : "");
@@ -613,6 +624,19 @@ function shapeItem(
 				done,
 				owner: typeof owner === "string" ? owner : null,
 				due: typeof due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null,
+			};
+		}
+		case "stack": {
+			// Its stickies draw themselves; the stack is its name, under them.
+			const name = clean(stackName(shape) ?? "");
+			if (!name) return null;
+			return {
+				kind: "text",
+				id,
+				rect: { x: rect.x + 12, y: rect.y + STACK_SIZE.h - 34, w: STACK_SIZE.w - 24, h: 26 },
+				text: name,
+				size: 16,
+				font: "sans",
 			};
 		}
 		case "widget": {

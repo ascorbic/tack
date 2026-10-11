@@ -219,6 +219,23 @@ describe("the scene", () => {
 		});
 	});
 
+	it("draws a stack as its top stickies peeking out, with its name", () => {
+		const shapes = new Map<string, ShapeProps>([
+			["s", { type: "stack", x: 0, y: 0, z: "a0", suggested: { title: "Flaky CI", hash: "h" } }],
+			...[1, 2, 3, 4].map((n): [string, ShapeProps] => [
+				`m${n}`,
+				{ type: "sticky", x: 12, y: 10, z: `a${n}`, text: `Note ${n}`, stack: "s" },
+			]),
+		]);
+		const scene = buildScene(shapes, new Map(), { kind: "board" });
+		// The top three (highest z first), offset; the fourth isn't drawn.
+		expect(byId(scene, "m4")).toMatchObject({ rect: { x: 12, y: 10 } });
+		expect(byId(scene, "m3")).toMatchObject({ rect: { x: 17, y: 16 } });
+		expect(byId(scene, "m2")).toMatchObject({ rect: { x: 22, y: 22 } });
+		expect(byId(scene, "m1")).toBeUndefined();
+		expect(byId(scene, "s")).toMatchObject({ kind: "text", text: "Flaky CI" });
+	});
+
 	it("puts sections first and lines under shapes", () => {
 		const scene = buildScene(board(), cards(card(PUBLIC_KEY), placeholder), { kind: "board" });
 		const kinds = scene.items.map((item) => item.kind);
