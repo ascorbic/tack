@@ -1098,6 +1098,23 @@ button.vote-dot:hover {
 	pointer-events: none;
 }
 
+/* A raised hand fades a little in its last two seconds (of six), so you
+   can see it's about to go down. In real time: it's a countdown. */
+.emote-hand > .emote-hand-glyph,
+.emote-my-hand > .emote-hand-glyph {
+	animation:
+		pop-in var(--t-base) var(--ease-spring),
+		emote-wave calc(900ms * var(--motion)) ease-in-out infinite,
+		hand-lowering 2000ms ease-in 4000ms forwards;
+}
+
+@keyframes hand-lowering {
+	to {
+		opacity: 0.35;
+		scale: 0.85;
+	}
+}
+
 .emote-my-hand .emote-hand-glyph {
 	left: 0;
 	top: 0;

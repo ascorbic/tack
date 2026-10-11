@@ -263,7 +263,7 @@ export function Emotes({
 				>
 					{hands.map((hand) => (
 						<span
-							key={`hand-${hand.id}`}
+							key={`hand-${hand.id}-${hand.at}`}
 							className="emote-hand"
 							style={{ transform: `translate(${hand.x}px, ${hand.y}px) scale(${1 / zoom})` }}
 						>

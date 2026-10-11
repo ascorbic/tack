@@ -130,6 +130,19 @@ test.describe("facilitating a retro", () => {
 		await expect(page.locator(".high-five-clap")).toBeVisible({ timeout: 5000 });
 	});
 
+	test("a raised hand fades as it's about to go down", async ({ page }) => {
+		await page.mouse.move(400, 500);
+		await page.keyboard.press("e");
+		await page.keyboard.press("8");
+		const hand = page.locator(".emote-my-hand .emote-hand-glyph");
+		await expect(hand).toBeVisible();
+		const opacity = () => hand.evaluate((el) => Number(getComputedStyle(el).opacity));
+		// Once it's popped up, it's fully there, until its last two seconds.
+		await expect.poll(opacity).toBe(1);
+		await expect.poll(opacity, { timeout: 5_500 }).toBeLessThan(0.9);
+		await expect(hand).toHaveCount(0, { timeout: 3_000 });
+	});
+
 	test("spotlight brings you along, you can break out and rejoin", async ({ page }) => {
 		await play(page, "Someone spotlights").click();
 		const pill = page.locator(".spotlight-pill");
