@@ -4,18 +4,18 @@ import { contains } from "../../shared/geometry.ts";
 import type { ShapeNode } from "../board.ts";
 import { nodeBox } from "../canvasStructure.ts";
 import { scaledDuration } from "../motion.ts";
-import type { PileLayout } from "./view.ts";
+import type { StackLayout } from "./view.ts";
 
-// Dragging stickies onto a sticky or a pile (#73), as apps go into folders on
+// Dragging stickies onto a sticky or a stack (#73), as apps go into folders on
 // a phone: hold what you're dragging over one for a moment and it opens up to
-// take it in; let go and they're a pile (or join it). Moving on before it
-// opens is just moving. Only stickies (and piles) can be piled.
+// take it in; let go and they're a stack (or join it). Moving on before it
+// opens is just moving. Only stickies (and stacks) can be stacked.
 
-/** How long to hold over a sticky or pile before it opens to take what's dragged. */
-export const PILE_HOLD_MS = 350;
+/** How long to hold over a sticky or stack before it opens to take what's dragged. */
+export const STACK_HOLD_MS = 350;
 
-export interface PileDropState {
-	/** What the drag is over: a sticky or pile it could go into. */
+export interface StackDropState {
+	/** What the drag is over: a sticky or stack it could go into. */
 	target: string | null;
 	/** Held there long enough: let go now and it goes in. */
 	armed: boolean;
@@ -23,35 +23,35 @@ export interface PileDropState {
 	dragged: readonly string[];
 }
 
-const IDLE: PileDropState = { target: null, armed: false, dragged: [] };
+const IDLE: StackDropState = { target: null, armed: false, dragged: [] };
 
-/** What to pile, when a drag that was held over something ends. */
-export interface PileDrop {
+/** What to stack, when a drag that was held over something ends. */
+export interface StackDrop {
 	target: string;
 	ids: string[];
 }
 
-export function usePileDrop({
+export function useStackDrop({
 	nodes,
-	piles,
+	stacks,
 	pointer,
 	enabled,
 }: {
 	/** The nodes as drawn (kept current by the board), for what's under the pointer. */
 	nodes: React.RefObject<ShapeNode[]>;
-	piles: PileLayout;
+	stacks: StackLayout;
 	/** Where the pointer is, in board coordinates. */
 	pointer: React.RefObject<{ x: number; y: number } | null>;
 	enabled: boolean;
 }) {
-	const latest = useRef({ piles, enabled });
-	latest.current = { piles, enabled };
-	const [state, setState] = useState<PileDropState>(IDLE);
+	const latest = useRef({ stacks, enabled });
+	latest.current = { stacks, enabled };
+	const [state, setState] = useState<StackDropState>(IDLE);
 	const stateRef = useRef(state);
 	const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(timer.current), []);
 
-	const update = useCallback((next: PileDropState) => {
+	const update = useCallback((next: StackDropState) => {
 		stateRef.current = next;
 		setState(next);
 	}, []);
@@ -63,11 +63,11 @@ export function usePileDrop({
 
 	/**
 	 * Follow React Flow's changes while something's dragged. Returns what to
-	 * pile when a drag that was held over a sticky or pile ends (so its moves
+	 * stack when a drag that was held over a sticky or stack ends (so its moves
 	 * mustn't be committed), or null.
 	 */
 	const track = useCallback(
-		(changes: NodeChange<ShapeNode>[]): PileDrop | null => {
+		(changes: NodeChange<ShapeNode>[]): StackDrop | null => {
 			const moves = changes.filter((change) => change.type === "position");
 			if (moves.length === 0) return null;
 			const live = moves.filter((change) => change.type === "position" && change.dragging);
@@ -78,37 +78,37 @@ export function usePileDrop({
 				if (!target || !armed || !dragged.some((id) => dropped.has(id))) return null;
 				return { target, ids: [...dragged] };
 			}
-			const { piles, enabled: on } = latest.current;
+			const { stacks, enabled: on } = latest.current;
 			const drawn = nodes.current ?? [];
 			const at = pointer.current;
 			const ids = live.map((change) => change.id);
 			const byId = new Map(drawn.map((node) => [node.id, node] as const));
-			const pileable = ids.every((id) => {
+			const stackable = ids.every((id) => {
 				const node = byId.get(id);
 				return (
 					node &&
-					(node.type === "sticky" || node.type === "pile") &&
+					(node.type === "sticky" || node.type === "stack") &&
 					node.data.display === undefined &&
-					!(node.type === "pile" && node.data.pile?.open)
+					!(node.type === "stack" && node.data.stack?.open)
 				);
 			});
-			if (!on || !at || !pileable) {
+			if (!on || !at || !stackable) {
 				reset();
 				return null;
 			}
 			const dragged = new Set(ids);
-			for (const id of ids) for (const member of piles.members.get(id) ?? []) dragged.add(member);
-			// Moving stickies around inside the pile they're in is just that.
-			const own = new Set(ids.map((id) => piles.pileOf.get(id) ?? null));
-			const ownPile = own.size === 1 ? [...own][0] : null;
+			for (const id of ids) for (const member of stacks.members.get(id) ?? []) dragged.add(member);
+			// Moving stickies around inside the stack they're in is just that.
+			const own = new Set(ids.map((id) => stacks.stackOf.get(id) ?? null));
+			const ownStack = own.size === 1 ? [...own][0] : null;
 			let best: ShapeNode | null = null;
 			drawn.forEach((node) => {
 				if (node.hidden || dragged.has(node.id) || node.data.display !== undefined) return;
-				if (node.type !== "sticky" && node.type !== "pile") return;
-				const pile = node.type === "pile" ? node.id : (piles.pileOf.get(node.id) ?? null);
-				if (ownPile && pile === ownPile) return;
+				if (node.type !== "sticky" && node.type !== "stack") return;
+				const stack = node.type === "stack" ? node.id : (stacks.stackOf.get(node.id) ?? null);
+				if (ownStack && stack === ownStack) return;
 				if (!contains(nodeBox(node), at)) return;
-				// The topmost under the pointer: an open pile's stickies over its tray.
+				// The topmost under the pointer: an open stack's stickies over its tray.
 				if (!best || (node.zIndex ?? 0) >= (best.zIndex ?? 0)) best = node;
 			});
 			const target = (best as ShapeNode | null)?.id ?? null;
@@ -122,7 +122,7 @@ export function usePileDrop({
 			if (target) {
 				timer.current = setTimeout(() => {
 					if (stateRef.current.target === target) update({ ...stateRef.current, armed: true });
-				}, scaledDuration(PILE_HOLD_MS));
+				}, scaledDuration(STACK_HOLD_MS));
 			}
 			return null;
 		},

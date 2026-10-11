@@ -23,7 +23,7 @@ const NOUNS: Record<string, [string, string]> = {
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
-	pile: ["pile", "piles"],
+	stack: ["stack", "stacks"],
 };
 
 function counted(n: number, [one, many]: [string, string]): string {

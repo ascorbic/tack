@@ -10,7 +10,7 @@ import type { SinceEvent } from "../shared/since.ts";
 import { cardStore } from "./cardStore.ts";
 import type { WidgetRequest } from "../shared/widgets.ts";
 import { type FacilitationIncoming, facilitation } from "./facilitation/store.ts";
-import { isPileMessage, pileStore } from "./piles/store.ts";
+import { isStackMessage, stackStore } from "./stacks/store.ts";
 import { inboxStore } from "./inbox/store.ts";
 import { widgetStore } from "./widgets/store.ts";
 import { boardPeople, peopleSource } from "./comments/people.ts";
@@ -112,8 +112,8 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 				commentStore.apply(message);
 				return;
 			}
-			if (isPileMessage(message)) {
-				pileStore.apply(message);
+			if (isStackMessage(message)) {
+				stackStore.apply(message);
 				return;
 			}
 			switch (message.type) {
@@ -172,9 +172,9 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 			if (status === "connected") widgetStore.rewatch();
 		});
 		facilitation.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
-		// Piles' suggestions and "Group these" (#73).
-		pileStore.reset();
-		pileStore.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
+		// Stacks' suggestions and "Group these" (#73).
+		stackStore.reset();
+		stackStore.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
 		// Comments and "since you were here" (#51, #46) travel on the same channel.
 		commentStore.reset();
 		commentStore.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
@@ -226,8 +226,8 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 			provider.off("sync", onSync);
 			widgetStore.connect(null);
 			facilitation.disconnected();
-			pileStore.reset();
-			pileStore.channel = null;
+			stackStore.reset();
+			stackStore.channel = null;
 			provider.destroy();
 		};
 	}, [connection]);

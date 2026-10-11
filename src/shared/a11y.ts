@@ -1,6 +1,7 @@
 import { type CardState } from "./cards.ts";
 import { readingOrder } from "./display.ts";
 import type { ShapeProps, ShapeType } from "./shapes.ts";
+import { nameState, stackName } from "./stacks.ts";
 
 // The board for people who don't see it (#61): the order the keyboard meets
 // shapes in, the nearest shape in a direction, and shapes and boards in
@@ -153,6 +154,7 @@ export const ROLE_NAMES: Record<ShapeType, [one: string, many: string]> = {
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
+	stack: ["stack", "stacks"],
 };
 
 export function roleName(type: ShapeType): string {
@@ -255,6 +257,7 @@ export function describeShape(
 		| "done"
 		| "due"
 		| "owner"
+		| "suggested"
 	>,
 	context: DescribeContext = {},
 ): string {
@@ -298,6 +301,15 @@ export function describeShape(
 			parts.push(clip(shape.title ?? "") || "untitled");
 			parts.push(shape.status ?? "proposed");
 			break;
+		case "stack": {
+			// A stack (#73): its name, whether that's only a suggestion, and how many stickies.
+			const name = clip(stackName(shape) ?? "");
+			parts.push(name || "untitled");
+			if (nameState(shape) === "suggested") parts.push("suggested name");
+			const inside = context.contents?.(id);
+			if (inside) parts.push(inside.length > 0 ? countWords(inside) : "empty");
+			break;
+		}
 		case "widget": {
 			const config = shape.config as { title?: unknown } | undefined;
 			const title = typeof config?.title === "string" ? config.title.trim() : "";

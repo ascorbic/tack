@@ -12,7 +12,7 @@ import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { type DotVote, dottersOn, voteFor } from "../../shared/dotvotes.ts";
 import type { StampCount, Stamper } from "../../shared/facilitation.ts";
-import { UNTITLED_PILE, nameState, pileName } from "../../shared/piles.ts";
+import { UNTITLED_STACK, nameState, stackName } from "../../shared/stacks.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { widgetDefinition } from "../../shared/widgetRegistry.ts";
@@ -399,12 +399,12 @@ function describePlain(shape: ShapeProps): { glyph: string; title: string; note?
 			note: shape.owner ? `@${shape.owner.login}` : shape.due,
 		};
 	}
-	if (shape.type === "pile") {
-		// A pile (#73): its name (✨ while it's a suggestion); it pops out as its stack.
+	if (shape.type === "stack") {
+		// A stack (#73): its name (✨ while it's a suggestion); it pops out as its stack.
 		return {
 			glyph: nameState(shape) === "suggested" ? "✨" : "❐",
-			title: pileName(shape) ?? UNTITLED_PILE,
-			note: "Pile",
+			title: stackName(shape) ?? UNTITLED_STACK,
+			note: "Stack",
 		};
 	}
 	if (shape.type === "widget") {

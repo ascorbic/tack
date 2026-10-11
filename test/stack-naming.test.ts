@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
-import { pileUp, setPileName } from "../src/shared/pileEdits.ts";
+import { stackUp, setStackName } from "../src/shared/stackEdits.ts";
 import {
 	AiBudget,
 	MemoryNameCache,
-	PILE_ORIGIN,
-	type PileAi,
-	PileNamer,
-} from "../src/shared/pileNamer.ts";
+	STACK_ORIGIN,
+	type StackAi,
+	StackNamer,
+} from "../src/shared/stackNamer.ts";
 import {
 	GROUP_SCHEMA,
 	NAME_SYSTEM,
@@ -16,16 +16,16 @@ import {
 	nameMessage,
 	readGroups,
 	readName,
-} from "../src/shared/pileNaming.ts";
+} from "../src/shared/stackNaming.ts";
 import {
 	cleanName,
 	nameState,
 	namingTexts,
-	pileHash,
-	pileName,
+	stackHash,
+	stackName,
 	usableName,
 	wantsSuggestion,
-} from "../src/shared/piles.ts";
+} from "../src/shared/stacks.ts";
 import { addShape, nextZ, readShape, shapesMap } from "../src/shared/shapes.ts";
 import { readShapes } from "../src/shared/structure.ts";
 
@@ -47,8 +47,8 @@ describe("names", () => {
 	});
 
 	it("hashes text whatever order it's stacked in", () => {
-		expect(pileHash(["b", "A"])).toBe(pileHash(["a", "b"]));
-		expect(pileHash(["a"])).not.toBe(pileHash(["a", "b"]));
+		expect(stackHash(["b", "A"])).toBe(stackHash(["a", "b"]));
+		expect(stackHash(["a"])).not.toBe(stackHash(["a", "b"]));
 	});
 
 	it("reads names from objects, JSON, fenced JSON and bare text", () => {
@@ -101,7 +101,7 @@ describe("names", () => {
 });
 
 /** A fake model: answers from a function, and remembers what it was sent. */
-class FakeAi implements PileAi {
+class FakeAi implements StackAi {
 	named: string[][] = [];
 	grouped: { id: string; text: string }[][] = [];
 	fail = false;
@@ -124,7 +124,7 @@ function setup(ai: FakeAi | null = new FakeAi()) {
 	const doc = new Y.Doc();
 	let now = 1_000_000;
 	const logs: { event: string; context: Record<string, unknown> }[] = [];
-	const namer = new PileNamer({
+	const namer = new StackNamer({
 		doc,
 		ai: () => ai,
 		now: () => now,
@@ -139,35 +139,35 @@ function setup(ai: FakeAi | null = new FakeAi()) {
 	return { doc, namer, sticky, get, logs, advance: (ms: number) => (now += ms) };
 }
 
-describe("naming piles", () => {
-	it("suggests a name from a pile's text, once, and again when the text changes", async () => {
+describe("naming stacks", () => {
+	it("suggests a name from a stack's text, once, and again when the text changes", async () => {
 		const ai = new FakeAi((texts) => ({
 			name: texts.length > 2 ? "Docs and loaders" : "Docs gaps",
 		}));
 		const { doc, namer, sticky, get } = setup(ai);
 		sticky("a", "Docs are hard to find");
 		sticky("b", "No loader example");
-		pileUp(doc, "a", ["b"], undefined, () => "p");
+		stackUp(doc, "a", ["b"], undefined, () => "p");
 		await namer.scan();
 		expect(get("p").suggested).toEqual({
 			title: "Docs gaps",
-			hash: pileHash(["Docs are hard to find", "No loader example"]),
+			hash: stackHash(["Docs are hard to find", "No loader example"]),
 		});
 		expect(nameState(get("p"))).toBe("suggested");
 		await namer.scan();
 		expect(ai.named).toHaveLength(1);
 
 		sticky("c", "Which CDN options exist?");
-		pileUp(doc, "p", ["c"]);
+		stackUp(doc, "p", ["c"]);
 		await namer.scan();
 		expect(ai.named).toHaveLength(2);
-		expect(pileName(get("p"))).toBe("Docs and loaders");
+		expect(stackName(get("p"))).toBe("Docs and loaders");
 	});
 
 	it("never overwrites a name a person gave it, even one given while it was asking", async () => {
 		let release: () => void = () => {};
 		const ai = new FakeAi();
-		const slow: PileAi = {
+		const slow: StackAi = {
 			name: async (texts) => {
 				await new Promise<void>((resolve) => (release = resolve));
 				return ai.name(texts);
@@ -175,38 +175,38 @@ describe("naming piles", () => {
 			group: (notes) => ai.group(notes),
 		};
 		const doc = new Y.Doc();
-		const namer = new PileNamer({ doc, ai: () => slow, setTimer: () => 0, clearTimer: () => {} });
+		const namer = new StackNamer({ doc, ai: () => slow, setTimer: () => 0, clearTimer: () => {} });
 		addShape(doc, "a", { type: "sticky", text: "One", x: 0, y: 0, z: nextZ(doc) });
 		addShape(doc, "b", { type: "sticky", text: "Two", x: 0, y: 0, z: nextZ(doc) });
-		pileUp(doc, "a", ["b"], undefined, () => "p");
+		stackUp(doc, "a", ["b"], undefined, () => "p");
 		const scanning = namer.scan();
 		await Promise.resolve();
-		setPileName(doc, "p", "Numbers");
+		setStackName(doc, "p", "Numbers");
 		release();
 		await scanning;
-		const pile = readShape(shapesMap(doc).get("p") as Y.Map<unknown>);
-		expect(pile.title).toBe("Numbers");
-		expect(pile.suggested).toBeUndefined();
-		expect(wantsSuggestion(pile, "anything")).toBe(false);
-		// And nothing's asked for a pile a person's named.
+		const stack = readShape(shapesMap(doc).get("p") as Y.Map<unknown>);
+		expect(stack.title).toBe("Numbers");
+		expect(stack.suggested).toBeUndefined();
+		expect(wantsSuggestion(stack, "anything")).toBe(false);
+		// And nothing's asked for a stack a person's named.
 		await namer.scan();
 		expect(ai.named).toHaveLength(1);
 	});
 
-	it("never sends a face-down sticky's text, or names a pile from nothing", async () => {
+	it("never sends a face-down sticky's text, or names a stack from nothing", async () => {
 		const ai = new FakeAi();
 		const { doc, namer, sticky, get } = setup(ai);
 		sticky("a", "", { silent: "session" });
 		// Stray text on a face-down sticky (no client writes it; still never sent).
 		sticky("b", "SECRET hidden text", { silent: "session" });
-		pileUp(doc, "a", ["b"], undefined, () => "p");
+		stackUp(doc, "a", ["b"], undefined, () => "p");
 		await namer.scan();
 		expect(ai.named).toHaveLength(0);
 		expect(get("p").suggested).toBeUndefined();
 		expect(namingTexts(readShapes(doc), ["a", "b"])).toEqual([]);
 
 		sticky("c", "Visible words");
-		pileUp(doc, "p", ["c"]);
+		stackUp(doc, "p", ["c"]);
 		await namer.scan();
 		expect(ai.named).toEqual([["Visible words"]]);
 		expect(JSON.stringify(ai.named)).not.toContain("SECRET");
@@ -216,7 +216,7 @@ describe("naming piles", () => {
 		const { doc, namer, sticky, get } = setup(null);
 		sticky("a", "One");
 		sticky("b", "Two");
-		pileUp(doc, "a", ["b"], undefined, () => "p");
+		stackUp(doc, "a", ["b"], undefined, () => "p");
 		await namer.scan();
 		expect(get("p").suggested).toBeUndefined();
 	});
@@ -227,12 +227,12 @@ describe("naming piles", () => {
 		const origins: unknown[] = [];
 		doc.on("afterTransaction", (transaction: Y.Transaction) => origins.push(transaction.origin));
 		for (const id of ["a", "b", "c", "d"]) sticky(id, id === "a" || id === "c" ? "One" : "Two");
-		pileUp(doc, "a", ["b"], undefined, () => "p");
-		pileUp(doc, "c", ["d"], undefined, () => "q");
+		stackUp(doc, "a", ["b"], undefined, () => "p");
+		stackUp(doc, "c", ["d"], undefined, () => "q");
 		await namer.scan();
 		expect(ai.named).toHaveLength(1);
-		expect(pileName(get("q"))).toBe("Docs gaps");
-		expect(origins).toContain(PILE_ORIGIN);
+		expect(stackName(get("q"))).toBe("Docs gaps");
+		expect(origins).toContain(STACK_ORIGIN);
 	});
 
 	it("waits after failures, and keeps within its budget", async () => {
@@ -241,11 +241,11 @@ describe("naming piles", () => {
 		const { doc, namer, sticky, get, logs, advance } = setup(ai);
 		sticky("a", "One");
 		sticky("b", "Two");
-		pileUp(doc, "a", ["b"], undefined, () => "p");
+		stackUp(doc, "a", ["b"], undefined, () => "p");
 		await namer.scan();
 		await namer.scan();
 		expect(ai.named).toHaveLength(1);
-		expect(logs.map((entry) => entry.event)).toContain("pile.name.failed");
+		expect(logs.map((entry) => entry.event)).toContain("stack.name.failed");
 		ai.fail = false;
 		advance(11 * 60_000);
 		await namer.scan();
@@ -262,7 +262,7 @@ describe("naming piles", () => {
 		const { doc, namer, sticky, get } = setup();
 		sticky("a", "One");
 		sticky("b", "Two");
-		pileUp(doc, "a", ["b"], undefined, () => "p");
+		stackUp(doc, "a", ["b"], undefined, () => "p");
 		await namer.scan();
 		expect(get("p").suggested).toBeDefined();
 		shapesMap(doc).get("a")?.set("text", "");
@@ -273,7 +273,7 @@ describe("naming piles", () => {
 });
 
 describe("grouping", () => {
-	it("proposes piles from stickies' visible text only", async () => {
+	it("proposes stacks from stickies' visible text only", async () => {
 		const ai = new FakeAi();
 		const { namer, sticky } = setup(ai);
 		sticky("a", "One");
@@ -283,7 +283,7 @@ describe("grouping", () => {
 		const outcome = await namer.group(["a", "b", "c", "hidden", "missing"]);
 		expect(outcome).toMatchObject({
 			ok: true,
-			piles: [{ name: "Everything", ids: ["a", "b", "c"] }],
+			stacks: [{ name: "Everything", ids: ["a", "b", "c"] }],
 		});
 		expect(JSON.stringify(ai.grouped)).not.toContain("SECRET");
 		expect(await namer.group(["a", "b"])).toEqual({ ok: false, reason: "too_few" });

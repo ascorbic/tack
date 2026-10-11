@@ -20,7 +20,11 @@ export function withShapeLabel(Node: ComponentType<NodeProps<ShapeNode>>) {
 		return (
 			<>
 				<Node {...props} />
-				<ShapeLabel id={props.id} shape={props.data.shape} count={props.data.count} />
+				<ShapeLabel
+					id={props.id}
+					shape={props.data.shape}
+					count={props.data.count ?? props.data.stack?.members.length}
+				/>
 			</>
 		);
 	});
@@ -29,7 +33,7 @@ export function withShapeLabel(Node: ComponentType<NodeProps<ShapeNode>>) {
 interface LabelProps {
 	id: string;
 	shape: ShapeNode["data"]["shape"];
-	/** A section's count, so its name is said again when what's in it changes. */
+	/** A section's or stack's count, so its name is said again when what's in it changes. */
 	count?: number;
 }
 
@@ -92,10 +96,17 @@ function titleOf(doc: Y.Doc, id: string): string | undefined {
 	return typeof title === "string" ? title : "";
 }
 
+/** What's in a section (a stack's stickies count as its stack), or a stack's stickies. */
 function contentsOf(doc: Y.Doc, id: string): ShapeType[] {
 	const out: ShapeType[] = [];
-	for (const shape of shapesMap(doc).values()) {
-		if (shape.get("parent") === id) out.push(shape.get("type") as ShapeType);
+	const shapes = shapesMap(doc);
+	const isStack = shapes.get(id)?.get("type") === "stack";
+	for (const shape of shapes.values()) {
+		const stack = shape.get("stack");
+		const stacked = typeof stack === "string" && shapes.get(stack)?.get("type") === "stack";
+		if (isStack ? stack === id && stacked : shape.get("parent") === id && !stacked) {
+			out.push(shape.get("type") as ShapeType);
+		}
 	}
 	return out;
 }

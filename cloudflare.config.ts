@@ -55,11 +55,11 @@ export default defineConfig(({ isPreview, mode }) => ({
 			// empty for the slug alone. Empty by default: a short alias like `tack`
 			// is someone's real GitHub login, and every command would notify them.
 			TACK_COMMAND_ALIAS: bindings.text(""),
-			// AI suggestions (#73): naming piles of stickies from what they say,
-			// and sorting a selection into named piles. `workers-ai` (the
+			// AI suggestions (#73): naming stacks of stickies from what they say,
+			// and sorting a selection into named stacks. `workers-ai` (the
 			// default) asks Workers AI through the AI binding below, which counts
 			// against the account's Workers AI allocation (a free daily amount,
-			// then billed); `off` turns them off (piles are "Untitled pile" until
+			// then billed); `off` turns them off (stacks are "Untitled stack" until
 			// someone names them), as does removing the binding. Local dev has
 			// no Workers AI (a binding there always reaches the remote, billed
 			// service and needs a Cloudflare login), so it uses `fake`, a stand-in

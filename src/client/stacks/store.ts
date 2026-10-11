@@ -1,37 +1,39 @@
 import { useSyncExternalStore } from "react";
-import type { ProposedPile } from "../../shared/pileEdits.ts";
-import type { PileMessage, PileRequest } from "../../shared/pileNamer.ts";
+import type { ProposedStack } from "../../shared/stackEdits.ts";
+import type { StackMessage, StackRequest } from "../../shared/stackNamer.ts";
 
-// Piles on the client (#73): what's this person's own (which pile they've
+// Stacks on the client (#73): what's this person's own (which stack they've
 // opened, a "Group these" proposal they're looking at) and what the board's
 // server says (whether AI suggestions are on, and its answers). Opening a
-// pile is a way of looking, so it's never in the document: someone else's
-// pile stays a neat stack for you while they read theirs spread out.
+// stack is a way of looking, so it's never in the document: someone else's
+// stack stays a neat stack for you while they read theirs spread out.
 //
 // The live board wires `channel` to its connection; the playground to its
-// pretend server (play/piles.ts).
+// pretend server (play/stacks.ts).
 
-export interface PileChannel {
-	send(request: PileRequest): void;
+export interface StackChannel {
+	send(request: StackRequest): void;
 }
 
 export type GroupFailure = "off" | "too_few" | "limited" | "failed" | "not_editor" | "offline";
 
-export type GroupAnswer = { ok: true; piles: ProposedPile[] } | { ok: false; reason: GroupFailure };
+export type GroupAnswer =
+	| { ok: true; stacks: ProposedStack[] }
+	| { ok: false; reason: GroupFailure };
 
 /** How long to wait for an answer before saying it didn't come. */
 const GROUP_TIMEOUT_MS = 30_000;
 
-export interface PileSnapshot {
+export interface StackSnapshot {
 	/** Whether the board's server suggests names (null until it's said). */
 	ai: boolean | null;
-	/** The pile spread open here, if any: one at a time. */
+	/** The stack spread open here, if any: one at a time. */
 	open: string | null;
 }
 
-class PileStore {
-	channel: PileChannel | null = null;
-	private snapshot: PileSnapshot = { ai: null, open: null };
+class StackStore {
+	channel: StackChannel | null = null;
+	private snapshot: StackSnapshot = { ai: null, open: null };
 	private listeners = new Set<() => void>();
 	private waiting = new Map<
 		string,
@@ -46,12 +48,12 @@ class PileStore {
 
 	readonly getSnapshot = () => this.snapshot;
 
-	private set(next: Partial<PileSnapshot>) {
+	private set(next: Partial<StackSnapshot>) {
 		this.snapshot = { ...this.snapshot, ...next };
 		for (const listener of this.listeners) listener();
 	}
 
-	/** Spread a pile open (closing any other), or gather it back with null. */
+	/** Spread a stack open (closing any other), or gather it back with null. */
 	setOpen(id: string | null): void {
 		if (this.snapshot.open !== id) this.set({ open: id });
 	}
@@ -71,8 +73,8 @@ class PileStore {
 		this.set({ ai: null, open: null });
 	}
 
-	apply(message: PileMessage): void {
-		if (message.type === "piles-ai") {
+	apply(message: StackMessage): void {
+		if (message.type === "stacks-ai") {
 			this.setAi(message.enabled);
 			return;
 		}
@@ -81,13 +83,13 @@ class PileStore {
 		clearTimeout(waiting.timer);
 		this.waiting.delete(message.request);
 		waiting.resolve(
-			message.type === "pile-groups"
-				? { ok: true, piles: message.piles }
+			message.type === "stack-groups"
+				? { ok: true, stacks: message.stacks }
 				: { ok: false, reason: message.reason },
 		);
 	}
 
-	/** Ask the board's server to propose piles for these stickies. */
+	/** Ask the board's server to propose stacks for these stickies. */
 	group(ids: readonly string[]): Promise<GroupAnswer> {
 		const channel = this.channel;
 		if (!channel) return Promise.resolve({ ok: false, reason: "offline" });
@@ -98,22 +100,22 @@ class PileStore {
 				resolve({ ok: false, reason: "failed" });
 			}, GROUP_TIMEOUT_MS);
 			this.waiting.set(request, { resolve, timer });
-			channel.send({ type: "pile-group", request, ids: [...ids] });
+			channel.send({ type: "stack-group", request, ids: [...ids] });
 		});
 	}
 }
 
-export const pileStore = new PileStore();
+export const stackStore = new StackStore();
 
-export function usePiles(): PileSnapshot {
-	return useSyncExternalStore(pileStore.subscribe, pileStore.getSnapshot);
+export function useStacks(): StackSnapshot {
+	return useSyncExternalStore(stackStore.subscribe, stackStore.getSnapshot);
 }
 
-export function isPileMessage(message: { type?: unknown }): message is PileMessage {
+export function isStackMessage(message: { type?: unknown }): message is StackMessage {
 	return (
-		message.type === "piles-ai" ||
-		message.type === "pile-groups" ||
-		message.type === "pile-group-failed"
+		message.type === "stacks-ai" ||
+		message.type === "stack-groups" ||
+		message.type === "stack-group-failed"
 	);
 }
 
@@ -131,6 +133,6 @@ export function groupFailure(reason: GroupFailure): string {
 		case "offline":
 			return "You’re offline: try again once you’re back";
 		case "failed":
-			return "Couldn’t come up with piles just now: try again, or pile them up by hand";
+			return "Couldn’t come up with stacks just now: try again, or stack them up by hand";
 	}
 }

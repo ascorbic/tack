@@ -1,6 +1,6 @@
-// Piles' names (#73) on a real board in Miniflare, with a fake Workers AI:
+// Stacks' names (#73) on a real board in Miniflare, with a fake Workers AI:
 // suggestions are on by default and off with TACK_AI=off or without the AI
-// binding, a name a person gave a pile is never replaced, silent mode's
+// binding, a name a person gave a stack is never replaced, silent mode's
 // hidden text never reaches the model, and "Group these" answers editors
 // alone.
 
@@ -9,9 +9,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import type * as Y from "yjs";
 import type { SetupInfo } from "../src/shared/auth.ts";
 import type { BoardInfo, Role } from "../src/shared/boards.ts";
-import { pileUp, setPileName } from "../src/shared/pileEdits.ts";
-import type { PileMessage } from "../src/shared/pileNamer.ts";
-import { pileName } from "../src/shared/piles.ts";
+import { stackUp, setStackName } from "../src/shared/stackEdits.ts";
+import type { StackMessage } from "../src/shared/stackNamer.ts";
+import { stackName } from "../src/shared/stacks.ts";
 import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
 import { joinSilentSession, parseSession } from "../src/shared/silent.ts";
 import { type BoardClient, connectBoard, eventually } from "./board-client.ts";
@@ -79,19 +79,19 @@ async function open(id: string, cookie: string): Promise<BoardClient> {
 	return result.client;
 }
 
-const pileMessages = (client: BoardClient) => client.messages as PileMessage[];
+const stackMessages = (client: BoardClient) => client.messages as StackMessage[];
 
 function sticky(doc: Y.Doc, id: string, text: string, parent: string | null = null) {
 	addShape(doc, id, { type: "sticky", text, x: 40, y: 40, z: `b${id}`, parent });
 }
 
-const pile = (client: BoardClient, id: string) => {
+const stack = (client: BoardClient, id: string) => {
 	const shape = shapesMap(client.doc).get(id);
 	return shape ? readShape(shape) : undefined;
 };
 
 describe("AI suggestions", () => {
-	it("are on by default, name piles from their text, and say so", async () => {
+	it("are on by default, name stacks from their text, and say so", async () => {
 		const setup = (await (await api("/api/setup", olive)).json()) as Extract<
 			SetupInfo,
 			{ status: "configured" }
@@ -99,56 +99,56 @@ describe("AI suggestions", () => {
 		expect(setup.ai).toMatchObject({ state: "on", provider: "workers-ai" });
 		const id = await board();
 		const editor = await open(id, eddie);
-		await eventually(() => pileMessages(editor).some((m) => m.type === "piles-ai" && m.enabled));
+		await eventually(() => stackMessages(editor).some((m) => m.type === "stacks-ai" && m.enabled));
 
 		sticky(editor.doc, "a", "Provider docs are hard to find");
 		sticky(editor.doc, "b", "No example of a custom loader");
-		pileUp(editor.doc, "a", ["b"], undefined, () => "p");
+		stackUp(editor.doc, "a", ["b"], undefined, () => "p");
 		await editor.roundTrip();
 		const before = ai.calls.length;
-		await (await boardStub(mf, id)).namePiles();
+		await (await boardStub(mf, id)).nameStacks();
 		expect(ai.calls).toHaveLength(before + 1);
 		expect(ai.calls.at(-1)?.model).toMatch(/^@cf\//);
 		expect(ai.calls.at(-1)?.input.response_format?.type).toBe("json_schema");
-		await eventually(() => pileName(pile(editor, "p")) === "No example of");
-		expect(pile(editor, "p")?.suggested?.title).toBe("No example of");
+		await eventually(() => stackName(stack(editor, "p")) === "No example of");
+		expect(stack(editor, "p")?.suggested?.title).toBe("No example of");
 
 		// The same text isn't asked about twice.
-		await (await boardStub(mf, id)).namePiles();
+		await (await boardStub(mf, id)).nameStacks();
 		expect(ai.calls).toHaveLength(before + 1);
 	});
 
-	it("never replace a name a person gave a pile", async () => {
+	it("never replace a name a person gave a stack", async () => {
 		const id = await board();
 		const editor = await open(id, eddie);
 		sticky(editor.doc, "a", "CI takes 25 minutes");
 		sticky(editor.doc, "b", "Flaky e2e on Windows");
-		pileUp(editor.doc, "a", ["b"], undefined, () => "p");
-		setPileName(editor.doc, "p", "Our CI");
+		stackUp(editor.doc, "a", ["b"], undefined, () => "p");
+		setStackName(editor.doc, "p", "Our CI");
 		await editor.roundTrip();
 		const before = ai.calls.length;
-		await (await boardStub(mf, id)).namePiles();
+		await (await boardStub(mf, id)).nameStacks();
 		expect(ai.calls.length).toBe(before);
 
 		// Its text changing doesn't either.
 		sticky(editor.doc, "c", "Can't rerun one job");
-		pileUp(editor.doc, "p", ["c"]);
+		stackUp(editor.doc, "p", ["c"]);
 		await editor.roundTrip();
-		await (await boardStub(mf, id)).namePiles();
+		await (await boardStub(mf, id)).nameStacks();
 		expect(ai.calls.length).toBe(before);
-		expect(pile(editor, "p")?.title).toBe("Our CI");
-		expect(pile(editor, "p")?.suggested).toBeUndefined();
+		expect(stack(editor, "p")?.title).toBe("Our CI");
+		expect(stack(editor, "p")?.suggested).toBeUndefined();
 
 		// Clearing the name lets suggestions in.
-		setPileName(editor.doc, "p", "");
+		setStackName(editor.doc, "p", "");
 		await editor.roundTrip();
-		await (await boardStub(mf, id)).namePiles();
+		await (await boardStub(mf, id)).nameStacks();
 		expect(ai.calls.length).toBe(before + 1);
-		await eventually(() => pile(editor, "p")?.suggested !== undefined);
-		expect(pile(editor, "p")?.title).toBeUndefined();
+		await eventually(() => stack(editor, "p")?.suggested !== undefined);
+		expect(stack(editor, "p")?.title).toBeUndefined();
 	});
 
-	it("never send silent mode's hidden text, before or after it's piled", async () => {
+	it("never send silent mode's hidden text, before or after it's stacked", async () => {
 		const id = await board();
 		const facilitator = await open(id, olive);
 		const writer = await open(id, eddie);
@@ -181,19 +181,19 @@ describe("AI suggestions", () => {
 		writer.send({ type: "silent-text", shape: "hidden", text: SECRET });
 		sticky(writer.doc, "seen", "Release notes are thin", "ideas");
 		sticky(writer.doc, "also", "Contributors don't get credit", "ideas");
-		pileUp(writer.doc, "seen", ["hidden", "also"], undefined, () => "p");
+		stackUp(writer.doc, "seen", ["hidden", "also"], undefined, () => "p");
 		await writer.roundTrip();
 
-		await (await boardStub(mf, id)).namePiles();
-		writer.send({ type: "pile-group", request: "g1", ids: ["seen", "hidden", "also"] });
-		await eventually(() => pileMessages(writer).some((m) => "request" in m && m.request === "g1"));
+		await (await boardStub(mf, id)).nameStacks();
+		writer.send({ type: "stack-group", request: "g1", ids: ["seen", "hidden", "also"] });
+		await eventually(() => stackMessages(writer).some((m) => "request" in m && m.request === "g1"));
 		expect(ai.sent).not.toContain(SECRET);
 		expect(ai.sent).toContain("Release notes are thin");
 	});
 });
 
 describe("Group these", () => {
-	it("proposes piles to the editor who asked, and refuses viewers", async () => {
+	it("proposes stacks to the editor who asked, and refuses viewers", async () => {
 		const id = await board();
 		const editor = await open(id, eddie);
 		const viewer = await open(id, vera);
@@ -202,25 +202,25 @@ describe("Group these", () => {
 		}
 		await editor.roundTrip();
 		const ids = ["s0", "s1", "s2", "s3"];
-		editor.send({ type: "pile-group", request: "mine", ids });
-		viewer.send({ type: "pile-group", request: "theirs", ids });
-		await eventually(() => pileMessages(editor).some((m) => m.type === "pile-groups"));
-		const answer = pileMessages(editor).find((m) => m.type === "pile-groups");
+		editor.send({ type: "stack-group", request: "mine", ids });
+		viewer.send({ type: "stack-group", request: "theirs", ids });
+		await eventually(() => stackMessages(editor).some((m) => m.type === "stack-groups"));
+		const answer = stackMessages(editor).find((m) => m.type === "stack-groups");
 		expect(answer).toEqual({
-			type: "pile-groups",
+			type: "stack-groups",
 			request: "mine",
-			piles: [
+			stacks: [
 				{ name: "First half", ids: ["s0", "s1"] },
 				{ name: "Second half", ids: ["s2", "s3"] },
 			],
 		});
-		await eventually(() => pileMessages(viewer).some((m) => m.type === "pile-group-failed"));
-		expect(pileMessages(viewer).find((m) => m.type === "pile-group-failed")).toMatchObject({
+		await eventually(() => stackMessages(viewer).some((m) => m.type === "stack-group-failed"));
+		expect(stackMessages(viewer).find((m) => m.type === "stack-group-failed")).toMatchObject({
 			request: "theirs",
 			reason: "not_editor",
 		});
 		// Nothing was written: it's a proposal.
-		expect([...shapesMap(editor.doc).values()].some((s) => s.get("type") === "pile")).toBe(false);
+		expect([...shapesMap(editor.doc).values()].some((s) => s.get("type") === "stack")).toBe(false);
 	});
 
 	it("says when the model fails", async () => {
@@ -230,12 +230,12 @@ describe("Group these", () => {
 		await editor.roundTrip();
 		ai.failing = true;
 		try {
-			editor.send({ type: "pile-group", request: "down", ids: ["s0", "s1", "s2"] });
+			editor.send({ type: "stack-group", request: "down", ids: ["s0", "s1", "s2"] });
 			await eventually(() =>
-				pileMessages(editor).some((m) => m.type === "pile-group-failed" && m.request === "down"),
+				stackMessages(editor).some((m) => m.type === "stack-group-failed" && m.request === "down"),
 			);
 			expect(
-				pileMessages(editor).find((m) => "request" in m && m.request === "down"),
+				stackMessages(editor).find((m) => "request" in m && m.request === "down"),
 			).toMatchObject({ reason: "failed" });
 		} finally {
 			ai.failing = false;
@@ -275,22 +275,22 @@ describe("turned off", () => {
 				const client = result.client;
 				clients.push(client);
 				await eventually(() =>
-					pileMessages(client).some((m) => m.type === "piles-ai" && !m.enabled),
+					stackMessages(client).some((m) => m.type === "stacks-ai" && !m.enabled),
 				);
 				for (const [i, text] of ["One", "Two", "Three"].entries()) {
 					sticky(client.doc, `s${i}`, text);
 				}
-				pileUp(client.doc, "s0", ["s1"], undefined, () => "p");
+				stackUp(client.doc, "s0", ["s1"], undefined, () => "p");
 				await client.roundTrip();
-				await (await boardStub(worker, made.id)).namePiles();
-				expect(pile(client, "p")?.suggested).toBeUndefined();
-				expect(pileName(pile(client, "p"))).toBeNull();
-				client.send({ type: "pile-group", request: "off", ids: ["s0", "s1", "s2"] });
+				await (await boardStub(worker, made.id)).nameStacks();
+				expect(stack(client, "p")?.suggested).toBeUndefined();
+				expect(stackName(stack(client, "p"))).toBeNull();
+				client.send({ type: "stack-group", request: "off", ids: ["s0", "s1", "s2"] });
 				await eventually(() =>
-					pileMessages(client).some((m) => m.type === "pile-group-failed" && m.request === "off"),
+					stackMessages(client).some((m) => m.type === "stack-group-failed" && m.request === "off"),
 				);
 				expect(
-					pileMessages(client).find((m) => "request" in m && m.request === "off"),
+					stackMessages(client).find((m) => "request" in m && m.request === "off"),
 				).toMatchObject({ reason: "off" });
 				expect(off.calls).toHaveLength(0);
 			} finally {

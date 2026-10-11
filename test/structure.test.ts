@@ -223,7 +223,7 @@ describe("repair", () => {
 			decisions: 0,
 			widgets: 0,
 			actions: 0,
-			piles: 0,
+			stacks: 0,
 		});
 		expect(get("orphan")?.parent).toBeNull();
 		expect(get(line)?.from).toEqual({ x: 10, y: 20 });
@@ -237,7 +237,7 @@ describe("repair", () => {
 			decisions: 0,
 			widgets: 0,
 			actions: 0,
-			piles: 0,
+			stacks: 0,
 		});
 	});
 
@@ -268,7 +268,7 @@ describe("repair", () => {
 			decisions: 0,
 			widgets: 0,
 			actions: 0,
-			piles: 0,
+			stacks: 0,
 		});
 		const line = readShape(shapesMap(server).get("line") as Y.Map<unknown>);
 		expect(line.to).toEqual({ x: 126, y: 62 });

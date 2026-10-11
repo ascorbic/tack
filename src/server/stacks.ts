@@ -3,19 +3,19 @@ import type * as Y from "yjs";
 import { canEdit } from "../shared/boards.ts";
 import {
 	type NameCache,
-	type PileAi,
-	PileNamer,
-	type PileMessage,
-	type PileRequest,
-} from "../shared/pileNamer.ts";
-import { aiStatus, pileAi } from "./ai.ts";
+	type StackAi,
+	StackNamer,
+	type StackMessage,
+	type StackRequest,
+} from "../shared/stackNamer.ts";
+import { aiStatus, stackAi } from "./ai.ts";
 import type { ConnectionAccess } from "./board.ts";
 import { log } from "./log.ts";
 
-// Piles on the board's server (#73): names suggested from what's in them,
+// Stacks on the board's server (#73): names suggested from what's in them,
 // and "Group these", asked of Workers AI (src/server/ai.ts) while AI
 // suggestions are on (`TACK_AI`, on by default). The naming itself (what's
-// sent, when, caching, the budget) is `PileNamer`, shared with the
+// sent, when, caching, the budget) is `StackNamer`, shared with the
 // playground; here it gets its model, a cache in the board's SQLite, and the
 // board's connections: editors ask for groupings, and everyone's told
 // whether suggestions are on.
@@ -23,7 +23,7 @@ import { log } from "./log.ts";
 /** Names kept per board. */
 const CACHE_ROWS = 1000;
 
-export interface PilesOptions {
+export interface StacksOptions {
 	board: string;
 	env: Env;
 	doc: Y.Doc;
@@ -35,35 +35,35 @@ export interface PilesOptions {
 /** Names already made, by the hash of the text they came from, in the board's SQLite. */
 function sqlNameCache(sql: SqlStorage): NameCache {
 	sql.exec(
-		"CREATE TABLE IF NOT EXISTS pile_names (hash TEXT PRIMARY KEY, name TEXT NOT NULL, at INTEGER NOT NULL)",
+		"CREATE TABLE IF NOT EXISTS stack_names (hash TEXT PRIMARY KEY, name TEXT NOT NULL, at INTEGER NOT NULL)",
 	);
 	return {
 		get: (hash) =>
-			sql.exec<{ name: string }>("SELECT name FROM pile_names WHERE hash = ?", hash).toArray()[0]
+			sql.exec<{ name: string }>("SELECT name FROM stack_names WHERE hash = ?", hash).toArray()[0]
 				?.name ?? null,
 		set: (hash, name) => {
 			sql.exec(
-				"INSERT OR REPLACE INTO pile_names (hash, name, at) VALUES (?, ?, ?)",
+				"INSERT OR REPLACE INTO stack_names (hash, name, at) VALUES (?, ?, ?)",
 				hash,
 				name,
 				Date.now(),
 			);
 			sql.exec(
-				"DELETE FROM pile_names WHERE hash NOT IN (SELECT hash FROM pile_names ORDER BY at DESC LIMIT ?)",
+				"DELETE FROM stack_names WHERE hash NOT IN (SELECT hash FROM stack_names ORDER BY at DESC LIMIT ?)",
 				CACHE_ROWS,
 			);
 		},
 	};
 }
 
-export class Piles {
-	readonly namer: PileNamer;
+export class Stacks {
+	readonly namer: StackNamer;
 	/** A grouping in flight per connection: one at a time each. */
 	private grouping = new Set<string>();
 
-	constructor(private readonly options: PilesOptions) {
+	constructor(private readonly options: StacksOptions) {
 		const { board, doc, sql } = options;
-		this.namer = new PileNamer({
+		this.namer = new StackNamer({
 			doc,
 			ai: () => this.ai(),
 			cache: sqlNameCache(sql),
@@ -81,8 +81,8 @@ export class Piles {
 		return aiStatus(this.options.env).state === "on";
 	}
 
-	private ai(): PileAi | null {
-		return pileAi(this.options.env);
+	private ai(): StackAi | null {
+		return stackAi(this.options.env);
 	}
 
 	/** A new connection: whether suggestions are on. */
@@ -95,10 +95,10 @@ export class Piles {
 	}
 
 	private tell(connection: Connection, enabled: boolean): void {
-		this.reply(connection, { type: "piles-ai", enabled });
+		this.reply(connection, { type: "stacks-ai", enabled });
 	}
 
-	private reply(connection: Connection, message: PileMessage): void {
+	private reply(connection: Connection, message: StackMessage): void {
 		try {
 			this.options.send(connection, JSON.stringify(message));
 		} catch (error) {
@@ -106,14 +106,14 @@ export class Piles {
 		}
 	}
 
-	/** "Group these": piles proposed for the stickies a connection selected, back to it alone. */
-	async receive(connection: Connection<ConnectionAccess>, request: PileRequest): Promise<void> {
+	/** "Group these": stacks proposed for the stickies a connection selected, back to it alone. */
+	async receive(connection: Connection<ConnectionAccess>, request: StackRequest): Promise<void> {
 		const { board } = this.options;
 		const access = connection.state;
 		if (!canEdit(access?.role ?? null) || access?.archived) {
-			log.warn("pile.group.refused", { board, reason: "not_editor" });
+			log.warn("stack.group.refused", { board, reason: "not_editor" });
 			this.reply(connection, {
-				type: "pile-group-failed",
+				type: "stack-group-failed",
 				request: request.request,
 				reason: "not_editor",
 			});
@@ -121,7 +121,7 @@ export class Piles {
 		}
 		if (this.grouping.has(connection.id)) {
 			this.reply(connection, {
-				type: "pile-group-failed",
+				type: "stack-group-failed",
 				request: request.request,
 				reason: "limited",
 			});
@@ -133,8 +133,8 @@ export class Piles {
 			this.reply(
 				connection,
 				outcome.ok
-					? { type: "pile-groups", request: request.request, piles: outcome.piles }
-					: { type: "pile-group-failed", request: request.request, reason: outcome.reason },
+					? { type: "stack-groups", request: request.request, stacks: outcome.stacks }
+					: { type: "stack-group-failed", request: request.request, reason: outcome.reason },
 			);
 		} finally {
 			this.grouping.delete(connection.id);

@@ -26,7 +26,7 @@ import {
 } from "../../shared/dotvotes.ts";
 import type { Stamper } from "../../shared/facilitation.ts";
 import { readShape, shapesMap } from "../../shared/shapes.ts";
-import { UNTITLED_PILE, pileName } from "../../shared/piles.ts";
+import { UNTITLED_STACK, stackName } from "../../shared/stacks.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { cardStore, useCard } from "../cardStore.ts";
 import { DocContext } from "../DocContext.ts";
@@ -698,11 +698,11 @@ function RowLabel({ doc, row }: { doc: Y.Doc; row: TallyRow }) {
 			</span>
 		);
 	}
-	if (shape.type === "pile") {
+	if (shape.type === "stack") {
 		return (
 			<span className="tally-label" data-color="yellow">
 				<span className="tally-paper" aria-hidden="true" />
-				{pileName(shape) ?? UNTITLED_PILE} (a pile)
+				{stackName(shape) ?? UNTITLED_STACK} (a stack)
 			</span>
 		);
 	}

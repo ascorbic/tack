@@ -6,11 +6,11 @@ function explain(status: AiStatus): string {
 		case "on":
 			return status.provider === "fake"
 				? "Local development’s stand-in answers, from the stickies’ own words: nothing leaves this machine."
-				: "Workers AI names piles from what their stickies say and groups a selection, on this Cloudflare account’s Workers AI allocation. Face-down stickies are never sent.";
+				: "Workers AI names stacks from what their stickies say and groups a selection, on this Cloudflare account’s Workers AI allocation. Face-down stickies are never sent.";
 		case "off":
-			return "Turned off (TACK_AI is “off”): piles are called “Untitled pile” until someone names them.";
+			return "Turned off (TACK_AI is “off”): stacks are called “Untitled stack” until someone names them.";
 		case "unavailable":
-			return "There’s no Workers AI binding to ask, so piles are called “Untitled pile” until someone names them.";
+			return "There’s no Workers AI binding to ask, so stacks are called “Untitled stack” until someone names them.";
 	}
 }
 

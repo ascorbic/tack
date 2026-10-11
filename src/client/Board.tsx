@@ -124,12 +124,12 @@ import type * as Y from "yjs";
 import { isEditingShape } from "./useEditing.ts";
 import { spotNear } from "../shared/placement.ts";
 import { addSection, placeInSections, readShapes } from "../shared/structure.ts";
-import { leavePile, pileUp, reorderInPile } from "../shared/pileEdits.ts";
-import { PILE_SIZE, STICKY, memberAt, nearestSlot, openLayout } from "../shared/piles.ts";
+import { leaveStack, stackUp, reorderInStack } from "../shared/stackEdits.ts";
+import { STACK_SIZE, STICKY, memberAt, nearestSlot, openLayout } from "../shared/stacks.ts";
 import { contains } from "../shared/geometry.ts";
-import { pileStore, usePiles } from "./piles/store.ts";
-import { usePileDrop } from "./piles/usePileDrop.ts";
-import { type PileView, readPiles } from "./piles/view.ts";
+import { stackStore, useStacks } from "./stacks/store.ts";
+import { useStackDrop } from "./stacks/useStackDrop.ts";
+import { type StackView, readStacks } from "./stacks/view.ts";
 import { addWidget, widgetDefinition } from "../shared/widgetRegistry.ts";
 import { cardStore } from "./cardStore.ts";
 import type { WidgetBoard } from "./widgets/context.ts";
@@ -185,14 +185,14 @@ const ARIA_LABELS = {
 const SUMMARY_ID = "board-summary";
 
 /**
- * An open pile's tray sits above everything but what's dragged and its own
+ * An open stack's tray sits above everything but what's dragged and its own
  * stickies, which sit above it even while it's selected (React Flow lifts a
  * selected node by 1000).
  */
-const PILE_TRAY_Z = 1900;
-const PILE_MEMBER_Z = 2950;
+const STACK_TRAY_Z = 1900;
+const STACK_MEMBER_Z = 2950;
 
-/** How long stickies take to gather back onto their stack when a pile closes. */
+/** How long stickies take to gather back onto their stack when a stack closes. */
 const GATHER_MS = 420;
 
 /** How often pressing an edit tool's key on a view-only board says why nothing happened. */
@@ -273,41 +273,41 @@ export function Board({
 	const readOnly = viewOnly || replay.state.open;
 	const shapeNodes = useShapeNodes(doc);
 	const flow = useReactFlow();
-	// Piles (#73): which stickies are in which, the one this person has open,
-	// and drags held over a sticky or pile to put what's dragged in it.
-	const pileUI = usePiles();
-	const pileLayout = useMemo(
-		() => readPiles(new Map(shapeNodes.map((node) => [node.id, node.data.shape] as const))),
+	// Stacks (#73): which stickies are in which, the one this person has open,
+	// and drags held over a sticky or stack to put what's dragged in it.
+	const stackUI = useStacks();
+	const stackLayout = useMemo(
+		() => readStacks(new Map(shapeNodes.map((node) => [node.id, node.data.shape] as const))),
 		[shapeNodes],
 	);
 	const pointerRef = useRef<{ x: number; y: number } | null>(null);
 	const nodesRef = useRef<ShapeNode[]>([]);
-	const pileDrop = usePileDrop({
+	const stackDrop = useStackDrop({
 		nodes: nodesRef,
-		piles: pileLayout,
+		stacks: stackLayout,
 		pointer: pointerRef,
 		enabled: !viewOnly && !replay.state.open,
 	});
-	// Closing a pile: its stickies glide back onto the stack before they hide.
+	// Closing a stack: its stickies glide back onto the stack before they hide.
 	const [gathering, setGathering] = useState<string | null>(null);
 	const wasOpen = useRef<string | null>(null);
 	useEffect(() => {
 		const was = wasOpen.current;
-		wasOpen.current = pileUI.open;
-		if (!was || was === pileUI.open) return;
+		wasOpen.current = stackUI.open;
+		if (!was || was === stackUI.open) return;
 		setGathering(was);
 		const timer = setTimeout(
 			() => setGathering((current) => (current === was ? null : current)),
 			scaledDuration(GATHER_MS),
 		);
 		return () => clearTimeout(timer);
-	}, [pileUI.open]);
-	// A pile that's gone (someone deleted or spread it) can't stay open.
+	}, [stackUI.open]);
+	// A stack that's gone (someone deleted or spread it) can't stay open.
 	useEffect(() => {
-		if (pileUI.open && !pileLayout.members.has(pileUI.open)) pileStore.setOpen(null);
-	}, [pileUI.open, pileLayout]);
-	useEffect(() => () => pileStore.setOpen(null), []);
-	// Something just dropped into a pile: it gulps.
+		if (stackUI.open && !stackLayout.members.has(stackUI.open)) stackStore.setOpen(null);
+	}, [stackUI.open, stackLayout]);
+	useEffect(() => () => stackStore.setOpen(null), []);
+	// Something just dropped into a stack: it gulps.
 	const [fed, setFed] = useState<{ id: string; n: number } | null>(null);
 	// Your colour here: one nobody else present has, while there's one free.
 	const user = useBoardColor(awareness, person, name);
@@ -501,52 +501,52 @@ export function Board({
 		displayData.current.set(data.id, { data, kind, out });
 		return out;
 	};
-	const pileData = useRef(new Map<string, { key: string; data: ShapeNode["data"] }>());
+	const stackData = useRef(new Map<string, { key: string; data: ShapeNode["data"] }>());
 	const nodes = useMemo(() => {
-		// Where each pile is drawn (where it's dragged to, or its row), its
+		// Where each stack is drawn (where it's dragged to, or its row), its
 		// stickies with it; and the one open here, spread into its grid.
-		const pileAt = new Map<string, { x: number; y: number }>();
+		const stackAt = new Map<string, { x: number; y: number }>();
 		const shapesById = new Map<string, ShapeNode["data"]["shape"]>();
 		for (const base of shapeNodes) {
 			shapesById.set(base.id, base.data.shape);
-			if (base.data.shape.type !== "pile") continue;
+			if (base.data.shape.type !== "stack") continue;
 			const slot = display.slots.get(base.id);
 			const drag = structure.overrides.get(base.id);
-			pileAt.set(
+			stackAt.set(
 				base.id,
 				slot ? { x: slot.rect.x, y: slot.rect.y } : drag ? { x: drag.x, y: drag.y } : base.position,
 			);
 		}
 		const openId =
-			pileUI.open && pileAt.has(pileUI.open) && !display.slots.has(pileUI.open)
-				? pileUI.open
+			stackUI.open && stackAt.has(stackUI.open) && !display.slots.has(stackUI.open)
+				? stackUI.open
 				: null;
 		const open = openId
 			? openLayout(
-					pileAt.get(openId) as { x: number; y: number },
-					pileLayout.members.get(openId) ?? [],
+					stackAt.get(openId) as { x: number; y: number },
+					stackLayout.members.get(openId) ?? [],
 				)
 			: null;
-		const { target, armed, dragged } = pileDrop.state;
-		/** A pile's node data: what's in it and how it shows, the same object until that changes. */
-		const pileDataFor = (data: ShapeNode["data"], view: PileView): ShapeNode["data"] => {
+		const { target, armed, dragged } = stackDrop.state;
+		/** A stack's node data: what's in it and how it shows, the same object until that changes. */
+		const stackDataFor = (data: ShapeNode["data"], view: StackView): ShapeNode["data"] => {
 			const key = [
 				view.open,
 				view.receiving,
 				view.fed,
 				...view.members.map((member) => member.id),
 			].join("|");
-			const cached = pileData.current.get(data.id);
+			const cached = stackData.current.get(data.id);
 			if (
 				cached &&
 				cached.key === key &&
 				cached.data.shape === data.shape &&
-				cached.data.pile?.members.every((member, i) => member.shape === view.members[i]?.shape)
+				cached.data.stack?.members.every((member, i) => member.shape === view.members[i]?.shape)
 			) {
 				return cached.data;
 			}
-			const out = { ...data, pile: view };
-			pileData.current.set(data.id, { key, data: out });
+			const out = { ...data, stack: view };
+			stackData.current.set(data.id, { key, data: out });
 			return out;
 		};
 		return shapeNodes.map((base) => {
@@ -614,45 +614,45 @@ export function Board({
 			}
 			if (list && slot) kind = "group";
 
-			// Piles (#73): a sticky in one is drawn on its stack (hidden) or,
+			// Stacks (#73): a sticky in one is drawn on its stack (hidden) or,
 			// while it's open here, in its place in the grid.
 			let hidden = false;
 			let draggable: boolean | undefined;
-			let pileView: PileView | undefined;
-			const memberOf = pileLayout.pileOf.get(base.id);
-			const pileIndex = memberOf ? (pileLayout.members.get(memberOf) ?? []).indexOf(base.id) : -1;
+			let stackView: StackView | undefined;
+			const memberOf = stackLayout.stackOf.get(base.id);
+			const stackIndex = memberOf ? (stackLayout.members.get(memberOf) ?? []).indexOf(base.id) : -1;
 			if (memberOf) {
-				const at = pileAt.get(memberOf) ?? base.position;
+				const at = stackAt.get(memberOf) ?? base.position;
 				if (memberOf === openId && open) {
 					if (!drag) position = open.slots.get(base.id) ?? position;
-					zIndex = drag ? zIndex : PILE_MEMBER_Z;
-					className = `${className ?? ""} pile-member`.trim();
+					zIndex = drag ? zIndex : STACK_MEMBER_Z;
+					className = `${className ?? ""} stack-member`.trim();
 				} else if (memberOf === gathering) {
 					position = memberAt(at);
-					zIndex = PILE_MEMBER_Z;
-					className = `${className ?? ""} pile-member pile-gathering`.trim();
+					zIndex = STACK_MEMBER_Z;
+					className = `${className ?? ""} stack-member stack-gathering`.trim();
 				} else {
 					hidden = true;
 					position = memberAt(at);
 					size = { width: STICKY, height: STICKY };
 				}
 			}
-			if (base.data.shape.type === "pile") {
+			if (base.data.shape.type === "stack") {
 				const isOpen = base.id === openId && open !== null;
 				if (!slot) {
 					if (isOpen) {
 						position = { x: open.tray.x, y: open.tray.y };
 						width = open.tray.w;
 						height = open.tray.h;
-						zIndex = PILE_TRAY_Z;
+						zIndex = STACK_TRAY_Z;
 						draggable = false;
 					} else {
-						width = PILE_SIZE.w;
-						height = PILE_SIZE.h;
+						width = STACK_SIZE.w;
+						height = STACK_SIZE.h;
 					}
 				}
-				pileView = {
-					members: (pileLayout.members.get(base.id) ?? []).map((id) => ({
+				stackView = {
+					members: (stackLayout.members.get(base.id) ?? []).map((id) => ({
 						id,
 						shape: shapesById.get(id) as ShapeNode["data"]["shape"],
 					})),
@@ -662,25 +662,25 @@ export function Board({
 				};
 			}
 			if (target === base.id && armed && base.data.shape.type === "sticky") {
-				className = `${className ?? ""} pile-target`.trim();
+				className = `${className ?? ""} stack-target`.trim();
 			}
 			if (armed && dragged.includes(base.id)) {
-				className = `${className ?? ""} pile-joining`.trim();
+				className = `${className ?? ""} stack-joining`.trim();
 			}
 			const morph = display.morphing.get(base.id);
 			if (morph !== undefined) className = `${className ?? ""} display-morph`.trim();
-			const shown = pileView ? pileDataFor(base.data, pileView) : base.data;
+			const shown = stackView ? stackDataFor(base.data, stackView) : base.data;
 			const data = kind ? displayDataFor(shown, kind) : shown;
 			const style =
-				remoteColor || morph !== undefined || index !== undefined || pileIndex >= 0
+				remoteColor || morph !== undefined || index !== undefined || stackIndex >= 0
 					? ({
 							...(remoteColor && { "--drag-color": remoteColor }),
 							...(morph !== undefined && { "--morph-i": Math.min(morph, 16) }),
 							...(index !== undefined && { "--display-i": Math.min(index, 24) }),
-							...(pileIndex >= 0 && { "--pile-i": Math.min(pileIndex, 24) }),
+							...(stackIndex >= 0 && { "--stack-i": Math.min(stackIndex, 24) }),
 						} as React.CSSProperties)
 					: undefined;
-			const styleKey = `${remoteColor ?? ""}|${morph ?? ""}|${index ?? ""}|${pileIndex}`;
+			const styleKey = `${remoteColor ?? ""}|${morph ?? ""}|${index ?? ""}|${stackIndex}`;
 
 			const cached = merged.current.get(base.id)?.out;
 			if (
@@ -721,7 +721,7 @@ export function Board({
 			return out;
 		});
 		// The data each cached node was made with may refer to displayDataFor's
-		// object for a pile: both caches are keyed by id, so nothing leaks.
+		// object for a stack: both caches are keyed by id, so nothing leaks.
 	}, [
 		shapeNodes,
 		selected,
@@ -731,9 +731,9 @@ export function Board({
 		display,
 		presence.overrides,
 		pulsing,
-		pileUI.open,
-		pileLayout,
-		pileDrop.state,
+		stackUI.open,
+		stackLayout,
+		stackDrop.state,
 		gathering,
 		fed,
 	]);
@@ -1074,27 +1074,27 @@ export function Board({
 			let kept = dropped
 				? changes.filter((change) => change.type !== "position" || !dropped.has(change.id))
 				: changes;
-			// Held over a sticky or pile, then let go: into a pile, one undo step (#73).
-			const piling = pileDrop.track(kept);
-			if (piling) {
-				const ids = new Set(piling.ids);
+			// Held over a sticky or stack, then let go: into a stack, one undo step (#73).
+			const joining = stackDrop.track(kept);
+			if (joining) {
+				const ids = new Set(joining.ids);
 				const rest = kept.filter((change) => change.type !== "position" || !ids.has(change.id));
-				const pile = transactLocal(doc, () => {
+				const stack = transactLocal(doc, () => {
 					applyNodeChanges(doc, rest, presence.lastDragPosition, boxSize);
-					return pileUp(doc, piling.target, piling.ids, boxSize);
+					return stackUp(doc, joining.target, joining.ids, boxSize);
 				});
-				if (pile) {
-					setFed({ id: pile, n: Date.now() });
-					if (pileStore.getSnapshot().open !== pile) setSelected(new Set([pile]));
+				if (stack) {
+					setFed({ id: stack, n: Date.now() });
+					if (stackStore.getSnapshot().open !== stack) setSelected(new Set([stack]));
 				}
 				return;
 			}
-			// Stickies dropped from an open pile: out of it if they're off its
+			// Stickies dropped from an open stack: out of it if they're off its
 			// tray, else to a new place in it.
-			const openId = pileStore.getSnapshot().open;
+			const openId = stackStore.getSnapshot().open;
 			const openShape = openId ? shapesMap(doc).get(openId) : undefined;
 			if (openId && openShape) {
-				const members = pileLayout.members.get(openId) ?? [];
+				const members = stackLayout.members.get(openId) ?? [];
 				const layout = openLayout(
 					{ x: Number(openShape.get("x")), y: Number(openShape.get("y")) },
 					members,
@@ -1103,7 +1103,7 @@ export function Board({
 				const within: { id: string; index: number }[] = [];
 				for (const change of kept) {
 					if (change.type !== "position" || change.dragging) continue;
-					if (pileLayout.pileOf.get(change.id) !== openId) continue;
+					if (stackLayout.stackOf.get(change.id) !== openId) continue;
 					const at = change.position ?? presence.lastDragPosition(change.id);
 					if (!at) continue;
 					const middle = { x: at.x + STICKY / 2, y: at.y + STICKY / 2 };
@@ -1117,8 +1117,8 @@ export function Board({
 					const handled = new Set([...out.keys(), ...within.map((entry) => entry.id)]);
 					kept = kept.filter((change) => change.type !== "position" || !handled.has(change.id));
 					transactLocal(doc, () => {
-						for (const { id, index } of within) reorderInPile(doc, id, index);
-						if (out.size > 0) leavePile(doc, out, boxSize);
+						for (const { id, index } of within) reorderInStack(doc, id, index);
+						if (out.size > 0) leaveStack(doc, out, boxSize);
 						applyNodeChanges(doc, kept, presence.lastDragPosition, boxSize);
 					});
 					return;
@@ -1144,7 +1144,7 @@ export function Board({
 				applyNodeChanges(doc, drop.changes, presence.lastDragPosition, boxSize);
 			}
 		},
-		[doc, presence, snapping, commands, boxSize, readOnly, matching, pileDrop, pileLayout],
+		[doc, presence, snapping, commands, boxSize, readOnly, matching, stackDrop, stackLayout],
 	);
 
 	// Where a dragged shape would land: a list by what it draws, not its
@@ -1214,34 +1214,34 @@ export function Board({
 		{ id: "changes", open: changesUI.panelOpen, close: () => changesUI.setPanelOpen(false) },
 	]);
 
-	// An open pile gathers back up on Escape, or once something outside it is
+	// An open stack gathers back up on Escape, or once something outside it is
 	// selected; its stickies are never selected while they're on the stack.
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
-			const open = pileStore.getSnapshot().open;
+			const open = stackStore.getSnapshot().open;
 			if (!open || event.key !== "Escape" || event.defaultPrevented) return;
 			if (isOffBoardTarget(event.target)) return;
-			pileStore.setOpen(null);
+			stackStore.setOpen(null);
 			setSelected(new Set([open]));
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
 	useEffect(() => {
-		const open = pileUI.open;
+		const open = stackUI.open;
 		if (!open) {
 			// Gathered: whatever of its stickies was selected is on the stack now.
 			setSelected((current) =>
-				[...current].some((id) => pileLayout.pileOf.has(id))
-					? new Set([...current].filter((id) => !pileLayout.pileOf.has(id)))
+				[...current].some((id) => stackLayout.stackOf.has(id))
+					? new Set([...current].filter((id) => !stackLayout.stackOf.has(id)))
 					: current,
 			);
 			return;
 		}
-		if ([...selected].some((id) => id !== open && pileLayout.pileOf.get(id) !== open)) {
-			pileStore.setOpen(null);
+		if ([...selected].some((id) => id !== open && stackLayout.stackOf.get(id) !== open)) {
+			stackStore.setOpen(null);
 		}
-	}, [pileUI.open, selected, pileLayout]);
+	}, [stackUI.open, selected, stackLayout]);
 
 	// Tool shortcuts, ignored while typing.
 	const viewOnlyToldAt = useRef(0);
@@ -1313,9 +1313,9 @@ export function Board({
 	);
 
 	const onPaneClick = (event: MouseEvent) => {
-		// Clicking away from an open pile gathers it back up.
-		if (pileStore.getSnapshot().open) {
-			pileStore.setOpen(null);
+		// Clicking away from an open stack gathers it back up.
+		if (stackStore.getSnapshot().open) {
+			stackStore.setOpen(null);
 			if (tool === "select") return;
 		}
 		if (readOnly) return;
@@ -1711,17 +1711,17 @@ export function Board({
 											}
 											return;
 										}
-										// Clicking a pile spreads it open, here (#73).
+										// Clicking a stack spreads it open, here (#73).
 										if (
-											node.type === "pile" &&
+											node.type === "stack" &&
 											tool === "select" &&
 											!event.shiftKey &&
 											!event.metaKey &&
 											!event.ctrlKey &&
-											!node.data.pile?.open &&
+											!node.data.stack?.open &&
 											node.data.display === undefined
 										) {
-											pileStore.setOpen(node.id);
+											stackStore.setOpen(node.id);
 											setSelected(new Set([node.id]));
 											return;
 										}
@@ -2038,9 +2038,9 @@ function minimapClass(node: ShapeNode): string {
 	if (type === "widget") return "minimap-widget";
 	if (type === "action")
 		return `minimap-action${node.data.shape.done ? " minimap-action-done" : ""}`;
-	// A pile shows as its top sticky's paper.
-	if (type === "pile") {
-		return `minimap-sticky minimap-${node.data.pile?.members[0]?.shape.color ?? "yellow"}`;
+	// A stack shows as its top sticky's paper.
+	if (type === "stack") {
+		return `minimap-sticky minimap-${node.data.stack?.members[0]?.shape.color ?? "yellow"}`;
 	}
 	return `minimap-${type}`;
 }

@@ -1,16 +1,16 @@
 /* ---------------------------------------------------------------------------
-   Piles (#73): a neat stack of stickies with a count and a name, that opens
+   Stacks (#73): a neat stack of stickies with a count and a name, that opens
    up as a sticky is held over it (like a folder on a phone's home screen)
    and spreads into a tray when clicked.
    ------------------------------------------------------------------------ */
 
-.pile {
+.stack {
 	position: relative;
 	width: 200px;
 	height: 240px;
 }
 
-.pile-stack {
+.stack-papers {
 	position: relative;
 	width: 200px;
 	height: 200px;
@@ -18,11 +18,11 @@
 	transition: transform var(--t-settle) var(--ease-spring);
 }
 
-.pile[data-enter] .pile-stack {
-	animation: pile-gather calc(520ms * var(--motion)) var(--ease-spring) backwards;
+.stack[data-enter] .stack-papers {
+	animation: stack-gather calc(520ms * var(--motion)) var(--ease-spring) backwards;
 }
 
-@keyframes pile-gather {
+@keyframes stack-gather {
 	from {
 		transform: scale(0.82);
 		opacity: 0.4;
@@ -30,8 +30,8 @@
 }
 
 /* The papers under the top sticky: the next ones down, peeking out. */
-.pile-paper,
-.pile-top {
+.stack-paper,
+.stack-top {
 	position: absolute;
 	left: 12px;
 	top: 10px;
@@ -39,7 +39,7 @@
 	height: 176px;
 }
 
-.pile-paper {
+.stack-paper {
 	border-radius: 3px 3px 14px 3px;
 	background: var(--sticky, var(--sticky-yellow));
 	box-shadow: var(--sticky-shadow);
@@ -49,28 +49,28 @@
 	transition: transform var(--t-settle) var(--ease-spring);
 }
 
-.pile-top .sticky {
+.stack-top .sticky {
 	transform: none;
 	transition: transform var(--t-settle) var(--ease-spring);
 }
 
 /* Lifts a little as the pointer comes near, fanning its papers out. */
-.react-flow__node:hover .pile-paper {
+.react-flow__node:hover .stack-paper {
 	transform: rotate(calc(var(--paper-tilt, 0deg) * 1.5))
 		translate(calc(var(--paper-i, 1) * 4px), calc(var(--paper-i, 1) * 4px));
 }
 
 /* Something held over it: it opens up to take it in. */
-.pile[data-receiving] .pile-stack {
+.stack[data-receiving] .stack-papers {
 	transform: scale(1.07);
 }
 
-.pile[data-receiving] .pile-paper {
+.stack[data-receiving] .stack-paper {
 	transform: rotate(calc(var(--paper-tilt, 0deg) * 3))
 		translate(calc(var(--paper-i, 1) * 9px), calc(var(--paper-i, 1) * 7px));
 }
 
-.pile[data-receiving] .pile-top .sticky {
+.stack[data-receiving] .stack-top .sticky {
 	box-shadow:
 		0 0 0 3px var(--accent-soft),
 		var(--sticky-shadow-lifted);
@@ -78,11 +78,11 @@
 }
 
 /* Something just went in: a gulp. */
-.pile[data-fed] .pile-stack {
-	animation: pile-gulp calc(460ms * var(--motion)) var(--ease-spring);
+.stack[data-fed] .stack-papers {
+	animation: stack-gulp calc(460ms * var(--motion)) var(--ease-spring);
 }
 
-@keyframes pile-gulp {
+@keyframes stack-gulp {
 	30% {
 		transform: scale(0.94);
 	}
@@ -91,12 +91,12 @@
 	}
 }
 
-.pile[data-selected] .pile-top .sticky {
+.stack[data-selected] .stack-top .sticky {
 	outline: 2px solid var(--accent);
 	outline-offset: 4px;
 }
 
-.pile-count {
+.stack-count {
 	position: absolute;
 	top: 0;
 	right: 2px;
@@ -118,11 +118,11 @@
 	transition: transform var(--t-settle) var(--ease-spring);
 }
 
-.pile[data-receiving] .pile-count {
+.stack[data-receiving] .stack-count {
 	transform: scale(calc(min(var(--unzoom, 1), 3) * 1.18));
 }
 
-.pile-label {
+.stack-label {
 	display: flex;
 	justify-content: center;
 	height: 40px;
@@ -130,12 +130,12 @@
 }
 
 /* The name grows against the zoom, like a section's title. */
-.pile-label .pile-name-row {
+.stack-label .stack-name-row {
 	transform: scale(min(var(--unzoom, 1), 3));
 	transform-origin: 50% 0;
 }
 
-.pile-name-row {
+.stack-name-row {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -143,7 +143,7 @@
 	max-width: 100%;
 }
 
-.pile-name {
+.stack-name {
 	display: inline-flex;
 	align-items: center;
 	gap: 5px;
@@ -163,16 +163,16 @@
 		box-shadow var(--t-base) var(--ease-out);
 }
 
-.pile-name:disabled {
+.stack-name:disabled {
 	cursor: inherit;
 	opacity: 1;
 }
 
-.pile-name:not(:disabled):hover {
+.stack-name:not(:disabled):hover {
 	box-shadow: var(--shadow-hover);
 }
 
-.pile-name-text {
+.stack-name-text {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -180,34 +180,34 @@
 }
 
 /* A suggestion: marked, quietly, as one. */
-.pile-name[data-state="suggested"] .pile-name-text {
+.stack-name[data-state="suggested"] .stack-name-text {
 	color: var(--ink-soft);
 }
 
-.pile-name[data-state="suggested"] {
-	animation: pile-name-in calc(620ms * var(--motion)) var(--ease-spring);
+.stack-name[data-state="suggested"] {
+	animation: stack-name-in calc(620ms * var(--motion)) var(--ease-spring);
 }
 
-.pile-spark {
+.stack-spark {
 	font-size: 12px;
 	line-height: 1;
 }
 
-.pile-name[data-state="none"] .pile-name-text {
+.stack-name[data-state="none"] .stack-name-text {
 	color: var(--muted);
 	font-weight: 560;
 }
 
 /* A name on its way: a shimmer, not a spinner. */
-.pile-name[data-waiting] .pile-name-text {
+.stack-name[data-waiting] .stack-name-text {
 	background: linear-gradient(90deg, var(--muted) 30%, var(--accent) 50%, var(--muted) 70%) 0 0 /
 		300% 100%;
 	background-clip: text;
 	color: transparent;
-	animation: pile-shimmer calc(1600ms * var(--motion)) linear infinite;
+	animation: stack-shimmer calc(1600ms * var(--motion)) linear infinite;
 }
 
-@keyframes pile-shimmer {
+@keyframes stack-shimmer {
 	from {
 		background-position: 100% 0;
 	}
@@ -216,14 +216,14 @@
 	}
 }
 
-@keyframes pile-name-in {
+@keyframes stack-name-in {
 	from {
 		opacity: 0;
 		transform: translateY(4px) scale(0.96);
 	}
 }
 
-.pile-pencil {
+.stack-pencil {
 	flex: none;
 	fill: none;
 	stroke: var(--muted);
@@ -231,7 +231,7 @@
 	stroke-linejoin: round;
 }
 
-.pile-keep {
+.stack-keep {
 	padding: 3px 8px;
 	border: 1px solid var(--line-strong);
 	border-radius: 8px;
@@ -239,15 +239,15 @@
 	color: var(--ink-soft);
 	font: 600 12px/16px var(--font-ui);
 	cursor: pointer;
-	animation: pile-name-in var(--t-settle) var(--ease-spring);
+	animation: stack-name-in var(--t-settle) var(--ease-spring);
 }
 
-.pile-keep:hover {
+.stack-keep:hover {
 	background: var(--hover);
 	color: var(--ink);
 }
 
-.pile-name-input {
+.stack-name-input {
 	width: 220px;
 	height: 26px;
 	padding: 0 8px;
@@ -261,7 +261,7 @@
 
 /* Open: the tray its stickies spread out on ------------------------------- */
 
-.pile-tray {
+.stack-tray {
 	width: 100%;
 	height: 100%;
 	border: 1px solid var(--line-strong);
@@ -269,22 +269,22 @@
 	background: color-mix(in srgb, var(--surface) 88%, transparent);
 	box-shadow: var(--shadow-lifted);
 	backdrop-filter: blur(10px);
-	animation: pile-tray-in calc(460ms * var(--motion)) var(--ease-spring);
+	animation: stack-tray-in calc(460ms * var(--motion)) var(--ease-spring);
 	cursor: default;
 }
 
-.pile-tray[data-selected] {
+.stack-tray[data-selected] {
 	border-color: var(--accent);
 }
 
-@keyframes pile-tray-in {
+@keyframes stack-tray-in {
 	from {
 		opacity: 0;
 		transform: scale(0.6);
 	}
 }
 
-.pile-tray-head {
+.stack-tray-head {
 	display: flex;
 	align-items: center;
 	gap: 10px;
@@ -292,24 +292,24 @@
 	padding: 0 12px 0 16px;
 }
 
-.pile-tray-head .pile-name {
+.stack-tray-head .stack-name {
 	box-shadow: none;
 	background: transparent;
 	font-size: 16px;
 	padding-left: 4px;
 }
 
-.pile-tray-head .pile-name:not(:disabled):hover {
+.stack-tray-head .stack-name:not(:disabled):hover {
 	background: var(--hover);
 }
 
-.pile-tray-count {
+.stack-tray-count {
 	color: var(--muted);
 	font: 560 13px/1 var(--font-ui);
 	white-space: nowrap;
 }
 
-.pile-gather {
+.stack-gather {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -324,11 +324,11 @@
 	transition: background var(--t-quick) var(--ease-out);
 }
 
-.pile-gather:hover {
+.stack-gather:hover {
 	background: var(--accent-soft);
 }
 
-.pile-gather svg {
+.stack-gather svg {
 	fill: none;
 	stroke: currentColor;
 	stroke-width: 1.6;
@@ -337,12 +337,12 @@
 }
 
 /* Stickies spreading out of the stack, and gathering back into it. */
-.react-flow__node.pile-member:not(.dragging) {
+.react-flow__node.stack-member:not(.dragging) {
 	transition: transform calc(520ms * var(--motion)) var(--ease-spring);
-	transition-delay: calc(var(--pile-i, 0) * 18ms * var(--motion));
+	transition-delay: calc(var(--stack-i, 0) * 18ms * var(--motion));
 }
 
-.react-flow__node.pile-gathering {
+.react-flow__node.stack-gathering {
 	pointer-events: none;
 	opacity: 0;
 	transition:
@@ -350,22 +350,22 @@
 		opacity calc(320ms * var(--motion)) var(--ease-out) calc(160ms * var(--motion));
 }
 
-.react-flow__node.pile-member .sticky {
+.react-flow__node.stack-member .sticky {
 	transform: none;
 }
 
-/* Dragging onto a sticky or pile ------------------------------------------- */
+/* Dragging onto a sticky or stack ------------------------------------------- */
 
 /* A sticky held over another: the one underneath opens up, papers fanning
-   out behind it, to become a pile. */
-.react-flow__node.pile-target .sticky {
+   out behind it, to become a stack. */
+.react-flow__node.stack-target .sticky {
 	transform: scale(1.07) rotate(0deg);
 	box-shadow:
 		0 0 0 3px var(--accent-soft),
 		var(--sticky-shadow-lifted);
 }
 
-.react-flow__node.pile-target .sticky::before {
+.react-flow__node.stack-target .sticky::before {
 	content: "";
 	position: absolute;
 	inset: 0;
@@ -374,10 +374,10 @@
 	background: var(--sticky);
 	filter: brightness(0.93);
 	transform: rotate(6deg) translate(8px, 6px);
-	animation: pile-paper-in var(--t-settle) var(--ease-spring);
+	animation: stack-paper-in var(--t-settle) var(--ease-spring);
 }
 
-@keyframes pile-paper-in {
+@keyframes stack-paper-in {
 	from {
 		transform: none;
 		opacity: 0;
@@ -385,28 +385,28 @@
 }
 
 /* Held long enough: what's dragged shrinks a little, ready to drop in. */
-.react-flow__node.pile-joining .sticky,
-.react-flow__node.pile-joining .pile-stack {
+.react-flow__node.stack-joining .sticky,
+.react-flow__node.stack-joining .stack-papers {
 	transform: scale(0.88) rotate(-2deg);
 	opacity: 0.92;
 	transition: transform var(--t-base) var(--ease-spring);
 }
 
 /* Icons in the action bar. */
-.pile-icon {
+.stack-icon {
 	fill: none;
 	stroke: currentColor;
 	stroke-width: 1.4;
 	stroke-linejoin: round;
 }
 
-.pile-icon-spark {
+.stack-icon-spark {
 	fill: currentColor;
 	stroke: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.pile-name[data-waiting] .pile-name-text {
+	.stack-name[data-waiting] .stack-name-text {
 		animation: none;
 		color: var(--muted);
 		background: none;

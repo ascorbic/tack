@@ -230,7 +230,7 @@ const NOT_REFERENCES = new Set([
 	"host",
 	"q",
 	"source",
-	// A pile's suggested name and the hash of what it was made from.
+	// A stack's suggested name and the hash of what it was made from.
 	"suggested",
 ]);
 

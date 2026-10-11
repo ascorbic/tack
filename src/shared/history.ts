@@ -1003,7 +1003,7 @@ const NOUNS: Record<string, [string, string]> = {
 	connector: ["connector", "connectors"],
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
-	pile: ["pile", "piles"],
+	stack: ["stack", "stacks"],
 };
 
 const MOVE_KEYS = new Set(["x", "y", "parent", "z"]);
@@ -1115,7 +1115,7 @@ const SYSTEM_VERBS: Partial<Record<SystemKind, string>> = {
 	timer: "updated the timer",
 	repair: "tidied up connectors",
 	push: "updated push statuses",
-	naming: "suggested names for piles",
+	naming: "suggested names for stacks",
 };
 
 /** A step in a sentence, without the name: "added 3 stickies". */

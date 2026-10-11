@@ -47,7 +47,7 @@ import {
 	carryable,
 	placeCarried,
 } from "../shared/actionItems.ts";
-import { isPileRequest } from "../shared/pileNamer.ts";
+import { isStackRequest } from "../shared/stackNamer.ts";
 import { REPAIR_ORIGIN, repairBoard, repairCount } from "../shared/repair.ts";
 import type { BackupSettings, BackupStatus } from "../shared/backups.ts";
 import { type BoardExport, type ImportResult, importBoard } from "../shared/boardExport.ts";
@@ -77,7 +77,7 @@ import { forge, type MissingReason, type RepoIdentity } from "./forges/index.ts"
 import { Facilitation } from "./facilitation.ts";
 import { type Commenter, CommentsService } from "./comments.ts";
 import { attributeOrigin, sqlHistoryStore } from "./history.ts";
-import { Piles } from "./piles.ts";
+import { Stacks } from "./stacks.ts";
 import { userToken } from "./identity.ts";
 import { log } from "./log.ts";
 import { directory } from "./namespaces.ts";
@@ -245,8 +245,8 @@ export class Board extends YServer<Env> {
 	private awarenessTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Compacting very old documents, and keeping old copies of them out (#60). */
 	private compaction: BoardCompaction | null = null;
-	/** Piles' suggested names and "Group these" (#73). */
-	private piles: Piles | null = null;
+	/** Stacks' suggested names and "Group these" (#73). */
+	private stacks: Stacks | null = null;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -392,7 +392,7 @@ export class Board extends YServer<Env> {
 			maxWait: SYNC_MAX_WAIT_MS,
 		});
 		this.widgets = this.startWidgets();
-		this.piles = new Piles({
+		this.stacks = new Stacks({
 			board: this.name,
 			env: this.env,
 			doc: this.document,
@@ -530,11 +530,11 @@ export class Board extends YServer<Env> {
 	}
 
 	/**
-	 * For tests: name every pile that wants a name now (rather than a moment
+	 * For tests: name every stack that wants a name now (rather than a moment
 	 * after its text changes).
 	 */
-	async namePiles(): Promise<void> {
-		await this.piles?.namer.scan();
+	async nameStacks(): Promise<void> {
+		await this.stacks?.namer.scan();
 	}
 
 	/** For tests: change history's limits (its budget, how often keyframes are written). */
@@ -557,7 +557,7 @@ export class Board extends YServer<Env> {
 				(event) =>
 					event.target === shapes ||
 					[...event.changes.keys.keys()].some(
-						(key) => key === "parent" || key === "pile" || key === "from" || key === "to",
+						(key) => key === "parent" || key === "stack" || key === "from" || key === "to",
 					),
 			);
 			if (relevant) this.scheduleRepair();
@@ -689,7 +689,7 @@ export class Board extends YServer<Env> {
 		});
 		this.noteReader(access.userId);
 		this.facilitation?.connected(connection);
-		this.piles?.connected(connection);
+		this.stacks?.connected(connection);
 		// Since you were here: a new visit, if they've been away a while.
 		const visit = access.userId !== null ? (this.visits?.arrive(access.userId) ?? null) : null;
 		this.sendComments(connection, visit?.firstAt ?? null);
@@ -773,7 +773,7 @@ export class Board extends YServer<Env> {
 		this.awarenessClients.delete(connection.id);
 		this.widgets?.disconnect(connection.id);
 		this.facilitation?.closed(connection.id);
-		this.piles?.closed(connection.id);
+		this.stacks?.closed(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
 		return super.onClose(connection, code, reason, wasClean);
 	}
@@ -891,8 +891,8 @@ export class Board extends YServer<Env> {
 		} catch {
 			return;
 		}
-		if (isPileRequest(request)) {
-			void this.piles?.receive(connection as Connection<ConnectionAccess>, request);
+		if (isStackRequest(request)) {
+			void this.stacks?.receive(connection as Connection<ConnectionAccess>, request);
 			return;
 		}
 		if (this.facilitation?.handles(request?.type)) {

@@ -19,7 +19,7 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | ------------ | ------------------ | --------------------------------------------- |
 // | type         | all                | `card`, `sticky`, `text`, `section`,          |
 // |              |                    | `connector`, `decision`, `widget`, `action`   |
-// |              |                    | or `pile`                                     |
+// |              |                    | or `stack`                                     |
 // | x, y         | all but connectors | top-left corner, absolute; 0 on connectors    |
 // | z            | all                | fractional index for stacking order           |
 // | parent       | all but connectors | id of the containing section, or null         |
@@ -38,7 +38,7 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              | action             |                                               |
 // | w, h         | section, widget    | size (cards and stickies size to content)     |
 // | title        | section, decision, | the section's name; the decision's title; a   |
-// |              | pile               | pile's name as a person wrote it (piles.ts)   |
+// |              | stack               | stack's name as a person wrote it (stacks.ts)   |
 // | from, to     | connector          | each end, see `ConnectorEnd`                  |
 // | label        | connector          | text at the middle of the line                |
 // | route        | connector          | `curved` (default), `straight` or `elbow`     |
@@ -88,11 +88,11 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              |                    | `changes`, which links it once it's made      |
 // | carried      | action             | where it was carried over from                |
 // |              |                    | (`CarriedFrom`: board, title, shape, when)    |
-// | pile         | sticky             | id of the pile it's in (piles.ts), or null    |
+// | stack         | sticky             | id of the stack it's in (stacks.ts), or null    |
 // |              |                    | once it's left one; its x, y and parent       |
-// |              |                    | follow the pile's while it's in one           |
-// | suggested    | pile               | a name suggested from its stickies' text      |
-// |              |                    | (`PileSuggestion`: title, and a hash of the   |
+// |              |                    | follow the stack's while it's in one           |
+// | suggested    | stack               | a name suggested from its stickies' text      |
+// |              |                    | (`StackSuggestion`: title, and a hash of the   |
 // |              |                    | text it was made from), written only by the   |
 // |              |                    | server, so it never overwrites `title`        |
 //
@@ -139,7 +139,7 @@ export type ShapeType =
 	| "decision"
 	| "widget"
 	| "action"
-	| "pile";
+	| "stack";
 
 /** Where a decision stands. */
 export type DecisionStatus = "proposed" | "decided" | "superseded";
@@ -180,10 +180,10 @@ export interface CarriedFrom {
 	at: string;
 }
 
-/** A pile's suggested name (piles.ts): what it was, and the contents it was made from. */
-export interface PileSuggestion {
+/** A stack's suggested name (stacks.ts): what it was, and the contents it was made from. */
+export interface StackSuggestion {
 	title: string;
-	/** A hash of the visible text it was made from (`pileHash`). */
+	/** A hash of the visible text it was made from (`stackHash`). */
 	hash: string;
 }
 
@@ -213,7 +213,7 @@ export interface ShapeProps {
 	/** Sections: size. */
 	w?: number;
 	h?: number;
-	/** Sections and decisions: the title. Piles: their name, as a person wrote it. */
+	/** Sections and decisions: the title. Stacks: their name, as a person wrote it. */
 	title?: string;
 	/** Connectors: where each end is. */
 	from?: ConnectorEnd;
@@ -273,10 +273,10 @@ export interface ShapeProps {
 	issue?: string;
 	/** Action items: where it was carried over from. */
 	carried?: CarriedFrom;
-	/** Stickies: the pile it's in, if any (piles.ts). Null once it's left one. */
-	pile?: string | null;
-	/** Piles: a name suggested from its stickies, written by the server. */
-	suggested?: PileSuggestion;
+	/** Stickies: the stack it's in, if any (stacks.ts). Null once it's left one. */
+	stack?: string | null;
+	/** Stacks: a name suggested from its stickies, written by the server. */
+	suggested?: StackSuggestion;
 }
 
 /**

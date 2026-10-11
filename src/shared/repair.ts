@@ -2,10 +2,10 @@ import * as Y from "yjs";
 import { isDate, isOwner } from "./actionItems.ts";
 import { isAnchor, isEnd } from "./connectors.ts";
 import { readVotes } from "./decisions.ts";
-import { memberAt, pileMembers, pileOf } from "./piles.ts";
+import { memberAt, stackMembers, stackOf } from "./stacks.ts";
 import { readStructure } from "./sections.ts";
 import { shapesMap } from "./shapes.ts";
-import { readShapes, settlePiles } from "./structure.ts";
+import { readShapes, settleStacks } from "./structure.ts";
 import { widgetDefinition, widgetSize } from "./widgetRegistry.ts";
 
 // The repair pass. Concurrent edits can leave references between shapes
@@ -39,11 +39,11 @@ export interface RepairResult {
 	 */
 	actions: number;
 	/**
-	 * Piles fixed up (piles.ts): a sticky's `pile` pointing at nothing
-	 * cleared, a pile left with one sticky dissolved or with none removed,
-	 * or stickies put back where (and in the section) their pile is.
+	 * Stacks fixed up (stacks.ts): a sticky's `stack` pointing at nothing
+	 * cleared, a stack left with one sticky dissolved or with none removed,
+	 * or stickies put back where (and in the section) their stack is.
 	 */
-	piles: number;
+	stacks: number;
 }
 
 /** How many things a repair fixed, in total. */
@@ -55,7 +55,7 @@ export function repairCount(result: RepairResult): number {
 		result.decisions +
 		result.widgets +
 		result.actions +
-		result.piles
+		result.stacks
 	);
 }
 
@@ -67,10 +67,10 @@ export function repairBoard(doc: Y.Doc): RepairResult {
 		decisions: 0,
 		widgets: 0,
 		actions: 0,
-		piles: 0,
+		stacks: 0,
 	};
 	doc.transact(() => {
-		result.piles = repairPiles(doc);
+		result.stacks = repairStacks(doc);
 		const shapes = readShapes(doc);
 		const map = shapesMap(doc);
 
@@ -162,38 +162,38 @@ export function repairBoard(doc: Y.Doc): RepairResult {
 }
 
 /**
- * Piles after concurrent edits: two people piling the same sticky at once
- * leave one pile without it, someone deletes a pile as someone else drops
- * a sticky on it, or moves it while someone drags a sticky out (piles.ts).
+ * Stacks after concurrent edits: two people stacking the same sticky at once
+ * leave one stack without it, someone deletes a stack as someone else drops
+ * a sticky on it, or moves it while someone drags a sticky out (stacks.ts).
  */
-function repairPiles(doc: Y.Doc): number {
+function repairStacks(doc: Y.Doc): number {
 	let fixed = 0;
 	const map = shapesMap(doc);
 	let shapes = readShapes(doc);
-	// A `pile` on anything but a sticky, or pointing at something that isn't a
-	// pile. (Null is a sticky that's left its pile: set, never deleted, so it
-	// resolves against a concurrent move of the pile as x, y and parent do.)
+	// A `stack` on anything but a sticky, or pointing at something that isn't a
+	// stack. (Null is a sticky that's left its stack: set, never deleted, so it
+	// resolves against a concurrent move of the stack as x, y and parent do.)
 	for (const [id, shape] of shapes) {
-		const value = map.get(id)?.get("pile");
+		const value = map.get(id)?.get("stack");
 		if (value === undefined || value === null) continue;
-		if (shape.type === "sticky" && pileOf(shapes, id) !== null) continue;
-		map.get(id)?.set("pile", null);
+		if (shape.type === "sticky" && stackOf(shapes, id) !== null) continue;
+		map.get(id)?.set("stack", null);
 		fixed++;
 	}
 	shapes = readShapes(doc);
 	const thin = [...shapes].filter(
-		([id, shape]) => shape.type === "pile" && (pileMembers(shapes).get(id)?.length ?? 0) < 2,
+		([id, shape]) => shape.type === "stack" && (stackMembers(shapes).get(id)?.length ?? 0) < 2,
 	);
 	if (thin.length > 0) {
-		fixed += settlePiles(
+		fixed += settleStacks(
 			doc,
 			thin.map(([id]) => id),
 		);
 		shapes = readShapes(doc);
 	}
-	// Stickies where their pile is, in its section.
-	for (const [pile, members] of pileMembers(shapes)) {
-		const shape = shapes.get(pile);
+	// Stickies where their stack is, in its section.
+	for (const [stack, members] of stackMembers(shapes)) {
+		const shape = shapes.get(stack);
 		if (!shape) continue;
 		const at = memberAt(shape);
 		const parent = typeof shape.parent === "string" ? shape.parent : null;

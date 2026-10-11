@@ -12,7 +12,7 @@ import {
 	type ThumbnailKind,
 	type ThumbnailShape,
 } from "./boards.ts";
-import { PILE_SIZE } from "./piles.ts";
+import { STACK_SIZE } from "./stacks.ts";
 import { shapesMap } from "./shapes.ts";
 
 /** Rendered sizes of shapes the document doesn't size, from styles.css. */
@@ -47,30 +47,30 @@ export function boardThumbnail(
 	);
 }
 
-/** A pile: a sticky's size and colour (its top one's), with the stack's room around it. */
-function pileBox(props: Record<string, unknown>, top: { color: string } | undefined): Box | null {
+/** A stack: a sticky's size and colour (its top one's), with the stack's room around it. */
+function stackBox(props: Record<string, unknown>, top: { color: string } | undefined): Box | null {
 	const { x, y } = props;
 	if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null;
-	return { kind: "pile", x, y, width: PILE_SIZE.w, height: PILE_SIZE.w, tone: top?.color ?? "" };
+	return { kind: "stack", x, y, width: STACK_SIZE.w, height: STACK_SIZE.w, tone: top?.color ?? "" };
 }
 
 /**
  * Sketch shapes given as plain properties (a document's, or a template's),
- * each with its `id` (for piles, whose stickies say which pile they're in).
+ * each with its `id` (for stacks, whose stickies say which stack they're in).
  */
 export function sketch(
 	shapes: Iterable<Record<string, unknown>>,
 	cardTone: (ref: string) => string = () => "",
 ): Thumbnail | null {
 	const all = [...shapes];
-	// A pile draws as one stack, in its top sticky's colour (piles.ts).
-	const pileTops = new Map<string, { z: string; color: string }>();
+	// A stack draws as one stack, in its top sticky's colour (stacks.ts).
+	const stackTops = new Map<string, { z: string; color: string }>();
 	for (const shape of all) {
-		if (shape.type !== "sticky" || typeof shape.pile !== "string") continue;
+		if (shape.type !== "sticky" || typeof shape.stack !== "string") continue;
 		const z = typeof shape.z === "string" ? shape.z : "";
-		const top = pileTops.get(shape.pile);
+		const top = stackTops.get(shape.stack);
 		if (!top || z > top.z) {
-			pileTops.set(shape.pile, {
+			stackTops.set(shape.stack, {
 				z,
 				color: typeof shape.color === "string" ? shape.color : "yellow",
 			});
@@ -78,10 +78,10 @@ export function sketch(
 	}
 	const boxes: Box[] = [];
 	for (const shape of all) {
-		if (shape.type === "sticky" && typeof shape.pile === "string") continue;
+		if (shape.type === "sticky" && typeof shape.stack === "string") continue;
 		const box =
-			shape.type === "pile"
-				? pileBox(shape, pileTops.get(typeof shape.id === "string" ? shape.id : ""))
+			shape.type === "stack"
+				? stackBox(shape, stackTops.get(typeof shape.id === "string" ? shape.id : ""))
 				: shapeBox(shape, cardTone);
 		if (box) boxes.push(box);
 	}

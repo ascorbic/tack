@@ -17,7 +17,7 @@ import { type ShapeType, shapesMap } from "./shapes.ts";
 import { TEMPLATE_REPOS_MAX, cleanRepos } from "./templates.ts";
 
 // A board as a file (#59): its shapes (cards, stickies, text, sections,
-// connectors, decisions, widgets, action items, piles), rules and prepared
+// connectors, decisions, widgets, action items, stacks), rules and prepared
 // facilitation steps as plain, versioned JSON, to download, keep in a
 // repository (backups.ts on the server writes it to an orphan branch) and
 // import into a new board.
@@ -103,7 +103,7 @@ export interface ExportOmissions {
 /** Properties copied for each type, beyond `id`, `type`, `x`, `y`, `parent` and `order`. */
 const KEEP: Record<ShapeType, readonly string[]> = {
 	card: ["ref"],
-	sticky: ["text", "color", "font", "author", "pile"],
+	sticky: ["text", "color", "font", "author", "stack"],
 	text: ["text", "color", "font", "size"],
 	section: ["title", "color", "w", "h", "display", "sort", "inbox"],
 	connector: ["from", "to", "label", "route", "arrow", "dash", "color"],
@@ -121,8 +121,8 @@ const KEEP: Record<ShapeType, readonly string[]> = {
 	],
 	widget: ["widget", "config", "w", "h"],
 	action: ["text", "owner", "due", "done", "ref", "author"],
-	// A suggested name is the board's content as much as a person's (piles.ts).
-	pile: ["title", "suggested"],
+	// A suggested name is the board's content as much as a person's (stacks.ts).
+	stack: ["title", "suggested"],
 };
 
 const SHAPE_TYPES = Object.keys(KEEP) as ShapeType[];
@@ -199,8 +199,8 @@ export function exportBoard(
 		if (type === "decision" && typeof shape.supersededBy === "string") {
 			if (!kept.has(shape.supersededBy)) delete shape.supersededBy;
 		}
-		if (type === "sticky" && shape.pile !== undefined) {
-			if (typeof shape.pile !== "string" || !kept.has(shape.pile)) delete shape.pile;
+		if (type === "sticky" && shape.stack !== undefined) {
+			if (typeof shape.stack !== "string" || !kept.has(shape.stack)) delete shape.stack;
 		}
 		shapes.push(shape);
 	}
@@ -320,7 +320,7 @@ const ShapeSchema = v.variant("type", [
 		color: v.optional(Color),
 		font: v.optional(v.picklist(["sans", "hand"])),
 		author: v.optional(Author),
-		pile: v.optional(ShapeId),
+		stack: v.optional(ShapeId),
 	}),
 	v.object({
 		...common,
@@ -399,7 +399,7 @@ const ShapeSchema = v.variant("type", [
 	}),
 	v.object({
 		...common,
-		type: v.literal("pile"),
+		type: v.literal("stack"),
 		title: v.optional(text(400)),
 		suggested: v.optional(v.object({ title: text(200), hash: text(64) })),
 	}),
@@ -644,11 +644,11 @@ export function importBoard(
 				map.set("votes", new Y.Map());
 			}
 			if (type === "section" && props.inbox) map.set("dismissed", new Y.Map());
-			if (type === "sticky" && props.pile !== undefined) {
-				const old = typeof props.pile === "string" ? props.pile : "";
-				const pile = types.get(old) === "pile" ? ids.get(old) : null;
-				if (pile) map.set("pile", pile);
-				else map.delete("pile");
+			if (type === "sticky" && props.stack !== undefined) {
+				const old = typeof props.stack === "string" ? props.stack : "";
+				const stack = types.get(old) === "stack" ? ids.get(old) : null;
+				if (stack) map.set("stack", stack);
+				else map.delete("stack");
 			}
 			shapes.set(ids.get(oldId) as string, map);
 			result.shapes++;

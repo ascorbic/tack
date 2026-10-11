@@ -163,7 +163,7 @@ const SYSTEM: Record<string, { kind: SystemKind; name: string }> = {
 	facilitation: { kind: "timer", name: "Timer" },
 	repair: { kind: "repair", name: "Tack" },
 	inbox: { kind: "inbox", name: "Inbox" },
-	"pile-name": { kind: "naming", name: "Suggestions" },
+	"stack-name": { kind: "naming", name: "Suggestions" },
 };
 
 /** Awareness state: what a person's client says about them (see src/client/presence.ts). */

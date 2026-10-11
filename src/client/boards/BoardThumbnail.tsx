@@ -89,16 +89,16 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 					style={{ fill: `var(--sticky-${tone || "yellow"}, var(--sticky-yellow))` }}
 				/>
 			);
-		case "pile": {
+		case "stack": {
 			// A stack: two papers peeking out behind the top sticky.
 			const step = Math.max(1, width * 0.05);
 			const fill = { fill: `var(--sticky-${tone || "yellow"}, var(--sticky-yellow))` };
 			return (
-				<g className="thumb-pile">
+				<g className="thumb-stack">
 					{[2, 1].map((n) => (
 						<rect
 							key={n}
-							className="thumb-pile-under"
+							className="thumb-stack-under"
 							x={x + step * n}
 							y={y + step * n}
 							width={width - step * 2}

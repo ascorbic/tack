@@ -60,18 +60,21 @@ export function useShapeNavigation(options: NavigationOptions) {
 	const placedNow = useCallback(() => {
 		const { nodes, sizeOf } = latest.current;
 		if (cache.current.nodes !== nodes) {
-			const placed = nodes.map((node) => {
-				const size = sizeOf(node.id) ?? { width: node.width ?? 0, height: node.height ?? 0 };
-				return {
-					id: node.id,
-					type: node.data.shape.type,
-					parent: node.data.shape.parent ?? null,
-					x: node.position.x,
-					y: node.position.y,
-					w: size.width,
-					h: size.height,
-				};
-			});
+			// Stickies on a closed stack are reached through it (#73).
+			const placed = nodes
+				.filter((node) => !node.hidden)
+				.map((node) => {
+					const size = sizeOf(node.id) ?? { width: node.width ?? 0, height: node.height ?? 0 };
+					return {
+						id: node.id,
+						type: node.data.shape.type,
+						parent: node.data.shape.parent ?? null,
+						x: node.position.x,
+						y: node.position.y,
+						w: size.width,
+						h: size.height,
+					};
+				});
 			cache.current = { nodes, placed, order: boardOrder(placed) };
 		}
 		return cache.current;

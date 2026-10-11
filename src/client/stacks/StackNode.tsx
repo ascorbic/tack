@@ -1,7 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { type KeyboardEvent, memo, useContext, useEffect, useRef, useState } from "react";
-import { setPileName } from "../../shared/pileEdits.ts";
-import { UNTITLED_PILE, nameState, pileName, readSuggestion } from "../../shared/piles.ts";
+import { setStackName } from "../../shared/stackEdits.ts";
+import { UNTITLED_STACK, nameState, stackName, readSuggestion } from "../../shared/stacks.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { isFresh, type ShapeNode } from "../board.ts";
@@ -9,23 +9,23 @@ import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { useSilentTexts } from "../facilitation/store.ts";
 import { StickyView } from "../StickyNode.tsx";
 import { transactLocal } from "../undo.ts";
-import { pileStore, usePiles } from "./store.ts";
-import type { PileView } from "./view.ts";
-import "./piles.css";
+import { stackStore, useStacks } from "./store.ts";
+import type { StackView } from "./view.ts";
+import "./stacks.css";
 
-/** The pile as `Board` draws it: a stack, or when open, the tray its stickies spread out on. */
-export const PileNode = memo(function PileNode({ id, data, selected }: NodeProps<ShapeNode>) {
+/** The stack as `Board` draws it: a stack, or when open, the tray its stickies spread out on. */
+export const StackNode = memo(function StackNode({ id, data, selected }: NodeProps<ShapeNode>) {
 	const doc = useContext(DocContext);
 	const readOnly = useContext(ReadOnlyContext);
-	const { ai } = usePiles();
+	const { ai } = useStacks();
 	const [enter] = useState(() => isFresh(id));
-	const view = data.pile;
+	const view = data.stack;
 	if (!view) return null;
 	const rename = (name: string) => {
-		if (doc && !readOnly) transactLocal(doc, () => setPileName(doc, id, name));
+		if (doc && !readOnly) transactLocal(doc, () => setStackName(doc, id, name));
 	};
 	return (
-		<PileStack
+		<StackPapers
 			id={id}
 			shape={data.shape}
 			view={view}
@@ -34,15 +34,15 @@ export const PileNode = memo(function PileNode({ id, data, selected }: NodeProps
 			naming={ai === true}
 			editable={!!doc && !readOnly}
 			onRename={rename}
-			onGather={() => pileStore.setOpen(null)}
+			onGather={() => stackStore.setOpen(null)}
 		/>
 	);
 });
 
 const TILTS = [-3.5, 4.5, -1.5];
 
-/** A pile, without any board behaviour: the gallery uses it too. */
-export function PileStack({
+/** A stack, without any board behaviour: the gallery uses it too. */
+export function StackPapers({
 	id,
 	shape,
 	view,
@@ -55,7 +55,7 @@ export function PileStack({
 }: {
 	id: string;
 	shape: ShapeProps;
-	view: PileView;
+	view: StackView;
 	selected?: boolean;
 	enter?: boolean;
 	/** Whether names are suggested here (AI suggestions are on). */
@@ -71,7 +71,7 @@ export function PileStack({
 		(member) => !silentOf(member.shape) && (member.shape.text ?? "").trim() !== "",
 	);
 	const name = (
-		<PileName
+		<StackName
 			id={id}
 			shape={shape}
 			selected={selected || view.open}
@@ -83,20 +83,20 @@ export function PileStack({
 	if (view.open) {
 		return (
 			<div
-				className="pile-tray"
-				data-pile={id}
+				className="stack-tray"
+				data-stack={id}
 				data-selected={selected || undefined}
 				role="group"
-				aria-label={`${pileName(shape) ?? UNTITLED_PILE}, ${count} ${count === 1 ? "sticky" : "stickies"}, open`}
+				aria-label={`${stackName(shape) ?? UNTITLED_STACK}, ${count} ${count === 1 ? "sticky" : "stickies"}, open`}
 			>
-				<header className="pile-tray-head">
+				<header className="stack-tray-head">
 					{name}
-					<span className="pile-tray-count">
+					<span className="stack-tray-count">
 						{count} {count === 1 ? "sticky" : "stickies"}
 					</span>
 					<button
 						type="button"
-						className="pile-gather nodrag"
+						className="stack-gather nodrag"
 						onClick={(event) => {
 							event.stopPropagation();
 							onGather?.();
@@ -114,21 +114,21 @@ export function PileStack({
 	const mine = top !== undefined && topSession !== null && texts.has(top.id);
 	return (
 		<div
-			className="pile"
-			data-pile={id}
+			className="stack"
+			data-stack={id}
 			data-enter={enter || undefined}
 			data-receiving={view.receiving || undefined}
 			data-fed={view.fed || undefined}
 			data-selected={selected || undefined}
 			data-count={Math.min(count, 3)}
 			role="group"
-			aria-label={`${pileName(shape) ?? UNTITLED_PILE}: a pile of ${count} ${count === 1 ? "sticky" : "stickies"}`}
+			aria-label={`${stackName(shape) ?? UNTITLED_STACK}: a stack of ${count} ${count === 1 ? "sticky" : "stickies"}`}
 		>
-			<div className="pile-stack" key={view.fed || undefined}>
+			<div className="stack-papers" key={view.fed || undefined}>
 				{under.slice(0, 2).map((member, i) => (
 					<div
 						key={member.id}
-						className="pile-paper"
+						className="stack-paper"
 						data-color={member.shape.color ?? "yellow"}
 						style={
 							{ "--paper-tilt": `${TILTS[i] ?? 0}deg`, "--paper-i": i + 1 } as React.CSSProperties
@@ -137,7 +137,7 @@ export function PileStack({
 					/>
 				))}
 				{top && (
-					<div className="pile-top">
+					<div className="stack-top">
 						<StickyView
 							text={
 								topSession !== null && !mine
@@ -152,22 +152,22 @@ export function PileStack({
 						/>
 					</div>
 				)}
-				<span className="pile-count" aria-hidden="true">
+				<span className="stack-count" aria-hidden="true">
 					{count}
 				</span>
 			</div>
-			<div className="pile-label">{name}</div>
+			<div className="stack-label">{name}</div>
 		</div>
 	);
 }
 
 /**
- * A pile's name: a person's (as written), a suggestion (✨, until someone
- * names it), or "Untitled pile" with a pencil. Click to rename once it's
+ * A stack's name: a person's (as written), a suggestion (✨, until someone
+ * names it), or "Untitled stack" with a pencil. Click to rename once it's
  * selected (or double-click); Enter keeps it, Escape doesn't, an empty name
  * goes back to suggestions.
  */
-export function PileName({
+export function StackName({
 	id,
 	shape,
 	selected,
@@ -184,11 +184,11 @@ export function PileName({
 	onRename?: (name: string) => void;
 }) {
 	const state = nameState(shape);
-	const name = pileName(shape);
+	const name = stackName(shape);
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState("");
 	const field = useRef<HTMLInputElement>(null);
-	// Asked for from outside (the action bar's Rename, or Enter on a selected pile's name).
+	// Asked for from outside (the action bar's Rename, or Enter on a selected stack's name).
 	useEffect(() => {
 		if (!editable) return;
 		const onRequest = (event: Event) => {
@@ -198,8 +198,8 @@ export function PileName({
 			setEditing(true);
 		};
 		const target = document;
-		target.addEventListener(`tack:rename-pile`, onRequest);
-		return () => target.removeEventListener(`tack:rename-pile`, onRequest);
+		target.addEventListener(`tack:rename-stack`, onRequest);
+		return () => target.removeEventListener(`tack:rename-stack`, onRequest);
 	}, [editable, id, state, name]);
 	useEffect(() => {
 		if (editing) field.current?.select();
@@ -217,13 +217,13 @@ export function PileName({
 		return (
 			<input
 				ref={field}
-				className="pile-name-input nodrag"
+				className="stack-name-input nodrag"
 				value={draft}
 				maxLength={60}
 				placeholder={
-					state === "suggested" ? (readSuggestion(shape.suggested)?.title ?? "") : "Name this pile"
+					state === "suggested" ? (readSuggestion(shape.suggested)?.title ?? "") : "Name this stack"
 				}
-				aria-label="Pile name"
+				aria-label="Stack name"
 				onChange={(event) => setDraft(event.target.value)}
 				onKeyDown={onKey}
 				onBlur={commit}
@@ -237,10 +237,10 @@ export function PileName({
 		setEditing(true);
 	};
 	return (
-		<span className="pile-name-row">
+		<span className="stack-name-row">
 			<button
 				type="button"
-				className="pile-name"
+				className="stack-name"
 				data-state={state}
 				data-waiting={(state === "none" && waiting) || undefined}
 				disabled={!editable}
@@ -252,7 +252,7 @@ export function PileName({
 							: undefined
 				}
 				onClick={(event) => {
-					// The first click selects the pile (or opens it); renaming is for once it's selected.
+					// The first click selects the stack (or opens it); renaming is for once it's selected.
 					if (!selected) return;
 					event.stopPropagation();
 					start();
@@ -263,20 +263,20 @@ export function PileName({
 				}}
 			>
 				{state === "suggested" && (
-					<span className="pile-spark" aria-label="Suggested">
+					<span className="stack-spark" aria-label="Suggested">
 						✨
 					</span>
 				)}
-				<span className="pile-name-text">
-					{name ?? (state === "none" && waiting ? "Naming…" : UNTITLED_PILE)}
+				<span className="stack-name-text">
+					{name ?? (state === "none" && waiting ? "Naming…" : UNTITLED_STACK)}
 				</span>
 				{state === "none" && !waiting && editable && <PencilIcon />}
 			</button>
 			{state === "suggested" && selected && editable && (
 				<button
 					type="button"
-					className="pile-keep nodrag"
-					title="Keep this name: it won’t change as the pile does"
+					className="stack-keep nodrag"
+					title="Keep this name: it won’t change as the stack does"
 					onClick={(event) => {
 						event.stopPropagation();
 						if (name) onRename?.(name);
@@ -289,14 +289,14 @@ export function PileName({
 	);
 }
 
-/** Ask a pile's name to start editing (the action bar's Rename). */
-export function renamePile(id: string): void {
-	document.dispatchEvent(new CustomEvent("tack:rename-pile", { detail: id }));
+/** Ask a stack's name to start editing (the action bar's Rename). */
+export function renameStack(id: string): void {
+	document.dispatchEvent(new CustomEvent("tack:rename-stack", { detail: id }));
 }
 
-export function PileIcon({ size = 16 }: { size?: number }) {
+export function StackIcon({ size = 16 }: { size?: number }) {
 	return (
-		<svg className="pile-icon" viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
+		<svg className="stack-icon" viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
 			<rect x="4.5" y="1.75" width="9" height="9" rx="1.2" transform="rotate(6 9 6.25)" />
 			<rect x="2.5" y="4.5" width="9.5" height="9.5" rx="1.2" />
 		</svg>
@@ -305,7 +305,7 @@ export function PileIcon({ size = 16 }: { size?: number }) {
 
 export function SpreadIcon() {
 	return (
-		<svg className="pile-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+		<svg className="stack-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
 			<rect x="1.75" y="1.75" width="5.25" height="5.25" rx="1" />
 			<rect x="9" y="1.75" width="5.25" height="5.25" rx="1" />
 			<rect x="1.75" y="9" width="5.25" height="5.25" rx="1" />
@@ -317,7 +317,7 @@ export function SpreadIcon() {
 export function SparkIcon() {
 	return (
 		<svg
-			className="pile-icon pile-icon-spark"
+			className="stack-icon stack-icon-spark"
 			viewBox="0 0 16 16"
 			width="16"
 			height="16"
@@ -340,7 +340,7 @@ function GatherIcon() {
 
 function PencilIcon() {
 	return (
-		<svg className="pile-pencil" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+		<svg className="stack-pencil" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
 			<path d="M10.75 2.75l2.5 2.5L6 12.5 3 13l.5-3z" />
 		</svg>
 	);

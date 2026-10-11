@@ -1,5 +1,5 @@
-import type { PileAi } from "./pileNamer.ts";
-import type { GroupNote } from "./pileNaming.ts";
+import type { StackAi } from "./stackNamer.ts";
+import type { GroupNote } from "./stackNaming.ts";
 
 // A stand-in for Workers AI (#73), for local development (`TACK_AI=fake`, the
 // default in `vp dev`, which has no Workers AI) and the playground: it
@@ -68,7 +68,7 @@ export function fakeName(texts: readonly string[]): string {
 	return best?.name ?? (top ? `${capitalise(top)} worries` : "Loose ends");
 }
 
-/** Piles for some notes: by theme where one fits, else by the words they share. */
+/** Stacks for some notes: by theme where one fits, else by the words they share. */
 export function fakeGroups(notes: readonly GroupNote[]): { name: string; notes: string[] }[] {
 	const groups = new Map<string, string[]>();
 	for (const note of notes) {
@@ -84,7 +84,7 @@ export function fakeGroups(notes: readonly GroupNote[]): { name: string; notes: 
 }
 
 /** The fake, answering as Workers AI's structured output would, after `delayMs`. */
-export function fakePileAi(delayMs = 600): PileAi {
+export function fakeStackAi(delayMs = 600): StackAi {
 	const later = <T>(value: T) =>
 		new Promise<T>((resolve) => setTimeout(() => resolve(value), delayMs));
 	return {

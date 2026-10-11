@@ -51,9 +51,9 @@ export class FakeAi {
 		const user = call.input.messages?.find((message) => message.role === "user")?.content ?? "";
 		const schema = call.input.response_format?.json_schema?.name;
 		let content: unknown;
-		if (schema === "pile_groups") {
+		if (schema === "stack_groups") {
 			const { notes } = JSON.parse(user) as { notes: { id: string; text: string }[] };
-			// Two piles: the first half, and the rest.
+			// Two stacks: the first half, and the rest.
 			const half = Math.ceil(notes.length / 2);
 			content = {
 				groups: [

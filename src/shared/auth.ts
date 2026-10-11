@@ -65,7 +65,7 @@ export type SetupInfo =
 	  };
 
 /**
- * AI suggestions (#73): naming piles and grouping stickies. On by default
+ * AI suggestions (#73): naming stacks and grouping stickies. On by default
  * with Workers AI (`TACK_AI` in cloudflare.config.ts, `workers-ai`); off when
  * it's set to `off`, unavailable when the Worker has no AI binding to ask.
  */

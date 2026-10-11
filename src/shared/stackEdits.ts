@@ -3,34 +3,34 @@ import type * as Y from "yjs";
 import { isEnd } from "./connectors.ts";
 import { type Point, type Rect, intersects } from "./geometry.ts";
 import {
-	PILE_SIZE,
+	STACK_SIZE,
 	cleanName,
 	memberAt,
 	membersOf,
 	namingTexts,
 	nameState,
 	openLayout,
-	pileAtSticky,
-	pileHash,
-	pileOf,
-} from "./piles.ts";
+	stackAtSticky,
+	stackHash,
+	stackOf,
+} from "./stacks.ts";
 import { readingOrder } from "./display.ts";
 import { spotNear } from "./placement.ts";
 import type { SizeOf } from "./sections.ts";
 import { type ShapeProps, addShape, nextZ, readShape, shapesMap, topZ } from "./shapes.ts";
-import { commitMoves, readShapes, settlePiles } from "./structure.ts";
+import { commitMoves, readShapes, settleStacks } from "./structure.ts";
 
-// Edits to piles (piles.ts has what they are). Each is one transaction;
+// Edits to stacks (stacks.ts has what they are). Each is one transaction;
 // call them inside `transactLocal` for one undo step.
 
 /**
- * Drop `dropped` on `target`: on a pile, they join it; on a sticky, the two
- * become a pile where the sticky was (or, if it's a sticky in an open pile,
- * they join its pile). Stickies join on top; piles dropped along bring
- * their stickies and go, as do piles left with one sticky by stickies
- * leaving them. Returns the pile, or null if nothing could be piled.
+ * Drop `dropped` on `target`: on a stack, they join it; on a sticky, the two
+ * become a stack where the sticky was (or, if it's a sticky in an open stack,
+ * they join its stack). Stickies join on top; stacks dropped along bring
+ * their stickies and go, as do stacks left with one sticky by stickies
+ * leaving them. Returns the stack, or null if nothing could be stacked.
  */
-export function pileUp(
+export function stackUp(
 	doc: Y.Doc,
 	target: string,
 	dropped: readonly string[],
@@ -43,15 +43,15 @@ export function pileUp(
 		const map = shapesMap(doc);
 		const targetShape = shapes.get(target);
 		if (!targetShape) return;
-		let pile: string;
+		let stack: string;
 		let made = false;
-		if (targetShape.type === "pile") {
-			pile = target;
+		if (targetShape.type === "stack") {
+			stack = target;
 		} else if (targetShape.type === "sticky") {
-			const existing = pileOf(shapes, target);
-			if (existing) pile = existing;
+			const existing = stackOf(shapes, target);
+			if (existing) stack = existing;
 			else {
-				pile = newId();
+				stack = newId();
 				made = true;
 			}
 		} else {
@@ -61,18 +61,18 @@ export function pileUp(
 		const incoming: string[] = [];
 		const merged: string[] = [];
 		const thinned = new Set<string>();
-		const seen = new Set<string>([pile]);
+		const seen = new Set<string>([stack]);
 		if (made) seen.add(target);
 		for (const id of dropped) {
 			if (seen.has(id)) continue;
 			seen.add(id);
 			const shape = shapes.get(id);
 			if (shape?.type === "sticky") {
-				const from = pileOf(shapes, id);
-				if (from === pile) continue;
+				const from = stackOf(shapes, id);
+				if (from === stack) continue;
 				if (from) thinned.add(from);
 				incoming.push(id);
-			} else if (shape?.type === "pile") {
+			} else if (shape?.type === "stack") {
 				merged.push(id);
 				for (const member of membersOf(shapes, id).reverse()) {
 					if (seen.has(member)) continue;
@@ -84,23 +84,23 @@ export function pileUp(
 		if (incoming.length === 0) return;
 
 		if (made) {
-			const at = pileAtSticky(targetShape);
-			addShape(doc, pile, {
-				type: "pile",
+			const at = stackAtSticky(targetShape);
+			addShape(doc, stack, {
+				type: "stack",
 				x: Math.round(at.x),
 				y: Math.round(at.y),
 				z: nextZ(doc),
 				parent: typeof targetShape.parent === "string" ? targetShape.parent : null,
 			});
-			// Someone's name for a pile dropped on a lone sticky comes along.
+			// Someone's name for a stack dropped on a lone sticky comes along.
 			const named = merged
 				.map((id) => shapes.get(id))
 				.find((shape) => nameState(shape) === "person");
-			if (named?.title) map.get(pile)?.set("title", named.title);
+			if (named?.title) map.get(stack)?.set("title", named.title);
 		}
-		const pileShape = readShape(map.get(pile) as Y.Map<unknown>);
-		const at = memberAt(pileShape);
-		const parent = typeof pileShape.parent === "string" ? pileShape.parent : null;
+		const stackShape = readShape(map.get(stack) as Y.Map<unknown>);
+		const at = memberAt(stackShape);
+		const parent = typeof stackShape.parent === "string" ? stackShape.parent : null;
 		const joining = made ? [target, ...incoming] : incoming;
 		// On top of the stack, in the order they came (the first dropped lowest).
 		const top = topZ(doc);
@@ -108,38 +108,38 @@ export function pileUp(
 		joining.forEach((id, i) => {
 			const sticky = map.get(id);
 			if (!sticky) return;
-			sticky.set("pile", pile);
+			sticky.set("stack", stack);
 			sticky.set("x", at.x);
 			sticky.set("y", at.y);
 			sticky.set("parent", parent);
 			if (keys[i]) sticky.set("z", keys[i] as string);
 		});
 		for (const id of merged) {
-			// Connectors to a pile that's gone in go to the one it went into.
+			// Connectors to a stack that's gone in go to the one it went into.
 			for (const [connectorId, shape] of shapes) {
 				if (shape.type !== "connector") continue;
 				for (const which of ["from", "to"] as const) {
 					const end = shape[which];
 					if (isEnd(end) && end.shape === id) {
-						map.get(connectorId)?.set(which, { ...end, shape: pile });
+						map.get(connectorId)?.set(which, { ...end, shape: stack });
 					}
 				}
 			}
 			map.delete(id);
 			thinned.delete(id);
 		}
-		settlePiles(doc, thinned, sizeOf);
-		result = pile;
+		settleStacks(doc, thinned, sizeOf);
+		result = stack;
 	});
 	return result;
 }
 
-/** Pile up a selection of stickies (and piles) where the first of them, in reading order, is. */
-export function pileSelection(doc: Y.Doc, ids: readonly string[], sizeOf?: SizeOf): string | null {
+/** Stack up a selection of stickies (and stacks) where the first of them, in reading order, is. */
+export function stackSelection(doc: Y.Doc, ids: readonly string[], sizeOf?: SizeOf): string | null {
 	const shapes = readShapes(doc);
 	const candidates = ids.filter((id) => {
 		const type = shapes.get(id)?.type;
-		return type === "sticky" || type === "pile";
+		return type === "sticky" || type === "stack";
 	});
 	if (candidates.length < 2) return null;
 	const order = readingOrder(
@@ -148,10 +148,10 @@ export function pileSelection(doc: Y.Doc, ids: readonly string[], sizeOf?: SizeO
 			return { id, x: shape.x, y: shape.y };
 		}),
 	);
-	// Onto a pile if there's one, else the first sticky.
-	const target = order.find((id) => shapes.get(id)?.type === "pile") ?? order[0];
+	// Onto a stack if there's one, else the first sticky.
+	const target = order.find((id) => shapes.get(id)?.type === "stack") ?? order[0];
 	if (!target) return null;
-	return pileUp(
+	return stackUp(
 		doc,
 		target,
 		order.filter((id) => id !== target),
@@ -160,35 +160,35 @@ export function pileSelection(doc: Y.Doc, ids: readonly string[], sizeOf?: SizeO
 }
 
 /**
- * Stickies dragged out of a pile, dropped at `moves`: themselves again, there
- * (in whichever section that is). A pile left with one sticky dissolves.
+ * Stickies dragged out of a stack, dropped at `moves`: themselves again, there
+ * (in whichever section that is). A stack left with one sticky dissolves.
  */
-export function leavePile(doc: Y.Doc, moves: ReadonlyMap<string, Point>, sizeOf?: SizeOf): void {
+export function leaveStack(doc: Y.Doc, moves: ReadonlyMap<string, Point>, sizeOf?: SizeOf): void {
 	doc.transact(() => {
 		const shapes = readShapes(doc);
 		const map = shapesMap(doc);
 		const thinned = new Set<string>();
 		for (const id of moves.keys()) {
-			const pile = pileOf(shapes, id);
-			if (!pile) continue;
-			thinned.add(pile);
-			map.get(id)?.set("pile", null);
+			const stack = stackOf(shapes, id);
+			if (!stack) continue;
+			thinned.add(stack);
+			map.get(id)?.set("stack", null);
 		}
 		commitMoves(doc, moves, sizeOf);
-		settlePiles(doc, thinned, sizeOf);
+		settleStacks(doc, thinned, sizeOf);
 	});
 }
 
 /**
- * Move a sticky to `index` in its pile's order (0 is the top of the stack),
+ * Move a sticky to `index` in its stack's order (0 is the top of the stack),
  * restacking only that sticky.
  */
-export function reorderInPile(doc: Y.Doc, id: string, index: number): void {
+export function reorderInStack(doc: Y.Doc, id: string, index: number): void {
 	doc.transact(() => {
 		const shapes = readShapes(doc);
-		const pile = pileOf(shapes, id);
-		if (!pile) return;
-		const others = membersOf(shapes, pile).filter((member) => member !== id);
+		const stack = stackOf(shapes, id);
+		if (!stack) return;
+		const others = membersOf(shapes, stack).filter((member) => member !== id);
 		const at = Math.max(0, Math.min(index, others.length));
 		// Top first: the one above it is at - 1, below it at.
 		const above = at > 0 ? (shapes.get(others[at - 1] as string)?.z ?? null) : null;
@@ -204,29 +204,29 @@ export function reorderInPile(doc: Y.Doc, id: string, index: number): void {
 }
 
 /**
- * Spread a pile out for good: its stickies laid out in a grid where it is
- * (as it shows open), themselves again, and the pile gone. Connectors to it
+ * Spread a stack out for good: its stickies laid out in a grid where it is
+ * (as it shows open), themselves again, and the stack gone. Connectors to it
  * go to its top sticky.
  */
-export function spreadPile(doc: Y.Doc, pile: string, sizeOf?: SizeOf): string[] {
+export function spreadStack(doc: Y.Doc, stack: string, sizeOf?: SizeOf): string[] {
 	let spread: string[] = [];
 	doc.transact(() => {
 		const shapes = readShapes(doc);
-		const shape = shapes.get(pile);
-		if (shape?.type !== "pile") return;
-		const members = membersOf(shapes, pile);
+		const shape = shapes.get(stack);
+		if (shape?.type !== "stack") return;
+		const members = membersOf(shapes, stack);
 		const layout = openLayout(shape, members);
 		const map = shapesMap(doc);
-		for (const id of members) map.get(id)?.set("pile", null);
+		for (const id of members) map.get(id)?.set("stack", null);
 		const [top] = members;
 		for (const [id, other] of shapes) {
 			if (other.type !== "connector" || !top) continue;
 			for (const which of ["from", "to"] as const) {
 				const end = other[which];
-				if (isEnd(end) && end.shape === pile) map.get(id)?.set(which, { ...end, shape: top });
+				if (isEnd(end) && end.shape === stack) map.get(id)?.set(which, { ...end, shape: top });
 			}
 		}
-		map.delete(pile);
+		map.delete(stack);
 		// Below the tray's header, as the grid shows open.
 		commitMoves(doc, layout.slots, sizeOf, { raise: false });
 		spread = members;
@@ -234,10 +234,10 @@ export function spreadPile(doc: Y.Doc, pile: string, sizeOf?: SizeOf): string[] 
 	return spread;
 }
 
-/** Name a pile. An empty name clears it, so suggestions show again. */
-export function setPileName(doc: Y.Doc, pile: string, name: string): void {
-	const shape = shapesMap(doc).get(pile);
-	if (!shape || shape.get("type") !== "pile") return;
+/** Name a stack. An empty name clears it, so suggestions show again. */
+export function setStackName(doc: Y.Doc, stack: string, name: string): void {
+	const shape = shapesMap(doc).get(stack);
+	if (!shape || shape.get("type") !== "stack") return;
 	const clean = cleanName(name);
 	doc.transact(() => {
 		if (clean) {
@@ -250,33 +250,33 @@ export function setPileName(doc: Y.Doc, pile: string, name: string): void {
 
 // --- Grouping a selection ("Group these") ------------------------------------------------
 
-/** Piles proposed for some stickies: a name, and which stickies, best first. */
-export interface ProposedPile {
+/** Stacks proposed for some stickies: a name, and which stickies, best first. */
+export interface ProposedStack {
 	name: string;
 	ids: string[];
 }
 
-export interface PlannedPile extends ProposedPile {
+export interface PlannedStack extends ProposedStack {
 	/** Where it goes: its top left. */
 	at: Point;
 }
 
 /**
- * Where each proposed pile goes: where its first sticky (in reading order)
- * is, unless that's on a pile planned before it, then the nearest free
- * space. Only stickies with something to read count, each in one pile at
- * most; piles of fewer than two are left out (those stickies stay put).
+ * Where each proposed stack goes: where its first sticky (in reading order)
+ * is, unless that's on a stack planned before it, then the nearest free
+ * space. Only stickies with something to read count, each in one stack at
+ * most; stacks of fewer than two are left out (those stickies stay put).
  */
 export function planGrouping(
 	shapes: ReadonlyMap<string, ShapeProps>,
-	proposal: readonly ProposedPile[],
+	proposal: readonly ProposedStack[],
 	sizeOf?: SizeOf,
-): PlannedPile[] {
+): PlannedStack[] {
 	const used = new Set<string>();
 	const grouped = new Set<string>();
-	const groups: ProposedPile[] = [];
-	for (const pile of proposal) {
-		const ids = pile.ids.filter((id) => {
+	const groups: ProposedStack[] = [];
+	for (const stack of proposal) {
+		const ids = stack.ids.filter((id) => {
 			const shape = shapes.get(id);
 			if (used.has(id) || shape?.type !== "sticky" || shape.silent !== undefined) return false;
 			used.add(id);
@@ -286,11 +286,11 @@ export function planGrouping(
 			for (const id of ids) used.delete(id);
 			continue;
 		}
-		const name = cleanName(pile.name);
+		const name = cleanName(stack.name);
 		groups.push({ name, ids });
 		for (const id of ids) grouped.add(id);
 	}
-	// What's left on the board: everything but the stickies being piled, and the piles so far.
+	// What's left on the board: everything but the stickies being stacked, and the stacks so far.
 	const others = new Map<string, ShapeProps>();
 	for (const [id, shape] of shapes) if (!grouped.has(id)) others.set(id, shape);
 	const placed: Rect[] = [];
@@ -302,25 +302,25 @@ export function planGrouping(
 			}),
 		)[0] as string;
 		const sticky = shapes.get(first) as ShapeProps;
-		const ideal = pileAtSticky(sticky);
-		const box = { ...ideal, ...PILE_SIZE };
+		const ideal = stackAtSticky(sticky);
+		const box = { ...ideal, ...STACK_SIZE };
 		const at = placed.some((other) => intersects(box, other))
-			? (spotNear(others, ideal, PILE_SIZE, sizeOf) ?? ideal)
+			? (spotNear(others, ideal, STACK_SIZE, sizeOf) ?? ideal)
 			: ideal;
 		const rounded = { x: Math.round(at.x), y: Math.round(at.y) };
-		placed.push({ ...rounded, ...PILE_SIZE });
-		others.set(`planned:${i}`, { type: "pile", ...rounded, z: "" });
+		placed.push({ ...rounded, ...STACK_SIZE });
+		others.set(`planned:${i}`, { type: "stack", ...rounded, z: "" });
 		return { ...group, at: rounded };
 	});
 }
 
 /**
- * Make the planned piles, each named with its proposed name as a
- * suggestion (✨), as one transaction. Returns the new piles' ids.
+ * Make the planned stacks, each named with its proposed name as a
+ * suggestion (✨), as one transaction. Returns the new stacks' ids.
  */
 export function applyGrouping(
 	doc: Y.Doc,
-	plan: readonly PlannedPile[],
+	plan: readonly PlannedStack[],
 	sizeOf?: SizeOf,
 	newId: () => string = () => crypto.randomUUID(),
 ): string[] {
@@ -332,10 +332,10 @@ export function applyGrouping(
 			const shapes = readShapes(doc);
 			const ids = planned.ids.filter((id) => shapes.get(id)?.type === "sticky");
 			if (ids.length < 2) continue;
-			const pile = newId();
+			const stack = newId();
 			const section = shapes.get(ids[0] as string)?.parent;
-			addShape(doc, pile, {
-				type: "pile",
+			addShape(doc, stack, {
+				type: "stack",
 				x: planned.at.x,
 				y: planned.at.y,
 				z: nextZ(doc),
@@ -346,23 +346,23 @@ export function applyGrouping(
 			// The first listed ends up on top.
 			const keys = top ? [top, ...generateNKeysBetween(top, null, ids.length - 1)] : [];
 			[...ids].reverse().forEach((id, i) => {
-				const from = pileOf(shapes, id);
+				const from = stackOf(shapes, id);
 				if (from) thinned.add(from);
 				const sticky = map.get(id);
-				sticky?.set("pile", pile);
+				sticky?.set("stack", stack);
 				sticky?.set("x", at.x);
 				sticky?.set("y", at.y);
 				if (keys[i]) sticky?.set("z", keys[i] as string);
 			});
 			// Which section it's in, from where it landed; its stickies follow.
-			commitMoves(doc, new Map([[pile, planned.at]]), sizeOf, { raise: false });
+			commitMoves(doc, new Map([[stack, planned.at]]), sizeOf, { raise: false });
 			const texts = namingTexts(readShapes(doc), ids);
 			if (planned.name && texts.length > 0) {
-				map.get(pile)?.set("suggested", { title: planned.name, hash: pileHash(texts) });
+				map.get(stack)?.set("suggested", { title: planned.name, hash: stackHash(texts) });
 			}
-			made.push(pile);
+			made.push(stack);
 		}
-		settlePiles(doc, thinned, sizeOf);
+		settleStacks(doc, thinned, sizeOf);
 	});
 	return made;
 }

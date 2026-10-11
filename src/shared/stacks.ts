@@ -1,71 +1,71 @@
 import type { Point, Rect } from "./geometry.ts";
-import type { PileSuggestion, ShapeProps } from "./shapes.ts";
+import type { StackSuggestion, ShapeProps } from "./shapes.ts";
 
-// Piles (#73): stickies gathered into a stack, as people do when theming a
-// planning session, and named from what's in them. A pile is a shape of its
-// own (`type: "pile"`), and a sticky in one says so with its own `pile` key,
+// Stacks (#73): stickies gathered into a stack, as people do when theming a
+// planning session, and named from what's in them. A stack is a shape of its
+// own (`type: "stack"`), and a sticky in one says so with its own `stack` key,
 // as a shape says which section it's in with `parent`. Membership lives on
-// the stickies, so two people dragging different stickies onto a pile at
+// the stickies, so two people dragging different stickies onto a stack at
 // once both land, and one person dragging a sticky out while another drags
 // it somewhere else resolves to one of them, never a mix.
 //
-// While it's in a pile, a sticky's x and y are the pile's top sticky's, and
-// its parent is the pile's: moving a pile writes them on every sticky in it
-// (with `pile`, so a concurrent drag out either wins whole or loses whole;
+// While it's in a stack, a sticky's x and y are the stack's top sticky's, and
+// its parent is the stack's: moving a stack writes them on every sticky in it
+// (with `stack`, so a concurrent drag out either wins whole or loses whole;
 // see `commitMoves`). So containment, placement and everything else that
-// reads where shapes are needs to know nothing about piles. Readers that
-// list what's in a section and shouldn't count piled stickies on their own
-// (lists, mini cards) ask `isPiled`.
+// reads where shapes are needs to know nothing about stacks. Readers that
+// list what's in a section and shouldn't count stacked stickies on their own
+// (lists, mini cards) ask `isStacked`.
 //
-// A pile reads as a neat stack, top sticky first: the stickies' stacking
-// order (z) is the pile's order, the last one dropped on top. Opening one
+// A stack reads as a neat stack, top sticky first: the stickies' stacking
+// order (z) is the stack's order, the last one dropped on top. Opening one
 // spreads its stickies into a grid where it is: that's this person's view
-// alone (the client's `pileStore`), while what's in the pile is everyone's.
+// alone (the client's `stackStore`), while what's in the stack is everyone's.
 //
 // Names: `title` is a name a person gave it, and is never touched by
 // anything else. `suggested` is a name the server suggested from the
-// stickies' visible text (piles' naming, src/shared/pileNamer.ts), with a
+// stickies' visible text (stacks' naming, src/shared/stackNamer.ts), with a
 // hash of that text, so it's made again only when the text changes. Silent
 // mode's face-down stickies have no text in the document, so they can't
-// lend a pile their words until they're revealed.
+// lend a stack their words until they're revealed.
 //
 // Repair (repair.ts) settles what concurrent edits leave behind: a sticky
-// pointing at a pile that's gone, a pile left with one sticky (it dissolves
+// pointing at a stack that's gone, a stack left with one sticky (it dissolves
 // back into that sticky) or none (it goes), stickies whose parent drifted
-// from their pile's.
+// from their stack's.
 
-/** A pile's box: the stack, with room for its name below. */
-export const PILE_SIZE = { w: 200, h: 240 } as const;
-/** Where its top sticky sits inside its box (and so where a piled sticky's x and y are). */
-export const PILE_INSET = { x: 12, y: 10 } as const;
+/** A stack's box: the stack, with room for its name below. */
+export const STACK_SIZE = { w: 200, h: 240 } as const;
+/** Where its top sticky sits inside its box (and so where a stacked sticky's x and y are). */
+export const STACK_INSET = { x: 12, y: 10 } as const;
 /** A sticky's size, as drawn. */
 export const STICKY = 176;
 /** The open grid: a gap between stickies, the tray's padding and its header. */
-export const PILE_GRID = { gap: 16, pad: 20, head: 52, maxColumns: 5 } as const;
+export const STACK_GRID = { gap: 16, pad: 20, head: 52, maxColumns: 5 } as const;
 
 /** Text sent for naming: at most this many stickies, each cut to this many characters. */
 export const NAMING_LIMITS = { stickies: 40, chars: 280 } as const;
 /** A name is at most this long. */
-export const PILE_NAME_MAX = 60;
-/** What a pile without a name is called. */
-export const UNTITLED_PILE = "Untitled pile";
+export const STACK_NAME_MAX = 60;
+/** What a stack without a name is called. */
+export const UNTITLED_STACK = "Untitled stack";
 
 type Shapes = ReadonlyMap<string, ShapeProps>;
 
-/** The pile a shape is in, if it's a sticky that says it's in one (which may be gone). */
-export function pileKey(shape: Pick<ShapeProps, "type" | "pile"> | undefined): string | null {
-	return shape?.type === "sticky" && typeof shape.pile === "string" ? shape.pile : null;
+/** The stack a shape is in, if it's a sticky that says it's in one (which may be gone). */
+export function stackKey(shape: Pick<ShapeProps, "type" | "stack"> | undefined): string | null {
+	return shape?.type === "sticky" && typeof shape.stack === "string" ? shape.stack : null;
 }
 
-/** The pile a sticky is in, if that pile is still there. */
-export function pileOf(shapes: Shapes, id: string): string | null {
-	const pile = pileKey(shapes.get(id));
-	return pile && pile !== id && shapes.get(pile)?.type === "pile" ? pile : null;
+/** The stack a sticky is in, if that stack is still there. */
+export function stackOf(shapes: Shapes, id: string): string | null {
+	const stack = stackKey(shapes.get(id));
+	return stack && stack !== id && shapes.get(stack)?.type === "stack" ? stack : null;
 }
 
-/** Whether a shape is a sticky in a pile that's there: drawn as part of the pile, not itself. */
-export function isPiled(shapes: Shapes, id: string): boolean {
-	return pileOf(shapes, id) !== null;
+/** Whether a shape is a sticky in a stack that's there: drawn as part of the stack, not itself. */
+export function isStacked(shapes: Shapes, id: string): boolean {
+	return stackOf(shapes, id) !== null;
 }
 
 /** By z, top of the stack first; ties by id, so everyone agrees. */
@@ -77,42 +77,42 @@ function topFirst(shapes: Shapes) {
 	};
 }
 
-/** Every pile's stickies, top of the stack first (piles with none are left out). */
-export function pileMembers(shapes: Shapes): Map<string, string[]> {
+/** Every stack's stickies, top of the stack first (stacks with none are left out). */
+export function stackMembers(shapes: Shapes): Map<string, string[]> {
 	const out = new Map<string, string[]>();
 	for (const [id] of shapes) {
-		const pile = pileOf(shapes, id);
-		if (!pile) continue;
-		const list = out.get(pile);
+		const stack = stackOf(shapes, id);
+		if (!stack) continue;
+		const list = out.get(stack);
 		if (list) list.push(id);
-		else out.set(pile, [id]);
+		else out.set(stack, [id]);
 	}
 	const order = topFirst(shapes);
 	for (const list of out.values()) list.sort(order);
 	return out;
 }
 
-/** One pile's stickies, top of the stack first. */
-export function membersOf(shapes: Shapes, pile: string): string[] {
-	return pileMembers(shapes).get(pile) ?? [];
+/** One stack's stickies, top of the stack first. */
+export function membersOf(shapes: Shapes, stack: string): string[] {
+	return stackMembers(shapes).get(stack) ?? [];
 }
 
-/** Where a sticky in a pile at `pile` (its top left) sits. */
-export function memberAt(pile: Point): Point {
-	return { x: pile.x + PILE_INSET.x, y: pile.y + PILE_INSET.y };
+/** Where a sticky in a stack at `stack` (its top left) sits. */
+export function memberAt(stack: Point): Point {
+	return { x: stack.x + STACK_INSET.x, y: stack.y + STACK_INSET.y };
 }
 
-/** Where a pile goes for a sticky at `sticky` to be its top sticky. */
-export function pileAtSticky(sticky: Point): Point {
-	return { x: sticky.x - PILE_INSET.x, y: sticky.y - PILE_INSET.y };
+/** Where a stack goes for a sticky at `sticky` to be its top sticky. */
+export function stackAtSticky(sticky: Point): Point {
+	return { x: sticky.x - STACK_INSET.x, y: sticky.y - STACK_INSET.y };
 }
 
 // --- Names -------------------------------------------------------------------------------
 
 export type NameState = "person" | "suggested" | "none";
 
-/** What a pile's called: a person's name for it, else its suggestion, else null. */
-export function pileName(
+/** What a stack's called: a person's name for it, else its suggestion, else null. */
+export function stackName(
 	shape: Pick<ShapeProps, "title" | "suggested"> | undefined,
 ): string | null {
 	const title = typeof shape?.title === "string" ? shape.title.trim() : "";
@@ -127,9 +127,9 @@ export function nameState(shape: Pick<ShapeProps, "title" | "suggested"> | undef
 	return readSuggestion(shape?.suggested) ? "suggested" : "none";
 }
 
-export function readSuggestion(value: unknown): PileSuggestion | null {
+export function readSuggestion(value: unknown): StackSuggestion | null {
 	if (!value || typeof value !== "object") return null;
-	const { title, hash } = value as Partial<PileSuggestion>;
+	const { title, hash } = value as Partial<StackSuggestion>;
 	if (typeof title !== "string" || typeof hash !== "string" || !title.trim()) return null;
 	return { title, hash };
 }
@@ -137,7 +137,7 @@ export function readSuggestion(value: unknown): PileSuggestion | null {
 /**
  * Tidy a name, wherever it came from (a person, or a model): one line, no
  * quotes, emoji or Markdown around it, no trailing full stop, at most
- * `PILE_NAME_MAX` characters (cut at a word). Empty if nothing's left.
+ * `STACK_NAME_MAX` characters (cut at a word). Empty if nothing's left.
  */
 export function cleanName(raw: string): string {
 	let name = raw
@@ -149,17 +149,17 @@ export function cleanName(raw: string): string {
 		.replace(/\s+/g, " ")
 		.trim();
 	// Leading labels a model might add.
-	name = name.replace(/^(?:theme|name|title|group|pile|label)\s*[:\-–—]\s*/i, "");
+	name = name.replace(/^(?:theme|name|title|group|stack|label)\s*[:\-–—]\s*/i, "");
 	// Markdown and quotes around the whole thing, and bullets.
 	name = name.replace(/^[\s#>*_`~\-–—•·"'“”‘’«»]+/u, "").replace(/[\s*_`~"'“”‘’«»]+$/u, "");
 	// Emoji and pictographs (it gets its ✨ from the board, not the model).
 	name = name.replace(/\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}]|\u{FE0F}|\u{200D}/gu, "");
 	// Trailing full stops and quotes, in whichever order they came.
 	name = name.replace(/\s+/g, " ").replace(/[\s.;:,!*_`~"'“”‘’«»]+$/u, "");
-	if (name.length > PILE_NAME_MAX) {
-		const cut = name.slice(0, PILE_NAME_MAX + 1);
+	if (name.length > STACK_NAME_MAX) {
+		const cut = name.slice(0, STACK_NAME_MAX + 1);
 		const space = cut.lastIndexOf(" ");
-		name = (space > PILE_NAME_MAX / 2 ? cut.slice(0, space) : cut.slice(0, PILE_NAME_MAX)).trim();
+		name = (space > STACK_NAME_MAX / 2 ? cut.slice(0, space) : cut.slice(0, STACK_NAME_MAX)).trim();
 		name = name.replace(/[\s,;:–—-]+$/u, "");
 	}
 	return name;
@@ -171,10 +171,10 @@ export function usableName(name: string): boolean {
 	return words.length >= 1 && words.length <= 8 && /[\p{L}\p{N}]/u.test(name);
 }
 
-// --- What a pile says -------------------------------------------------------------------
+// --- What a stack says -------------------------------------------------------------------
 
 /**
- * The text a pile can be named from: its stickies' visible text, never a
+ * The text a stack can be named from: its stickies' visible text, never a
  * face-down sticky's (whose text isn't in the document anyway; this makes
  * sure a stray value never is used either), trimmed, cut short, the empty
  * ones left out, top of the stack first.
@@ -203,11 +203,11 @@ export function cleanText(text: string): string {
 
 /**
  * A hash of the text a name's made from, the same whatever order the
- * stickies are stacked in (so restacking a pile doesn't rename it).
+ * stickies are stacked in (so restacking a stack doesn't rename it).
  * Synchronous (53-bit cyrb53), as it's checked on every change; it's for
  * noticing changes and caching names, not for security.
  */
-export function pileHash(texts: readonly string[]): string {
+export function stackHash(texts: readonly string[]): string {
 	const input = [...texts]
 		.map((text) => text.toLowerCase())
 		.sort()
@@ -224,9 +224,9 @@ export function pileHash(texts: readonly string[]): string {
 	return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
-/** Whether a pile wants a (new) suggestion: no name from a person, and text that's changed. */
+/** Whether a stack wants a (new) suggestion: no name from a person, and text that's changed. */
 export function wantsSuggestion(shape: ShapeProps | undefined, hash: string | null): boolean {
-	if (!shape || shape.type !== "pile" || nameState(shape) === "person" || hash === null) {
+	if (!shape || shape.type !== "stack" || nameState(shape) === "person" || hash === null) {
 		return false;
 	}
 	return readSuggestion(shape.suggested)?.hash !== hash;
@@ -237,7 +237,7 @@ export function wantsSuggestion(shape: ShapeProps | undefined, hash: string | nu
 export interface OpenLayout {
 	/** The tray the stickies spread out on, header included. */
 	tray: Rect;
-	/** Each sticky's top left, in the pile's order. */
+	/** Each sticky's top left, in the stack's order. */
 	slots: Map<string, Point>;
 	columns: number;
 }
@@ -246,25 +246,25 @@ export interface OpenLayout {
 export function gridColumns(count: number): number {
 	if (count <= 3) return Math.max(1, count);
 	if (count === 4) return 2;
-	return Math.min(PILE_GRID.maxColumns, Math.ceil(Math.sqrt(count)));
+	return Math.min(STACK_GRID.maxColumns, Math.ceil(Math.sqrt(count)));
 }
 
 /**
- * An open pile: its stickies in a grid on a tray centred where the stack
- * is, in the pile's order (top of the stack first, reading left to right).
+ * An open stack: its stickies in a grid on a tray centred where the stack
+ * is, in the stack's order (top of the stack first, reading left to right).
  */
-export function openLayout(pile: Point, members: readonly string[]): OpenLayout {
+export function openLayout(stack: Point, members: readonly string[]): OpenLayout {
 	const count = Math.max(1, members.length);
 	const columns = gridColumns(count);
 	const rows = Math.ceil(count / columns);
-	const gridW = columns * STICKY + (columns - 1) * PILE_GRID.gap;
-	const gridH = rows * STICKY + (rows - 1) * PILE_GRID.gap;
-	const w = gridW + PILE_GRID.pad * 2;
-	const h = PILE_GRID.head + gridH + PILE_GRID.pad;
-	const centre = { x: pile.x + PILE_SIZE.w / 2, y: pile.y + PILE_INSET.y + STICKY / 2 };
+	const gridW = columns * STICKY + (columns - 1) * STACK_GRID.gap;
+	const gridH = rows * STICKY + (rows - 1) * STACK_GRID.gap;
+	const w = gridW + STACK_GRID.pad * 2;
+	const h = STACK_GRID.head + gridH + STACK_GRID.pad;
+	const centre = { x: stack.x + STACK_SIZE.w / 2, y: stack.y + STACK_INSET.y + STICKY / 2 };
 	const tray = {
 		x: Math.round(centre.x - w / 2),
-		y: Math.round(centre.y - (PILE_GRID.head + gridH / 2)),
+		y: Math.round(centre.y - (STACK_GRID.head + gridH / 2)),
 		w,
 		h,
 	};
@@ -273,8 +273,8 @@ export function openLayout(pile: Point, members: readonly string[]): OpenLayout 
 		const column = i % columns;
 		const row = Math.floor(i / columns);
 		slots.set(id, {
-			x: tray.x + PILE_GRID.pad + column * (STICKY + PILE_GRID.gap),
-			y: tray.y + PILE_GRID.head + row * (STICKY + PILE_GRID.gap),
+			x: tray.x + STACK_GRID.pad + column * (STICKY + STACK_GRID.gap),
+			y: tray.y + STACK_GRID.head + row * (STICKY + STACK_GRID.gap),
 		});
 	});
 	return { tray, slots, columns };
@@ -296,8 +296,8 @@ export function nearestSlot(layout: OpenLayout, point: Point): number {
 	return best;
 }
 
-/** A pile in words: "Docs gaps · 5 stickies". */
-export function describePile(shape: ShapeProps | undefined, count: number): string {
-	const name = pileName(shape) ?? UNTITLED_PILE;
+/** A stack in words: "Docs gaps · 5 stickies". */
+export function describeStack(shape: ShapeProps | undefined, count: number): string {
+	const name = stackName(shape) ?? UNTITLED_STACK;
 	return `${name} · ${count} ${count === 1 ? "sticky" : "stickies"}`;
 }
