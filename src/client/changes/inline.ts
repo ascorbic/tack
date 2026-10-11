@@ -48,11 +48,25 @@ export function safeUrl(url: string | undefined): string | undefined {
 	}
 }
 
+/**
+ * A URL that's safe to load as an image: http(s), or a `blob:` URL this page
+ * made itself (a backlink's snapshot drawn but not uploaded yet, as in the
+ * playground), which can't reach anywhere else.
+ */
+export function safeImageUrl(
+	url: string | undefined,
+	origin = typeof location === "undefined" ? null : location.origin,
+): string | undefined {
+	const trimmed = url?.trim() ?? "";
+	if (origin && origin !== "null" && trimmed.startsWith(`blob:${origin}/`)) return trimmed;
+	return safeUrl(trimmed);
+}
+
 function image(match: RegExpExecArray): Inline {
 	const [, alt = "", angled, bare, title] = match;
 	return {
 		type: "image",
-		src: safeUrl(unescape(angled ?? bare ?? "")),
+		src: safeImageUrl(unescape(angled ?? bare ?? "")),
 		alt: unescape(alt),
 		...(title ? { title } : {}),
 	};

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { backlinkBody } from "../src/shared/backlinks.ts";
-import { parseInline, safeUrl } from "../src/client/changes/inline.ts";
+import { parseInline, safeImageUrl, safeUrl } from "../src/client/changes/inline.ts";
 
 // The push sheet's preview of what a push writes (#70): inline Markdown,
 // parsed into a tree the preview renders as React elements.
@@ -97,6 +97,12 @@ describe("parseInline", () => {
 		expect(safeUrl("https://")).toBeUndefined();
 		expect(safeUrl("ftp://x.dev")).toBeUndefined();
 		expect(safeUrl("blob:https://x.dev/1")).toBeUndefined();
+		// Images may also be this page's own blobs (a snapshot not uploaded yet), never another's.
+		expect(safeImageUrl("blob:https://x.dev/1", "https://x.dev")).toBe("blob:https://x.dev/1");
+		expect(safeImageUrl("blob:https://evil.dev/1", "https://x.dev")).toBeUndefined();
+		expect(safeImageUrl("blob:https://x.dev.evil/1", "https://x.dev")).toBeUndefined();
+		expect(safeImageUrl("https://x.dev/a.png", null)).toBe("https://x.dev/a.png");
+		expect(safeImageUrl("blob:https://x.dev/1", null)).toBeUndefined();
 	});
 
 	it("leaves HTML as text", () => {
