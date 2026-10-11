@@ -93,7 +93,7 @@ function Sheet({
 						</svg>
 					</button>
 				</header>
-				<div className="sheet-body">
+				<div className="sheet-body" data-searching={query.trim() !== "" || undefined}>
 					{sections.length === 0 ? (
 						<p className="sheet-empty">
 							No shortcuts match “{query}”.

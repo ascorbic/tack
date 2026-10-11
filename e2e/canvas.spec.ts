@@ -218,7 +218,12 @@ test("? opens a searchable shortcut sheet", async ({ page }) => {
 	await expect(sheet).toBeVisible();
 	await expect(sheet.getByText("Cursor chat")).toBeVisible();
 	await page.keyboard.type("zoom");
-	await expect(sheet.locator(".sheet-row")).toHaveCount(5);
+	const rows = sheet.locator(".sheet-row");
+	await expect(rows).toHaveCount(5);
+	// Results from one group use both columns, rather than leaving one empty.
+	const lefts = new Set<number>();
+	for (const row of await rows.all()) lefts.add(Math.round((await row.boundingBox())!.x));
+	expect(lefts.size).toBe(2);
 	await page.keyboard.press("Escape");
 	await expect(sheet).toHaveCount(0);
 });

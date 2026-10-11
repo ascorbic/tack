@@ -3066,6 +3066,20 @@ a.card-title {
 	padding-top: 16px;
 }
 
+/* Search results flow across both columns, rather than leaving one empty
+   when they all come from one group. */
+.sheet-body[data-searching] .sheet-group {
+	break-inside: auto;
+}
+
+.sheet-body[data-searching] .sheet-row {
+	break-inside: avoid;
+}
+
+.sheet-group h3 {
+	break-after: avoid;
+}
+
 .sheet-group h3 {
 	margin: 0 0 6px;
 	font-size: 11px;
