@@ -20,7 +20,7 @@
 		transform var(--t-settle) var(--ease-settle);
 }
 
-.react-flow__node:hover .action-item {
+.react-flow__node:hover .action-item:not([data-selected="true"]) {
 	box-shadow: var(--shadow-hover);
 }
 

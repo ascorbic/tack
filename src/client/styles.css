@@ -1047,7 +1047,7 @@ button.primary:hover {
 	}
 }
 
-.react-flow__node:hover .card {
+.react-flow__node:hover .card:not([data-selected="true"]) {
 	box-shadow: var(--shadow-hover);
 }
 

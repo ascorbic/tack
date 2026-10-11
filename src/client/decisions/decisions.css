@@ -54,7 +54,7 @@
 	}
 }
 
-.react-flow__node:hover .decision {
+.react-flow__node:hover .decision:not([data-selected="true"]) {
 	box-shadow: var(--sheet), var(--shadow-hover);
 }
 

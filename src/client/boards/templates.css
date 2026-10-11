@@ -675,8 +675,22 @@
 		color var(--t-quick) var(--ease-out);
 }
 
+/* In the top bar: a quiet icon beside the title, not a bordered button. */
+.topbar .board-actions-menu-button {
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--muted);
+}
+
 .board-actions-menu-button:hover,
-.board-actions-menu-button[aria-expanded="true"] {
+.board-actions-menu-button[aria-expanded="true"],
+.topbar .board-actions-menu-button:hover,
+.topbar .board-actions-menu-button[aria-expanded="true"] {
 	background: var(--hover);
 	color: var(--ink);
 }

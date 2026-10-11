@@ -42,7 +42,7 @@
 	}
 }
 
-.react-flow__node:hover .widget {
+.react-flow__node:hover .widget:not([data-selected]) {
 	box-shadow: var(--shadow-hover);
 }
 

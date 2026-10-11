@@ -381,3 +381,14 @@
 	fill: var(--surface);
 	stroke: var(--line-strong);
 }
+
+/* A card's own popover (why it isn't live, how it got here) opens over the
+   connector layer, so anchor dots and lines never sit on top of it. */
+.react-flow__node:has(
+	.liveness:hover,
+	.liveness:focus-within,
+	.provenance:hover,
+	.provenance:focus-within
+) {
+	z-index: 1600 !important;
+}
