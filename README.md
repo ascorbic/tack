@@ -1,17 +1,17 @@
-# Tack
+# 📌 Tack
 
-A GitHub-native whiteboard for open source planning.
+A self-hosted, open source, git-native whiteboard for collaborative planning.
 
-Tack cards, issues and ideas to a shared board, change tack together, and say _tack_ (Swedish for "thanks") to the people who got you there.
+Tack cards, issues and ideas to a shared board, change tack together, and say _tack_ to the people who got you there.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ascorbic/tack)
 
 - **Live GitHub cards**: paste any issue or pull request link and it stays live via webhooks; lists and other widgets keep searches live
-- **Freeform canvas**: layout never changes GitHub; explicit actions do
+- **Freeform canvas**: move, group and sort stickies, issues and PRs around freely without affecting GitHub
 - **Staged pushes**: create issues from stickies, label, link, and write decisions back, reviewed and pushed as one batch
-- **Async first**: "since you were here", history replay, open voting windows
+- **Async welcome**: "since you were here", history replay, open voting windows
 - **Decisions**: recorded on the board and written back as ADR PRs or Discussion posts
 - **GitHub identity**: log in with GitHub; repo permissions decide what you can do
-
-> Status: early prototype.
 
 ## Stack
 
