@@ -20,6 +20,7 @@ Tack is designed to be self-hostable on a free plan, but what it costs you depen
 | Durable Objects, SQLite storage | One object per board, one per repository on a board, and two for the instance |
 | Cron Triggers                   | One, every ten minutes, to redeliver failed webhooks                          |
 | Workers Logs                    | Every log event                                                               |
+| Workers AI                      | [AI suggestions](/self-hosting/configuration/#ai-suggestions): naming stacks  |
 
 No KV, R2, D1 or Queues.
 
@@ -31,6 +32,7 @@ No KV, R2, D1 or Queues.
 - **Widgets and inboxes**: searches while someone's looking, on a schedule from every minute (inboxes) to every 15 minutes, and after webhooks. Results are cached, and each board limits itself to 20 searches and 60 other reads a minute per person.
 - **Pushes**: one write a second, run from the board object's alarm.
 - **Storage**: each board's document (saved in chunks), its comments, push history, change log and [history](/boards/history/) (up to 8 MB), and backlink snapshots (each up to 1.5 MB, up to 1000 per board). Repository objects cache their cards.
+- **AI suggestions**: a request to Workers AI each time a stack's text settles on something it hasn't been named for, and for each Group these. Each is a few hundred tokens; each board asks at most 20 times a minute. Workers AI's free daily allocation covers a lot of sessions; past it, it's billed. Turn them off with `TACK_AI=off`.
 - **Logs**: one line per event; busy instances log a lot of `webhook.` and `repo.` events.
 - **Images of public boards** ([embeds and link previews](/boards/embeds/)): drawing one takes a few hundred milliseconds of CPU time (more for a big board, and for PNG), and wakes the board's object. Each image is drawn once for each change to what it shows: after that, browsers and GitHub's image proxy are told it's unchanged, and drawn images are kept in Cloudflare's cache. Opening a public board's page asks the board for a description of it, for link previews.
 

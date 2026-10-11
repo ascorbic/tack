@@ -11,17 +11,17 @@ Actions only appear for what the repository's forge supports. Ones that can't do
 
 **From the keyboard**: <kbd>Tab</kbd> from a selected shape (or <kbd>F6</kbd>) moves to the bar, the arrow keys move along it, <kbd>Enter</kbd> opens an action, and <kbd>Esc</kbd> goes back to the shape. In every panel, <kbd>⌘</kbd> <kbd>Enter</kbd> stages.
 
-| Action                                                        | Key                                    | Select                                   | Writes                                |
-| ------------------------------------------------------------- | -------------------------------------- | ---------------------------------------- | ------------------------------------- |
-| [Make issues](#make-issues)                                   | <kbd>⌥</kbd> <kbd>I</kbd>              | Stickies                                 | One issue per sticky                  |
-| [Parent issue](#parent-issue)                                 | <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd> | A section, or several stickies and cards | A parent issue, plus sub-issue links  |
-| [Labels](#labels-assignees-and-milestone)                     | <kbd>⌥</kbd> <kbd>L</kbd>              | Cards                                    | Labels added and removed              |
-| [Milestone](#labels-assignees-and-milestone)                  | <kbd>⌥</kbd> <kbd>M</kbd>              | Cards                                    | The milestone                         |
-| [Assign](#labels-assignees-and-milestone)                     | <kbd>⌥</kbd> <kbd>P</kbd>              | Cards                                    | Assignees added and removed           |
-| [Close or reopen](#close-or-reopen)                           | <kbd>⌥</kbd> <kbd>C</kbd>              | Cards                                    | State, with a reason                  |
-| [Blocked by](#blocked-by)                                     | <kbd>⌥</kbd> <kbd>B</kbd>              | A connector, or the two issues it joins  | A blocked-by dependency               |
-| [Comment with a link to this board](/writing-back/backlinks/) | <kbd>⌥</kbd> <kbd>K</kbd>              | Cards                                    | A comment, optionally with a snapshot |
-| [Write back](/writing-back/decision-records/)                 |                                        | A decided decision                       | An ADR pull request, or a Discussion  |
+| Action                                                        | Key                                    | Select                                            | Writes                                |
+| ------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------- | ------------------------------------- |
+| [Make issues](#make-issues)                                   | <kbd>⌥</kbd> <kbd>I</kbd>              | Stickies                                          | One issue per sticky                  |
+| [Parent issue](#parent-issue)                                 | <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd> | A section, a stack, or several stickies and cards | A parent issue, plus sub-issue links  |
+| [Labels](#labels-assignees-and-milestone)                     | <kbd>⌥</kbd> <kbd>L</kbd>              | Cards                                             | Labels added and removed              |
+| [Milestone](#labels-assignees-and-milestone)                  | <kbd>⌥</kbd> <kbd>M</kbd>              | Cards                                             | The milestone                         |
+| [Assign](#labels-assignees-and-milestone)                     | <kbd>⌥</kbd> <kbd>P</kbd>              | Cards                                             | Assignees added and removed           |
+| [Close or reopen](#close-or-reopen)                           | <kbd>⌥</kbd> <kbd>C</kbd>              | Cards                                             | State, with a reason                  |
+| [Blocked by](#blocked-by)                                     | <kbd>⌥</kbd> <kbd>B</kbd>              | A connector, or the two issues it joins           | A blocked-by dependency               |
+| [Comment with a link to this board](/writing-back/backlinks/) | <kbd>⌥</kbd> <kbd>K</kbd>              | Cards                                             | A comment, optionally with a snapshot |
+| [Write back](/writing-back/decision-records/)                 |                                        | A decided decision                                | An ADR pull request, or a Discussion  |
 
 On Windows and Linux, <kbd>⌥</kbd> is <kbd>Alt</kbd>. [Expand related](/boards/cards/#expand-related) (<kbd>⌥</kbd> <kbd>E</kbd>) is in the same bar, but stages nothing.
 
@@ -39,7 +39,7 @@ Select stickies, then **Make issue** (or **Make N issues**).
 
 ## Parent issue
 
-Select a section on its own (**Parent issue**), or several stickies and cards, then <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd>.
+Select a section on its own (**Parent issue**), or several stickies and cards, then <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd>. A [stack](/boards/stacks/) on its own works too: its name is the title, its stickies the sub-issues, and it spreads out as they become cards.
 
 - **Title**: the section's title, to start with.
 - **Repository**: the one most of the cards are in.
