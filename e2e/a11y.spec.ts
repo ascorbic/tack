@@ -116,8 +116,10 @@ for (const scheme of ["light", "dark"] as const) {
 			test.use(iPhone);
 
 			test("a board, and a card open in its sheet", async ({ page }) => {
+				// Two passes of axe, over a whole board: more than the default 30 s under load.
+				test.slow();
 				await page.goto("/play?scenario=comments");
-				await expect(page.locator(".react-flow__renderer")).toBeVisible();
+				await expect(page.locator(".react-flow__renderer")).toBeVisible({ timeout: 20_000 });
 				await settleCanvas(page);
 				await expectAccessible(page);
 				await page.locator(".react-flow__node-card").filter({ hasText: "Drop Node 18" }).tap();
