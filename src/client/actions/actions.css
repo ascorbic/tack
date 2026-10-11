@@ -987,6 +987,7 @@
 
 .issue-preview li {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 8px;
 	min-width: 0;
@@ -1060,6 +1061,7 @@
 	flex: none;
 	margin-left: auto;
 	padding: 0 6px;
+	border: 0;
 	border-radius: 999px;
 	background: var(--chip);
 	color: var(--muted);
@@ -1068,9 +1070,81 @@
 	line-height: 18px;
 }
 
+button.issue-preview-body {
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out);
+}
+
+button.issue-preview-body:hover,
+button.issue-preview-body[aria-expanded="true"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+/* A title is the sticky's first line, reworded in place: it reads as text
+   until it's pointed at, and what's typed goes back onto the sticky. */
+.issue-preview-edit {
+	flex: 1;
+	margin: -2px 0 -2px -4px;
+	padding: 2px 4px;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--ink);
+	font: inherit;
+	font-weight: 560;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+}
+
+.issue-preview-edit:hover {
+	border-color: var(--line);
+}
+
+.issue-preview-edit:focus {
+	border-color: var(--accent);
+	background: var(--surface);
+	box-shadow: 0 0 0 3px var(--accent-soft);
+	outline: none;
+}
+
+.issue-preview-text {
+	flex-basis: 100%;
+	margin: 0 0 4px 19px;
+	color: var(--ink-soft);
+	font-size: 12px;
+	line-height: 1.45;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	animation: preview-in var(--t-base) var(--ease-spring);
+}
+
+.issue-preview[data-all] {
+	max-height: 220px;
+	overflow: auto;
+	overscroll-behavior: contain;
+}
+
 .issue-preview-more {
 	color: var(--muted);
 	font-size: 12px;
+}
+
+.issue-preview-more button {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.issue-preview-more button:hover {
+	text-decoration: underline;
 }
 
 /* Sub-issues hang off the parent like a tree. */

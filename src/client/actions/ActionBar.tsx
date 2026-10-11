@@ -28,7 +28,8 @@ import type { RepoMeta } from "../../shared/push.ts";
 import { DEFAULT_HOST, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
 import { descendantsOf, readStructure } from "../../shared/sections.ts";
 import { readShape, shapesMap } from "../../shared/shapes.ts";
-import type { ShapeNode } from "../board.ts";
+import { type ShapeNode, setStickyText } from "../board.ts";
+import { textFromIssue } from "../../shared/issueText.ts";
 import { installUrl } from "../CardView.tsx";
 import { cardStore } from "../cardStore.ts";
 import type { User } from "../presence.ts";
@@ -541,6 +542,13 @@ export function ActionBar(props: ActionBarProps) {
 						repos={options}
 						host={hostOf(options)}
 						initialRepo={recentRepos()[0] ?? options[0]?.repo ?? null}
+						onTitle={(id, title) => {
+							const sticky = stickies.find((s) => s.id === id);
+							const issue = issueFromText(sticky?.data.shape.text ?? "");
+							transactLocal(doc, () =>
+								setStickyText(doc, id, textFromIssue({ title, body: issue?.body })),
+							);
+						}}
 						onStage={(repo, extras) => {
 							const result = stageStickyIssues(
 								doc,

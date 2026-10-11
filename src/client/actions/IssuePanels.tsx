@@ -228,6 +228,7 @@ export function MakeIssuesPanel({
 	initialExtras = {},
 	initialExtra = null,
 	onStage,
+	onTitle,
 }: {
 	stickies: StickyPreview[];
 	/** Stickies already staged as issues, left out. */
@@ -239,8 +240,12 @@ export function MakeIssuesPanel({
 	initialExtras?: IssueExtras;
 	initialExtra?: Extra | null;
 	onStage: (repo: string, extras: IssueExtras) => void;
+	/** Reword a sticky's title, writing it back to the sticky. */
+	onTitle?: (sticky: string, title: string) => void;
 }) {
 	const [repo, setRepoState] = useState(initialRepo);
+	const [all, setAll] = useState(false);
+	const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
 	const [extras, setExtras] = useState<IssueExtras>(initialExtras);
 	// Labels and people are the repository's own: a new one starts afresh.
 	const setRepo = (next: string) => {
@@ -261,7 +266,7 @@ export function MakeIssuesPanel({
 	const empty = stickies.filter((s) => !staged.has(s.id) && !issueFromText(s.text)).length;
 	const already = stickies.filter((s) => staged.has(s.id)).length;
 	const n = issues.length;
-	const shown = issues.slice(0, 4);
+	const shown = all ? issues : issues.slice(0, 4);
 
 	return (
 		<form
@@ -288,15 +293,52 @@ export function MakeIssuesPanel({
 				/>
 			)}
 			{n > 0 && (
-				<ol className="issue-preview" aria-label="Issues to make">
+				<ol className="issue-preview" aria-label="Issues to make" data-all={all || undefined}>
 					{shown.map((issue) => (
-						<li key={issue.id}>
+						<li key={issue.id} data-open={opened.has(issue.id) || undefined}>
 							<span className="issue-preview-dot" data-color={issue.color ?? "yellow"} />
-							<span className="issue-preview-title">{issue.title}</span>
-							{issue.body && <span className="issue-preview-body">+ description</span>}
+							{onTitle ? (
+								<input
+									className="issue-preview-title issue-preview-edit"
+									aria-label={`Title, from its sticky: ${issue.title}`}
+									value={issue.title}
+									spellCheck
+									onChange={(event) => {
+										if (event.target.value.trim()) onTitle(issue.id, event.target.value);
+									}}
+								/>
+							) : (
+								<span className="issue-preview-title">{issue.title}</span>
+							)}
+							{issue.body && (
+								<button
+									type="button"
+									className="issue-preview-body"
+									aria-expanded={opened.has(issue.id)}
+									onClick={() =>
+										setOpened((was) => {
+											const next = new Set(was);
+											if (next.has(issue.id)) next.delete(issue.id);
+											else next.add(issue.id);
+											return next;
+										})
+									}
+								>
+									{opened.has(issue.id) ? "− description" : "+ description"}
+								</button>
+							)}
+							{issue.body && opened.has(issue.id) && (
+								<p className="issue-preview-text">{issue.body}</p>
+							)}
 						</li>
 					))}
-					{n > shown.length && <li className="issue-preview-more">and {n - shown.length} more</li>}
+					{n > shown.length && (
+						<li className="issue-preview-more">
+							<button type="button" onClick={() => setAll(true)}>
+								Show all {n}
+							</button>
+						</li>
+					)}
 				</ol>
 			)}
 			{(empty > 0 || already > 0) && (

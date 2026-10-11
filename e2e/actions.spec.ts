@@ -50,9 +50,14 @@ test("stickies become staged issues, one undo step", async ({ page }) => {
 	await expect(panel.getByRole("heading", { name: "Make 2 issues" })).toBeVisible();
 	// The board's busiest repository is chosen; the titles are the first lines.
 	await expect(panel.locator(".repo-value")).toContainText("acme/imagekit");
-	await expect(panel.getByRole("list", { name: "Issues to make" })).toContainText(
-		"Benchmarks in CI",
-	);
+	const list = panel.getByRole("list", { name: "Issues to make" });
+	await expect(list.getByRole("textbox").first()).toHaveValue("Benchmarks in CI");
+	// A description opens to be checked.
+	await list.getByRole("button", { name: "+ description" }).click();
+	await expect(list).toContainText("Run them on every PR and comment with the diff");
+	// A title can be reworded here, and it's written back to its sticky.
+	await list.getByRole("textbox").nth(1).fill("A provider playground, live");
+	await expect(node(page, "A provider playground, live")).toBeVisible();
 	await panel.getByRole("button", { name: "Stage 2 issues" }).click();
 	await expect(panel).toHaveCount(0);
 	await expect(page.locator(".toast")).toContainText("Staged 2 issues for acme/imagekit");
@@ -65,7 +70,7 @@ test("stickies become staged issues, one undo step", async ({ page }) => {
 			title: "Benchmarks in CI",
 			body: "Run them on every PR and comment with the diff",
 		},
-		{ kind: "issue.create", repo: "fake.tack/acme/imagekit", title: "A provider playground" },
+		{ kind: "issue.create", repo: "fake.tack/acme/imagekit", title: "A provider playground, live" },
 	]);
 	expect(staged.every((c) => c.status === "staged" && c.effect?.kind === "replace")).toBe(true);
 
