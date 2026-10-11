@@ -6,13 +6,16 @@ import {
 	boardRepos,
 	canWrite,
 	issueFromText,
+	milestoneInWords,
 	pendingIssueFor,
 	sectionTitle,
+	setEditsInWords,
 	stageComments,
 	stageParentIssue,
 	stageSetEdits,
 	stageStickyIssues,
 	stageTriage,
+	stateInWords,
 	withStaged,
 } from "../../shared/actions.ts";
 import { stickiesToActions } from "../../shared/actionItems.ts";
@@ -558,9 +561,7 @@ export function ActionBar(props: ActionBarProps) {
 								stager,
 							);
 							close();
-							toast(
-								`Staged ${open === "labels" ? "labels" : "assignees"} for ${count(edits.length, "item")}`,
-							);
+							toast(setEditsInWords(kind, edits));
 						}}
 					/>
 				);
@@ -588,9 +589,10 @@ export function ActionBar(props: ActionBarProps) {
 										);
 										close();
 										toast(
-											milestone
-												? `Staged milestone ${milestone} for ${count(targets.length, "item")}`
-												: `Staged removing the milestone from ${count(targets.length, "item")}`,
+											milestoneInWords(
+												milestone,
+												targets.map((t) => t.key),
+											),
 										);
 									}}
 								/>
@@ -608,23 +610,25 @@ export function ActionBar(props: ActionBarProps) {
 						pulls={openItems.length > 0 && openItems.every((t) => t.card.kind === "pull")}
 						onPick={(choice) => {
 							const items = choice.state === "open" ? closedItems : openItems;
+							const reason =
+								choice.state === "open" || items.every((t) => t.card.kind === "pull")
+									? undefined
+									: choice.reason;
 							stageTriage(
 								doc,
 								items.map((t) => ({ key: t.key, shape: t.shape })),
 								choice.state === "open"
 									? { kind: "item.state", state: "open" }
-									: {
-											kind: "item.state",
-											state: "closed",
-											reason: items.every((t) => t.card.kind === "pull")
-												? undefined
-												: choice.reason,
-										},
+									: { kind: "item.state", state: "closed", reason },
 								stager,
 							);
 							close();
 							toast(
-								`Staged ${choice.state === "open" ? "reopening" : "closing"} ${count(items.length, "item")}`,
+								stateInWords(
+									choice.state,
+									reason,
+									items.map((t) => t.key),
+								),
 							);
 						}}
 					/>

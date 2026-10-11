@@ -6,7 +6,11 @@ import {
 	canWrite,
 	editStagedIssue,
 	issueFromText,
+	itemsInWords,
+	milestoneInWords,
 	parseRepoInput,
+	setEditsInWords,
+	stateInWords,
 	pendingIssueFor,
 	presenceOf,
 	setEdits,
@@ -730,5 +734,39 @@ describe("parseRepoInput", () => {
 		expect(parseRepoInput("a/b/c/d", "github.com")).toBeNull();
 		expect(parseRepoInput("gitlab.example/a/b", "github.com")).toBeNull();
 		expect(parseRepoInput("a b/c", "github.com")).toBeNull();
+	});
+});
+
+describe("toasts", () => {
+	const k = (n: number, repo = "acme/imagekit") => `github.com/${repo}#${n}`;
+
+	it("say which items, and what was staged on them", () => {
+		expect(itemsInWords([k(412)])).toBe("#412");
+		expect(itemsInWords([k(412), k(377)])).toBe("#412 and #377");
+		expect(itemsInWords([k(412), k(7, "acme/vault")])).toBe("imagekit#412 and vault#7");
+		expect(itemsInWords([k(1), k(2), k(3)])).toBe("3 items");
+		expect(setEditsInWords("item.labels", [{ key: k(412), add: ["docs"], remove: [] }])).toBe(
+			"Staged +docs on #412",
+		);
+		expect(
+			setEditsInWords("item.assignees", [
+				{ key: k(412), add: ["kai"], remove: ["jo"] },
+				{ key: k(377), add: ["kai"], remove: ["jo"] },
+			]),
+		).toBe("Staged +@kai −@jo on #412 and #377");
+		expect(
+			setEditsInWords("item.labels", [
+				{ key: k(412), add: ["docs"], remove: [] },
+				{ key: k(377), add: [], remove: ["bug"] },
+			]),
+		).toBe("Staged label changes on #412 and #377");
+		expect(milestoneInWords("5.0", [k(412)])).toBe("Staged milestone 5.0 on #412");
+		expect(milestoneInWords(null, [k(412)])).toBe("Staged taking the milestone off #412");
+		expect(stateInWords("closed", "completed", [k(412)])).toBe("Staged closing #412 as completed");
+		expect(stateInWords("closed", "not_planned", [k(412), k(377)])).toBe(
+			"Staged closing #412 and #377 as not planned",
+		);
+		expect(stateInWords("closed", undefined, [k(9)])).toBe("Staged closing #9");
+		expect(stateInWords("open", undefined, [k(9)])).toBe("Staged reopening #9");
 	});
 });

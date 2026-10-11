@@ -19,7 +19,7 @@ import {
 import { readConnector } from "./connectors.ts";
 import { readingOrder } from "./display.ts";
 import type { RepoMeta } from "./push.ts";
-import { forgeForHost, repoKeyOf } from "./refs.ts";
+import { forgeForHost, itemOf, repoKeyOf } from "./refs.ts";
 import { TITLE_MAX, issueFromText, textFromIssue } from "./issueText.ts";
 import { readShape, shapesMap, transactLocal } from "./shapes.ts";
 
@@ -653,4 +653,65 @@ export function parseRepoInput(text: string, host: string): string | null {
 		return forgeForHost(parts[0] ?? "") ? trimmed.toLowerCase() : null;
 	}
 	return null;
+}
+
+// Toasts --------------------------------------------------------------------------
+
+/**
+ * Which items a staged change is about, for its toast: "#412", "#412 and
+ * #377", or "3 items". Items from more than one repository name it.
+ */
+export function itemsInWords(keys: readonly string[]): string {
+	if (keys.length > 2) return `${keys.length} items`;
+	const repos = new Set(keys.map(repoKeyOf));
+	const names = keys.map((key) => {
+		const item = itemOf(key) ?? key;
+		return repos.size > 1 ? `${repoKeyOf(key).split("/").slice(-1)[0]}${item}` : item;
+	});
+	return names.join(" and ");
+}
+
+/** "Staged +docs −bug on #412", or, when items differ, "Staged label changes on 3 items". */
+export function setEditsInWords(
+	kind: "item.labels" | "item.assignees",
+	edits: readonly { key: string; add: readonly string[]; remove: readonly string[] }[],
+): string {
+	const on = itemsInWords(edits.map((edit) => edit.key));
+	const shape = (edit: (typeof edits)[number]) =>
+		JSON.stringify([[...edit.add].sort(), [...edit.remove].sort()]);
+	const [first] = edits;
+	const at = kind === "item.assignees" ? "@" : "";
+	if (first && edits.every((edit) => shape(edit) === shape(first))) {
+		const tokens = [
+			...first.add.map((name) => `+${at}${name}`),
+			...first.remove.map((name) => `−${at}${name}`),
+		];
+		if (tokens.length > 0 && tokens.length <= 3) return `Staged ${tokens.join(" ")} on ${on}`;
+	}
+	return `Staged ${kind === "item.labels" ? "label" : "assignee"} changes on ${on}`;
+}
+
+/** "Staged milestone 5.0 on #412", or taking it off. */
+export function milestoneInWords(milestone: string | null, keys: readonly string[]): string {
+	const on = itemsInWords(keys);
+	return milestone
+		? `Staged milestone ${milestone} on ${on}`
+		: `Staged taking the milestone off ${on}`;
+}
+
+const CLOSED_AS: Record<CloseReason, string> = {
+	completed: "completed",
+	not_planned: "not planned",
+	duplicate: "a duplicate",
+};
+
+/** "Staged closing #412 as completed", or reopening. */
+export function stateInWords(
+	state: "open" | "closed",
+	reason: CloseReason | undefined,
+	keys: readonly string[],
+): string {
+	const on = itemsInWords(keys);
+	if (state === "open") return `Staged reopening ${on}`;
+	return `Staged closing ${on}${reason ? ` as ${CLOSED_AS[reason]}` : ""}`;
 }
