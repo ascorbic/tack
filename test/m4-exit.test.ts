@@ -411,6 +411,8 @@ it("a retro runs fully async over three days, across three time zones", async ()
 			title: voteStep.kind === "vote" ? voteStep.title : undefined,
 			endsAt: world.iso(endsAt),
 			by: lena.author,
+			// Who started it, as the board's client says (the server's key for her).
+			starter: `u:${lena.user.id}`,
 			at: world.iso(),
 		});
 		markStarted(lena.doc, voteStep.id, lena.author, world.iso());

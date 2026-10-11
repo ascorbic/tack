@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
+import { REPAIR_ORIGIN } from "../src/shared/repair.ts";
 import { closeVote, deleteVote, placeDot, readVotes, startVote } from "../src/shared/dotvotes.ts";
 import { applyTimer } from "../src/shared/facilitation.ts";
 import {
@@ -103,6 +104,15 @@ describe("VoteGuard", () => {
 		as(starter)(() => deleteVote(doc, id));
 		await settle();
 		expect(readVotes(doc)).toEqual([]);
+	});
+
+	it("puts things right as Tack, not as the timer or anyone", async () => {
+		const { doc, as } = guarded();
+		const origins: unknown[] = [];
+		doc.on("afterTransaction", (transaction: Y.Transaction) => origins.push(transaction.origin));
+		as({ ...starter })(() => startVote(doc, { scope: null, by, starter: "u:9" }));
+		await settle();
+		expect(origins.at(-1)).toBe(REPAIR_ORIGIN);
 	});
 
 	it("lets the server's own writes through", async () => {

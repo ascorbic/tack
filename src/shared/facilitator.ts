@@ -8,6 +8,7 @@ import {
 	timerDone,
 } from "./facilitation.ts";
 import { shapesMap } from "./shapes.ts";
+import { REPAIR_ORIGIN } from "./repair.ts";
 import { parseSession } from "./silent.ts";
 
 // Who runs a session (#50, #48, #49). There's no facilitator role to hand
@@ -120,6 +121,12 @@ const SETTINGS = new Set([
 
 type VoteJSON = Omit<DotVote, "id" | "ballots"> & { ballots?: Record<string, unknown> };
 
+/**
+ * The guard's corrections are the server putting things right, as repairs
+ * are: history shows them as Tack's, not as anyone's (or the timer's).
+ */
+export const VOTE_GUARD_ORIGIN = REPAIR_ORIGIN;
+
 export interface VoteGuardHost {
 	doc: Y.Doc;
 	/**
@@ -160,7 +167,9 @@ export class VoteGuard {
 	private check(events: Y.YEvent<Y.AbstractType<unknown>>[], transaction: Y.Transaction): void {
 		const votes = dotVotesMap(this.host.doc);
 		const actor =
-			transaction.origin === FACILITATION_ORIGIN ? null : this.host.actor(transaction.origin);
+			transaction.origin === FACILITATION_ORIGIN || transaction.origin === VOTE_GUARD_ORIGIN
+				? null
+				: this.host.actor(transaction.origin);
 		const touched = new Set<string>();
 		for (const event of events) {
 			if (event.target === votes) {
@@ -231,7 +240,7 @@ export class VoteGuard {
 			this.fixes = [];
 			this.host.doc.transact(() => {
 				for (const fix of fixes) fix();
-			}, FACILITATION_ORIGIN);
+			}, VOTE_GUARD_ORIGIN);
 		});
 	}
 }
