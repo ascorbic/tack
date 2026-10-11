@@ -46,6 +46,7 @@
 		]
 	},
 	"assets": {
+		"binding": "ASSETS",
 		"not_found_handling": "single-page-application",
 		"run_worker_first": [
 			"/parties/*",
@@ -55,7 +56,10 @@
 			"/setup/callback",
 			"/setup/install",
 			"/setup/installed",
-			"/snapshots/*"
+			"/snapshots/*",
+			"/embed/*",
+			"/og/*",
+			"/b/*"
 		]
 	},
 	"exports": {
