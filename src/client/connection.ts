@@ -38,6 +38,8 @@ export interface LiveBoardEvents {
 	onRole?: (role: Role) => void;
 	/** Someone renamed the board. */
 	onRenamed?: (title: string, slug: string) => void;
+	/** The owner turned custom widgets on or off (#66). */
+	onCustomWidgets?: (enabled: boolean) => void;
 	/** You lost access, and the server closed the connection. It won't reconnect. */
 	onRevoked?: () => void;
 }
@@ -127,6 +129,9 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 				case "renamed":
 					handlers.current.onRenamed?.(message.title, message.slug);
 					return;
+				case "custom-widgets":
+					handlers.current.onCustomWidgets?.(message.enabled);
+					return;
 				case "widget-data":
 					// Widgets and inbox frames each pick out their own ids.
 					widgetStore.apply(message);
@@ -168,6 +173,7 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 			watch: (ids) => request({ type: "widget-watch", ids }),
 			unwatch: (ids) => request({ type: "widget-unwatch", ids }),
 			refresh: (id) => request({ type: "widget-refresh", id }),
+			query: (id, queries) => request({ type: "widget-query", id, queries }),
 		});
 		provider.on("status", ({ status }: { status: string }) => {
 			if (status === "connected") widgetStore.rewatch();

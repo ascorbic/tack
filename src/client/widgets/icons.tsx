@@ -253,3 +253,21 @@ export function StepIcon({ kind }: { kind: string }) {
 			);
 	}
 }
+
+/** A custom widget (#66): code in angle brackets. */
+export function CodeIcon({ size }: { size?: number }) {
+	return (
+		<Icon size={size}>
+			<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5M9 3 7 13" />
+		</Icon>
+	);
+}
+
+/** Run again: a play triangle. */
+export function PlayIcon({ size = 12 }: { size?: number }) {
+	return (
+		<Icon size={size}>
+			<path d="M5 3.5v9l7-4.5z" />
+		</Icon>
+	);
+}

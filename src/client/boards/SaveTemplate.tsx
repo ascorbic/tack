@@ -27,10 +27,13 @@ export function BoardMenu({
 	board,
 	canSaveTemplate = true,
 	canBackup = false,
+	onCustomWidgets,
 }: {
 	board: BoardInfo;
 	canSaveTemplate?: boolean;
 	canBackup?: boolean;
+	/** Opens the board's custom widgets setting (#66), for its owner. */
+	onCustomWidgets?: () => void;
 }) {
 	const [open, setOpen] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -107,6 +110,20 @@ export function BoardMenu({
 							Back up to GitHub…
 						</button>
 					)}
+					{onCustomWidgets && (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={() => {
+								setOpen(false);
+								onCustomWidgets();
+							}}
+						>
+							<CodeMenuIcon />
+							Custom widgets…
+							<span className="board-actions-menu-key">{board.customWidgets ? "On" : "Off"}</span>
+						</button>
+					)}
 				</div>
 			)}
 			{canSaveTemplate && (
@@ -116,6 +133,14 @@ export function BoardMenu({
 				<BackupDialog board={board} open={backingUp} onClose={() => setBackingUp(false)} />
 			)}
 		</div>
+	);
+}
+
+function CodeMenuIcon() {
+	return (
+		<svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+			<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5M9 3 7 13" />
+		</svg>
 	);
 }
 

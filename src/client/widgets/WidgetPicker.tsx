@@ -1,8 +1,10 @@
 import { type DragEvent, useState } from "react";
 import { AI_PROMPT_MAX } from "../../shared/ai.ts";
+import { CUSTOM_KIND } from "../../shared/customWidgets.ts";
 import { SparkIcon } from "../ai/icons.tsx";
 import { WIDGETS, listPresets } from "../../shared/widgetRegistry.ts";
-import { ListIcon, MilestoneIcon, ReviewIcon, StaleIcon, UnknownIcon } from "./icons.tsx";
+import { useCustomWidgets } from "./custom/state.ts";
+import { CodeIcon, ListIcon, MilestoneIcon, ReviewIcon, StaleIcon, UnknownIcon } from "./icons.tsx";
 import { DependencyIcon, ReleaseIcon, TimelineIcon } from "./kindIcons.tsx";
 
 // The widget picker (#37): the widget tool's tray. Every kind in the
@@ -27,6 +29,7 @@ export const KIND_ICONS: Record<string, () => React.ReactNode> = {
 	review: () => <ReviewIcon size={18} />,
 	milestone: () => <MilestoneIcon size={18} />,
 	stale: () => <StaleIcon size={18} />,
+	custom: () => <CodeIcon size={18} />,
 };
 
 export function WidgetPicker({
@@ -45,6 +48,11 @@ export function WidgetPicker({
 }) {
 	const [prompt, setPrompt] = useState("");
 	const presets = listPresets(suggestedRepo, login);
+	// Custom widgets (#66) only where they run, or for the owner, who can let them.
+	const custom = useCustomWidgets();
+	const kinds = Object.values(WIDGETS).filter(
+		(definition) => definition.kind !== CUSTOM_KIND || custom.enabled || custom.canManage,
+	);
 	const drag = (kind: string, config?: Record<string, unknown>) => (event: DragEvent) => {
 		event.dataTransfer.setData(WIDGET_DRAG_TYPE, JSON.stringify({ kind, config }));
 		event.dataTransfer.effectAllowed = "copy";
@@ -77,7 +85,7 @@ export function WidgetPicker({
 					</button>
 				</form>
 			)}
-			{Object.values(WIDGETS).map((definition) => (
+			{kinds.map((definition) => (
 				<button
 					key={definition.kind}
 					type="button"

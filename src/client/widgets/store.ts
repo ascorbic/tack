@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import type * as Y from "yjs";
 import { isWidgetPreview } from "../../shared/ai.ts";
 import { shapesMap } from "../../shared/shapes.ts";
+import type { CustomSearch } from "../../shared/customWidgets.ts";
 import type { WidgetMessage } from "../../shared/widgets.ts";
 
 // Live widget data (#37), fed by the board's `widget-data` messages: kept
@@ -26,6 +27,8 @@ export interface WidgetTransport {
 	watch(ids: string[]): void;
 	unwatch(ids: string[]): void;
 	refresh(id: string): void;
+	/** A custom widget's searches, by name (#66). Without it, custom widgets can't search. */
+	query?(id: string, queries: Record<string, CustomSearch>): void;
 }
 
 class WidgetStore {
@@ -39,6 +42,8 @@ class WidgetStore {
 	private transport: WidgetTransport | null = null;
 	/** Asking again for a preview's results (its refresh button). */
 	onPreviewRefresh: ((id: string) => void) | null = null;
+	/** What each custom widget last asked to search, to ask again after reconnecting. */
+	private queries = new Map<string, Record<string, CustomSearch>>();
 
 	/** Connect to a board (or the playground). Everything wanted is watched again. */
 	connect(transport: WidgetTransport | null): void {
@@ -50,6 +55,19 @@ class WidgetStore {
 	rewatch(): void {
 		const ids = [...this.wanted.keys()];
 		if (ids.length > 0) this.transport?.watch(ids);
+		for (const [id, queries] of this.queries) this.transport?.query?.(id, queries);
+	}
+
+	/** Whether custom widgets can search here. */
+	canQuery(): boolean {
+		return typeof this.transport?.query === "function";
+	}
+
+	/** Set the searches a custom widget wants kept live (#66), replacing what it wanted. */
+	query(id: string, queries: Record<string, CustomSearch>): void {
+		if (Object.keys(queries).length === 0) this.queries.delete(id);
+		else this.queries.set(id, queries);
+		this.transport?.query?.(id, queries);
 	}
 
 	apply(message: WidgetMessage): void {

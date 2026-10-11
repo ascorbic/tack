@@ -1,0 +1,233 @@
+/* The board owner's switch for custom widgets (#66). */
+
+.custom-widgets-dialog {
+	width: min(480px, calc(100vw - 32px));
+	max-height: calc(100dvh - 32px);
+	padding: 0;
+	overflow: auto;
+	border: 1px solid var(--line);
+	border-radius: 20px;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-lifted);
+	animation: custom-widgets-in var(--t-settle) var(--ease-spring);
+}
+
+.custom-widgets-dialog::backdrop {
+	background: rgb(16 17 20 / 32%);
+	backdrop-filter: blur(2px);
+}
+
+.custom-widgets-dialog[data-closing] {
+	animation: custom-widgets-out var(--t-quick) var(--ease-out) forwards;
+}
+
+@keyframes custom-widgets-in {
+	from {
+		opacity: 0;
+		transform: translateY(14px) scale(0.95);
+	}
+}
+
+@keyframes custom-widgets-out {
+	to {
+		opacity: 0;
+		transform: translateY(6px) scale(0.98);
+	}
+}
+
+.custom-widgets {
+	display: grid;
+	gap: 12px;
+	padding: 22px;
+}
+
+.custom-widgets h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 720;
+	letter-spacing: -0.025em;
+}
+
+.custom-widgets-art {
+	display: grid;
+	place-items: center;
+	width: 48px;
+	height: 48px;
+	border-radius: 14px;
+	background: var(--accent-soft);
+}
+
+.custom-widgets-art .frame {
+	fill: var(--surface);
+	stroke: var(--accent);
+	stroke-width: 2;
+}
+
+.custom-widgets-art .code {
+	fill: none;
+	stroke: var(--accent);
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-dasharray: 60;
+	stroke-dashoffset: 0;
+	transition: stroke-dashoffset var(--t-settle) var(--ease-out);
+}
+
+.custom-widgets:not([data-enabled]) .custom-widgets-art .code {
+	stroke-dashoffset: 60;
+}
+
+.custom-widgets-lede {
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.custom-widgets-points {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--ink-soft);
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+.custom-widgets-points li {
+	position: relative;
+	padding-left: 16px;
+}
+
+.custom-widgets-points li::before {
+	content: "";
+	position: absolute;
+	top: 0.6em;
+	left: 2px;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--accent);
+}
+
+.custom-widgets-points strong {
+	color: var(--ink);
+}
+
+.custom-widgets-warning {
+	margin: 0;
+	padding: 11px 13px;
+	border-radius: 12px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+.custom-widgets-switch {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 12px;
+	align-items: center;
+	padding: 12px 14px;
+	border: 1px solid var(--line-strong);
+	border-radius: 12px;
+	cursor: pointer;
+	transition: border-color var(--t-base) var(--ease-out);
+}
+
+.custom-widgets[data-enabled] .custom-widgets-switch {
+	border-color: var(--accent);
+}
+
+.custom-widgets-switch > span:first-child {
+	display: grid;
+	gap: 2px;
+	font-size: 13.5px;
+}
+
+.custom-widgets-switch > span:first-child span {
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.custom-widgets-switch input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.custom-widgets-track {
+	position: relative;
+	width: 38px;
+	height: 22px;
+	border-radius: 11px;
+	background: var(--line-strong);
+	transition: background var(--t-base) var(--ease-out);
+}
+
+.custom-widgets-knob {
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--surface);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.custom-widgets-switch input:checked + .custom-widgets-track {
+	background: var(--accent);
+}
+
+.custom-widgets-switch input:checked + .custom-widgets-track .custom-widgets-knob {
+	transform: translateX(16px);
+}
+
+.custom-widgets-switch input:focus-visible + .custom-widgets-track {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.custom-widgets-switch input:disabled + .custom-widgets-track {
+	opacity: 0.7;
+}
+
+.custom-widgets-error {
+	margin: 0;
+	color: var(--fail-ink);
+	font-size: 13px;
+}
+
+.custom-widgets-actions {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.custom-widgets-done {
+	height: 34px;
+	padding: 0 16px;
+	border: 0;
+	border-radius: 10px;
+	background: var(--accent);
+	color: var(--on-accent);
+	font-size: 13.5px;
+	font-weight: 620;
+	cursor: pointer;
+	transition: transform var(--t-quick) var(--ease-out);
+}
+
+.custom-widgets-done:active {
+	transform: scale(0.96);
+}
+
+.custom-widgets-done:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}

@@ -22,6 +22,8 @@ import { BoardRepoList } from "./BoardRepos.tsx";
 import { BoardTitle } from "./BoardTitle.tsx";
 import { ArchiveIcon, EyeIcon, ShareIcon, VisibilityIcon } from "./icons.tsx";
 import { BoardMenu } from "./SaveTemplate.tsx";
+import { CustomWidgetsDialog } from "./CustomWidgetsDialog.tsx";
+import { customWidgets } from "../widgets/custom/state.ts";
 import { ShareDialog } from "./ShareDialog.tsx";
 import type { ShareActions } from "./SharePanel.tsx";
 import "./boards.css";
@@ -145,6 +147,8 @@ function LoadedBoard({
 	children: (props: BoardPageProps) => ReactNode;
 }) {
 	const [sharing, setSharing] = useState(false);
+	// Whether custom widgets run here (#66): the owner's setting.
+	const [customOpen, setCustomOpen] = useState(false);
 	// Copy embed (#57), opened from Share on public boards.
 	const [embedUi] = useState(createEmbedUi);
 	// "Signed out", say, from the page before this one.
@@ -192,10 +196,22 @@ function LoadedBoard({
 				});
 			},
 			onRenamed: (title, slug) => setBoard((current) => ({ ...current, title, slug })),
+			onCustomWidgets: (enabled) => setBoard((current) => ({ ...current, customWidgets: enabled })),
 			onRevoked,
 		}),
 		[board.id, setBoard, onRevoked],
 	);
+
+	// Custom widgets (#66): whether they run here, and who can change that.
+	const canManageCustom = board.canManage && board.archivedAt === null;
+	useEffect(() => {
+		customWidgets.set({
+			enabled: board.customWidgets === true,
+			canManage: canManageCustom,
+			openSettings: canManageCustom ? () => setCustomOpen(true) : null,
+		});
+	}, [board.customWidgets, canManageCustom]);
+	useEffect(() => () => customWidgets.reset(), []);
 
 	const link = boardUrlFor(board);
 	const signedIn = me.viewer !== null;
@@ -251,6 +267,14 @@ function LoadedBoard({
 			{archived && <ArchivedNotice board={board} onRestore={setBoard} />}
 			{isPublic && signedOut && <PublicNotice boardId={board.id} signInHref={signInHref()} />}
 			<NoticeToast notice={notice} />
+			{canManageCustom && (
+				<CustomWidgetsDialog
+					board={board}
+					open={customOpen}
+					onClose={() => setCustomOpen(false)}
+					onChanged={setBoard}
+				/>
+			)}
 			{isPublic && (
 				<BoardEmbeds
 					store={embedUi}
@@ -280,6 +304,7 @@ function LoadedBoard({
 					board={board}
 					canSaveTemplate={editable && (me.viewer !== null || me.signIn !== "ready")}
 					canBackup={board.role === "owner" && me.viewer !== null}
+					onCustomWidgets={canManageCustom ? () => setCustomOpen(true) : undefined}
 				/>
 			</>
 		),

@@ -32,6 +32,7 @@ import { RESIZE_HANDLES, ResizeGrip } from "../sections.tsx";
 import { transactLocal } from "../undo.ts";
 import { ListConfigPanel, SchemaConfigPanel } from "./ConfigPanel.tsx";
 import { WidgetContext } from "./context.ts";
+import { CustomWidget } from "./custom/CustomWidget.tsx";
 import { listTitle } from "./describe.ts";
 import { DropConfirm } from "./DropConfirm.tsx";
 import { MilestoneWidget, ReviewWidget, StaleWidget } from "./KindNodes.tsx";
@@ -71,6 +72,7 @@ const KINDS: Record<string, (props: KindProps) => React.ReactNode> = {
 	review: ReviewWidget,
 	milestone: MilestoneWidget,
 	stale: StaleWidget,
+	custom: CustomWidget,
 };
 
 export function useResizeGrips(id: string, shape: ShapeProps, selected: boolean) {
