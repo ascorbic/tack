@@ -159,4 +159,24 @@ describe("PendingEdits", () => {
 		pending.flush();
 		expect(pending.waiting).toBe(1);
 	});
+
+	it("forgets everything kept for the board, in every tab, when its document was rebuilt", () => {
+		const first = new Y.Doc();
+		const kept = open(first, "a");
+		first.getText("t").insert(0, "offline");
+		kept.flush();
+		const other = new Y.Doc();
+		const otherTab = open(other, "b");
+		other.getText("t").insert(0, "elsewhere");
+		otherTab.flush();
+		store.setItem("tack:pending:another-board:a", JSON.stringify({ update: "", waiting: 0 }));
+
+		expect(kept.discard()).toBe(1);
+		expect(kept.waiting).toBe(0);
+		expect([...store.items.keys()]).toEqual(["tack:pending:another-board:a"]);
+		// Nothing more is kept from that document.
+		first.getText("t").insert(0, "more");
+		vi.advanceTimersByTime(1000);
+		expect([...store.items.keys()]).toEqual(["tack:pending:another-board:a"]);
+	});
 });
