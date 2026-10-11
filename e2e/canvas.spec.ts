@@ -281,3 +281,66 @@ test("everything typed straight after placing a sticky lands in it", async ({ pa
 		"false",
 	);
 });
+
+test("tidying up never lands the selection on shapes that weren't selected", async ({ page }) => {
+	await openScenario(page, "empty");
+	await page.addStyleTag({ content: ".play-panel { display: none !important; }" });
+	// Two stickies a row apart, and between them one that isn't selected,
+	// right where the tidied second row would go.
+	await page.evaluate(() => {
+		const { doc } = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } })
+			.tackPlayground;
+		const shapes = doc.getMap("shapes");
+		// The page's own Yjs, by way of a type it made.
+		const YMap = shapes.constructor as new () => import("yjs").Map<unknown>;
+		doc.transact(() => {
+			for (const [id, text, y, z] of [
+				["a", "Tidy me", 100, "a1"],
+				["c", "Leave me be", 300, "a2"],
+				["b", "And me", 560, "a3"],
+			] as const) {
+				const shape = new YMap();
+				for (const [key, value] of Object.entries({
+					type: "sticky",
+					text,
+					x: 300,
+					y,
+					z,
+					parent: null,
+				})) {
+					shape.set(key, value);
+				}
+				shapes.set(id, shape);
+			}
+		});
+	});
+	const a = page.locator('.react-flow__node[data-id="a"]');
+	const b = page.locator('.react-flow__node[data-id="b"]');
+	const c = page.locator('.react-flow__node[data-id="c"]');
+	await expect(c).toBeVisible();
+	await a.click({ position: { x: 20, y: 20 } });
+	await b.click({ position: { x: 20, y: 20 }, modifiers: ["Shift"] });
+	await expect(selected(page)).toHaveCount(2);
+	const before = await nodePosition(b);
+
+	await page.keyboard.press("Control+Alt+KeyT");
+	await expect.poll(() => nodePosition(b)).not.toEqual(before);
+	const leave = (await c.boundingBox())!;
+	for (const node of [a, b]) {
+		await expect
+			.poll(async () => {
+				const box = (await node.boundingBox())!;
+				return (
+					box.x < leave.x + leave.width &&
+					leave.x < box.x + box.width &&
+					box.y < leave.y + leave.height &&
+					leave.y < box.y + box.height
+				);
+			})
+			.toBe(false);
+	}
+	// Still a tidy column: one above the other, lined up.
+	const [first, second] = [await nodePosition(a), await nodePosition(b)];
+	expect(first.x).toBe(second.x);
+	expect(second.y).toBeGreaterThan(first.y + 176);
+});

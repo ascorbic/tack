@@ -17,7 +17,7 @@ With cards or stickies selected, a bar under the selection offers the [actions t
 
 - Drag to move. Shapes snap to each other's edges and centres, with guides. Hold <kbd>⌘</kbd> (<kbd>Ctrl</kbd>) while dragging to move without snapping.
 - Arrow keys nudge by a pixel, and <kbd>Shift</kbd> with an arrow by 10.
-- With two or more shapes selected, a toolbar aligns them (left, centres, right, top, middle, bottom), distributes them evenly (three or more), or tidies them into a grid (**Tidy up**, <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>T</kbd>).
+- With two or more shapes selected, a toolbar aligns them (left, centres, right, top, middle, bottom), distributes them evenly (three or more), or tidies them into a grid (**Tidy up**, <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>T</kbd>). A tidied grid that would land on shapes you didn't select slides, as a whole, to the nearest clear space.
 
 Other people see your drags live, in your colour.
 

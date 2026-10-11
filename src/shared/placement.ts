@@ -221,3 +221,31 @@ export function sectionSpot(
 	);
 	return spot ? { x: spot.x, y: spot.y + SECTION_TITLE.h, w: size.w, h: size.h } : ideal;
 }
+
+/**
+ * Where a group of shapes laid out together (`box`, their bounds) should go
+ * so it doesn't land on anything else: null if it's clear where it is,
+ * otherwise the nearest free top left for it. `moving` are the shapes in
+ * the group, which don't count, and nor does anything inside them.
+ */
+export function slideClear(
+	shapes: ReadonlyMap<string, ShapeProps>,
+	moving: ReadonlySet<string>,
+	box: Rect,
+	sizeOf?: SizeOf,
+): Point | null {
+	const within = (id: string): boolean => {
+		const parent = shapes.get(id)?.parent;
+		return typeof parent === "string" && (moving.has(parent) || within(parent));
+	};
+	const others = new Map<string, ShapeProps>();
+	for (const [id, shape] of shapes) {
+		if (!moving.has(id) && !within(id)) others.set(id, shape);
+	}
+	const obstacles = obstaclesOf(others, sizeOf);
+	const crossing = obstacles.sections.some(
+		(section) => intersects(box, section.box) && !inside(box, section.box),
+	);
+	if (!crossing && !obstacles.boxes.some((other) => intersects(box, other))) return null;
+	return nearestFree({ x: box.x, y: box.y }, { w: box.w, h: box.h }, obstacles, () => 0);
+}

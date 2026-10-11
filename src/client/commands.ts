@@ -3,7 +3,7 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import type * as Y from "yjs";
 import type { SizeOf } from "../shared/sections.ts";
 import { readShape, shapesMap } from "../shared/shapes.ts";
-import { commitMoves, copyClosure, settlePasted } from "../shared/structure.ts";
+import { commitMoves, copyClosure, readShapes, settlePasted } from "../shared/structure.ts";
 import { align, distribute, type Item, tidy } from "./arrange.ts";
 import {
 	type Position,
@@ -14,7 +14,7 @@ import {
 	setStickyText,
 } from "./board.ts";
 import { RUN_COLUMNS } from "../shared/addCards.ts";
-import { PLACE_GAP, PLACED_CARD } from "../shared/placement.ts";
+import { PLACE_GAP, PLACED_CARD, slideClear } from "../shared/placement.ts";
 import { cardStore } from "./cardStore.ts";
 import { fitBoxes, shapeBoxes } from "./fitting.ts";
 import { isOffBoardTarget } from "./keys.ts";
@@ -417,6 +417,29 @@ export function useCanvasCommands(options: CommandsOptions) {
 		[doc, rectOf, settle],
 	);
 
+	/**
+	 * Laid out on top of shapes that weren't selected: the whole layout
+	 * slides, as one, to the nearest space that's clear of them.
+	 */
+	const clearOfOthers = useCallback(
+		(positions: Map<string, Position>, items: Item[]): Map<string, Position> => {
+			if (positions.size === 0) return positions;
+			const at = (item: Item) => positions.get(item.id) ?? item;
+			const left = Math.min(...items.map((item) => at(item).x));
+			const top = Math.min(...items.map((item) => at(item).y));
+			const right = Math.max(...items.map((item) => at(item).x + item.width));
+			const bottom = Math.max(...items.map((item) => at(item).y + item.height));
+			const box = { x: left, y: top, w: right - left, h: bottom - top };
+			const ids = new Set(items.map((item) => item.id));
+			const spot = slideClear(readShapes(doc), ids, box, latest.current.boxSize);
+			if (!spot) return positions;
+			const dx = spot.x - left;
+			const dy = spot.y - top;
+			return new Map(items.map((item) => [item.id, { x: at(item).x + dx, y: at(item).y + dy }]));
+		},
+		[doc],
+	);
+
 	// Commands -------------------------------------------------------------
 
 	const run = useCallback(
@@ -487,7 +510,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 					arrange((items) => distribute(items, "vertical"));
 					return true;
 				case "tidy":
-					arrange((items) => tidy(items));
+					arrange((items) => clearOfOthers(tidy(items), items));
 					return true;
 				case "zoomIn":
 					void flow.zoomIn(zoomOptions);
@@ -549,6 +572,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 			removeSelection,
 			settle,
 			arrange,
+			clearOfOthers,
 			store,
 			duration,
 		],

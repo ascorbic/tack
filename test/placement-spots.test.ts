@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import { type Rect, intersects } from "../src/shared/geometry.ts";
-import { sectionSpot } from "../src/shared/placement.ts";
+import { sectionSpot, slideClear } from "../src/shared/placement.ts";
 import { SECTION_DEFAULT, boxOf } from "../src/shared/sections.ts";
 import { addShape, nextZ } from "../src/shared/shapes.ts";
 import { addSection, readShapes } from "../src/shared/structure.ts";
 
-// A section placed with a click starts empty, in the space where you
-// clicked: it never takes shapes from other sections (canvas review 19).
+// Finding space for shapes people place: a section placed with a click
+// starts empty, where there's room, never taking shapes from other sections
+// (canvas review 19), and a tidied selection slides clear of shapes that
+// weren't selected (28).
 
 function nowNextLater() {
 	const doc = new Y.Doc();
@@ -89,5 +91,39 @@ describe("sectionSpot", () => {
 		expect(rect).toMatchObject({ ...SECTION_DEFAULT, x: 480, y: 380 });
 		const id = addSection(doc, rect, {});
 		expect(readShapes(doc).get(id)?.parent).toBe(outer);
+	});
+});
+
+describe("slideClear", () => {
+	const sticky = (doc: Y.Doc, id: string, x: number, y: number, parent: string | null = null) =>
+		addShape(doc, id, { type: "sticky", text: id, x, y, z: nextZ(doc), parent });
+
+	it("leaves a layout that's clear where it is", () => {
+		const doc = new Y.Doc();
+		sticky(doc, "a", 0, 0);
+		sticky(doc, "b", 1000, 0);
+		expect(slideClear(readShapes(doc), new Set(["a"]), { x: 0, y: 0, w: 400, h: 176 })).toBeNull();
+	});
+
+	it("slides a layout that lands on an unselected shape to clear space nearby", () => {
+		const doc = new Y.Doc();
+		sticky(doc, "a", 0, 0);
+		sticky(doc, "b", 0, 200);
+		sticky(doc, "card", 220, 20);
+		const box = { x: 0, y: 0, w: 600, h: 376 };
+		const spot = slideClear(readShapes(doc), new Set(["a", "b"]), box)!;
+		expect(spot).not.toBeNull();
+		const moved = { ...box, ...spot };
+		expect(intersects(moved, boxOf("card", readShapes(doc).get("card")!))).toBe(false);
+		expect(Math.hypot(spot.x, spot.y)).toBeLessThan(1200);
+	});
+
+	it("doesn't count what's inside the shapes being laid out", () => {
+		const doc = new Y.Doc();
+		const section = addSection(doc, { x: 0, y: 0, w: 400, h: 400 }, { title: "Moving" });
+		sticky(doc, "inside", 40, 40, section);
+		expect(
+			slideClear(readShapes(doc), new Set([section]), { x: 0, y: 0, w: 400, h: 400 }),
+		).toBeNull();
 	});
 });
