@@ -63,7 +63,8 @@
 			"/snapshots/*",
 			"/embed/*",
 			"/og/*",
-			"/b/*"
+			"/b/*",
+			"/sandbox/*"
 		]
 	},
 	"exports": {

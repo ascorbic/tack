@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import type * as Y from "yjs";
+import { customWidget } from "./customWidgets.ts";
 import { dependencyWidget } from "./dependencyMap.ts";
 import type { Rect } from "./geometry.ts";
 import { milestoneWidget } from "./milestone.ts";
@@ -193,6 +194,7 @@ export const WIDGETS: Record<string, WidgetDefinition<never>> = {
 	review: reviewWidget as unknown as WidgetDefinition<never>,
 	milestone: milestoneWidget as unknown as WidgetDefinition<never>,
 	stale: staleWidget as unknown as WidgetDefinition<never>,
+	custom: customWidget as unknown as WidgetDefinition<never>,
 };
 
 /** The definition for a kind, or null for kinds this version doesn't know. */

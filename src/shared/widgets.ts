@@ -1,5 +1,6 @@
 import type * as v from "valibot";
 import type { Card, MissingCard } from "./cards.ts";
+import type { CustomQueryRequest } from "./customWidgets.ts";
 
 // Widgets (docs/plan.md, M3): live views of forge data on the board.
 //
@@ -153,7 +154,9 @@ export type WidgetRequest =
 	| { type: "widget-watch"; ids: string[] }
 	| { type: "widget-unwatch"; ids: string[] }
 	/** Run its queries again now. */
-	| { type: "widget-refresh"; id: string };
+	| { type: "widget-refresh"; id: string }
+	/** A custom widget's searches, as its code asks for them (#66). */
+	| CustomQueryRequest;
 
 /** Server to client. */
 export type WidgetMessage = {

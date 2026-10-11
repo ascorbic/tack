@@ -40,6 +40,8 @@ export default defineConfig(({ isPreview, mode }) => ({
 				"/embed/*",
 				"/og/*",
 				"/b/*",
+				// Custom widgets' sandbox page, with its own headers (#66).
+				"/sandbox/*",
 			],
 		},
 		env: {

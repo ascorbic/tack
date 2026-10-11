@@ -16,6 +16,7 @@ import { handleItemSearch } from "./server/itemSearch.ts";
 import { handleRelated } from "./server/related.ts";
 import { handleSnapshots } from "./server/snapshots.ts";
 import { handleWebhook } from "./server/webhooks.ts";
+import { handleSandbox } from "./server/widgets/sandbox.ts";
 import { isCrossSite } from "./server/auth/http.ts";
 import { configureForges } from "./server/forges/config.ts";
 import { log } from "./server/log.ts";
@@ -50,6 +51,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 	}
 
 	if (url.pathname === "/api/client-errors") return handleClientError(request);
+
+	// Custom widgets' sandbox (#66): a page with no data, framed by the board.
+	const sandbox = handleSandbox(request);
+	if (sandbox) return sandbox;
 
 	// Sign-in, setup and instance settings.
 	const identity = (await handleAuth(request, env)) ?? (await handleSetup(request, env));
