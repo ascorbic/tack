@@ -53,13 +53,15 @@ Widgets are live views on the board: searches and summaries that keep themselves
 
 ## Adding a widget
 
-Press <kbd>W</kbd> (or **Widget** in the toolbar) to open the picker. Click a kind to add it in the middle of the view, or drag it onto the board. Clicking the board with the widget tool adds a blank list there.
+Press <kbd>W</kbd> (or **Widget** in the toolbar) to open the picker. Click a kind to add it in the nearest free space to the middle of the view, so it doesn't land on top of what's there, or drag it onto the board to put it exactly where you drop it. Clicking the board with the widget tool adds a blank list there.
 
-The picker also has **Ready-made lists**, searches over the board's busiest repository (the one with the most cards): "Open bugs", "Needs triage", "Open pull requests", "Good first issues", "Assigned to me" and "My review queue".
+The picker also has **Quick lists for owner/name**, searches over the board's busiest repository (the one with the most cards): "Open bugs", "Needs triage", "Open pull requests", "Good first issues", "Assigned to me" and "My review queue". Inboxes and rules offer the same searches under the same names.
+
+A board is shared, so when you're signed in, "Assigned to me" and "My review queue" are added for you by name ("Assigned to alice", `assignee:alice`): everyone sees the same list when you say "look at the review queue". A widget that still searches `@me` shows each person their own results, and says so with a **Your view** badge.
 
 ## Configuring and resizing
 
-The gear in a widget's header opens its settings beside it. Searches and text apply when you press <kbd>Enter</kbd> or leave the field, since each change runs the widget's searches again for everyone. Settings changes are undoable, like any other edit. **Done** or <kbd>Esc</kbd> closes the panel.
+The gear in a widget's header opens its settings beside it, on whichever side has room, and kept on screen. The panel helps with the search: one in plain words, or one with no repository, gets a suggestion of what it probably meant ("Did you mean `repo:acme/imagekit label:bug`?", from the board's repository and its labels), one click to use. A **Forge** choice only appears when the board has items on more than one. Searches and text apply when you press <kbd>Enter</kbd> or leave the field, since each change runs the widget's searches again for everyone. Settings changes are undoable, like any other edit. **Done** or <kbd>Esc</kbd> closes the panel.
 
 Select a widget to resize it from its edges and corners (at least 260 × 200). Pick it up by its header to move it. Zoomed out, each widget shows one big number.
 
