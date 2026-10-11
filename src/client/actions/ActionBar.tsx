@@ -5,6 +5,7 @@ import {
 	type ChildInput,
 	boardRepos,
 	canWrite,
+	connectorBetween,
 	issueFromText,
 	milestoneInWords,
 	pendingIssueFor,
@@ -42,8 +43,10 @@ import { boardPath } from "../../shared/boards.ts";
 import { transactLocal } from "../undo.ts";
 import { type BoardCard, BacklinkPanel } from "./BacklinkPanel.tsx";
 import { ExpandRelated } from "./ExpandRelated.tsx";
+import { BlockedByPanel } from "./BlockedBy.tsx";
 import {
 	BacklinkIcon,
+	BlockedIcon,
 	CloseIssueIcon,
 	IssueIcon,
 	LabelIcon,
@@ -170,6 +173,15 @@ export function ActionBar(props: ActionBarProps) {
 	const cardData = useCards(keys);
 	const kinds = useMemo(() => classify(selected, cardData), [selected, cardData]);
 	const { stickies, cards, cardNodes, sections, others } = kinds;
+	// The connector between two selected issues (or stickies), for blocked-by.
+	const pairKey =
+		selected.length === 2 && stickies.length + cardNodes.length === 2
+			? selected.map((n) => n.id).join(",")
+			: "";
+	const linking = useMemo(() => {
+		const [a, b] = pairKey.split(",");
+		return a && b ? connectorBetween(doc, a, b) : null;
+	}, [doc, pairKey]);
 
 	// Under the selection, unless that's off the bottom of the canvas or under
 	// the tool dock: then above it, clear of the toolbars already there.
@@ -341,8 +353,20 @@ export function ActionBar(props: ActionBarProps) {
 				out.push({ id: "parentIssue", label: "Make a parent issue", icon: <ParentIcon /> });
 			}
 		}
+		// Two connected items: the arrow between them can become blocked-by,
+		// which otherwise only shows when the arrow itself is selected.
+		if (linking) {
+			out.push({
+				id: "blockedBy",
+				label: "Blocked by: the arrow between these",
+				icon: <BlockedIcon />,
+				text: "Blocked by",
+				quiet: true,
+			});
+		}
 		return out;
 	}, [
+		linking,
 		doc,
 		selected,
 		stickies,
@@ -467,10 +491,11 @@ export function ActionBar(props: ActionBarProps) {
 			case "End":
 				return move(buttons.length - 1);
 			case "Escape":
-				if (open) return;
 				event.preventDefault();
 				event.stopPropagation();
-				shapeElement()?.focus();
+				// A panel still opening (focus not in it yet) closes; otherwise back to the shape.
+				if (open) close();
+				else shapeElement()?.focus();
 				return;
 			case "Tab": {
 				if (open) return;
@@ -647,6 +672,17 @@ export function ActionBar(props: ActionBarProps) {
 					/>
 				);
 			}
+			case "blockedBy":
+				return linking ? (
+					<BlockedByPanel
+						doc={doc}
+						connector={linking}
+						user={user}
+						toasts={toasts}
+						history={history}
+						onDone={close}
+					/>
+				) : null;
 			case "carryOver": {
 				const items = openActionItems(
 					doc,

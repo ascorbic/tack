@@ -263,6 +263,26 @@ test("the bar is a toolbar the keyboard reaches from the selection", async ({ pa
 	await expect(labelsButton).toBeFocused();
 });
 
+test("two connected issues offer blocked-by in the action bar", async ({ page }) => {
+	await select(page, "Drop Node 18", "Custom domains");
+	await bar(page)
+		.getByRole("button", { name: /^Blocked by/ })
+		.click();
+	const panel = page.getByRole("dialog", { name: "Blocked by" });
+	await expect(panel).toContainText("#377 will be marked as blocked by #412.");
+	await page.keyboard.press("ControlOrMeta+Enter");
+	await expect(panel).toHaveCount(0);
+	const [change] = await changes(page);
+	expect(change?.op).toEqual({
+		kind: "item.blockedBy",
+		target: { key: "fake.tack/acme/imagekit#377" },
+		blockedBy: { key: "fake.tack/acme/imagekit#412" },
+	});
+	// Not connected: not offered.
+	await select(page, "Custom domains", "Rotate the signing keys");
+	await expect(bar(page).getByRole("button", { name: /^Blocked by/ })).toHaveCount(0);
+});
+
 test("a connector between issues becomes blocked-by", async ({ page }) => {
 	await page.locator(".connector-hit").first().click({ force: true });
 	await page.getByRole("button", { name: "Blocked by", exact: true }).click();

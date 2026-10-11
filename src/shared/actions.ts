@@ -328,6 +328,20 @@ export interface BlockEnd {
 }
 
 /**
+ * The connector joining two shapes (either way round), if there is one: for
+ * offering blocked-by when two connected items are selected.
+ */
+export function connectorBetween(doc: Y.Doc, a: string, b: string): string | null {
+	for (const [id, shape] of shapesMap(doc)) {
+		if (shape.get("type") !== "connector") continue;
+		const read = readConnector(readShape(shape));
+		const ends = [read?.from.shape, read?.to.shape];
+		if (ends.includes(a) && ends.includes(b) && a !== b) return id;
+	}
+	return null;
+}
+
+/**
  * Read a connector's ends as blocked-by candidates. `kindOf` says whether a
  * card is an issue or a pull request (undefined while it's loading).
  */

@@ -60,21 +60,7 @@ export function BlockedByAction({
 	defaultOpen?: boolean;
 }) {
 	const [open, setOpen] = useState(defaultOpen);
-	const [swapped, setSwapped] = useState(false);
-	// Card kinds arrive asynchronously: re-read the ends as they do.
 	const raw = blockEnds(doc, connector, () => "issue");
-	const keys = [raw?.from.key, raw?.to.key].filter((k): k is string => !!k);
-	const cards = useCards(keys);
-	const ends = useMemo(
-		() =>
-			blockEnds(doc, connector, (key) => {
-				const card = cards.get(key);
-				return isCard(card) ? card.kind : undefined;
-			}),
-		// The document isn't reactive here; the toolbar re-renders with it.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[doc, connector, cards, open],
-	);
 
 	useEffect(
 		() =>
@@ -86,29 +72,8 @@ export function BlockedByAction({
 		[requests],
 	);
 
-	if (!ends || !ends.from.shape || !ends.to.shape) return null;
-	const blocker = swapped ? ends.to : ends.from;
-	const blocked = swapped ? ends.from : ends.to;
-	const problem = [blocker, blocked].find((end) => end.problem);
-	const staged = listChanges(doc).find(
-		(change) => change.effect?.kind === "connect" && change.effect.shape === connector,
-	);
-
-	const stage = () => {
-		if (!blocker.target || !blocked.target) return;
-		stageBlockedBy(
-			doc,
-			{
-				blocked: blocked.target,
-				blocker: blocker.target,
-				connector,
-				shapes: [blocked.shape, blocker.shape].filter((s): s is string => !!s),
-			},
-			stagerFor(user),
-		);
-		setOpen(false);
-		undoToast(toasts, history, `Staged: ${blocked.label} blocked by ${blocker.label}`);
-	};
+	if (!raw || !raw.from.shape || !raw.to.shape) return null;
+	const staged = stagedBlock(doc, connector);
 
 	return (
 		<>
@@ -127,63 +92,138 @@ export function BlockedByAction({
 			</button>
 			{open && (
 				<Popover label="Blocked by" className="blocked-popover" onClose={() => setOpen(false)}>
-					<form
-						onSubmit={(event) => {
-							event.preventDefault();
-							if (!problem && !staged) stage();
-						}}
-					>
-						<PopoverHead
-							title="Blocked by"
-							detail={
-								ends.arrow === "end"
-									? "The arrow points from the blocker to what it blocks."
-									: "This connector has no single direction: check which way round."
-							}
-						/>
-						<div className="blocked-pair" data-swapped={swapped || undefined}>
-							<EndRow key={`a${swapped}`} end={blocker} role="blocker" />
-							<div className="blocked-verb">
-								<ArrowDownIcon />
-								<span>blocks</span>
-								<button
-									type="button"
-									className="action-secondary blocked-swap"
-									onClick={() => setSwapped((s) => !s)}
-									aria-label="Swap which blocks which"
-								>
-									<SwapIcon />
-									Swap
-								</button>
-							</div>
-							<EndRow key={`b${swapped}`} end={blocked} role="blocked" />
-						</div>
-						{problem?.problem ? (
-							<Notice tone={problem.problem === "loading" ? "note" : "warn"}>
-								{PROBLEMS[problem.problem](problem)}
-							</Notice>
-						) : staged ? (
-							<Notice>Already staged.</Notice>
-						) : (
-							<Notice>
-								{blocked.label} will be marked as blocked by {blocker.label}.
-							</Notice>
-						)}
-						<footer className="action-foot">
-							<span className="action-summary">Not written until pushed.</span>
-							<button
-								type="submit"
-								className="action-primary"
-								data-autofocus
-								disabled={!!problem || !!staged}
-							>
-								Stage
-								<kbd>{SUBMIT_HINT}</kbd>
-							</button>
-						</footer>
-					</form>
+					<BlockedByPanel
+						doc={doc}
+						connector={connector}
+						user={user}
+						toasts={toasts}
+						history={history}
+						onDone={() => setOpen(false)}
+					/>
 				</Popover>
 			)}
 		</>
+	);
+}
+
+/** The blocked-by change staged for a connector, if there is one. */
+function stagedBlock(doc: Y.Doc, connector: string) {
+	return listChanges(doc).find(
+		(change) => change.effect?.kind === "connect" && change.effect.shape === connector,
+	);
+}
+
+/**
+ * What a connector's blocked-by will say, which way round, and Stage: in the
+ * connector's toolbar, or the action bar when the two items it joins are
+ * selected.
+ */
+export function BlockedByPanel({
+	doc,
+	connector,
+	user,
+	toasts,
+	history,
+	onDone,
+}: {
+	doc: Y.Doc;
+	connector: string;
+	user: User;
+	toasts: ToastStore;
+	history: History;
+	onDone: () => void;
+}) {
+	const [swapped, setSwapped] = useState(false);
+	// Card kinds arrive asynchronously: re-read the ends as they do.
+	const raw = blockEnds(doc, connector, () => "issue");
+	const keys = [raw?.from.key, raw?.to.key].filter((k): k is string => !!k);
+	const cards = useCards(keys);
+	const ends = useMemo(
+		() =>
+			blockEnds(doc, connector, (key) => {
+				const card = cards.get(key);
+				return isCard(card) ? card.kind : undefined;
+			}),
+		[doc, connector, cards],
+	);
+
+	if (!ends || !ends.from.shape || !ends.to.shape) return null;
+	const blocker = swapped ? ends.to : ends.from;
+	const blocked = swapped ? ends.from : ends.to;
+	const problem = [blocker, blocked].find((end) => end.problem);
+	const staged = stagedBlock(doc, connector);
+
+	const stage = () => {
+		if (!blocker.target || !blocked.target) return;
+		stageBlockedBy(
+			doc,
+			{
+				blocked: blocked.target,
+				blocker: blocker.target,
+				connector,
+				shapes: [blocked.shape, blocker.shape].filter((s): s is string => !!s),
+			},
+			stagerFor(user),
+		);
+		onDone();
+		undoToast(toasts, history, `Staged: ${blocked.label} blocked by ${blocker.label}`);
+	};
+
+	return (
+		<form
+			onSubmit={(event) => {
+				event.preventDefault();
+				if (!problem && !staged) stage();
+			}}
+		>
+			<PopoverHead
+				title="Blocked by"
+				detail={
+					ends.arrow === "end"
+						? "The arrow points from the blocker to what it blocks."
+						: "This connector has no single direction: check which way round."
+				}
+			/>
+			<div className="blocked-pair" data-swapped={swapped || undefined}>
+				<EndRow key={`a${swapped}`} end={blocker} role="blocker" />
+				<div className="blocked-verb">
+					<ArrowDownIcon />
+					<span>blocks</span>
+					<button
+						type="button"
+						className="action-secondary blocked-swap"
+						onClick={() => setSwapped((s) => !s)}
+						aria-label="Swap which blocks which"
+					>
+						<SwapIcon />
+						Swap
+					</button>
+				</div>
+				<EndRow key={`b${swapped}`} end={blocked} role="blocked" />
+			</div>
+			{problem?.problem ? (
+				<Notice tone={problem.problem === "loading" ? "note" : "warn"}>
+					{PROBLEMS[problem.problem](problem)}
+				</Notice>
+			) : staged ? (
+				<Notice>Already staged.</Notice>
+			) : (
+				<Notice>
+					{blocked.label} will be marked as blocked by {blocker.label}.
+				</Notice>
+			)}
+			<footer className="action-foot">
+				<span className="action-summary">Not written until pushed.</span>
+				<button
+					type="submit"
+					className="action-primary"
+					data-autofocus
+					disabled={!!problem || !!staged}
+				>
+					Stage
+					<kbd>{SUBMIT_HINT}</kbd>
+				</button>
+			</footer>
+		</form>
 	);
 }

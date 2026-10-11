@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import {
 	blockEnds,
+	connectorBetween,
 	boardRepos,
 	canWrite,
 	editStagedIssue,
@@ -437,6 +438,14 @@ describe("blocked-by", () => {
 		});
 		return b;
 	}
+
+	it("finds the connector between two shapes, either way round", () => {
+		const { doc } = connected("c1", "c2");
+		expect(connectorBetween(doc, "c1", "c2")).toBe("conn");
+		expect(connectorBetween(doc, "c2", "c1")).toBe("conn");
+		expect(connectorBetween(doc, "c1", "c3")).toBeNull();
+		expect(connectorBetween(doc, "c1", "c1")).toBeNull();
+	});
 
 	it("reads a connector's ends as items", () => {
 		const { doc, add } = connected("c1", "c2", "both");
