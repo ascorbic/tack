@@ -695,15 +695,30 @@
 }
 
 /* The stamp tool: its button wears the stamp you'll make. */
-.tool-stamp-emoji {
-	font-size: 19px;
-	line-height: 1;
+.tool-stamp svg {
+	transform-origin: 50% 85%;
 	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+/* The stamp it makes, small, tucked in the corner. */
+.tool-stamp-emoji {
+	position: absolute;
+	right: 5px;
+	bottom: 5px;
+	font-size: 11px;
+	line-height: 1;
+	filter: saturate(0.85);
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.tool-stamp:hover svg,
+.tool-stamp[aria-pressed="true"] svg {
+	transform: rotate(-10deg);
 }
 
 .tool-stamp:hover .tool-stamp-emoji,
 .tool-stamp[aria-pressed="true"] .tool-stamp-emoji {
-	transform: rotate(-10deg) scale(1.12);
+	transform: scale(1.25);
 }
 
 .stamp-choice {

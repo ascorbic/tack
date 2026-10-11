@@ -58,6 +58,12 @@ test.describe("facilitating a retro", () => {
 		await page.keyboard.press("m");
 		await expect(page.getByRole("radiogroup", { name: "Stamp" })).toBeVisible();
 		await page.getByRole("radio", { name: "Stamp ❤️" }).click();
+		// The tool is a stamp in the dock's own line, with the one it makes as a badge.
+		const tool = page
+			.getByRole("toolbar", { name: "Tools" })
+			.getByRole("button", { name: "Stamp" });
+		await expect(tool.locator("svg")).toBeVisible();
+		await expect(tool.locator(".tool-stamp-emoji")).toHaveText("❤️");
 		await note.click();
 		const stamp = page.getByRole("button", { name: /^❤️ 1: .*\(including you\)/ });
 		await expect(stamp).toBeVisible();

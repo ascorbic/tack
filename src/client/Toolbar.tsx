@@ -206,6 +206,13 @@ export function Toolbar({
 					data-shortcut="M"
 					onClick={() => onTool("stamp")}
 				>
+					{/* A rubber stamp in the dock's own line, with the stamp it makes
+					    as a small badge: the full-colour emoji alone shouted. */}
+					<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+						<path d="M8 10.5V9a2.6 2.6 0 1 1 4 0v1.5" />
+						<rect x="3.5" y="10.5" width="13" height="3.5" rx="1.4" />
+						<path d="M5 16.5h10" />
+					</svg>
 					<span className="tool-stamp-emoji" aria-hidden="true">
 						{stamp}
 					</span>
