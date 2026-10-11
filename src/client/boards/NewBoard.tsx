@@ -161,7 +161,7 @@ export function NewBoardPicker({
 					))}
 				</div>
 				<SavedSection saved={saved} chosenId={chosenId} onChoose={setChosen} now={now} />
-				<section className="template-saved" aria-label="From a file">
+				<section className="template-from-file" aria-label="From a file">
 					<h3 className="template-section-title">From a file</h3>
 					<div className="template-grid" role="listbox" aria-label="Import">
 						<ImportTile chosen={chosenId === IMPORT} onChoose={() => setChosen(IMPORT)} />
