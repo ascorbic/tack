@@ -51,6 +51,24 @@
 	position: relative;
 }
 
+/* Pointed at, as on the board: the mark's list open and the card-to-be out. */
+.changes-mark-sample[data-pointed] {
+	padding-top: 132px;
+}
+
+.changes-mark-sample:is(:hover, [data-pointed]) .staged-ghost {
+	opacity: 1;
+	translate: 0 0;
+	rotate: 3deg;
+}
+
+.changes-mark-sample[data-pointed] .staged-details {
+	opacity: 1;
+	visibility: visible;
+	transform: none;
+	pointer-events: auto;
+}
+
 /* Room above a section for the parent issue's card-to-be. */
 .changes-mark-sample[data-shape="section"] {
 	padding-top: 248px;

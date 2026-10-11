@@ -37,8 +37,8 @@ test.describe("pending changes panel", () => {
 		await expect(failed.locator(".change-error")).toContainText("Milestone “5.0” is closed");
 		await expect(failed.getByRole("button", { name: "Retry" })).toBeVisible();
 
-		// The upstream change is left out.
-		await expect(panel(page).locator(".change-row[data-included=false]")).toHaveCount(1);
+		// The upstream change can't go (no app there), so it's left out of your push.
+		await expect(panel(page).getByRole("button", { name: "Review and push 10" })).toBeVisible();
 	});
 
 	test("marks the shapes each change is about", async ({ page }) => {
@@ -47,7 +47,24 @@ test.describe("pending changes panel", () => {
 		await expect(flags.filter({ hasText: "Will close" })).toHaveCount(1);
 		await expect(flags.filter({ hasText: "Blocked by #418" })).toHaveCount(1);
 		await expect(page.locator(".staged-label").filter({ hasText: "needs review" })).toHaveCount(1);
-		await expect(page.locator(".staged-ghost")).toHaveCount(2);
+		// One mark per shape, summing up everything staged on it.
+		const linked = flags.filter({ hasText: "Blocked by #418" });
+		await expect(linked).toContainText("Blocked by #418 · +@priya");
+		await expect(linked.locator(".staged-flag-count")).toHaveText("2");
+		// Pointing at it lists each change.
+		const details = page.locator(".staged-mark", { has: linked }).locator(".staged-details");
+		await expect(details).toBeHidden();
+		await linked.hover();
+		await expect(details).toBeVisible();
+		await expect(details.locator(".staged-detail")).toHaveCount(2);
+
+		// The card a sticky will become only peeks out when it's pointed at
+		// or picked out (below).
+		const ghosts = page.locator(".staged-ghost");
+		await expect(ghosts).toHaveCount(2);
+		await expect(ghosts.first()).toHaveCSS("opacity", "0");
+		await expect(ghosts.nth(1)).toHaveCSS("opacity", "0");
+		await page.mouse.move(5, 300);
 
 		// Clicking a mark opens the panel at its change.
 		await flags.filter({ hasText: "Will close" }).click();
@@ -57,6 +74,20 @@ test.describe("pending changes panel", () => {
 		// Hovering a change picks out its shapes.
 		await panel(page).locator(".change-row", { hasText: "Close #377" }).hover();
 		await expect(page.locator(".staged-marks[data-highlighted]")).toHaveCount(1);
+		await panel(page).locator(".change-row", { hasText: "Create issue “Better errors" }).hover();
+		await expect(page.locator(".staged-marks[data-highlighted] .staged-ghost")).toHaveCSS(
+			"opacity",
+			"1",
+		);
+	});
+
+	test("marks shrink to dots when the board is zoomed out", async ({ page }) => {
+		await expect(page.locator(".staged-mark[data-far]")).toHaveCount(0);
+		const zoomOut = page.getByRole("button", { name: /zoom out/i }).first();
+		for (let i = 0; i < 4; i++) await zoomOut.click();
+		await expect(page.locator(".staged-mark").first()).toHaveAttribute("data-far", "true");
+		await expect(page.locator(".staged-mark:not([data-far])")).toHaveCount(0);
+		await expect(page.locator(".staged-flag-text").first()).toBeHidden();
 	});
 
 	test("unstaging and leaving out are undoable, and take dependants along", async ({ page }) => {
@@ -64,7 +95,7 @@ test.describe("pending changes panel", () => {
 		const rows = panel(page).locator(".change-row");
 
 		// Unstaging the migration guide issue takes its sub-issue link with it.
-		const guide = rows.filter({ hasText: "Create issue “Write the 5.0 migration guide”" });
+		const guide = rows.filter({ hasText: "Create issue “Write the 5.0 migration guide" });
 		await guide.hover();
 		await guide.getByRole("button", { name: /^Unstage/ }).click();
 		await expect(rows).toHaveCount(9);
@@ -72,11 +103,15 @@ test.describe("pending changes panel", () => {
 		await page.locator(".toast").getByRole("button", { name: /Undo/ }).click();
 		await expect(rows).toHaveCount(11);
 
-		// Leaving out the other new issue leaves out nothing else.
-		const errors = rows.filter({ hasText: "Create issue “Better errors" });
-		await errors.getByRole("checkbox").uncheck();
-		await expect(rows.and(page.locator("[data-included=false]"))).toHaveCount(2);
-		await expect(panel(page).getByRole("button", { name: "Review and push 9" })).toBeVisible();
+		// Leaving out the other new issue, in the push sheet, leaves out nothing else.
+		await panel(page).getByRole("button", { name: "Review and push 10" }).click();
+		await sheet(page)
+			.getByRole("checkbox", { name: /^Include: Create issue “Better errors/ })
+			.uncheck();
+		await expect(sheet(page).locator(".push-change[data-included=false]")).toHaveCount(2);
+		await expect(sheet(page).getByRole("button", { name: "Push 9 changes" })).toBeVisible();
+		// It's this person's choice: the shared list doesn't change.
+		await expect(rows).toHaveCount(11);
 	});
 
 	test("view-only people see the list but can't change it", async ({ page }) => {
@@ -167,9 +202,9 @@ test.describe("push sheet", () => {
 	});
 
 	test("refused for repositories without the app, until they're left out", async ({ page }) => {
-		const upstream = panel(page).locator(".change-row", { hasText: "Add question to #4012" });
-		await upstream.getByRole("checkbox").check();
-		await panel(page).getByRole("button", { name: "Review and push 11" }).click();
+		await panel(page).getByRole("button", { name: "Review and push 10" }).click();
+		// Left out because there's no app there, until it's ticked back in.
+		await sheet(page).getByRole("checkbox", { name: "Include: Add question to #4012" }).check();
 		await sheet(page).getByRole("button", { name: "Push 11 changes" }).click();
 
 		const refusal = sheet(page).getByRole("alert");
@@ -254,14 +289,20 @@ test.describe("changes gallery", () => {
 		await expect(panels.getByRole("heading", { name: "Nothing staged" })).toBeVisible();
 
 		const marks = section(page, "Marks on shapes");
-		await expect(marks.locator("figure")).toHaveCount(15);
-		await expect(marks.locator(".staged-ghost")).toHaveCount(4);
+		await expect(marks.locator("figure")).toHaveCount(16);
+		await expect(marks.locator(".staged-ghost")).toHaveCount(5);
 		// A section about to become a parent issue: its card-to-be above it.
 		await expect(marks.locator(".staged-parent")).toHaveCount(2);
 		await expect(marks.locator(".staged-parent[data-status=sending]")).toHaveCount(1);
 		await expect(marks.locator(".staged-parent").first()).toContainText("Docs for 5.0");
 		await expect(marks.locator(".staged-flag[data-status=failed]")).toHaveCount(1);
-		await expect(marks.locator(".staged-flag[data-included=false]")).toHaveCount(1);
+		// One mark per shape: "Will close · Will comment", with the list on hover.
+		await expect(
+			marks.locator(".staged-flag", { hasText: "Will close · Will comment" }),
+		).toHaveCount(1);
+		await expect(marks.locator(".staged-mark[data-far]")).toHaveCount(1);
+		await expect(marks.locator(".changes-mark-sample[data-pointed] .staged-detail")).toHaveCount(2);
+		await expect(marks.locator(".staged-new").first()).toHaveText("New");
 		await expect(marks.locator(".staged-label[data-status=sent]")).toHaveCount(1);
 		await expect(marks.locator(".staged-marks[data-highlighted]")).toHaveCount(1);
 

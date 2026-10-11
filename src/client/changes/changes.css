@@ -23,7 +23,7 @@
 /* Kinds of change, each with its own tint. */
 .change-kind,
 /* A section's title pill sits above its box: the flags go above that. */
-.staged-marks[data-shape="section"] .staged-flags {
+.staged-marks[data-shape="section"] .staged-mark {
 	bottom: calc(100% + 40px);
 }
 
@@ -1058,23 +1058,32 @@
 	}
 }
 
-.staged-flags {
+/* One mark per shape, above its top-left corner: everything staged on it in
+   a line, cut short at the shape's width. Pointing at it (or tabbing to it)
+   opens the list of each change. */
+.staged-mark {
 	position: absolute;
 	bottom: calc(100% + 11px);
 	left: -4px;
+	z-index: 1;
 	display: flex;
-	flex-wrap: wrap-reverse;
-	gap: 4px;
 	width: max-content;
-	max-width: 300px;
+	max-width: max(170px, calc((100% + 8px) / var(--mark-scale)));
 	transform-origin: bottom left;
 	scale: var(--mark-scale);
+}
+
+/* The node whose mark is open comes up over its neighbours. */
+.react-flow__node:has(.staged-mark:is(:hover, :focus-within)) {
+	z-index: 4000 !important;
 }
 
 .staged-flag {
 	display: inline-flex;
 	align-items: center;
 	gap: 5px;
+	min-width: 0;
+	max-width: 100%;
 	height: 23px;
 	padding: 0 9px 0 7px;
 	border: 0;
@@ -1090,12 +1099,36 @@
 		0 4px 10px -4px color-mix(in srgb, var(--kind) 50%, transparent);
 	pointer-events: auto;
 	cursor: pointer;
-	animation: flag-in var(--t-settle) var(--ease-spring) calc(var(--i, 0) * 45ms * var(--motion))
-		backwards;
+	animation: flag-in var(--t-settle) var(--ease-spring) backwards;
 	transition:
 		background var(--t-base) var(--ease-out),
 		color var(--t-base) var(--ease-out),
+		width var(--t-base) var(--ease-spring),
+		height var(--t-base) var(--ease-spring),
+		padding var(--t-base) var(--ease-spring),
 		transform var(--t-quick) var(--ease-out);
+}
+
+.staged-flag-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* How many changes the line sums up. */
+.staged-flag-count {
+	display: grid;
+	place-items: center;
+	flex: none;
+	min-width: 16px;
+	height: 16px;
+	margin-right: -5px;
+	padding: 0 4px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--surface) 26%, transparent);
+	font-size: 10px;
+	font-weight: 720;
+	font-variant-numeric: tabular-nums;
 }
 
 .staged-flag:hover {
@@ -1106,17 +1139,16 @@
 	transform: scale(0.96);
 }
 
+.staged-flag:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
 @keyframes flag-in {
 	from {
 		opacity: 0;
 		transform: translateY(8px) scale(0.7);
 	}
-}
-
-.staged-flag[data-included="false"] {
-	background: var(--surface);
-	color: var(--muted);
-	box-shadow: inset 0 0 0 1px var(--line-strong);
 }
 
 .staged-flag[data-status="sending"] {
@@ -1143,6 +1175,10 @@
 	background: var(--surface);
 	color: var(--kind);
 	box-shadow: inset 0 0 0 1.5px var(--kind);
+}
+
+.staged-flag[data-status="sent"] .staged-flag-count {
+	background: color-mix(in srgb, var(--kind) 14%, transparent);
 }
 
 .staged-flag[data-status="failed"] {
@@ -1172,58 +1208,141 @@
 	}
 }
 
-.staged-labels {
+/* Zoomed out, the mark is a dot in its colour, so a board of forty staged
+   stickies doesn't turn into a field of pills. */
+.staged-mark[data-far] .staged-flag {
+	width: 14px;
+	height: 14px;
+	padding: 0;
+	gap: 0;
+	box-shadow:
+		0 0 0 2px var(--surface),
+		0 2px 6px -1px color-mix(in srgb, var(--kind) 60%, transparent);
+}
+
+.staged-mark[data-far] .staged-flag > * {
+	display: none;
+}
+
+.staged-mark[data-far] .staged-flag[data-status="sent"] {
+	background: var(--kind);
+	opacity: 0.6;
+}
+
+/* Each change on the shape, opening above the mark. */
+.staged-details {
 	position: absolute;
-	top: calc(100% + 9px);
+	bottom: calc(100% + 6px);
 	left: 0;
 	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
+	flex-direction: column;
+	gap: 1px;
 	width: max-content;
-	max-width: 280px;
-	transform-origin: top left;
-	scale: var(--mark-scale);
+	min-width: 200px;
+	max-width: 320px;
+	padding: 4px;
+	border-radius: 12px;
+	background: var(--surface);
+	box-shadow:
+		0 0 0 1px var(--line),
+		var(--shadow-lifted);
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(4px) scale(0.97);
+	transform-origin: bottom left;
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring),
+		visibility 0s linear var(--t-quick);
+}
+
+/* A bridge over the gap, so moving from the mark to the list keeps it open. */
+.staged-details::after {
+	content: "";
+	position: absolute;
+	inset: 100% 0 auto;
+	height: 8px;
+}
+
+.staged-mark:is(:hover, :focus-within) .staged-details {
+	opacity: 1;
+	visibility: visible;
+	transform: none;
+	pointer-events: auto;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring);
+}
+
+.staged-detail {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 8px 5px 5px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink);
+	font: inherit;
+	font-size: 12px;
+	font-weight: 560;
+	text-align: left;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.staged-detail:is(:hover, :focus-visible) {
+	background: var(--hover);
+	outline: none;
+}
+
+.staged-detail-icon {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 22px;
+	height: 22px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--kind) 13%, transparent);
+	color: var(--kind);
+}
+
+.staged-detail-text {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	flex: 1;
+}
+
+.staged-detail-status {
+	flex: none;
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.staged-detail[data-status="failed"] .staged-detail-status {
+	color: var(--fail-ink);
+}
+
+.staged-detail[data-status="failed"] .staged-detail-icon {
+	background: color-mix(in srgb, var(--fail) 14%, transparent);
+	color: var(--fail-ink);
+}
+
+.staged-detail:is([data-status="landed"], [data-status="applied"]) .staged-detail-status {
+	color: var(--pass);
 }
 
 .staged-label {
-	padding: 0;
-	border: 0;
-	border-radius: 999px;
-	background: var(--surface);
-	box-shadow: var(--shadow-rest);
-	pointer-events: auto;
-	cursor: pointer;
-	animation: label-drop var(--t-settle) var(--ease-spring) calc(var(--i, 0) * 45ms * var(--motion))
-		backwards;
-}
-
-@keyframes label-drop {
-	from {
-		opacity: 0;
-		transform: translateY(-8px) scale(0.6);
-	}
-}
-
-.staged-label[data-included="false"] {
-	opacity: 0.45;
-}
-
-.staged-label[data-status="sending"] {
-	animation: label-wait calc(1200ms * var(--motion)) ease-in-out infinite;
+	display: inline-flex;
 }
 
 .staged-label[data-status="failed"] .chip {
 	box-shadow: inset 0 0 0 1.5px var(--fail);
-}
-
-.staged-label[data-status="landed"] {
-	animation: flag-land calc(2600ms * var(--motion)) var(--ease-out) forwards;
-}
-
-@keyframes label-wait {
-	50% {
-		opacity: 0.55;
-	}
 }
 
 /* A label about to be added: dashed, like it's pencilled in. */
@@ -1262,25 +1381,24 @@
 	background: color-mix(in srgb, var(--surface) 92%, transparent);
 	box-shadow: var(--shadow-rest);
 	color: var(--open);
-	rotate: 3deg;
-	animation: ghost-out var(--t-settle) var(--ease-spring);
+	/* Tucked away behind the sticky until it's pointed at, selected, picked
+	   out from the panel or being pushed: then the card it'll be slides out. */
+	opacity: 0;
+	translate: -18px -14px;
+	rotate: 0deg;
 	transition:
 		opacity var(--t-base) var(--ease-out),
+		translate var(--t-settle) var(--ease-spring),
+		rotate var(--t-settle) var(--ease-spring),
 		border-color var(--t-base) var(--ease-out);
 }
 
-@keyframes ghost-out {
-	from {
-		opacity: 0;
-		translate: -18px -14px;
-		rotate: 0deg;
-	}
-}
-
-.staged-ghost[data-included="false"] {
-	opacity: 0.45;
-	border-color: var(--line-strong);
-	color: var(--muted);
+.react-flow__node:is(:hover, .selected) .staged-ghost,
+.staged-marks[data-highlighted] .staged-ghost,
+.staged-ghost:is([data-status="sending"], [data-status="sent"], [data-status="failed"]) {
+	opacity: 1;
+	translate: 0 0;
+	rotate: 3deg;
 }
 
 .staged-ghost[data-status="sending"],
@@ -1306,6 +1424,18 @@
 	font-family: var(--font-mono);
 	font-size: 11px;
 	font-weight: 600;
+}
+
+/* Where the new card's number will be. */
+.staged-new {
+	padding: 1px 6px;
+	border-radius: 999px;
+	background: color-mix(in srgb, currentColor 14%, transparent);
+	font-family: var(--font-ui);
+	font-size: 9.5px;
+	font-weight: 750;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
 }
 
 .staged-ghost-line {

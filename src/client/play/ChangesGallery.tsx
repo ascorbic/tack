@@ -107,6 +107,10 @@ type Sample = {
 	color?: string;
 	changes: PendingChange[];
 	highlighted?: boolean;
+	/** Drawn as if pointed at: its mark open, and a sticky's card-to-be out. */
+	pointed?: boolean;
+	/** Zoomed out, where marks are dots. */
+	far?: boolean;
 };
 
 const STICKY_ID = "sample-sticky";
@@ -149,6 +153,32 @@ const SAMPLES: Sample[] = [
 		label: "Sticky → new issue",
 		shape: "sticky",
 		text: "Better errors when the CDN isn’t recognised",
+		changes: [newIssueFromSticky()],
+	},
+	{
+		label: "Pointed at: every change, and the card it'll be",
+		shape: "sticky",
+		color: "blue",
+		text: "Write the migration guide first",
+		pointed: true,
+		changes: (() => {
+			const create = newIssueFromSticky();
+			return [
+				create,
+				change(
+					{ kind: "item.subIssue", parent: { key: key("#412") }, child: { pending: create.id } },
+					"kai",
+					{ shapes: [STICKY_ID] },
+				),
+			];
+		})(),
+	},
+	{
+		label: "Zoomed out: a dot",
+		shape: "sticky",
+		color: "green",
+		text: "Codemods for 5.0",
+		far: true,
 		changes: [newIssueFromSticky()],
 	},
 	{
@@ -265,7 +295,11 @@ function MarkSample({ sample, landing }: { sample: Sample; landing: PendingChang
 	const fixture = sample.item ? card(sample.item) : undefined;
 	return (
 		<figure>
-			<div className="changes-mark-sample" data-shape={sample.shape}>
+			<div
+				className="changes-mark-sample"
+				data-shape={sample.shape}
+				data-pointed={sample.pointed || undefined}
+			>
 				<div className="changes-mark-shape">
 					{sample.shape === "section" ? (
 						<div className="section" data-color="blue">
@@ -292,6 +326,7 @@ function MarkSample({ sample, landing }: { sample: Sample; landing: PendingChang
 						shapeType={sample.shape}
 						changes={changes}
 						highlighted={sample.highlighted}
+						far={sample.far}
 						labelColorOf={(repo, name) => {
 							const color = playMeta(repo).labels.find((label) => label.name === name)?.color;
 							return color ? `#${color}` : "#8b9098";

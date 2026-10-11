@@ -1134,14 +1134,12 @@
 	gap: 4px;
 }
 
-.staged-marks[data-compact="row"] .staged-flags,
-.staged-marks[data-compact="row"] .staged-labels {
+.staged-marks[data-compact="row"] .staged-mark {
 	position: relative;
 	top: auto;
 	bottom: auto;
 	left: calc(100% + 18px);
-	flex-wrap: nowrap;
-	max-width: none;
+	max-width: 320px;
 	scale: 1;
 }
 

@@ -1,5 +1,5 @@
 import { type ComponentType, memo, useEffect, useMemo, useRef, useState } from "react";
-import type { NodeProps } from "@xyflow/react";
+import { type NodeProps, useStore } from "@xyflow/react";
 import type { PendingChange, Target } from "../../shared/changes.ts";
 import type { ShapeNode } from "../board.ts";
 import { scaledDuration } from "../motion.ts";
@@ -19,13 +19,19 @@ import { KindIcon } from "./icons.tsx";
 import { LabelChip, stagerName } from "./parts.tsx";
 import { useHighlighted, useShapeChanges } from "./store.ts";
 
-// What's staged, shown on the shapes it's about: a ghost card behind a
-// sticky that's about to become an issue, label chips about to be added
-// hanging under a card, a "Will close" flag. They follow the shape as it
-// moves, because they're drawn inside its node.
+// What's staged, shown on the shapes it's about: one mark above each shape
+// that sums up everything staged on it ("New issue in imagekit · Sub-issue
+// of “Docs” · +enhancement"), opening into a list of each change on hover or
+// focus, and shrinking to a dot when the board is zoomed out. A sticky about
+// to become an issue shows the card it'll be behind it while it's pointed
+// at, selected or being pushed. They follow the shape as it moves, because
+// they're drawn inside its node.
 
 /** How long a change that just landed keeps its landed look. */
 const LANDED_MS = 2600;
+
+/** Below this zoom, a shape's mark is just a dot in the colour of what's staged. */
+export const MARK_DOT_ZOOM = 0.6;
 
 export interface MarksProps {
 	shapeId: string;
@@ -43,9 +49,11 @@ export interface MarksProps {
 	you?: string;
 	/**
 	 * Drawn as a row or mini card in a list (#72): just the outline, and the
-	 * flags and labels in one line beside a row, or counted on a mini card.
+	 * mark in one line beside a row, or counted on a mini card.
 	 */
 	compact?: "row" | "mini";
+	/** Zoomed out: the mark is a dot until it's pointed at. */
+	far?: boolean;
 }
 
 /** Wrap a node type so its staged changes show on it. */
@@ -82,6 +90,7 @@ function LiveMarks({
 }) {
 	const ui = useChangesUI();
 	const changes = useShapeChanges(ui?.store ?? null, shapeId);
+	const far = useStore((state) => state.transform[2] < MARK_DOT_ZOOM);
 	const highlighted = useHighlighted(ui?.store ?? null, shapeId);
 	// Re-read whenever this shape's changes do.
 	const index = useMemo(
@@ -112,6 +121,7 @@ function LiveMarks({
 			onReveal={(change) => ui.reveal(change.id)}
 			you={ui.user.login}
 			compact={compact}
+			far={far}
 		/>
 	);
 }
@@ -139,8 +149,23 @@ function useLanded(changes: readonly PendingChange[]): Set<string> {
 
 interface Flag {
 	change: PendingChange;
+	/** What the change does, in a few words; empty for one that's only labels. */
 	text: string;
+	labels: { name: string; mode: "add" | "remove"; repo: string }[];
 }
+
+/** Changes that make something new, which lead a shape's mark. */
+const CREATES = new Set(["issue.create", "pr.create", "discussion.create"]);
+
+/** Which matters most in a shape's mark: failures, then what's under way, then the rest. */
+const STATUS_RANK: Record<string, number> = {
+	failed: 0,
+	sending: 1,
+	sent: 2,
+	staged: 3,
+	landed: 4,
+	applied: 5,
+};
 
 export function StagedMarksView({
 	shapeId,
@@ -153,6 +178,7 @@ export function StagedMarksView({
 	onReveal,
 	you,
 	compact,
+	far = false,
 }: MarksProps) {
 	const landed = useLanded(changes);
 	const index = useMemo(() => all ?? indexChanges(changes), [all, changes]);
@@ -184,75 +210,80 @@ export function StagedMarksView({
 			change.effect.near[0] === shapeId,
 	);
 	const flags: Flag[] = [];
-	const labels: { change: PendingChange; name: string; mode: "add" | "remove"; repo: string }[] =
-		[];
 	for (const change of visible) {
 		const { op } = change;
 		const repo = changeRepo(change, index) ?? "";
+		const flag = (text: string, labels: Flag["labels"] = []) =>
+			flags.push({ change, text, labels });
 		switch (op.kind) {
 			case "issue.create":
-				flags.push({
-					change,
-					text: `New ${change.effect?.kind === "place" ? "parent issue" : "issue"}${repo ? ` in ${repoShortName(repo)}` : ""}`,
-				});
-				for (const name of op.labels ?? []) labels.push({ change, name, mode: "add", repo });
+				flag(
+					`New ${change.effect?.kind === "place" ? "parent issue" : "issue"}${repo ? ` in ${repoShortName(repo)}` : ""}`,
+					(op.labels ?? []).map((name) => ({ name, mode: "add", repo })),
+				);
 				break;
 			case "pr.create":
-				flags.push({ change, text: "New pull request" });
+				flag("New pull request");
 				break;
 			case "discussion.create":
-				flags.push({ change, text: `New discussion · ${op.category}` });
+				flag(`New discussion · ${op.category}`);
 				break;
 			case "item.labels":
-				for (const name of op.add ?? []) labels.push({ change, name, mode: "add", repo });
-				for (const name of op.remove ?? []) labels.push({ change, name, mode: "remove", repo });
+				flag("", [
+					...(op.add ?? []).map((name) => ({ name, mode: "add" as const, repo })),
+					...(op.remove ?? []).map((name) => ({ name, mode: "remove" as const, repo })),
+				]);
 				break;
 			case "item.state":
-				flags.push({
-					change,
-					text:
-						op.state === "open"
-							? "Will reopen"
-							: op.reason === "not_planned"
-								? "Will close as not planned"
-								: op.reason === "duplicate"
-									? "Will close as a duplicate"
-									: "Will close",
-				});
+				flag(
+					op.state === "open"
+						? "Will reopen"
+						: op.reason === "not_planned"
+							? "Will close as not planned"
+							: op.reason === "duplicate"
+								? "Will close as a duplicate"
+								: "Will close",
+				);
 				break;
 			case "item.comment":
-				flags.push({ change, text: "Will comment" });
+				flag("Will comment");
 				break;
 			case "item.assignees":
-				flags.push({
-					change,
-					text: [
+				flag(
+					[
 						...(op.add ?? []).map((login) => `+@${login}`),
 						...(op.remove ?? []).map((login) => `−@${login}`),
 					].join(" "),
-				});
+				);
 				break;
 			case "item.milestone":
-				flags.push({ change, text: op.milestone ? `→ ${op.milestone}` : "No milestone" });
+				flag(op.milestone ? `→ ${op.milestone}` : "No milestone");
 				break;
 			case "item.subIssue":
-				flags.push({
-					change,
-					text: isThis(op.child)
+				flag(
+					isThis(op.child)
 						? `Sub-issue of ${targetLabel(op.parent, index)}`
 						: `Parent of ${targetLabel(op.child, index)}`,
-				});
+				);
 				break;
 			case "item.blockedBy":
-				flags.push({
-					change,
-					text: isThis(op.target)
+				flag(
+					isThis(op.target)
 						? `Blocked by ${targetLabel(op.blockedBy, index)}`
 						: `Blocks ${targetLabel(op.target, index)}`,
-				});
+				);
 				break;
 		}
 	}
+	// What leads the mark: a new item first, then whatever else was staged first.
+	const lead = flags.find((flag) => CREATES.has(flag.change.op.kind)) ?? flags[0];
+	const ordered = lead ? [lead, ...flags.filter((flag) => flag !== lead)] : flags;
+	const summary = ordered
+		.flatMap(({ text, labels }) => [
+			...(text ? [text] : []),
+			...labels.map(({ name, mode }) => `${mode === "add" ? "+" : "−"}${name}`),
+		])
+		.join(" · ");
 
 	const tip = (change: PendingChange) => {
 		const what = summarize(change.op, index);
@@ -269,10 +300,13 @@ export function StagedMarksView({
 	});
 
 	const outline = visible.length > 0 || highlighted;
-	const worst =
-		visible.find((change) => change.status === "failed") ??
-		visible.find((change) => change.status === "sending" || change.status === "sent") ??
-		visible[0];
+	const statusOf = (change: PendingChange) => (landed.has(change.id) ? "landed" : change.status);
+	const worst = [...visible].sort(
+		(a, b) => (STATUS_RANK[statusOf(a)] ?? 9) - (STATUS_RANK[statusOf(b)] ?? 9),
+	)[0];
+	const markStatus = worst ? statusOf(worst) : undefined;
+	// The mark takes the colour of what leads it, unless something's gone wrong or is under way.
+	const markKind = lead?.change.op.kind;
 
 	return (
 		<div
@@ -301,7 +335,7 @@ export function StagedMarksView({
 				<span className="staged-ghost" aria-hidden="true" {...state(ghost)}>
 					<span className="staged-ghost-head">
 						<KindIcon op={ghost.op} size={12} />
-						<span>#?</span>
+						<NewChip />
 					</span>
 					<span className="staged-ghost-line" />
 					<span className="staged-ghost-line short" />
@@ -312,7 +346,7 @@ export function StagedMarksView({
 					<span className="staged-parent-card">
 						<span className="staged-ghost-head">
 							<KindIcon op={parent.op} size={12} />
-							<span>#?</span>
+							<NewChip />
 						</span>
 						<span className="staged-parent-title">{parent.op.title}</span>
 						<span className="staged-ghost-line short" />
@@ -323,48 +357,82 @@ export function StagedMarksView({
 			{outline && (
 				<span className="staged-outline" aria-hidden="true" {...(worst ? state(worst) : {})} />
 			)}
-			{flags.length > 0 && compact !== "mini" && (
-				<span className="staged-flags">
-					{flags.map(({ change, text }, i) => (
-						<button
-							key={`${change.id}${i}`}
-							type="button"
-							className="staged-flag nodrag"
-							data-kind={change.op.kind}
-							title={tip(change)}
-							style={{ "--i": i } as React.CSSProperties}
-							onClick={(event) => {
-								event.stopPropagation();
-								onReveal?.(change);
-							}}
-							{...state(change)}
-						>
-							<KindIcon op={change.op} size={12} />
-							<span>{text}</span>
-						</button>
-					))}
-				</span>
-			)}
-			{labels.length > 0 && compact !== "mini" && (
-				<span className="staged-labels">
-					{labels.map(({ change, name, mode, repo }, i) => (
-						<button
-							key={`${change.id}${mode}${name}`}
-							type="button"
-							className="staged-label nodrag"
-							title={tip(change)}
-							style={{ "--i": i } as React.CSSProperties}
-							onClick={(event) => {
-								event.stopPropagation();
-								onReveal?.(change);
-							}}
-							{...state(change)}
-						>
-							<LabelChip name={name} color={labelColorOf(repo, name)} mode={mode} />
-						</button>
-					))}
+			{lead && worst && compact !== "mini" && (
+				<span className="staged-mark" data-far={far || undefined}>
+					<button
+						type="button"
+						className="staged-flag nodrag"
+						data-kind={markKind}
+						data-status={markStatus}
+						aria-label={`${summary}${ordered.length > 1 ? ` (${ordered.length} changes)` : ""}`}
+						onClick={(event) => {
+							event.stopPropagation();
+							onReveal?.(worst.status === "failed" ? worst : lead.change);
+						}}
+					>
+						<KindIcon op={lead.change.op} size={12} />
+						<span className="staged-flag-text">{summary}</span>
+						{ordered.length > 1 && (
+							<span className="staged-flag-count" aria-hidden="true">
+								{ordered.length}
+							</span>
+						)}
+					</button>
+					<span className="staged-details" role="list" aria-label="Staged on this">
+						{ordered.map(({ change, text, labels }, i) => (
+							<button
+								key={change.id}
+								type="button"
+								role="listitem"
+								className="staged-detail nodrag"
+								data-kind={change.op.kind}
+								title={tip(change)}
+								style={{ "--i": i } as React.CSSProperties}
+								onClick={(event) => {
+									event.stopPropagation();
+									onReveal?.(change);
+								}}
+								{...state(change)}
+							>
+								<span className="staged-detail-icon">
+									<KindIcon op={change.op} size={12} />
+								</span>
+								<span className="staged-detail-text">
+									{text && <span>{text}</span>}
+									{labels.map(({ name, mode, repo }) => (
+										<span key={`${mode}${name}`} className="staged-label" {...state(change)}>
+											<LabelChip name={name} color={labelColorOf(repo, name)} mode={mode} />
+										</span>
+									))}
+								</span>
+								<span className="staged-detail-status">{statusWord(statusOf(change))}</span>
+							</button>
+						))}
+					</span>
 				</span>
 			)}
 		</div>
 	);
+}
+
+/** What a placeholder card shows where its number will be. */
+function NewChip() {
+	return <span className="staged-new">New</span>;
+}
+
+/** A change's state, in a word, for the list in a shape's mark. */
+function statusWord(status: string): string {
+	switch (status) {
+		case "failed":
+			return "Failed";
+		case "sending":
+			return "Sending";
+		case "sent":
+			return "Sent";
+		case "landed":
+		case "applied":
+			return "Done";
+		default:
+			return "Staged";
+	}
 }
