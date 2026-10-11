@@ -4,6 +4,7 @@ import { StateIcon } from "../CardView.tsx";
 import { scaledDuration } from "../motion.ts";
 import type { RowProps } from "./host.tsx";
 import { ExternalIcon, PinIcon } from "./icons.tsx";
+import { safeUrl } from "../changes/inline.ts";
 
 // Rows of items in widgets: how they come and go, and one row that every
 // kind builds on (the item, whatever the kind shows about it, and its pin on
@@ -141,7 +142,7 @@ export function ItemRow({
 				) : (
 					<a
 						className="widget-row-open"
-						href={card.url}
+						href={safeUrl(card.url)}
 						target="_blank"
 						rel="noreferrer"
 						draggable={false}

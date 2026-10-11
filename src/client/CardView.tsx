@@ -10,6 +10,7 @@ import {
 	UnmatchedBand,
 } from "./Provenance.tsx";
 import { CiBar, PullStatus } from "./PullStatus.tsx";
+import { safeUrl } from "./changes/inline.ts";
 
 const STATE_LABEL: Record<Card["state"], string> = {
 	open: "Open",
@@ -255,7 +256,7 @@ function LiveCard({
 				{card.url && (
 					<a
 						className="card-open nodrag"
-						href={card.url}
+						href={safeUrl(card.url)}
 						target="_blank"
 						rel="noreferrer"
 						draggable={false}
@@ -270,7 +271,7 @@ function LiveCard({
 			</div>
 			<a
 				className="card-title"
-				href={card.url}
+				href={safeUrl(card.url)}
 				target="_blank"
 				rel="noreferrer"
 				draggable={false}

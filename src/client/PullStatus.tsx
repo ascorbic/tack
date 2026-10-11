@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Checks, PullDetails, Reviewer, ReviewState } from "../shared/cards.ts";
+import { safeUrl } from "./changes/inline.ts";
 
 // The pull request part of a card: a CI bar with the failing checks, who's
 // reviewing and how, mergeability, and the issues it closes. Changes animate
@@ -139,7 +140,7 @@ export function PullStatus({ pull }: { pull: PullDetails }) {
 						<li key={issue.key} data-state={issue.state} data-key={issue.key}>
 							<IssueIcon closed={issue.state !== "open"} />
 							<span className="linked-verb">Closes</span>
-							<a href={issue.url} target="_blank" rel="noreferrer" draggable={false}>
+							<a href={safeUrl(issue.url)} target="_blank" rel="noreferrer" draggable={false}>
 								<span className="mono">{issue.item}</span>{" "}
 								{issue.title || (
 									// A private repository's title, kept from viewers who may not see it.
@@ -227,7 +228,7 @@ function CiSummary({ checks, changes }: { checks: Checks; changes: PullChanges }
 						<li key={`${check.name}${i}`} data-new={changes.newFailures.has(check.name)}>
 							<CrossIcon />
 							{check.url ? (
-								<a href={check.url} target="_blank" rel="noreferrer" draggable={false}>
+								<a href={safeUrl(check.url)} target="_blank" rel="noreferrer" draggable={false}>
 									{check.name}
 								</a>
 							) : (

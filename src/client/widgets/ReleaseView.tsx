@@ -29,6 +29,7 @@ import { ago } from "./describe.ts";
 import { CheckIcon, PinIcon } from "./icons.tsx";
 import { CopyIcon, MarkdownIcon, ReleaseIcon } from "./kindIcons.tsx";
 import "./release.css";
+import { safeUrl } from "../changes/inline.ts";
 
 // The release draft widget (#43), drawn without the board around it so the
 // gallery can show every state: what's merged since the latest release in
@@ -88,7 +89,7 @@ export function ReleaseView(props: ReleaseViewProps) {
 				<span>since</span>
 				<a
 					className="release-tag mono nodrag nopan"
-					href={latest.url}
+					href={safeUrl(latest.url)}
 					target="_blank"
 					rel="noreferrer"
 					draggable={false}

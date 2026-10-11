@@ -1159,7 +1159,7 @@ function HistoryView({ history, onReloadHistory, user }: PushSheetViewProps) {
 											<span className="push-entry-summary">{change.summary}</span>
 											{change.url && (
 												<a
-													href={change.url}
+													href={safeUrl(change.url)}
 													target="_blank"
 													rel="noreferrer"
 													aria-label={`Open on ${forgeOfUrl(change.url)}: ${change.summary}`}

@@ -15,6 +15,7 @@ import { type BackupResult, type BackupView, backupApi } from "./api.ts";
 import { Segmented } from "./ExportDialog.tsx";
 import "../boards/templates.css";
 import "./export.css";
+import { safeUrl } from "../changes/inline.ts";
 
 // Backups to a branch (#59), from the board's menu, for its owner: where
 // the board's JSON goes, how often, how the last backup went, and what it
@@ -326,7 +327,7 @@ function BackupState({
 							<>
 								Backed up {relativeTime(Date.parse(status.lastAt), now)} to {where}.{" "}
 								{status.lastUrl && (
-									<a href={status.lastUrl} target="_blank" rel="noreferrer">
+									<a href={safeUrl(status.lastUrl)} target="_blank" rel="noreferrer">
 										See the commit
 									</a>
 								)}

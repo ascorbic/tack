@@ -28,6 +28,7 @@ import {
 import { ExternalIcon, PinIcon, WarnIcon } from "./icons.tsx";
 import { CycleIcon, DependencyIcon, SpreadIcon } from "./kindIcons.tsx";
 import "./dependencies.css";
+import { safeUrl } from "../changes/inline.ts";
 
 // The dependency map widget (#43), drawn without the board around it so the
 // gallery can show every state. Items are laid out left to right in the
@@ -588,7 +589,7 @@ function Pop(
 					)
 				)}
 				{real && (
-					<a className="depmap-pop-open" href={real.url} target="_blank" rel="noreferrer">
+					<a className="depmap-pop-open" href={safeUrl(real.url)} target="_blank" rel="noreferrer">
 						Open <ExternalIcon />
 					</a>
 				)}

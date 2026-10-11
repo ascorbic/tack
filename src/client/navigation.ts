@@ -6,6 +6,7 @@ import type { ShapeNode } from "./board.ts";
 import { cardStore } from "./cardStore.ts";
 import { KEYBOARD_FOCUS, isOffBoardTarget, markKeyboardFocus } from "./keys.ts";
 import { scaledDuration } from "./motion.ts";
+import { safeUrl } from "./changes/inline.ts";
 
 // Moving around the board with the keyboard (#61). Keyboard focus is its
 // own thing, apart from the selection: a ring shows where you are, and
@@ -223,7 +224,8 @@ export function useShapeNavigation(options: NavigationOptions) {
 				if (!ref) return;
 				event.preventDefault();
 				const card = cardStore.get(ref);
-				if (card && "url" in card) window.open(card.url, "_blank", "noopener,noreferrer");
+				const url = card && "url" in card ? safeUrl(card.url) : undefined;
+				if (url) window.open(url, "_blank", "noopener,noreferrer");
 				else announce("That item hasn’t loaded yet");
 				return;
 			}

@@ -29,6 +29,7 @@ import {
 	useNow,
 	useSize,
 } from "./chrome.tsx";
+import { safeUrl } from "../changes/inline.ts";
 import { ago } from "./describe.ts";
 import { TimelineIcon, ZoomOutIcon } from "./kindIcons.tsx";
 import "./timeline.css";
@@ -428,10 +429,12 @@ function Dot({
 			onBlur={() => onHover(false)}
 			onPointerDown={(event) => onPointerDown?.(event, card)}
 			onClick={(event) => {
-				if (event.metaKey || event.ctrlKey) window.open(card.url, "_blank", "noopener");
-				else if (onActivate) onActivate(card);
+				const url = safeUrl(card.url);
+				if (event.metaKey || event.ctrlKey) {
+					if (url) window.open(url, "_blank", "noopener");
+				} else if (onActivate) onActivate(card);
 				else if (onBoard) onReveal?.(card.key);
-				else window.open(card.url, "_blank", "noopener");
+				else if (url) window.open(url, "_blank", "noopener");
 			}}
 		>
 			<span className="timeline-dot-core" />

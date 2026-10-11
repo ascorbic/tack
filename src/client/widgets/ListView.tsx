@@ -35,6 +35,7 @@ import {
 	StepIcon,
 	WarnIcon,
 } from "./icons.tsx";
+import { safeUrl } from "../changes/inline.ts";
 
 // The list widget (#38), drawn without the board around it, so the gallery
 // can show every state: not set up, loading, rows (live, stale, refreshing),
@@ -379,7 +380,7 @@ function Row({
 				) : (
 					<a
 						className="widget-row-open"
-						href={card.url}
+						href={safeUrl(card.url)}
 						target="_blank"
 						rel="noreferrer"
 						draggable={false}
