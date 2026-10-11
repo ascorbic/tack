@@ -329,6 +329,9 @@ test("backlinks with snapshots that hide other private repositories", async ({ p
 	await panel.getByRole("checkbox", { name: "Include a snapshot of the board" }).check();
 	// One snapshot for the public repository's readers, one for the private one's.
 	await expect(panel.getByRole("tab")).toHaveCount(2);
+	await expect(panel.getByRole("tab").first()).toHaveText("For public repos");
+	await expect(panel.getByRole("tab").nth(1)).toContainText("For acme/vault");
+	await expect(panel).toContainText("2 versions of the image");
 	await expect(panel.locator(".backlink-snapshot img")).toBeVisible({ timeout: 15_000 });
 	await expect(panel).toContainText("A card from a private repository is hidden");
 	await panel.getByRole("tab", { name: /vault/ }).click();

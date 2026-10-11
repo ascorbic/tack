@@ -243,7 +243,12 @@ export function BacklinkPanel({
 			<div className="backlink-snapshot-area" data-open={include || undefined} inert={!include}>
 				<div>
 					{groups.length > 1 && (
-						<div className="backlink-tabs" role="tablist" aria-label="Snapshots">
+						<p className="backlink-versions">
+							{groups.length} versions of the image: each comment gets the one its readers can see.
+						</p>
+					)}
+					{groups.length > 1 && (
+						<div className="backlink-tabs" role="tablist" aria-label="Versions of the snapshot">
 							{groups.map((g, i) => (
 								<button
 									key={g.audience}
@@ -253,11 +258,11 @@ export function BacklinkPanel({
 									onClick={() => setShown(i)}
 								>
 									{g.audience === PUBLIC_AUDIENCE ? (
-										"Public repositories"
+										"For public repos"
 									) : (
 										<>
 											<LockIcon size={12} />
-											<RepoName repo={g.audience} />
+											For <RepoName repo={g.audience} />
 										</>
 									)}
 								</button>
@@ -304,7 +309,7 @@ export function BacklinkPanel({
 				) : (
 					<span className="action-summary">
 						{include && groups.length > 1
-							? `${groups.length} snapshots`
+							? `${groups.length} versions, one per audience`
 							: "Not written until pushed."}
 					</span>
 				)}
