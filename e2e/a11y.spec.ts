@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import type { Page } from "@playwright/test";
+import { type Page, devices } from "@playwright/test";
 import { expect, settleCanvas, test } from "./fixtures.ts";
 
 // Accessibility (#61), checked by axe in both themes over the main pages,
@@ -18,6 +18,9 @@ test.use({ reducedMotion: "reduce" });
 const TRANSIENT = ["[data-lifted]", ".since-ring[data-fading]", ".depmap-node[data-dim]"];
 
 const run = Date.now().toString(36);
+
+// A phone (#67), in the project's Chromium rather than the device's own WebKit.
+const { defaultBrowserType: _browser, ...iPhone } = devices["iPhone 13"];
 
 async function expectAccessible(page: Page): Promise<void> {
 	// Fonts change text metrics and so what axe measures.
@@ -61,6 +64,7 @@ const GALLERIES = [
 	"/play/history",
 	"/play/lists",
 	"/play/templates",
+	"/play/mobile",
 ];
 
 const SCENARIOS = [
@@ -107,6 +111,21 @@ for (const scheme of ["light", "dark"] as const) {
 				await expectAccessible(page);
 			});
 		}
+
+		test.describe("on a phone", () => {
+			test.use(iPhone);
+
+			test("a board, and a card open in its sheet", async ({ page }) => {
+				await page.goto("/play?scenario=comments");
+				await expect(page.locator(".react-flow__renderer")).toBeVisible();
+				await settleCanvas(page);
+				await expectAccessible(page);
+				await page.locator(".react-flow__node-card").filter({ hasText: "Drop Node 18" }).tap();
+				await expect(page.getByRole("dialog", { name: "Card" })).toBeVisible();
+				await page.waitForTimeout(500);
+				await expectAccessible(page);
+			});
+		});
 
 		test("home page and a board, signed in", async ({ page }) => {
 			const login = `e2e-a11y-${scheme}-${run}`;

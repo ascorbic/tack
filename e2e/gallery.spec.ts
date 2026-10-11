@@ -492,3 +492,46 @@ test("every row and mini card state renders", async ({ page }) => {
 	await expect(switches.getByRole("button", { name: /State/ })).toBeVisible();
 	await expect(section("Popped out").locator(".display-preview .card")).toBeVisible();
 });
+
+test("every phone and tablet state renders", async ({ page }) => {
+	await page.goto("/play/mobile");
+	await expect(page.getByRole("heading", { name: "Phones and tablets" })).toBeVisible();
+	const state = (name: string) => page.locator(`figure[data-state=${name}]`);
+	for (const name of [
+		"sticky-vote",
+		"card",
+		"decision",
+		"face-down",
+		"comments",
+		"action",
+		"view-only",
+		"thread",
+		"new-sticky",
+	]) {
+		await expect(state(name).getByRole("dialog")).toBeVisible();
+	}
+	await expect(state("sticky-vote").getByRole("region", { name: "Dot vote" })).toContainText(
+		"2 dots left",
+	);
+	await expect(state("sticky-vote").getByRole("button", { name: /^👍 2/ })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(state("card").locator(".card")).toContainText("Drop Node 18 support");
+	await expect(
+		state("decision").getByRole("group", { name: "Your vote" }).getByRole("button", {
+			name: /Agree/,
+		}),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect(state("face-down")).toContainText("Face down until it’s revealed");
+	await expect(state("comments").locator(".sheet-thread")).toHaveCount(2);
+	await expect(state("view-only").getByRole("region", { name: "Dot vote" })).toHaveCount(0);
+	await expect(state("view-only").getByRole("group", { name: "Stamps" })).toHaveCount(0);
+	await expect(state("thread")).toContainText("Not for long: the index lands this week.");
+	await expect(state("new-sticky").getByRole("radio", { checked: true })).toHaveCount(1);
+	await expect(state("dock").getByRole("button", { name: "Add a sticky" })).toBeVisible();
+	await expect(state("dock-view-only").getByRole("button", { name: "Add a sticky" })).toHaveCount(
+		0,
+	);
+	await expect(state("multi").getByRole("status")).toContainText("3 selected");
+});
