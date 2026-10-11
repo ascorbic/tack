@@ -3,8 +3,28 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light dark" />
 		<title>Tack</title>
 		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<!-- The theme before the app loads, so dark mode never flashes white
+		     (the same choice useTheme.ts makes, from the same stored preference). -->
+		<script>
+			try {
+				var p = localStorage.getItem("tack:theme");
+				var dark =
+					p === "dark" || (p !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+				document.documentElement.dataset.theme = dark ? "dark" : "light";
+			} catch (e) {}
+		</script>
+		<style>
+			html {
+				background: #f4f3ef;
+			}
+			html[data-theme="dark"] {
+				background: #141518;
+				color-scheme: dark;
+			}
+		</style>
 	</head>
 	<body>
 		<div id="root"></div>

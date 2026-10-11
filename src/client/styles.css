@@ -575,6 +575,9 @@ button.primary:hover {
 	flex-wrap: nowrap;
 	gap: 10px;
 	min-width: 0;
+	/* Nothing in it (the title's hidden sizer, a tooltip) ever scrolls the
+	   page sideways; menus and tooltips still hang below it. */
+	overflow-x: clip;
 }
 
 .board-bar .brand {
@@ -780,6 +783,11 @@ button.primary:hover {
 		white-space: nowrap;
 	}
 
+	/* The title gives way well before who's here does. */
+	.board-bar .topbar-title {
+		flex-shrink: 6;
+	}
+
 	.topbar-people {
 		flex-shrink: 1;
 		min-width: 28px;
@@ -788,6 +796,35 @@ button.primary:hover {
 
 	.topbar-people .avatar {
 		margin-left: -10px;
+	}
+
+	/* Saving as a template isn't a phone job: room for who's here instead. */
+	.board-bar .board-actions-menu {
+		display: none;
+	}
+
+	/* The toolbar scrolls within itself, never the page sideways. */
+	.toolbar-dock {
+		max-width: calc(100vw - 16px);
+		bottom: 12px;
+	}
+
+	.toolbar {
+		max-width: 100%;
+		overflow-x: auto;
+		overscroll-behavior-x: contain;
+		scrollbar-width: none;
+	}
+
+	.toolbar .tool {
+		flex: none;
+	}
+
+	/* A phone's screen is the whole map, and pinching zooms: keep the
+	   bottom of the canvas for the tools. */
+	.react-flow__minimap,
+	.react-flow__controls {
+		display: none;
 	}
 }
 
@@ -2549,6 +2586,17 @@ a.card-title {
 .tool[aria-pressed="true"] {
 	background: var(--accent-soft);
 	color: var(--accent);
+}
+
+/* Here, but not for you just now: it says why on hover. */
+.tool[aria-disabled="true"] {
+	color: color-mix(in srgb, var(--muted) 55%, transparent);
+	cursor: not-allowed;
+}
+
+.tool[aria-disabled="true"]:is(:hover, :active) {
+	background: none;
+	transform: none;
 }
 
 /* Tooltips with the keyboard shortcut. */
