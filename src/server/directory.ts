@@ -828,6 +828,8 @@ export class Directory extends DurableObject<Env> {
 		const row = this.row(id);
 		if (!row) return refuse("not_found");
 		if (!roleFor(this.policy(row), visitorKey(visitor))) return this.denied(visitor);
+		// Who's on a board, and who's been invited, isn't for strangers on a public one (#60).
+		if (isStranger(visitor)) return refuse("sign_in_required");
 		return ok({ members: this.memberList(id) });
 	}
 
@@ -1207,6 +1209,14 @@ export class Directory extends DurableObject<Env> {
 
 function refuse<T>(error: Exclude<BoardResult<T>, { ok: true }>["error"]): BoardResult<T> {
 	return { ok: false, error };
+}
+
+/**
+ * Someone signed out on an instance that's set up: they can only be here
+ * because the board is public (before setup, and on Previews, everyone's allowed).
+ */
+function isStranger(visitor: Visitor): boolean {
+	return visitor.user === null && !visitor.allowed;
 }
 
 function memberPerson(row: MemberRow): Person | null {

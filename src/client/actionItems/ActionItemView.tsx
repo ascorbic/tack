@@ -1,4 +1,5 @@
 import type { MouseEvent, PointerEvent, Ref } from "react";
+import { safeUrl } from "../changes/inline.ts";
 import {
 	type ActionOwner,
 	type ActionState,
@@ -305,10 +306,10 @@ function LinkChip({
 					<span className="action-chip-state" data-state={link.state} aria-hidden="true" />
 					<span className="action-chip-text mono">{link.label}</span>
 				</Chip>
-				{link.url && (
+				{safeUrl(link.url) && (
 					<a
 						className="action-chip-out nodrag"
-						href={link.url}
+						href={safeUrl(link.url)}
 						target="_blank"
 						rel="noreferrer"
 						aria-label={`Open ${link.label}`}

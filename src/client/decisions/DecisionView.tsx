@@ -10,6 +10,7 @@ import {
 	useState,
 } from "react";
 import { isMissing } from "../../shared/cards.ts";
+import { safeUrl } from "../changes/inline.ts";
 import type { ChangeStatus } from "../../shared/changes.ts";
 import type { Tally } from "../../shared/decisions.ts";
 import type { Author, DecisionStatus, Vote, VoteChoice } from "../../shared/shapes.ts";
@@ -616,7 +617,7 @@ function WriteBack({
 			<a
 				className="decision-writeback nodrag"
 				data-status="applied"
-				href={writeBack.url}
+				href={safeUrl(writeBack.url)}
 				target="_blank"
 				rel="noreferrer"
 				onClick={(event) => event.stopPropagation()}
@@ -656,7 +657,7 @@ function RecordPull({ cardKey, label, url }: { cardKey: string; label: string; u
 		<a
 			className="decision-record nodrag"
 			data-state={live?.state ?? "unknown"}
-			href={live?.url ?? url}
+			href={safeUrl(live?.url ?? url)}
 			target="_blank"
 			rel="noreferrer"
 			onClick={(event) => event.stopPropagation()}

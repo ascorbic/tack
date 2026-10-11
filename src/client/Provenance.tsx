@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { safeUrl } from "./changes/inline.ts";
 import type * as Y from "yjs";
 import {
 	describeProvenance,
@@ -127,14 +128,16 @@ export function ProvenanceIcon({ via }: { via: CardOrigin["via"] }) {
 
 /** The glyph in a card's foot, opening into its label on hover or focus. */
 export function ProvenanceBadge({ origin }: { origin: CardOrigin }) {
-	if (origin.href) {
+	// The document says where: only ever an http(s) link (#60).
+	const href = safeUrl(origin.href);
+	if (href) {
 		// A link to the comment that asked for it, opening in a new tab. It
 		// mustn't pick the card up.
 		return (
 			<a
 				className="provenance nodrag"
 				data-via={origin.via}
-				href={origin.href}
+				href={href}
 				target="_blank"
 				rel="noreferrer"
 				aria-label={origin.label}

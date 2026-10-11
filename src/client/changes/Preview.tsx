@@ -7,6 +7,7 @@ import { IssueExtrasPicker } from "../actions/IssuePanels.tsx";
 import { SUBMIT_HINT } from "../actions/Popover.tsx";
 import type { User } from "../presence.ts";
 import { labelColor } from "./api.ts";
+import { safeUrl } from "./inline.ts";
 import { type ChangeIndex, changeRepo, isPending } from "./describe.ts";
 import { BotIcon, BranchIcon, ChevronIcon, FileIcon, KindIcon, MoveIcon } from "./icons.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -217,7 +218,7 @@ function CreditPreview({ credit }: { credit: Credit }) {
 	return (
 		<p className="preview-credit">
 			From{" "}
-			<a href={credit.board.url} target="_blank" rel="noreferrer">
+			<a href={safeUrl(credit.board.url)} target="_blank" rel="noreferrer">
 				{credit.board.title || "a Tack board"}
 			</a>
 			{credit.section && <> › {credit.section}</>}

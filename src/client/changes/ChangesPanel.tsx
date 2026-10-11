@@ -24,6 +24,7 @@ import {
 import { ChevronIcon, CloseIcon, ExternalIcon, HistoryIcon, KindIcon } from "./icons.tsx";
 import { FailureActions, ForgeError, StagedBy, StatusGlyph } from "./parts.tsx";
 import { unstage, useLeftOut, usePushState, useUnwritableLeftOut } from "./session.ts";
+import { safeUrl } from "./inline.ts";
 import { useChangeList } from "./store.ts";
 
 /** How many landed changes the panel keeps showing; the rest are in the history. */
@@ -418,8 +419,13 @@ function PanelRow({
 					{summarize(change.op, index)}
 				</button>
 				<div className="change-meta">
-					{change.status === "applied" && change.result?.url ? (
-						<a className="change-link" href={change.result.url} target="_blank" rel="noreferrer">
+					{change.status === "applied" && safeUrl(change.result?.url) ? (
+						<a
+							className="change-link"
+							href={safeUrl(change.result?.url)}
+							target="_blank"
+							rel="noreferrer"
+						>
 							View on {forge}
 							<ExternalIcon />
 						</a>

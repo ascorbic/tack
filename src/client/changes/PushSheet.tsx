@@ -11,6 +11,7 @@ import { useScrollFocusable } from "../a11y.ts";
 import { scaledDuration } from "../motion.ts";
 import type { User } from "../presence.ts";
 import { type Loaded, useRepoMeta } from "./api.ts";
+import { safeUrl } from "./inline.ts";
 import { type ChangesUI, type SheetMode, signedIn, stagerFor, useChangesUI } from "./context.ts";
 import {
 	type FailureAction,
@@ -899,10 +900,10 @@ function ProgressView({
 								<span className="push-step-summary">{summarize(change.op, index)}</span>
 								<span className="push-step-status">
 									{change.status === "applied" ? (
-										change.result?.url ? (
-											<a href={change.result.url} target="_blank" rel="noreferrer">
+										safeUrl(change.result?.url) ? (
+											<a href={safeUrl(change.result?.url)} target="_blank" rel="noreferrer">
 												On {changeForge(change, index)}
-												{change.result.key && (
+												{change.result?.key && (
 													<span className="mono">
 														{" "}
 														{change.result.key.replace(/^.*?([#!]\d+)$/, "$1")}
