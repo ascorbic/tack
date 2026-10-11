@@ -56,6 +56,8 @@ import {
 import { installationToken } from "../github/tokens.ts";
 import { userToken } from "../identity.ts";
 import { type Logger, log } from "../log.ts";
+import { migrateSql } from "../migrations.ts";
+import { PUSH_MIGRATIONS } from "./migrations.ts";
 import { type PlanItem, type PlanResult, planPush, summarize as summarizeOp } from "./plan.ts";
 
 /** The transaction origin for the server's writes to changes and shapes: never undoable. */
@@ -207,14 +209,7 @@ export class PushEngine {
 			CREATE INDEX IF NOT EXISTS push_changes_change ON push_changes (change_id);
 			CREATE INDEX IF NOT EXISTS push_changes_state ON push_changes (state);
 		`);
-		// Boards from before failures kept what the forge said.
-		const columns = this.host.sql
-			.exec<{ name: string }>("PRAGMA table_info(push_changes)")
-			.toArray()
-			.map((column) => column.name);
-		if (!columns.includes("error_detail")) {
-			this.host.sql.exec("ALTER TABLE push_changes ADD COLUMN error_detail TEXT");
-		}
+		migrateSql(this.host.sql, "push", PUSH_MIGRATIONS, { context: { board: this.host.name } });
 		this.heal();
 		await this.armAlarm();
 	}
