@@ -148,18 +148,6 @@ export type DigestCheck =
 
 const short = (repoKey: string) => parseRepoKey(repoKey)?.repo ?? repoKey;
 
-/** A repository key from what someone typed: `owner/name`, a URL, or a key. */
-export function discussionRepoKey(input: string): string | null {
-	const trimmed = input
-		.trim()
-		.replace(/^https?:\/\//, "")
-		.replace(/\.git$/, "")
-		.replace(/\/+$/, "")
-		.toLowerCase();
-	const key = /^[\w.-]+\/[\w.-]+$/.test(trimmed) ? `github.com/${trimmed}` : trimmed;
-	return parseRepoKey(key) ? key : null;
-}
-
 /**
  * Whether a board's owner may post its digest as a Discussion in a
  * repository, as the app: the forge has Discussions, the app's installed,

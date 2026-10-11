@@ -12,7 +12,12 @@
 import { getServerByName } from "partyserver";
 import * as v from "valibot";
 import { BOARD_ID, type BoardInfo, canEdit } from "../shared/boards.ts";
-import { type DigestError, type Weekday, validTimeZone } from "../shared/digests.ts";
+import {
+	type DigestError,
+	type Weekday,
+	discussionRepoKey,
+	validTimeZone,
+} from "../shared/digests.ts";
 import { unsign } from "./auth/crypto.ts";
 import { isCrossSite, json } from "./auth/http.ts";
 import type { Board } from "./board.ts";
@@ -22,7 +27,6 @@ import {
 	type DigestToken,
 	UNSUBSCRIBE_PURPOSE,
 	checkDiscussionTarget,
-	discussionRepoKey,
 } from "./digests.ts";
 import { emailAvailable } from "./email.ts";
 import { log } from "./log.ts";

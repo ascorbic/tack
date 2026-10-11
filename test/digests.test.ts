@@ -266,6 +266,17 @@ describe("a week of a board", () => {
 		expect(digestTitle(digest)).toBe("Roadmap: the week of 5–12 Oct");
 	});
 
+	it("lists a new action item that's late already once, as late", () => {
+		const base = input();
+		const digest = buildWeeklyDigest(
+			input({
+				edits: [...base.edits, { shape: "a2", kind: "added", type: "action", at: MID, by: KAI }],
+			}),
+		);
+		expect(digest.actions.opened.map((a) => a.text)).toEqual(["Plan the launch"]);
+		expect(digest.actions.overdue.map((a) => a.text)).toContain("Ship it");
+	});
+
 	it("is quiet when nothing happened", () => {
 		const digest = buildWeeklyDigest(
 			input({ shapes: new Map(), edits: [], cards: [], pushes: [] }),

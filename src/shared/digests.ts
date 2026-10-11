@@ -183,6 +183,18 @@ export function describeDigestError(
 	}
 }
 
+/** A repository key from what someone typed: `owner/name`, a URL, or a key. */
+export function discussionRepoKey(input: string): string | null {
+	const trimmed = input
+		.trim()
+		.replace(/^https?:\/\//, "")
+		.replace(/\.git$/, "")
+		.replace(/\/+$/, "")
+		.toLowerCase();
+	const key = /^[\w.-]+\/[\w.-]+$/.test(trimmed) ? `github.com/${trimmed}` : trimmed;
+	return parseRepoKey(key) ? key : null;
+}
+
 /** A plausible email address: one @, something on each side, a dot in the domain, no spaces. */
 export function validEmail(email: string): boolean {
 	return email.length <= 254 && /^[^\s@<>"(),;:]+@[^\s@<>"(),;:]+\.[^\s@<>"(),;:.]+$/.test(email);
@@ -494,11 +506,13 @@ export function buildWeeklyDigest(input: DigestInput): WeeklyDigest {
 		const doneThisWeek = linked
 			? shape.ref !== undefined && closedKeys.has(shape.ref)
 			: Boolean(shape.done && inRange(Date.parse(shape.done), input));
-		if (addedActions.has(id)) opened.push(actionOf(id, shape, today, isDone, card !== null));
-		if (isDone && doneThisWeek) done.push(actionOf(id, shape, today, true, card !== null));
-		if (!isDone && dueState(shape.due, today) === "overdue") {
-			overdue.push(actionOf(id, shape, today, false, card !== null));
+		const late = !isDone && dueState(shape.due, today) === "overdue";
+		// A new one that's late already is listed once, as late.
+		if (addedActions.has(id) && !late) {
+			opened.push(actionOf(id, shape, today, isDone, card !== null));
 		}
+		if (isDone && doneThisWeek) done.push(actionOf(id, shape, today, true, card !== null));
+		if (late) overdue.push(actionOf(id, shape, today, false, card !== null));
 	}
 	overdue.sort((a, b) => daysBetween(b.due ?? today, a.due ?? today));
 
