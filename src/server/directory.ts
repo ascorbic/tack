@@ -225,6 +225,15 @@ export class Directory extends DurableObject<Env> {
 				read_at INTEGER
 			);
 			CREATE INDEX IF NOT EXISTS notifications_user ON notifications (user_id, at);
+			-- Settings beside a board's access, in a table of their own so adding
+			-- one needs no migration. custom_widgets: whether custom widgets'
+			-- code runs on it (#66), the owner's choice, off by default.
+			CREATE TABLE IF NOT EXISTS board_settings (
+				board_id TEXT PRIMARY KEY,
+				custom_widgets INTEGER NOT NULL DEFAULT 0,
+				updated_by INTEGER,
+				updated_at INTEGER NOT NULL
+			);
 			CREATE TABLE IF NOT EXISTS templates (
 				id TEXT PRIMARY KEY,
 				title TEXT NOT NULL,
@@ -320,7 +329,10 @@ export class Directory extends DurableObject<Env> {
 	 * Someone is opening a live connection to a board: their role, which the
 	 * board's object enforces. Remembers the visit, for "Recent".
 	 */
-	join(visitor: Visitor, id: string): BoardResult<{ role: Role; archived: boolean }> {
+	join(
+		visitor: Visitor,
+		id: string,
+	): BoardResult<{ role: Role; archived: boolean; customWidgets: boolean }> {
 		this.touch(visitor);
 		const row = this.row(id);
 		if (!row) return refuse("not_found");
@@ -334,7 +346,11 @@ export class Directory extends DurableObject<Env> {
 				Date.now(),
 			);
 		}
-		return ok({ role, archived: row.archived_at !== null });
+		return ok({
+			role,
+			archived: row.archived_at !== null,
+			customWidgets: this.customWidgets(id),
+		});
 	}
 
 	/**
@@ -638,7 +654,8 @@ export class Directory extends DurableObject<Env> {
 		const managing =
 			request.visibility !== undefined ||
 			request.instanceRole !== undefined ||
-			request.archived !== undefined;
+			request.archived !== undefined ||
+			request.customWidgets !== undefined;
 		if (managing && !canManage(policy, who)) return refuse("owner_required");
 		// Renaming needs edit access, which archived boards don't give.
 		if (request.title !== undefined && role !== "owner" && role !== "editor") {
@@ -664,7 +681,29 @@ export class Directory extends DurableObject<Env> {
 			sets.push("archived_at = ?");
 			values.push(request.archived ? (row.archived_at ?? Date.now()) : null);
 		}
-		if (sets.length === 0) return this.get(visitor, id);
+		const customWidgets =
+			request.customWidgets !== undefined && request.customWidgets !== this.customWidgets(id);
+		if (customWidgets) {
+			this.sql.exec(
+				`INSERT INTO board_settings (board_id, custom_widgets, updated_by, updated_at)
+				VALUES (?, ?, ?, ?)
+				ON CONFLICT (board_id) DO UPDATE SET custom_widgets = excluded.custom_widgets,
+					updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+				id,
+				request.customWidgets ? 1 : 0,
+				visitor.user?.id ?? null,
+				Date.now(),
+			);
+			log.info("board.custom_widgets", {
+				board: id,
+				by: visitor.user?.login,
+				enabled: request.customWidgets,
+			});
+		}
+		if (sets.length === 0) {
+			if (customWidgets) await this.notifyBoard(id);
+			return this.get(visitor, id);
+		}
 
 		sets.push("updated_at = ?");
 		values.push(Date.now());
@@ -1084,8 +1123,20 @@ export class Directory extends DurableObject<Env> {
 			visibility: row.visibility as Visibility,
 			instanceRole: row.instance_role as MemberRole,
 			archived: row.archived_at !== null,
+			customWidgets: this.customWidgets(row.id),
 			members,
 		};
+	}
+
+	/** Whether custom widgets' code runs on a board (#66). */
+	private customWidgets(id: string): boolean {
+		const row = this.sql
+			.exec<{ custom_widgets: number }>(
+				"SELECT custom_widgets FROM board_settings WHERE board_id = ?",
+				id,
+			)
+			.toArray()[0];
+		return row?.custom_widgets === 1;
 	}
 
 	private info(row: BoardRow, visitor: Visitor): BoardInfo {
@@ -1121,6 +1172,7 @@ export class Directory extends DurableObject<Env> {
 			memberCount: members.length,
 			role: roleFor(policy, who),
 			canManage: baseRole(policy, who) !== null && canManage(policy, who),
+			customWidgets: policy.customWidgets === true,
 			visitedAt: visit?.at ?? null,
 		};
 	}

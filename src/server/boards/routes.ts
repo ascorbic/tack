@@ -4,7 +4,7 @@
 //   POST   /api/boards                         create a board { title?, visibility?, template?, repos?, carryFrom? }
 //   POST   /api/boards/legacy                  find or adopt a pre-index board { name } (`/?board=name`)
 //   GET    /api/boards/:id                     a board, and the viewer's role on it
-//   PATCH  /api/boards/:id                     rename, change visibility, archive { title?, visibility?, instanceRole?, archived? }
+//   PATCH  /api/boards/:id                     rename, change visibility, archive, custom widgets { title?, visibility?, instanceRole?, archived?, customWidgets? }
 //   GET    /api/boards/:id/members             who's on it
 //   POST   /api/boards/:id/members             invite by GitHub login { logins, role }
 //   PATCH  /api/boards/:id/members/:login      change a role, or hand over ownership { role }
@@ -39,6 +39,7 @@ const UpdateBody = v.object({
 	visibility: v.optional(Visibility),
 	instanceRole: v.optional(MemberRole),
 	archived: v.optional(v.boolean()),
+	customWidgets: v.optional(v.boolean()),
 });
 const LegacyBody = v.object({ name: v.pipe(v.string(), v.maxLength(64)) });
 const InviteBody = v.object({
@@ -160,6 +161,8 @@ export async function authorizeBoardConnection(
 		...visitorKey(visitor),
 		role: result.value.role,
 		archived: result.value.archived,
+		// Whether custom widgets' searches may run for this connection (#66).
+		customWidgets: result.value.customWidgets,
 		// What `@me` means in this person's widget searches.
 		...(user ? { login: user.login } : {}),
 		// Who they are, for attributing comments and edits.

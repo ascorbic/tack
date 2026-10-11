@@ -80,6 +80,11 @@ export interface BoardInfo {
 	role: Role | null;
 	/** Whether the viewer can share, change visibility, and archive. */
 	canManage: boolean;
+	/**
+	 * Whether custom widgets' code runs on this board (#66): the owner's
+	 * choice, off by default. Absent from older servers, which means off.
+	 */
+	customWidgets?: boolean;
 	/** When the viewer last opened it, if they're signed in and have. */
 	visitedAt: number | null;
 }
@@ -157,6 +162,8 @@ export interface UpdateBoardRequest {
 	visibility?: Visibility;
 	instanceRole?: MemberRole;
 	archived?: boolean;
+	/** Run custom widgets' code on this board (#66). The owner's choice. */
+	customWidgets?: boolean;
 }
 
 /** `POST /api/boards/:id/members` */
@@ -217,7 +224,9 @@ export type BoardResult<T> =
  */
 export type BoardMessage =
 	| { type: "access"; role: Role }
-	| { type: "renamed"; title: string; slug: string };
+	| { type: "renamed"; title: string; slug: string }
+	/** The owner turned custom widgets on or off (#66). */
+	| { type: "custom-widgets"; enabled: boolean };
 
 export const MAX_TITLE = 120;
 export const DEFAULT_TITLE = "Untitled board";

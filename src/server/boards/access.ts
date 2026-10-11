@@ -29,6 +29,8 @@ export interface Policy {
 	visibility: Visibility;
 	instanceRole: MemberRole;
 	archived: boolean;
+	/** Whether custom widgets' code runs on the board (#66). Never decides access. */
+	customWidgets?: boolean;
 	/** Members' roles by user id, the owner included. Pending invites aren't here. */
 	members: Record<number, Role>;
 }

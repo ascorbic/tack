@@ -2,6 +2,13 @@ import type * as Y from "yjs";
 import { type WidgetPreviewRequest, widgetPreviewId } from "../../shared/ai.ts";
 import { type Card, isMissing } from "../../shared/cards.ts";
 import {
+	CUSTOM_KIND,
+	CUSTOM_LIMITS,
+	type CustomQueryRequest,
+	QUERY_NAME,
+	customQueryOf,
+} from "../../shared/customWidgets.ts";
+import {
 	INBOX_LIMIT,
 	INBOX_ORIGIN,
 	INBOX_QUERY,
@@ -61,6 +68,13 @@ import type { Logger } from "../log.ts";
 // Webhooks only reach the board from repositories it asked to hear from:
 // the ones a query names (`repo:`), and the ones its results came from (so
 // `org:` searches refresh too, until a new repository appears in them).
+//
+// Custom widgets (#66) have no queries in their config: their code asks for
+// searches as it runs, in each viewer's browser, and the board passes them
+// on (`widget-query`, with every search the widget wants by name). They're
+// kept per connection, run with that connection's access like any other
+// widget's (cached, budgeted, refreshed by webhooks and the custom kind's
+// schedule), and only while the board's owner has custom widgets on.
 
 export interface RunnerTiming {
 	/** A result this young is reused as is for someone new watching. */
@@ -128,6 +142,8 @@ export interface RunnerHost {
 	send(connection: string, message: WidgetMessage): void;
 	/** Who's on a connection, and the token to search with. */
 	access(connection: string): Promise<Access>;
+	/** Whether custom widgets' code runs on the board for this connection (#66). */
+	customWidgets(connection: string): boolean;
 	/** A signed-in person's token, to search public data with (better rate limits). */
 	readerToken(): Promise<string | null>;
 	/** Ask to hear about webhooks for these repositories (`{host}/{owner}/{name}`). */
@@ -159,7 +175,14 @@ interface Watching {
 	widgets: Set<string>;
 	/** Inbox queries it's previewing (as JSON), kept warm while it writes. */
 	previews: Set<string>;
+	/** Custom widgets' searches, by widget, then by name (#66). */
+	custom: Map<string, Record<string, WidgetQuery>>;
+	/** Searches custom widgets asked for that can't run as written, answered with these. */
+	customErrors: Map<string, Record<string, QueryError>>;
 }
+
+/** At most this many custom widgets' searches are kept for one connection. */
+const MAX_CUSTOM_WIDGETS = 50;
 
 export class WidgetRunner {
 	private connections = new Map<string, Watching>();
@@ -213,7 +236,12 @@ export class WidgetRunner {
 
 	/** Handle a request from a connection. Returns false if it wasn't a widget request. */
 	request(connection: string, message: unknown): boolean {
-		const request = message as WidgetRequest | InboxPreviewRequest | WidgetPreviewRequest | null;
+		const request = message as
+			| WidgetRequest
+			| InboxPreviewRequest
+			| WidgetPreviewRequest
+			| CustomQueryRequest
+			| null;
 		switch (request?.type) {
 			case "widget-preview":
 				if (
@@ -237,6 +265,11 @@ export class WidgetRunner {
 				return true;
 			case "widget-refresh":
 				if (typeof request.id === "string") this.refresh(connection, request.id);
+				return true;
+			case "widget-query":
+				if (typeof request.id === "string") {
+					this.customQuery(connection, request.id, request.queries);
+				}
 				return true;
 			default:
 				return false;
@@ -270,6 +303,8 @@ export class WidgetRunner {
 			level: null,
 			widgets,
 			previews: new Set(),
+			custom: new Map(),
+			customErrors: new Map(),
 		};
 		watching.access.then(
 			(access) => {
@@ -283,7 +318,68 @@ export class WidgetRunner {
 	unwatch(connection: string, ids: string[]): void {
 		const watching = this.connections.get(connection);
 		if (!watching) return;
-		for (const id of ids) watching.widgets.delete(id);
+		for (const id of ids) {
+			watching.widgets.delete(id);
+			watching.custom.delete(id);
+			watching.customErrors.delete(id);
+		}
+	}
+
+	/**
+	 * The searches a custom widget wants for this connection (#66), replacing
+	 * what it wanted before: checked, then run with the connection's access
+	 * and sent as the widget's data. Only on boards with custom widgets on,
+	 * and only for custom widgets; at most `CUSTOM_LIMITS.queries` each.
+	 */
+	customQuery(connection: string, id: string, raw: unknown): void {
+		let watching = this.connections.get(connection);
+		if (!watching) {
+			watching = this.watching(connection);
+			this.connections.set(connection, watching);
+		}
+		const shape = shapesMap(this.host.doc).get(id);
+		if (shape?.get("type") !== "widget" || shape.get("widget") !== CUSTOM_KIND) return;
+		const asked =
+			raw && typeof raw === "object" && !Array.isArray(raw)
+				? Object.entries(raw).filter(([name]) => QUERY_NAME.test(name))
+				: [];
+		const queries: Record<string, WidgetQuery> = {};
+		const errors: Record<string, QueryError> = {};
+		asked.forEach(([name, value], i) => {
+			if (!this.host.customWidgets(connection)) {
+				errors[name] = customWidgetsOff();
+				return;
+			}
+			if (i >= CUSTOM_LIMITS.queries) {
+				errors[name] = {
+					kind: "error",
+					reason: "invalid",
+					message: `A custom widget can keep at most ${CUSTOM_LIMITS.queries} searches.`,
+				};
+				return;
+			}
+			const query = customQueryOf(value);
+			if (query.kind === "error") errors[name] = query;
+			else queries[name] = query;
+		});
+		if (!watching.custom.has(id) && watching.custom.size >= MAX_CUSTOM_WIDGETS) return;
+		watching.custom.set(id, queries);
+		watching.customErrors.set(id, errors);
+		if (!watching.widgets.has(id)) {
+			watching.widgets.add(id);
+			this.sourceOf(id);
+			this.startTicking();
+		}
+		void this.deliver(connection, id, { maxAge: this.timing.freshMs });
+		void this.renewRepoWatches();
+	}
+
+	/** The board's owner turned custom widgets off: forget their searches on this connection. */
+	customWidgetsOff(connection: string): void {
+		const watching = this.connections.get(connection);
+		if (!watching) return;
+		watching.custom.clear();
+		watching.customErrors.clear();
 	}
 
 	/** A connection closed: forget what it watched. */
@@ -540,19 +636,28 @@ export class WidgetRunner {
 
 	/** Whether a shape runs this query (as JSON), first or as a follow-up. */
 	private uses(id: string, query: string): boolean {
-		const runs = (queries: Record<string, WidgetQuery> | undefined) =>
-			Object.values(queries ?? {}).some((q) => JSON.stringify(q) === query);
-		return runs(this.sources.get(id)?.queries) || runs(this.followUps.get(id));
+		return runs(this.sources.get(id)?.queries, query) || runs(this.followUps.get(id), query);
+	}
+
+	/** Whether a shape runs this query for a connection: its own, or as a custom widget's search. */
+	private usesFor(watching: Watching, id: string, query: string): boolean {
+		return this.uses(id, query) || runs(watching.custom.get(id), query);
 	}
 
 	/** The refresh period for a cached query: the shortest of the watched shapes using it. */
 	private refreshPeriod(entry: Entry): number | null {
 		let period: number | null = null;
 		const query = JSON.stringify(entry.query);
+		const consider = (refreshMs: number | null | undefined) => {
+			if (refreshMs != null && (period === null || refreshMs < period)) period = refreshMs;
+		};
 		for (const [id, source] of this.sources) {
 			if (!this.watched(id) || !this.uses(id, query)) continue;
-			if (source.refreshMs !== null && (period === null || source.refreshMs < period)) {
-				period = source.refreshMs;
+			consider(source.refreshMs);
+		}
+		for (const watching of this.connections.values()) {
+			for (const [id, queries] of watching.custom) {
+				if (runs(queries, query)) consider(this.sources.get(id)?.refreshMs);
 			}
 		}
 		return period;
@@ -564,7 +669,7 @@ export class WidgetRunner {
 		for (const watching of this.connections.values()) {
 			if (watching.level !== entry.access.key) continue;
 			for (const id of watching.widgets) {
-				if (this.uses(id, query)) return true;
+				if (this.usesFor(watching, id, query)) return true;
 			}
 			if (watching.previews.has(query)) return true;
 		}
@@ -590,9 +695,20 @@ export class WidgetRunner {
 							message: "This section isn't an inbox any more.",
 						},
 					};
+			// A custom widget's searches, as its code asked for them here (#66).
+			const custom: Record<string, WidgetQuery> = {};
+			if (shape?.get("widget") === CUSTOM_KIND && watching.custom.has(id)) {
+				const asked = watching.custom.get(id) ?? {};
+				if (this.host.customWidgets(connection)) {
+					Object.assign(custom, asked);
+					Object.assign(results, watching.customErrors.get(id));
+				} else {
+					for (const name of Object.keys(asked)) results[name] = customWidgetsOff();
+				}
+			}
 			let oldest = this.now();
 			await Promise.all(
-				Object.entries(source?.queries ?? {}).map(async ([name, query]) => {
+				Object.entries({ ...custom, ...source?.queries }).map(async ([name, query]) => {
 					const entry = await this.resolve(query, access, maxAge);
 					results[name] = entry.result ?? unavailable();
 					if (entry.at !== undefined && entry.at < oldest) oldest = entry.at;
@@ -662,7 +778,7 @@ export class WidgetRunner {
 		for (const [connection, watching] of this.connections) {
 			if (watching.level !== entry.access.key) continue;
 			for (const id of watching.widgets) {
-				if (this.uses(id, query)) {
+				if (this.usesFor(watching, id, query)) {
 					void this.deliver(connection, id, { maxAge: Number.POSITIVE_INFINITY });
 				}
 			}
@@ -863,6 +979,7 @@ export class WidgetRunner {
 				const queries = [
 					...Object.values(this.sources.get(id)?.queries ?? {}),
 					...Object.values(this.followUps.get(id) ?? {}),
+					...Object.values(watching.custom.get(id) ?? {}),
 				];
 				for (const query of queries) {
 					for (const repo of queryScope(query).repos) repos.add(repo);
@@ -885,6 +1002,19 @@ async function pool<T>(items: T[], limit: number, work: (item: T) => Promise<voi
 		while (next < items.length) await work(items[next++] as T);
 	};
 	await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+/** Whether any of these queries is this one (as JSON). */
+function runs(queries: Record<string, WidgetQuery> | undefined, query: string): boolean {
+	return Object.values(queries ?? {}).some((q) => JSON.stringify(q) === query);
+}
+
+function customWidgetsOff(): QueryError {
+	return {
+		kind: "error",
+		reason: "no_access",
+		message: "Custom widgets are off on this board. Its owner can turn them on.",
+	};
 }
 
 function strings(value: unknown): string[] {

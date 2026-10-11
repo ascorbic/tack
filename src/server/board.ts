@@ -107,6 +107,8 @@ export interface ConnectionAccess extends VisitorKey {
 	login?: string;
 	/** Archived boards are read-only for everyone, comments included. */
 	archived?: boolean;
+	/** Whether custom widgets' code runs on the board (#66), so their searches may run. */
+	customWidgets?: boolean;
 	/** Signed-in people: who they are, for attributing comments and edits. */
 	person?: { login: string; name: string | null; avatarUrl: string };
 }
@@ -730,9 +732,23 @@ export class Board extends YServer<Env> {
 			const role = roleFor(policy, access);
 			if (!role) {
 				connection.close(ACCESS_REVOKED, "access_revoked");
-			} else if (role !== access.role || policy.archived !== (access.archived ?? false)) {
+				continue;
+			}
+			// Custom widgets turned on or off (#66): their searches stop, or may start.
+			const customWidgets = policy.customWidgets === true;
+			let current: ConnectionAccess = access;
+			if (customWidgets !== (access.customWidgets === true)) {
+				current = { ...access, customWidgets };
+				connection.setState(current);
+				if (!customWidgets) this.widgets?.customWidgetsOff(connection.id);
+				this.sendCustomMessage(
+					connection,
+					JSON.stringify({ type: "custom-widgets", enabled: customWidgets } satisfies BoardMessage),
+				);
+			}
+			if (role !== access.role || policy.archived !== (access.archived ?? false)) {
 				const changedRole = role !== access.role;
-				const next = { ...access, role, archived: policy.archived };
+				const next: ConnectionAccess = { ...current, role, archived: policy.archived };
 				connection.setState(next);
 				if (changedRole) {
 					this.sendCustomMessage(
@@ -1227,6 +1243,8 @@ export class Board extends YServer<Env> {
 					? { key: `user:${userId}`, userId, login: state?.login ?? null, token }
 					: { key: "public", userId, login: null, token: null };
 			},
+			customWidgets: (id) =>
+				this.getConnection<ConnectionAccess>(id)?.state?.customWidgets === true,
 			readerToken: async () =>
 				this.reader === null ? null : userToken(this.env, this.reader).catch(() => null),
 			watchRepos: (repos) => this.watchQueryRepos(repos),
