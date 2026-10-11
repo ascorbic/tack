@@ -138,6 +138,19 @@ export function RetryIcon({ size = 14 }: { size?: number }) {
 	);
 }
 
+/** A sub-issue moving from one parent to another: a branch that jumps across. */
+export function MoveIcon({ size = 14 }: { size?: number }) {
+	return (
+		<Svg size={size}>
+			<circle cx="3.75" cy="3.5" r="1.6" />
+			<circle cx="12.25" cy="3.5" r="1.6" />
+			<path d="M3.75 5.1v1.4a2 2 0 0 0 2 2h1" strokeDasharray="1.6 1.6" />
+			<path d="M12.25 5.1v4.65a2 2 0 0 1-2 2H7.5" />
+			<path d="M9 10l-1.75 1.75L9 13.5" />
+		</Svg>
+	);
+}
+
 export function ExternalIcon({ size = 12 }: { size?: number }) {
 	return (
 		<Svg size={size}>

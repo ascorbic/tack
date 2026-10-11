@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { boardRepos } from "../../shared/actions.ts";
+import { boardRepos, moveSubIssueHere } from "../../shared/actions.ts";
 import type { PendingChange } from "../../shared/changes.ts";
 import { forgeNameOf } from "../../shared/refs.ts";
 import { useLinger } from "../useLinger.ts";
@@ -21,15 +21,8 @@ import {
 	summarize,
 	summarizeBatch,
 } from "./describe.ts";
-import {
-	ChevronIcon,
-	CloseIcon,
-	ExternalIcon,
-	HistoryIcon,
-	KindIcon,
-	RetryIcon,
-} from "./icons.tsx";
-import { ForgeError, StagedBy, StatusGlyph } from "./parts.tsx";
+import { ChevronIcon, CloseIcon, ExternalIcon, HistoryIcon, KindIcon } from "./icons.tsx";
+import { FailureActions, ForgeError, StagedBy, StatusGlyph } from "./parts.tsx";
 import { unstage, useLeftOut, usePushState, useUnwritableLeftOut } from "./session.ts";
 import { useChangeList } from "./store.ts";
 
@@ -394,6 +387,11 @@ function PanelRow({
 		void ui.session.push([change.id], change.pushedAs ?? "user", index);
 	};
 
+	// Take the sub-issue off the parent it has and put it here, at once.
+	const move = () => {
+		if (moveSubIssueHere(ui.doc, change.id)) retry();
+	};
+
 	return (
 		<li
 			ref={row}
@@ -441,11 +439,14 @@ function PanelRow({
 				{change.status === "failed" && (
 					<p className="change-error">
 						<ForgeError error={change.error} detail={change.errorDetail} forge={forge} />
-						{!ui.readOnly && ui.client && signedIn(ui.user) && (
-							<button type="button" className="change-retry" onClick={retry}>
-								<RetryIcon size={12} />
-								Retry
-							</button>
+						{!ui.readOnly && (
+							<FailureActions
+								change={change}
+								index={index}
+								onRetry={ui.client && signedIn(ui.user) ? retry : undefined}
+								onMove={ui.client && signedIn(ui.user) ? move : undefined}
+								onLeaveOut={remove}
+							/>
 						)}
 					</p>
 				)}

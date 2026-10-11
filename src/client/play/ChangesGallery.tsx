@@ -12,7 +12,16 @@ import { useChangesState } from "../changes/useChanges.ts";
 import type { User } from "../presence.ts";
 import { StickyView } from "../StickyNode.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
-import { LEFT_OUT, change, docWith, everyKind, midPush, someStaged } from "./changeFixtures.ts";
+import {
+	LEFT_OUT,
+	change,
+	docWith,
+	everyKind,
+	midPush,
+	movingSubIssue,
+	secondParent,
+	someStaged,
+} from "./changeFixtures.ts";
 import { ACCESS_GALLERY, PLANNING_CARDS } from "./fixtures.ts";
 import { IMAGEKIT, SimulatedPush, pastPushes, playMeta } from "./push.ts";
 import "./changesGallery.css";
@@ -404,6 +413,7 @@ function sheetSamples(): SheetSample[] {
 	const mid = midPush();
 	const someFailed = settled(2);
 	const landed = settled(0);
+	const second = secondParent();
 	return [
 		{ label: "Review: one of every kind", changes: all, state: IDLE },
 		{ label: "Review: pushing as the app", changes: someStaged(), state: IDLE, as: "app" },
@@ -439,6 +449,8 @@ function sheetSamples(): SheetSample[] {
 		{ label: "Progress: under way", changes: mid, state: pushing(mid) },
 		{ label: "Progress: some failed", changes: someFailed, state: pushing(someFailed) },
 		{ label: "Progress: everything landed", changes: landed, state: pushing(landed) },
+		{ label: "Progress: already has a parent", changes: second, state: pushing(second) },
+		{ label: "Review: moving a sub-issue", changes: movingSubIssue(), state: IDLE },
 		{ label: "History", changes: [], state: IDLE, mode: "history", history: HISTORY },
 		{
 			label: "History: none yet",
@@ -523,6 +535,27 @@ function SheetFrame({ sample }: { sample: SheetSample }) {
 					}}
 					onPush={() => {}}
 					onRetry={() => {}}
+					// Pretend: moved and on the forge at once, or gone from the push.
+					onMove={(id) =>
+						setChanges((current) =>
+							current.map((c) =>
+								c.id === id && c.op.kind === "item.subIssue"
+									? {
+											...c,
+											op: {
+												...c.op,
+												replaceParent: true,
+												previousParent: c.problem?.parent,
+											},
+											status: "applied",
+											problem: undefined,
+											error: undefined,
+										}
+									: c,
+							),
+						)
+					}
+					onLeaveOut={(id) => setChanges((current) => current.filter((c) => c.id !== id))}
 					onResolve={() => {}}
 					onClose={() => {}}
 					onDone={() => {}}
@@ -574,6 +607,7 @@ function Sections({ landing, round }: { landing: PendingChange[] | null; round: 
 					<PanelFrame changes={staged} caption="Staged, with a failure" />
 					<PanelFrame changes={everyKind()} caption="Every kind, two repositories" />
 					<PanelFrame changes={mid} caption="Pushing" />
+					<PanelFrame changes={secondParent()} caption="Refused, with a way out" />
 					<PanelFrame changes={staged} caption="View only" readOnly />
 					<PanelFrame changes={staged} caption="Signed out" user={GUEST} />
 					<PanelFrame changes={[]} caption="Empty" />

@@ -163,6 +163,83 @@ export function someStaged(): PendingChange[] {
 	];
 }
 
+/**
+ * A section made a parent issue twice: the new parent landed, but its
+ * sub-issues already have one (#4) and GitHub refused them, with a way
+ * out; one moved instead; and a blocked-by that would make a loop.
+ */
+export function secondParent(): PendingChange[] {
+	const parent = change({ kind: "issue.create", repo: IMAGEKIT, title: "Resizing" }, "ascorbic", {
+		minutesAgo: 3,
+		status: "applied",
+		pushId: "gallery-push",
+		pushedAs: "user",
+		result: { key: key("#8"), url: "https://fake.tack/acme/imagekit/issues/8" },
+	});
+	const refusal = (n: number) =>
+		change(
+			{ kind: "item.subIssue", parent: { pending: parent.id }, child: { key: key(`#${n}`) } },
+			"ascorbic",
+			{
+				minutesAgo: 3,
+				status: "failed",
+				pushId: "gallery-push",
+				pushedAs: "user",
+				error: `#${n} already has a parent issue (#4), and an issue can only have one.`,
+				errorDetail:
+					"GitHub said (422): An error occurred while adding the sub-issue to the parent issue. Sub issue may only have one parent",
+				problem: { code: "has_parent", parent: key("#4") },
+			},
+		);
+	return [
+		parent,
+		refusal(5),
+		refusal(6),
+		change(
+			{
+				kind: "item.subIssue",
+				parent: { pending: parent.id },
+				child: { key: key("#7") },
+				replaceParent: true,
+				previousParent: key("#4"),
+			},
+			"ascorbic",
+			{ minutesAgo: 3, status: "applied", pushId: "gallery-push", pushedAs: "user" },
+		),
+		change(
+			{ kind: "item.blockedBy", target: { key: key("#418") }, blockedBy: { key: key("#423") } },
+			"ascorbic",
+			{
+				minutesAgo: 3,
+				status: "failed",
+				pushId: "gallery-push",
+				pushedAs: "user",
+				error:
+					"#418 is already waiting on #423, directly or through others, so #423 can't wait on it too: that would make a loop. Remove one of the links on GitHub, then retry.",
+				errorDetail: "GitHub said (422): Adding this dependency would create a circular dependency",
+				problem: { code: "cycle" },
+			},
+		),
+	];
+}
+
+/** A sub-issue staged to move from one parent to another. */
+export function movingSubIssue(): PendingChange[] {
+	return [
+		change(
+			{
+				kind: "item.subIssue",
+				parent: { key: key("#412") },
+				child: { key: key("#423") },
+				replaceParent: true,
+				previousParent: key("#400"),
+			},
+			"kai",
+			{ minutesAgo: 2 },
+		),
+	];
+}
+
 /** A push under way: one of each status. */
 export function midPush(): PendingChange[] {
 	const statuses: ChangeStatus[] = ["applied", "applied", "sent", "sending", "staged", "failed"];

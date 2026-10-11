@@ -262,8 +262,10 @@ export function StagedMarksView({
 			case "item.subIssue":
 				flag(
 					isThis(op.child)
-						? `Sub-issue of ${targetLabel(op.parent, index)}`
-						: `Parent of ${targetLabel(op.child, index)}`,
+						? op.replaceParent
+							? `Moves to ${targetLabel(op.parent, index)}${op.previousParent ? ` from ${targetLabel({ key: op.previousParent }, index)}` : ""}`
+							: `Sub-issue of ${targetLabel(op.parent, index)}`
+						: `Parent of ${targetLabel(op.child, index)}${op.replaceParent ? " (moved here)" : ""}`,
 				);
 				break;
 			case "item.blockedBy":

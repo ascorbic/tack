@@ -285,7 +285,7 @@ test.describe("changes gallery", () => {
 		await expect(bar.locator(".changes-button[data-pushing]")).toHaveCount(1);
 
 		const panels = section(page, "Changes panel");
-		await expect(panels.locator(".changes-panel")).toHaveCount(6);
+		await expect(panels.locator(".changes-panel")).toHaveCount(7);
 		await expect(panels.getByRole("heading", { name: "Nothing staged" })).toBeVisible();
 
 		const marks = section(page, "Marks on shapes");
@@ -307,7 +307,7 @@ test.describe("changes gallery", () => {
 		await expect(marks.locator(".staged-marks[data-highlighted]")).toHaveCount(1);
 
 		const sheets = section(page, "Push sheet");
-		await expect(sheets.locator(".push-sheet")).toHaveCount(19);
+		await expect(sheets.locator(".push-sheet")).toHaveCount(21);
 		for (const title of [
 			"Sign in to push",
 			"You can stage but not push here",
@@ -319,13 +319,43 @@ test.describe("changes gallery", () => {
 			await expect(sheets.locator(".push-refusal strong", { hasText: title })).toHaveCount(1);
 		}
 		await expect(sheets.locator(".push-ring[data-done]")).toHaveCount(1);
+
+		// Sub-issues that already have a parent: no hopeless Retry, but a way out.
+		const second = sheets
+			.locator("figure")
+			.filter({ has: page.locator("figcaption", { hasText: "Progress: already has a parent" }) });
+		const steps = second.locator(".push-step[data-status=failed]");
+		await expect(steps).toHaveCount(3);
+		await expect(steps.first()).toContainText(
+			"#5 already has a parent issue (#4), and an issue can only have one.",
+		);
+		await expect(second.getByRole("button", { name: "Move it here" })).toHaveCount(2);
+		await expect(second.getByRole("button", { name: "Leave it out" })).toHaveCount(3);
+		// Only the loop can work again unchanged, once it's sorted out on GitHub.
+		await expect(second.locator(".push-step .change-retry:not(.change-move)")).toHaveCount(1);
+		await expect(second.getByRole("button", { name: "Retry 1 change" })).toBeVisible();
+		await expect(second.locator(".push-step-summary", { hasText: "Move #7 from #4" })).toHaveCount(
+			1,
+		);
+		await second.getByRole("button", { name: "Move it here" }).first().click();
+		await expect(steps).toHaveCount(2);
+		await second.getByRole("button", { name: "Leave it out" }).last().click();
+		await expect(steps).toHaveCount(1);
+
+		const move = sheets
+			.locator("figure")
+			.filter({ has: page.locator("figcaption", { hasText: "Review: moving a sub-issue" }) });
+		await expect(move.locator(".preview-link[data-move]")).toContainText(
+			"moves to be a sub-issue of",
+		);
+		await expect(move.locator(".preview-link-move")).toContainText("Taken off #400");
 		await expect(sheets.getByText("No pushes yet")).toBeVisible();
 		await expect(sheets.getByText("Couldn’t load the history")).toBeVisible();
 	});
 
 	test("both themes render side by side", async ({ page }) => {
 		await page.getByLabel("Both themes side by side").check();
-		await expect(page.locator(".gallery-pane[data-theme=dark] .push-sheet")).toHaveCount(19);
+		await expect(page.locator(".gallery-pane[data-theme=dark] .push-sheet")).toHaveCount(21);
 	});
 });
 

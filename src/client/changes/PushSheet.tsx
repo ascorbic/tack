@@ -1,9 +1,9 @@
 import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { type IssueEdit, editStagedIssue } from "../../shared/actions.ts";
+import { type IssueEdit, editStagedIssue, moveSubIssueHere } from "../../shared/actions.ts";
 import { type Credit, type CreditBoard, creditFor } from "../../shared/credit.ts";
 import { ServicesContext } from "../actions/services.ts";
-import type { PendingChange, PushAs } from "../../shared/changes.ts";
+import { type PendingChange, type PushAs, retryCanWork } from "../../shared/changes.ts";
 import type { AuditEntry, RepoMeta } from "../../shared/push.ts";
 import { forgeName, forgeNameOf, sentenceCase } from "../../shared/refs.ts";
 import { relativeTime } from "../boards/api.ts";
@@ -46,8 +46,21 @@ import {
 	WarningIcon,
 } from "./icons.tsx";
 import { ChangePreview } from "./Preview.tsx";
-import { ForgeError, IncludeToggle, StagedBy, StagerAvatar, StatusGlyph } from "./parts.tsx";
-import { type PushState, useLeftOut, usePushState, useUnwritableLeftOut } from "./session.ts";
+import {
+	FailureActions,
+	ForgeError,
+	IncludeToggle,
+	StagedBy,
+	StagerAvatar,
+	StatusGlyph,
+} from "./parts.tsx";
+import {
+	type PushState,
+	unstage,
+	useLeftOut,
+	usePushState,
+	useUnwritableLeftOut,
+} from "./session.ts";
 import { useChangeList } from "./store.ts";
 
 // The push sheet: review exactly what will be written and who'll hear about
@@ -86,6 +99,10 @@ export interface PushSheetViewProps {
 	credit?: CreditChoice;
 	onPush: () => void;
 	onRetry: (ids: string[]) => void;
+	/** Move a sub-issue that already has a parent here instead, and push it again. */
+	onMove?: (id: string) => void;
+	/** Unstage a change that can't go as it is. */
+	onLeaveOut?: (id: string) => void;
 	onResolve: (action: FailureAction) => void;
 	onClose: () => void;
 	onDone: () => void;
@@ -312,6 +329,10 @@ function LiveSheet({ ui }: { ui: ChangesUI }) {
 					credit={credit}
 					onPush={push}
 					onRetry={(ids) => void pushWith(ids, as)}
+					onMove={(id) => {
+						if (moveSubIssueHere(ui.doc, id)) void pushWith([id], as);
+					}}
+					onLeaveOut={(id) => unstage(ui.doc, [id], index)}
 					onResolve={resolve}
 					onClose={close}
 					onDone={() => {
@@ -776,6 +797,8 @@ function ProgressView({
 	state,
 	user,
 	onRetry,
+	onMove,
+	onLeaveOut,
 	onDone,
 	onMode,
 	onResolve,
@@ -787,11 +810,23 @@ function ProgressView({
 	const index = useMemo(() => indexChanges(changes), [changes]);
 	// In the order they were reviewed in, not the order they're written in
 	// (which puts what depends on a new issue after it).
-	const pushed = reviewOrder(usePushedChanges(ids, changes), index);
+	// Changes left out from here go from the list (others that vanish stay, as they were).
+	const [dropped, setDropped] = useState<ReadonlySet<string>>(() => new Set());
+	const pushed = reviewOrder(usePushedChanges(ids, changes), index).filter(
+		(change) => !dropped.has(change.id),
+	);
+	const leaveOut =
+		onLeaveOut &&
+		((id: string) => {
+			setDropped((was) => new Set([...was, id]));
+			onLeaveOut(id);
+		});
 	const total = pushed.length;
 	const applied = pushed.filter((change) => change.status === "applied").length;
 	const sent = pushed.filter((change) => change.status === "sent").length;
 	const failed = pushed.filter((change) => change.status === "failed");
+	// Those a second go could fix: not a sub-issue that already has a parent.
+	const retryable = failed.filter((change) => retryCanWork(change.problem));
 	const working = pushed.filter(
 		(change) => change.status === "sending" || change.status === "staged",
 	).length;
@@ -896,10 +931,13 @@ function ProgressView({
 								</span>
 							</div>
 							{change.status === "failed" && (
-								<button type="button" className="change-retry" onClick={() => onRetry([change.id])}>
-									<RetryIcon size={12} />
-									Retry
-								</button>
+								<FailureActions
+									change={change}
+									index={index}
+									onRetry={() => onRetry([change.id])}
+									onMove={onMove && (() => onMove(change.id))}
+									onLeaveOut={leaveOut && (() => leaveOut(change.id))}
+								/>
 							)}
 						</li>
 					))}
@@ -911,10 +949,17 @@ function ProgressView({
 					History
 				</button>
 				<div className="push-actions">
-					{settled && failed.length > 0 && (
-						<button type="button" onClick={() => onRetry(failed.map((change) => change.id))}>
+					{settled && retryable.length > 0 && (
+						<button type="button" onClick={() => onRetry(retryable.map((change) => change.id))}>
 							<RetryIcon size={12} />
-							Retry {failed.length === 1 ? "it" : `all ${failed.length}`}
+							Retry{" "}
+							{retryable.length < failed.length
+								? retryable.length === 1
+									? "1 change"
+									: `${retryable.length} changes`
+								: failed.length === 1
+									? "it"
+									: `all ${failed.length}`}
 						</button>
 					)}
 					<button type="button" className={settled ? "primary" : undefined} onClick={onDone}>

@@ -1,11 +1,17 @@
 import { useState } from "react";
-import type { ChangeStatus, PendingChange, Stager, Target } from "../../shared/changes.ts";
+import {
+	type ChangeStatus,
+	type PendingChange,
+	type Stager,
+	type Target,
+	retryCanWork,
+} from "../../shared/changes.ts";
 import { isMissing } from "../../shared/cards.ts";
 import { relativeTime } from "../boards/api.ts";
 import { useCard } from "../cardStore.ts";
 import { initials } from "../People.tsx";
 import { type ChangeIndex, STATUS_LABEL, friendlyError, targetLabel } from "./describe.ts";
-import { CheckIcon, CloseIcon } from "./icons.tsx";
+import { CheckIcon, CloseIcon, MoveIcon, RetryIcon } from "./icons.tsx";
 import "./changes.css";
 
 // Small pieces shared by the panel, the push sheet and the marks on shapes.
@@ -199,6 +205,59 @@ export function ForgeError({
 					</button>
 					{open && <code className="forge-error-detail">{detail}</code>}
 				</>
+			)}
+		</span>
+	);
+}
+
+/**
+ * What can be done about a failed change: a retry, unless it can't work
+ * unchanged (`retryCanWork`); for a sub-issue that already has a parent,
+ * moving it here instead; and, for refusals a retry won't fix by itself,
+ * leaving it out.
+ */
+export function FailureActions({
+	change,
+	index,
+	onRetry,
+	onMove,
+	onLeaveOut,
+}: {
+	change: PendingChange;
+	index: ChangeIndex;
+	onRetry?: () => void;
+	onMove?: () => void;
+	onLeaveOut?: () => void;
+}) {
+	const { op, problem } = change;
+	const movable =
+		problem?.code === "has_parent" && op.kind === "item.subIssue" && !op.replaceParent;
+	const retry = retryCanWork(problem);
+	const from = problem?.parent ? targetLabel({ key: problem.parent }, index) : null;
+	if (!(movable && onMove) && !(retry && onRetry) && !(problem && onLeaveOut)) return null;
+	return (
+		<span className="change-fixes" data-problem={problem?.code}>
+			{movable && onMove && (
+				<button
+					type="button"
+					className="change-retry change-move"
+					title={`Take it off ${from ?? "the parent it has"} and put it here`}
+					onClick={onMove}
+				>
+					<MoveIcon size={12} />
+					Move it here
+				</button>
+			)}
+			{retry && onRetry && (
+				<button type="button" className="change-retry" onClick={onRetry}>
+					<RetryIcon size={12} />
+					Retry
+				</button>
+			)}
+			{problem && onLeaveOut && (
+				<button type="button" className="change-leave" onClick={onLeaveOut}>
+					Leave it out
+				</button>
 			)}
 		</span>
 	);

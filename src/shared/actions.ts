@@ -305,6 +305,26 @@ export function stageParentIssue(
 	return result;
 }
 
+/**
+ * A sub-issue link the forge refused because the child already has a
+ * parent, made to move it here instead (`replaceParent`), ready to push
+ * again. One undo step. False for anything else.
+ */
+export function moveSubIssueHere(doc: Y.Doc, id: string): boolean {
+	const raw = changesMap(doc).get(id);
+	if (!raw) return false;
+	const change = readChange(raw);
+	const op = change.op;
+	if (op.kind !== "item.subIssue" || op.replaceParent) return false;
+	if (change.status !== "failed" && change.status !== "staged") return false;
+	const from = change.problem?.code === "has_parent" ? change.problem.parent : undefined;
+	transactLocal(doc, () => {
+		raw.set("op", { ...op, replaceParent: true, ...(from ? { previousParent: from } : {}) });
+		raw.delete("problem");
+	});
+	return true;
+}
+
 /** A section's title, as a parent issue's title. */
 export function sectionTitle(doc: Y.Doc, section: string): string {
 	const shape = shapesMap(doc).get(section);

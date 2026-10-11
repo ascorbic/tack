@@ -207,7 +207,9 @@ export function summarize(op: Operation, index: ChangeIndex = new Map()): string
 				? `Clear the milestone on ${target(op.target)}`
 				: `Move ${target(op.target)} to ${op.milestone}`;
 		case "item.subIssue":
-			return `Make ${target(op.child)} a sub-issue of ${target(op.parent)}`;
+			return op.replaceParent
+				? `Move ${target(op.child)}${op.previousParent ? ` from ${target({ key: op.previousParent })}` : ""} to ${target(op.parent)}`
+				: `Make ${target(op.child)} a sub-issue of ${target(op.parent)}`;
 		case "item.blockedBy":
 			return `Mark ${target(op.target)} blocked by ${target(op.blockedBy)}`;
 	}
@@ -356,7 +358,12 @@ export function summarizeBatch(changes: readonly PendingChange[], index: ChangeI
 					change.op.kind === "item.subIssue" ? targetLabel(change.op.parent, index) : "",
 				),
 			);
-			return parents.size === 1 ? `${n} sub-issues of ${[...parents][0]}` : `${n} sub-issue links`;
+			const moving = changes.filter(
+				(change) => change.op.kind === "item.subIssue" && change.op.replaceParent,
+			).length;
+			const what =
+				parents.size === 1 ? `${n} sub-issues of ${[...parents][0]}` : `${n} sub-issue links`;
+			return moving > 0 ? `${what}, moving ${moving === n ? "them all" : moving}` : what;
 		}
 		case "item.labels":
 			return `Labels on ${items}`;

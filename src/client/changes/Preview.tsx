@@ -8,7 +8,7 @@ import { SUBMIT_HINT } from "../actions/Popover.tsx";
 import type { User } from "../presence.ts";
 import { labelColor } from "./api.ts";
 import { type ChangeIndex, changeRepo, isPending } from "./describe.ts";
-import { BotIcon, BranchIcon, ChevronIcon, FileIcon, KindIcon } from "./icons.tsx";
+import { BotIcon, BranchIcon, ChevronIcon, FileIcon, KindIcon, MoveIcon } from "./icons.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { LabelChip, StagerAvatar, TargetRef } from "./parts.tsx";
 
@@ -160,10 +160,25 @@ export function ChangePreview({ change, index, meta, as, user, onEdit, credit }:
 			);
 		case "item.subIssue":
 			return (
-				<div className="preview preview-link">
+				<div className="preview preview-link" data-move={op.replaceParent || undefined}>
 					<Target target={op.child} index={index} />
-					<span className="preview-link-verb">becomes a sub-issue of</span>
+					<span className="preview-link-verb">
+						{op.replaceParent ? "moves to be a sub-issue of" : "becomes a sub-issue of"}
+					</span>
 					<Target target={op.parent} index={index} />
+					{op.replaceParent && (
+						<p className="preview-link-move">
+							<MoveIcon />
+							{op.previousParent ? (
+								<span>
+									Taken off <Target target={{ key: op.previousParent }} index={index} />: an issue
+									can only have one parent.
+								</span>
+							) : (
+								<span>Taken off the parent it has now: an issue can only have one.</span>
+							)}
+						</p>
+					)}
 				</div>
 			);
 		case "item.blockedBy":
