@@ -2697,6 +2697,11 @@ textarea.preview-edit-field {
 	min-width: 0;
 }
 
+/* Only forges with an app write as you or as the bot (#65). */
+.push-as[hidden] {
+	display: none;
+}
+
 .push-as legend {
 	margin-bottom: 7px;
 	padding: 0;
