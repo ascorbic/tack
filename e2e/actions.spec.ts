@@ -211,6 +211,38 @@ test("labels, milestone and closing on selected cards", async ({ page }) => {
 	expect((await changes(page)).filter((c) => c.op.kind === "item.labels")).toEqual([]);
 });
 
+test("the bar is a toolbar the keyboard reaches from the selection", async ({ page }) => {
+	await select(page, "Drop Node 18");
+	const shape = node(page, "Drop Node 18");
+	await shape.focus();
+	// Tab from the selected shape lands on the bar's first button.
+	await page.keyboard.press("Tab");
+	const buttons = bar(page).locator(":scope > .selection-action");
+	await expect(buttons.first()).toBeFocused();
+	// One tab stop; arrow keys move along it.
+	await expect(buttons.nth(1)).toHaveAttribute("tabindex", "-1");
+	await page.keyboard.press("ArrowRight");
+	await expect(buttons.nth(1)).toBeFocused();
+	await page.keyboard.press("End");
+	await expect(buttons.last()).toBeFocused();
+	await page.keyboard.press("Home");
+	await expect(buttons.first()).toBeFocused();
+	// Opening a panel and closing it comes back to the button.
+	await page.keyboard.press("ArrowRight");
+	const labelsButton = bar(page).getByRole("button", { name: "Labels" });
+	await expect(labelsButton).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(page.getByRole("dialog", { name: "Labels" })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("dialog", { name: "Labels" })).toHaveCount(0);
+	await expect(labelsButton).toBeFocused();
+	// Escape goes back to the shape; F6 from the board comes back to the bar.
+	await page.keyboard.press("Escape");
+	await expect(shape).toBeFocused();
+	await page.keyboard.press("F6");
+	await expect(labelsButton).toBeFocused();
+});
+
 test("a connector between issues becomes blocked-by", async ({ page }) => {
 	await page.locator(".connector-hit").first().click({ force: true });
 	await page.getByRole("button", { name: "Blocked by", exact: true }).click();
@@ -319,6 +351,18 @@ test("backlinks with snapshots that hide other private repositories", async ({ p
 			.getByRole("dialog", { name: "Comment with a link to this board" })
 			.getByRole("checkbox", { name: "Include a snapshot of the board" }),
 	).toBeChecked();
+});
+
+test("Assign says when nobody can be assigned, rather than opening an empty panel", async ({
+	page,
+}) => {
+	await select(page, "Rotate the signing keys");
+	const assign = bar(page).getByRole("button", { name: /^Assign/ });
+	await expect(assign).toBeDisabled();
+	await expect(assign).toHaveAttribute("data-tooltip", "Nobody can be assigned in acme/vault");
+	await page.keyboard.press("Alt+KeyP");
+	await expect(page.getByRole("dialog", { name: "Assign" })).toHaveCount(0);
+	await expect(bar(page).getByRole("button", { name: "Labels" })).toBeEnabled();
 });
 
 test("cards without the app can't be changed", async ({ page }) => {

@@ -616,6 +616,8 @@ export function useCanvasCommands(options: CommandsOptions) {
 		// node, which moves by 5px rather than 1 and 10.
 		const onArrowCapture = (event: KeyboardEvent) => {
 			if (!event.key.startsWith("Arrow") || isOffBoardTarget(event.target)) return;
+			// A toolbar's arrow keys move along it (the selection's action bar).
+			if (event.target instanceof Element && event.target.closest("[role='toolbar']")) return;
 			const shortcut = matchShortcut(event, apple);
 			if (shortcut?.id.startsWith("nudge") && latest.current.selected.size > 0) {
 				event.preventDefault();

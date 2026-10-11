@@ -81,6 +81,9 @@ import {
 } from "./services.ts";
 import { snapshotRegion as snapshotRegionFor } from "./snapshot.ts";
 import { undoToast } from "./toast.ts";
+import { useChangesUI } from "../changes/context.ts";
+import { MARK_DOT_ZOOM } from "../changes/StagedMarks.tsx";
+import { useChangeList } from "../changes/store.ts";
 
 // The selection's actions (#32, #33): a small bar under the selection that
 // offers what it can become on the forge. Stickies become issues, a section
@@ -146,6 +149,10 @@ export function ActionBar(props: ActionBarProps) {
 	const [open, setOpen] = useState<ActionCommand | null>(null);
 	// Out of the way while a sticky's being written: it's for after.
 	const typing = useTextEditing();
+	/** The button a panel was opened from with the keyboard, to go back to. */
+	const returnTo = useRef<HTMLButtonElement | null>(null);
+	/** Which button Tab lands on in the bar (a roving tab stop). */
+	const [current, setCurrent] = useState(0);
 
 	const keys = useMemo(
 		() =>
@@ -170,8 +177,22 @@ export function ActionBar(props: ActionBarProps) {
 	const roomBelow = useStore(
 		(s) => s.height - (bottom * s.transform[2] + s.transform[1]) > ROOM_BELOW,
 	);
+	// Above, the bar also keeps clear of the marks on what's staged, which
+	// stay legible (and so tall) however far out the board is.
+	const changesUI = useChangesUI();
+	const staged = useChangeList(changesUI?.store ?? null);
+	const marked = useMemo(
+		() =>
+			staged.length > 0 && selected.some((n) => (changesUI?.store.forShape(n.id).length ?? 0) > 0),
+		[staged, selected, changesUI],
+	);
+	const markZoom = useStore((s) =>
+		s.transform[2] < MARK_DOT_ZOOM ? 0 : Math.round(Math.max(0.8, s.transform[2]) * 20) / 20,
+	);
+	const markRoom = marked ? (markZoom === 0 ? 22 : Math.ceil(40 * markZoom)) : 0;
 	const aboveOffset =
 		18 +
+		markRoom +
 		(selected.length >= 2 ? 52 : 0) +
 		(stickies.length + others.length > 0 ? 52 : 0) +
 		// A section's title row, and the row of its tools that can wrap above it.
@@ -278,11 +299,24 @@ export function ActionBar(props: ActionBarProps) {
 				!none && closable.length === 0
 					? "Merged pull requests can’t be closed or reopened"
 					: undefined;
+			// Nobody to assign, and nobody to unassign: say so on the button,
+			// rather than opening a panel that can only say so.
+			const loaded = repos.length > 0 && repos.every((r) => metas.get(r)?.status === "ready");
+			const assignable = common(
+				repos.map((r) => metas.get(r)?.meta?.assignees ?? []),
+				(login) => login,
+			);
+			const nobody =
+				loaded && assignable.length === 0 && targets.every((c) => c.card.assignees.length === 0)
+					? `Nobody can be assigned in ${repos.length === 1 ? repoName(repos[0] ?? "") : "these repositories"}`
+					: undefined;
 			for (const action of triage) {
 				if (!supported(action.id)) continue;
 				out.push({
 					...action,
-					unavailable: none ?? (action.id === "closeReopen" ? merged : undefined),
+					unavailable:
+						none ??
+						(action.id === "closeReopen" ? merged : action.id === "assign" ? nobody : undefined),
 				});
 			}
 			const issues = cards.filter((c) => c.card.kind === "issue");
@@ -335,14 +369,103 @@ export function ActionBar(props: ActionBarProps) {
 
 	const close = () => {
 		setOpen(null);
+		// Opened from the keyboard: back to the button it came from.
+		const from = returnTo.current;
+		returnTo.current = null;
+		if (from?.isConnected) {
+			from.focus();
+			return;
+		}
 		// Back to the board, so its shortcuts work again.
 		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 	};
 	const stager = stagerFor(user);
 	const toast = (message: string) => undoToast(toasts, history, message);
 
-	if (actions.length === 0) return null;
 	const ids = selected.map((n) => n.id);
+	const idsKey = ids.join(",");
+
+	// The bar is a toolbar the keyboard can reach: Tab from a selected shape
+	// (or F6 from anywhere on the board) lands on it, arrow keys move along
+	// it, and Escape or Shift-Tab goes back to the shape.
+	useEffect(() => {
+		if (!idsKey || dragging) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey) return;
+			const target = event.target instanceof HTMLElement ? event.target : null;
+			const node = target?.closest(".react-flow__node");
+			const fromShape =
+				event.key === "Tab" &&
+				!event.shiftKey &&
+				node === target &&
+				!!node &&
+				idsKey.split(",").includes(node.getAttribute("data-id") ?? "");
+			const f6 = event.key === "F6" && !event.shiftKey && !bar.current?.contains(target);
+			if (!fromShape && !f6) return;
+			const button = focusableActions(bar.current)[current] ?? focusableActions(bar.current)[0];
+			if (!button) return;
+			event.preventDefault();
+			button.focus();
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [idsKey, dragging, current]);
+	useEffect(() => setCurrent(0), [idsKey]);
+	if (actions.length === 0) return null;
+
+	/** The selected shape the bar is about, to go back to from the bar. */
+	const shapeElement = () =>
+		store
+			.getState()
+			.domNode?.querySelector<HTMLElement>(
+				`.react-flow__node[data-id="${CSS.escape(ids[0] ?? "")}"]`,
+			) ?? null;
+
+	const onBarKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+		const target = event.target as HTMLElement;
+		// Keys inside an open panel are the panel's.
+		if (!target.classList.contains("selection-action")) return;
+		const buttons = focusableActions(bar.current);
+		const at = buttons.indexOf(target as HTMLButtonElement);
+		const move = (to: number) => {
+			event.preventDefault();
+			const next = buttons[(to + buttons.length) % buttons.length];
+			next?.focus();
+			setCurrent(Math.max(0, buttons.indexOf(next as HTMLButtonElement)));
+		};
+		switch (event.key) {
+			case "Enter":
+			case " ":
+				// The button's own: not the board's shortcut for the selection.
+				event.stopPropagation();
+				return;
+			case "ArrowRight":
+			case "ArrowDown":
+				return move(at + 1);
+			case "ArrowLeft":
+			case "ArrowUp":
+				return move(at - 1);
+			case "Home":
+				return move(0);
+			case "End":
+				return move(buttons.length - 1);
+			case "Escape":
+				if (open) return;
+				event.preventDefault();
+				event.stopPropagation();
+				shapeElement()?.focus();
+				return;
+			case "Tab": {
+				if (open) return;
+				event.preventDefault();
+				const shape = shapeElement();
+				if (event.shiftKey) shape?.focus();
+				else
+					(shape?.querySelector<HTMLElement>("a[href], button, [tabindex='0']") ?? shape)?.focus();
+				return;
+			}
+		}
+	};
 	const hasCards = targets.length > 0;
 	const allUnwritable = cards.length > 0 && !hasCards;
 
@@ -572,18 +695,24 @@ export function ActionBar(props: ActionBarProps) {
 				className="selection-actions nodrag nopan"
 				role="toolbar"
 				aria-label="Stage changes"
+				aria-orientation="horizontal"
 				data-open={open ?? undefined}
+				onKeyDown={onBarKey}
 			>
 				{actions.map((action, i) => (
 					<ActionButton
 						key={`${action.id}-${i}`}
 						action={action}
 						pressed={open === action.id}
-						onClick={() =>
-							action.id === "toActions"
-								? makeActionItems()
-								: setOpen((current) => (current === action.id ? null : action.id))
-						}
+						tabStop={i === Math.min(current, actions.length - 1)}
+						onClick={(event) => {
+							setCurrent(i);
+							if (action.unavailable) return;
+							// From the keyboard (no pointer): come back here when the panel closes.
+							returnTo.current = event.detail === 0 ? event.currentTarget : null;
+							if (action.id === "toActions") makeActionItems();
+							else setOpen((was) => (was === action.id ? null : action.id));
+						}}
 					/>
 				))}
 				{allUnwritable && (
@@ -611,14 +740,22 @@ export function ActionBar(props: ActionBarProps) {
 	);
 }
 
+/** The bar's buttons, in order. Unavailable ones too: their tooltip says why. */
+function focusableActions(bar: HTMLElement | null): HTMLButtonElement[] {
+	return bar ? [...bar.querySelectorAll<HTMLButtonElement>(":scope > .selection-action")] : [];
+}
+
 export function ActionButton({
 	action,
 	pressed,
+	tabStop = true,
 	onClick,
 }: {
 	action: Action;
 	pressed: boolean;
-	onClick: () => void;
+	/** Whether Tab lands here: one button in the bar is (a roving tab stop). */
+	tabStop?: boolean;
+	onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
 	const hint = shortcutHint(action.id, apple);
 	return (
@@ -626,12 +763,13 @@ export function ActionButton({
 			type="button"
 			className="selection-action"
 			data-text={action.text ? true : undefined}
-			aria-label={action.label}
-			aria-expanded={pressed}
-			aria-haspopup="dialog"
+			aria-label={action.unavailable ? `${action.label}: ${action.unavailable}` : action.label}
+			aria-expanded={action.unavailable ? undefined : pressed}
+			aria-haspopup={action.unavailable ? undefined : "dialog"}
+			aria-disabled={action.unavailable ? true : undefined}
 			data-tooltip={action.unavailable ?? action.label}
 			data-shortcut={action.unavailable ? "" : hint}
-			disabled={!!action.unavailable}
+			tabIndex={tabStop ? 0 : -1}
 			onClick={onClick}
 		>
 			{action.icon}
