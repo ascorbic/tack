@@ -400,26 +400,39 @@ export function VoteBars({
 	}, [voting, anyOpen, onVoting]);
 	useVoteReminders(votes, user, now, toasts, readOnly);
 	if (shown.length === 0) return null;
+	// Closed votes keep out of the way: while one's open, or behind the
+	// latest to close, each is a small results chip in a row of its own.
+	const open = shown.filter((vote) => isOpen(vote, now));
+	const closed = shown
+		.filter((vote) => !isOpen(vote, now))
+		.sort((a, b) => (closedAt(b, now) ?? "").localeCompare(closedAt(a, now) ?? ""));
+	const full = open.length > 0 ? open : closed.slice(0, 1);
+	const chips = open.length > 0 ? closed : closed.slice(1);
+	const bar = (vote: DotVote, compact: boolean) => (
+		<VoteBar
+			key={vote.id}
+			vote={vote}
+			scopeTitle={sectionTitle(doc, vote.scope)}
+			user={user}
+			now={now}
+			readOnly={readOnly}
+			canClose={!readOnly && control(vote)}
+			compact={compact}
+			voting={voting}
+			onVoting={onVoting}
+			onClose={() =>
+				transactLocal(doc, () => closeVote(doc, vote.id, user, new Date(now).toISOString()))
+			}
+			onResults={() => voteUI.showTally(vote.id)}
+			onDismiss={() => dismissedVotes.dismiss(vote.id)}
+		/>
+	);
 	return (
 		<div className="vote-bars">
-			{shown.map((vote) => (
-				<VoteBar
-					key={vote.id}
-					vote={vote}
-					scopeTitle={sectionTitle(doc, vote.scope)}
-					user={user}
-					now={now}
-					readOnly={readOnly}
-					canClose={!readOnly && control(vote)}
-					voting={voting}
-					onVoting={onVoting}
-					onClose={() =>
-						transactLocal(doc, () => closeVote(doc, vote.id, user, new Date(now).toISOString()))
-					}
-					onResults={() => voteUI.showTally(vote.id)}
-					onDismiss={() => dismissedVotes.dismiss(vote.id)}
-				/>
-			))}
+			{full.map((vote) => bar(vote, false))}
+			{chips.length > 0 && (
+				<div className="vote-bars-closed">{chips.map((vote) => bar(vote, true))}</div>
+			)}
 		</div>
 	);
 }
@@ -455,6 +468,7 @@ export function VoteBar({
 	now,
 	readOnly,
 	canClose = !readOnly,
+	compact = false,
 	voting,
 	onVoting,
 	onClose,
@@ -468,6 +482,8 @@ export function VoteBar({
 	readOnly: boolean;
 	/** You started it, or own the board: Close vote is yours. */
 	canClose?: boolean;
+	/** Closed, and out of the way: just its results and a way to put it away. */
+	compact?: boolean;
 	voting: boolean;
 	onVoting: (on: boolean) => void;
 	onClose: () => void;
@@ -486,6 +502,35 @@ export function VoteBar({
 		if (left < lastLeft.current) setSpent((n) => n + 1);
 		lastLeft.current = left;
 	}, [left]);
+	if (compact && !open) {
+		return (
+			<section
+				className="vote-bar"
+				data-open={false}
+				data-compact
+				aria-label={`Vote on ${scopeTitle}`}
+			>
+				<button
+					type="button"
+					className="vote-bar-results"
+					title={`Vote closed: ${voters} ${voters === 1 ? "person" : "people"} voted`}
+					onClick={onResults}
+				>
+					<TallyIcon size={13} />
+					<span className="vote-bar-chip-title">{scopeTitle}</span>
+					<span className="vote-bar-chip-note">results</span>
+				</button>
+				<button
+					type="button"
+					className="vote-icon-button"
+					aria-label="Put this vote away"
+					onClick={onDismiss}
+				>
+					<CloseIcon />
+				</button>
+			</section>
+		);
+	}
 	return (
 		<section
 			className="vote-bar"

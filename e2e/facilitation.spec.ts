@@ -238,6 +238,16 @@ test.describe("dot voting", () => {
 		await expect(results.getByRole("button", { name: "Reopen…" })).toBeVisible();
 	});
 
+	test("a closed vote keeps out of the way while another's open", async ({ page }) => {
+		const closed = page.getByRole("region", { name: "Vote on “Release name”" });
+		await expect(closed).toHaveAttribute("data-compact", "true");
+		await expect(closed).not.toContainText("people voted");
+		await closed.getByRole("button", { name: /Release name/ }).click();
+		await expect(page.getByRole("dialog", { name: "Vote results" })).toContainText("Release name");
+		await closed.getByRole("button", { name: "Put this vote away" }).click();
+		await expect(closed).toHaveCount(0);
+	});
+
 	test("a vote open for days closes when its time comes", async ({ page }) => {
 		const bar = page.getByRole("region", { name: "Vote on “Next quarter”" });
 		await play(page, "+1 day").click();
@@ -245,6 +255,12 @@ test.describe("dot voting", () => {
 		await expect(bar).toContainText(/closes in \d+h/);
 		await play(page, "+1 day").click();
 		await expect(bar).toContainText("Vote closed");
+		// The latest to close shows in full; older ones stay small.
+		await expect(bar).not.toHaveAttribute("data-compact");
+		await expect(page.getByRole("region", { name: "Vote on “Release name”" })).toHaveAttribute(
+			"data-compact",
+			"true",
+		);
 	});
 
 	test("a vote starts from a section's header", async ({ page }) => {

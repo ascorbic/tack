@@ -1798,6 +1798,50 @@ fieldset.vote-start-row {
 	background: var(--surface-muted);
 }
 
+/* Closed votes out of the way: a row of small results chips. */
+.vote-bars-closed {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 6px;
+	max-width: 100%;
+}
+
+.vote-bar[data-compact] {
+	gap: 2px;
+	height: 32px;
+	padding: 0 3px 0 4px;
+	box-shadow: var(--shadow-rest);
+	font-size: 12px;
+}
+
+.vote-bar[data-compact] button {
+	height: 24px;
+}
+
+.vote-bar[data-compact] .vote-bar-results {
+	gap: 5px;
+	max-width: 260px;
+	padding: 0 8px;
+	border-color: transparent;
+	background: transparent;
+}
+
+.vote-bar[data-compact] .vote-bar-results:hover {
+	background: var(--hover);
+}
+
+.vote-bar-chip-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-weight: 600;
+	color: var(--ink);
+}
+
+.vote-bar-chip-note {
+	color: var(--muted);
+}
+
 .vote-bar button {
 	height: 30px;
 	border-radius: 999px;
