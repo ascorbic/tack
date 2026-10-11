@@ -174,7 +174,8 @@ export function ActionBar(props: ActionBarProps) {
 		18 +
 		(selected.length >= 2 ? 52 : 0) +
 		(stickies.length + others.length > 0 ? 52 : 0) +
-		(sections.length === 1 && selected.length === 1 ? 44 : 0);
+		// A section's title row, and the row of its tools that can wrap above it.
+		(sections.length === 1 && selected.length === 1 ? 82 : 0);
 
 	// Cards in repositories Tack can't write to (no app) can't be changed.
 	// Merged pull requests can still be labelled, assigned and commented on,

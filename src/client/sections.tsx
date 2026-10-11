@@ -1,5 +1,6 @@
 import { type NodeProps, ViewportPortal, useReactFlow, useStoreApi } from "@xyflow/react";
 import {
+	type ReactNode,
 	memo,
 	useContext,
 	useEffect,
@@ -149,28 +150,30 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 					{shape.silent && <SilentBadge shape={shape} />}
 				</div>
 				{selected && doc && !readOnly && (
-					<SectionColors
-						color={color as SectionColor}
-						onColor={(next) => updateShapes(doc, [id], { color: next })}
-					/>
+					<SectionTools>
+						<SectionColors
+							color={color as SectionColor}
+							onColor={(next) => updateShapes(doc, [id], { color: next })}
+						/>
+						{alone && doc && !readOnly && !shape.inbox && (
+							<button
+								type="button"
+								className="section-make-inbox nodrag nopan"
+								title="Collect new matches for a search in this section"
+								onClick={(event) => {
+									event.stopPropagation();
+									inboxUI.edit(id);
+								}}
+							>
+								<TrayIcon size={14} />
+								Make inbox
+							</button>
+						)}
+						{alone && doc && !readOnly && !shape.silent && <SilentButton id={id} />}
+						{alone && doc && !readOnly && <VoteButton id={id} />}
+						{alone && doc && !readOnly && <DisplaySwitch id={id} shape={shape} />}
+					</SectionTools>
 				)}
-				{alone && doc && !readOnly && !shape.inbox && (
-					<button
-						type="button"
-						className="section-make-inbox nodrag nopan"
-						title="Collect new matches for a search in this section"
-						onClick={(event) => {
-							event.stopPropagation();
-							inboxUI.edit(id);
-						}}
-					>
-						<TrayIcon size={14} />
-						Make inbox
-					</button>
-				)}
-				{alone && doc && !readOnly && !shape.silent && <SilentButton id={id} />}
-				{alone && doc && !readOnly && <VoteButton id={id} />}
-				{alone && doc && !readOnly && <DisplaySwitch id={id} shape={shape} />}
 			</div>
 			{/* A list or grid is as big as what's in it: switch back to cards to resize. */}
 			{selected &&
@@ -197,6 +200,15 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 });
 
 export const sectionNodeTypes = { section: SectionNode };
+
+/**
+ * A selected section's colours and actions, beside its title: as many as
+ * fit across the section, and the rest in a row above (see sections.css),
+ * so they never reach over the title of the section beside it.
+ */
+function SectionTools({ children }: { children: ReactNode }) {
+	return <div className="section-tools">{children}</div>;
+}
 
 /**
  * A section inside a list or grid (#72): a group, with its title in a header

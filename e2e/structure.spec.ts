@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { drag, expect, nodePosition, openScenario, test } from "./fixtures.ts";
+import { drag, expect, nodePosition, openScenario, settleCanvas, test } from "./fixtures.ts";
 
 // Sections and connectors: drawing, moving with contents, following,
 // detaching and undo.
@@ -116,6 +116,33 @@ test("a section placed with a click lands in free space, and takes nothing from 
 			column.y < added.y + added.h;
 		expect(meets).toBe(false);
 	}
+});
+
+test("a selected section's tools stay within its width, clear of the next section's title", async ({
+	page,
+}) => {
+	await openScenario(page, "sections");
+	// Room above the sections for a second row of tools.
+	await page.mouse.move(600, 400);
+	await page.mouse.wheel(0, -160);
+	await settleCanvas(page);
+	const now = section(page, "Now");
+	await now.locator(".section-title").click();
+	const edge = await box(now);
+	const buttons = now.locator(".section-header button");
+	await expect(buttons.filter({ hasText: "Make inbox" })).toBeVisible();
+	for (const button of await buttons.all()) {
+		const at = await box(button);
+		expect(at.x + at.width).toBeLessThanOrEqual(edge.x + edge.width + 1);
+	}
+	// What's at the middle of the next section's title is that title.
+	const next = await centre(section(page, "Next").locator(".section-title"));
+	expect(
+		await page.evaluate(
+			({ x, y }) => document.elementFromPoint(x, y)?.closest(".section-title")?.textContent,
+			next,
+		),
+	).toContain("Next");
 });
 
 test("undo puts a moved section and its contents back in one step", async ({ page }) => {
