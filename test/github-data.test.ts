@@ -238,8 +238,8 @@ describe("pull requests", () => {
 		});
 		const run = { head_sha: "abc123", pull_requests: [{ number: 8 }] };
 		const results = [
-			await deliver(mf, "check_run", { action: "completed", check_run: run }),
-			await deliver(mf, "check_run", { action: "completed", check_run: run }),
+			await deliver(mf, "check_run", { action: "completed", check_run: { ...run, id: 1 } }),
+			await deliver(mf, "check_run", { action: "completed", check_run: { ...run, id: 2 } }),
 			await deliver(mf, "workflow_run", { action: "completed", workflow_run: run }),
 			await deliver(mf, "check_suite", { action: "completed", check_suite: run }),
 			// Statuses name only the commit, as do checks on PRs from forks.

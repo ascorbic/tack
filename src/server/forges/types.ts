@@ -54,6 +54,11 @@ export interface FetchRef extends ItemRef {
 export interface Delivery {
 	/** Unique per delivery, for dedupe. Redeliveries reuse it. */
 	id: string;
+	/**
+	 * The SHA-256 of the signed body (`digestOf`), for dedupe that a replay
+	 * can't dodge by sending a new id: the id header isn't signed.
+	 */
+	digest?: string;
 	event: string;
 	action: string | null;
 	/** The repository, as of this delivery. A new name means it was renamed. */

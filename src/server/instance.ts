@@ -98,6 +98,8 @@ interface GitHubInstallation {
 
 /** Pages of 100 repositories listed per installation on the setup page. */
 const INSTALLATION_PAGES = 3;
+/** How long an installation delivery's digest is remembered, so a replay of it is ignored. */
+const DELIVERY_MEMORY_MS = 30 * 24 * 60 * 60_000;
 
 interface UserRow extends Record<string, SqlStorageValue> {
 	id: number;
@@ -178,6 +180,10 @@ export class Instance extends DurableObject<Env> {
 				name TEXT NOT NULL,
 				at INTEGER NOT NULL,
 				PRIMARY KEY (repo, kind, name)
+			);
+			CREATE TABLE IF NOT EXISTS installation_deliveries (
+				digest TEXT PRIMARY KEY,
+				at INTEGER NOT NULL
 			);
 		`);
 	}
@@ -407,10 +413,39 @@ export class Instance extends DurableObject<Env> {
 		this.sql.exec("DELETE FROM repositories WHERE installation_id = ?", id);
 	}
 
-	/** Keep installations and their repositories current from webhooks. */
-	installationEvent(event: string, payload: InstallationPayload): void {
+	/**
+	 * Keep installations and their repositories current from webhooks. Each
+	 * body counts once (by its digest, kept for `DELIVERY_MEMORY_MS`), so a
+	 * replayed delivery changes nothing.
+	 */
+	installationEvent(
+		event: string,
+		payload: InstallationPayload,
+		digest?: string,
+	): "processed" | "duplicate" | "ignored" {
 		const installation = payload.installation;
-		if (!installation) return;
+		if (!installation) return "ignored";
+		if (digest) {
+			const now = Date.now();
+			this.sql.exec("DELETE FROM installation_deliveries WHERE at < ?", now - DELIVERY_MEMORY_MS);
+			const seen = this.sql
+				.exec("SELECT 1 FROM installation_deliveries WHERE digest = ?", digest)
+				.toArray().length;
+			if (seen) {
+				log.info("github.installation", { event, action: payload.action, status: "duplicate" });
+				return "duplicate";
+			}
+			this.sql.exec("INSERT INTO installation_deliveries (digest, at) VALUES (?, ?)", digest, now);
+		}
+		this.applyInstallationEvent(event, payload, installation);
+		return "processed";
+	}
+
+	private applyInstallationEvent(
+		event: string,
+		payload: InstallationPayload,
+		installation: NonNullable<InstallationPayload["installation"]>,
+	): void {
 		log.info("github.installation", {
 			event,
 			action: payload.action,

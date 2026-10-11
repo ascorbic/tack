@@ -37,11 +37,13 @@ import type {
 	RepoIdentity,
 	WebhookResult,
 } from "./types.ts";
+import { digestOf } from "./hmac.ts";
 import { forgeFetch, rateLimitOf } from "./rateLimit.ts";
 
 const HOST = "github.com";
 const API = "https://api.github.com";
-const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/;
+/** `owner/repo`, neither `.` nor `..` (which would walk out of `/repos/` in API paths). */
+const REPO_NAME_RE = /^(?!\.\.?\/)[\w.-]+\/(?!\.\.?$)[\w.-]+$/;
 
 // The subset of GitHub's issue/PR payload we read. Webhook payloads and REST
 // responses share this shape.
@@ -530,11 +532,15 @@ export const github: ForgeAdapter = {
 		if (verified === "unconfigured") return reply({ error: "webhook secret not configured" }, 500);
 		if (verified === "invalid") return reply({ error: "invalid signature" }, 401);
 
+		// Only the body is signed: the delivery id and event name are headers
+		// anyone replaying a body can change (#60). So deliveries are told
+		// apart by the body's digest, and the event name must fit the body.
+		const digest = await digestOf(body);
 		const event = request.headers.get("x-github-event") ?? "";
 		if (event === "ping") return reply({ ok: true }, 200);
 		if (INSTALLATION_EVENTS.has(event)) {
-			await installationEvent(env, event, body);
-			return reply({ status: "processed" }, 202);
+			const status = await installationEvent(env, event, body, digest);
+			return reply({ status }, 202);
 		}
 
 		const payload = JSON.parse(body) as WebhookPayload;
@@ -559,6 +565,7 @@ export const github: ForgeAdapter = {
 				type: "delivery",
 				delivery: {
 					id: request.headers.get("x-github-delivery") ?? crypto.randomUUID(),
+					digest,
 					event,
 					action: payload.action ?? null,
 					repo,
@@ -584,6 +591,7 @@ export const github: ForgeAdapter = {
 			type: "delivery",
 			delivery: {
 				id: request.headers.get("x-github-delivery") ?? crypto.randomUUID(),
+				digest,
 				event,
 				action: payload.action ?? null,
 				repo,

@@ -156,6 +156,7 @@ interface FakeComment {
 	body: string;
 	login: string;
 	createdAt: string;
+	updatedAt?: string;
 }
 
 interface FakeDiscussion {
@@ -501,8 +502,10 @@ export class FakeGitHub {
 		const item = this.item(repoId, number);
 		if (!repo || !item) throw new Error(`no item ${repoId}#${number}`);
 		let comment = edit ? this.comments.find((c) => c.id === edit.id) : undefined;
-		if (comment) comment.body = body;
-		else {
+		if (comment) {
+			comment.body = body;
+			comment.updatedAt = new Date(this.now()).toISOString();
+		} else {
 			comment = {
 				id: this.comments.length + 1,
 				repoId,
@@ -1212,6 +1215,7 @@ export class FakeGitHub {
 			body: comment.body,
 			user: { login: comment.login, type: comment.login.endsWith("[bot]") ? "Bot" : "User" },
 			created_at: comment.createdAt,
+			updated_at: comment.updatedAt ?? comment.createdAt,
 			html_url: `https://github.com/${repo.name}/issues/${comment.number}#issuecomment-${comment.id}`,
 		};
 	}

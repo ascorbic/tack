@@ -192,9 +192,15 @@ describe("comment commands", () => {
 		await deliver(payload, delivery);
 		await answered(WIDGETS, 3, payload.comment.id);
 
-		// GitHub redelivers with the same id; a second delivery of the same comment has a new one.
+		// GitHub redelivers with the same id; the same body again under a new id
+		// is a replay (the id isn't signed), and a second delivery of the same
+		// comment that isn't byte for byte the same is remembered by comment.
 		expect(await deliver(payload, delivery)).toEqual({ status: "duplicate" });
-		expect(await deliver(payload)).toMatchObject({ status: "processed", command: "duplicate" });
+		expect(await deliver(payload)).toEqual({ status: "duplicate" });
+		expect(await deliver({ ...payload, sent: "again" })).toMatchObject({
+			status: "processed",
+			command: "duplicate",
+		});
 		// Editing a comment that was already a command doesn't run it again.
 		const edited = github.comment(WIDGETS, 3, ALICE, "@tack add to once only!", {
 			id: payload.comment.id,

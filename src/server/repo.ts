@@ -15,8 +15,22 @@ import {
 import { CommentCommands } from "./commands.ts";
 import { userToken } from "./identity.ts";
 import { type Logger, log } from "./log.ts";
+import { type SqlMigration, addColumn, migrateSql } from "./migrations.ts";
 import { boards } from "./namespaces.ts";
 import { realTime } from "./testClock.ts";
+
+/** Changes to the `Repo`'s tables (see migrations.ts). */
+const REPO_MIGRATIONS: readonly SqlMigration[] = [
+	{
+		version: 1,
+		// Deliveries' digests (#60): replays are told apart by the signed body.
+		name: "events_digest",
+		up: (sql) => {
+			addColumn(sql, "events", "digest", "TEXT");
+			sql.exec("CREATE INDEX IF NOT EXISTS events_digest ON events (digest)");
+		},
+	},
+];
 
 /** CI and review events for an item are coalesced for this long... */
 const REFETCH_WAIT_MS = 2_000;
@@ -127,7 +141,8 @@ export class Repo extends DurableObject<Env> {
 				event TEXT NOT NULL,
 				action TEXT,
 				payload TEXT NOT NULL,
-				received_at TEXT NOT NULL
+				received_at TEXT NOT NULL,
+				digest TEXT
 			);
 			CREATE INDEX IF NOT EXISTS events_received ON events (received_at);
 			CREATE TABLE IF NOT EXISTS refetch (
@@ -141,6 +156,9 @@ export class Repo extends DurableObject<Env> {
 				until INTEGER NOT NULL
 			);
 		`);
+		migrateSql(this.sql, "repo", REPO_MIGRATIONS, {
+			transaction: (fn) => ctx.storage.transactionSync(fn),
+		});
 		this.commands = new CommentCommands({
 			env,
 			sql: this.sql,
@@ -351,8 +369,14 @@ export class Repo extends DurableObject<Env> {
 	}
 
 	async ingest(delivery: Delivery): Promise<IngestResult> {
+		// By id (redeliveries) or by the signed body's digest (replays, whose
+		// unsigned id can be anything), for as long as the log keeps them.
 		const seen = this.sql
-			.exec("SELECT 1 FROM events WHERE delivery_id = ?", delivery.id)
+			.exec(
+				"SELECT 1 FROM events WHERE delivery_id = ? OR (digest IS NOT NULL AND digest = ?)",
+				delivery.id,
+				delivery.digest ?? null,
+			)
 			.toArray().length;
 		if (seen) {
 			this.logger().info("repo.ingest", { delivery: delivery.id, status: "duplicate" });
@@ -375,13 +399,14 @@ export class Repo extends DurableObject<Env> {
 
 		const now = Date.now();
 		this.sql.exec(
-			"INSERT INTO events (delivery_id, event, action, payload, received_at) VALUES (?, ?, ?, ?, ?)",
+			"INSERT INTO events (delivery_id, event, action, payload, received_at, digest) VALUES (?, ?, ?, ?, ?, ?)",
 			delivery.id,
 			delivery.event,
 			delivery.action,
 			// Raw payloads only for item changes: CI events are many and large.
 			delivery.cards.length > 0 ? delivery.payload : "",
 			new Date(now).toISOString(),
+			delivery.digest ?? null,
 		);
 		this.sql.exec(
 			"DELETE FROM events WHERE received_at < ?",

@@ -23,9 +23,19 @@ export interface IssueCommentPayload {
 		html_url: string;
 		body?: string | null;
 		user?: { login: string; id: number; type?: string } | null;
+		created_at?: string;
+		updated_at?: string;
 	};
 	changes?: { body?: { from?: string } };
 }
+
+/**
+ * Commands in comments last written longer ago than this are ignored
+ * (`stale`), so a replayed delivery can't run one again once the `Repo` has
+ * forgotten it (it remembers commands for 30 days, and deliveries' digests
+ * for three). GitHub delivers within seconds and redelivers for three days.
+ */
+export const COMMAND_MAX_AGE_MS = 7 * 24 * 60 * 60_000;
 
 // The app's slug never changes once it's set up, so each isolate asks once.
 let slug: string | null = null;
@@ -45,7 +55,7 @@ export type CommentReading =
 	| { type: "command"; command: Omit<CommentCommand, "origin"> }
 	| {
 			type: "ignored";
-			reason: "action" | "bot" | "no_command" | "already_a_command" | "malformed";
+			reason: "action" | "bot" | "no_command" | "already_a_command" | "malformed" | "stale";
 	  };
 
 /**
@@ -66,6 +76,10 @@ export function readIssueComment(
 	const user = comment.user;
 	if (user.type === "Bot" || /\[bot\]$/i.test(user.login))
 		return { type: "ignored", reason: "bot" };
+	const written = Date.parse(comment.updated_at ?? comment.created_at ?? "");
+	if (Number.isFinite(written) && Date.now() - written > COMMAND_MAX_AGE_MS) {
+		return { type: "ignored", reason: "stale" };
+	}
 	const command: Command | null = findCommand(comment.body ?? "", names);
 	if (!command) return { type: "ignored", reason: "no_command" };
 	if (action === "edited" && findCommand(payload.changes?.body?.from ?? "", names)) {

@@ -20,6 +20,21 @@ export interface ItemRef {
 
 const KEY_RE = /^([^/]+)\/(.+?)([#!]\d+)$/;
 
+/**
+ * A repository path a forge could have: segments of letters, digits, `.`,
+ * `-` and `_`, none of them `.` or `..`. Repository names end up in forge
+ * API paths (`/repos/{owner}/{repo}/…`), and keys come from documents any
+ * editor can write, so nothing else may get that far (#60: a `..` or `?` in
+ * a name would point a request with someone's token somewhere else).
+ */
+export function isRepoPath(path: string): boolean {
+	return (
+		path.length > 0 &&
+		path.length <= 200 &&
+		path.split("/").every((part) => /^[\w.-]+$/.test(part) && part !== "." && part !== "..")
+	);
+}
+
 /** Hosts served by each forge adapter. Self-hosted instances get added here. */
 const HOSTS: Record<string, ForgeId> = {
 	"github.com": "github",
@@ -92,7 +107,8 @@ export function parseRepoKey(
 	if (slash < 1 || slash === repoKey.length - 1) return null;
 	const host = repoKey.slice(0, slash);
 	const forge = forgeForHost(host);
-	return forge ? { forge, host, repo: repoKey.slice(slash + 1) } : null;
+	const repo = repoKey.slice(slash + 1);
+	return forge && isRepoPath(repo) ? { forge, host, repo } : null;
 }
 
 /** Parse a canonical item key back into a reference. */
@@ -101,7 +117,7 @@ export function parseKey(key: string): ItemRef | null {
 	if (!match) return null;
 	const [, host = "", repo = "", item = ""] = match;
 	const forge = forgeForHost(host);
-	return forge ? { forge, host, repo, item } : null;
+	return forge && isRepoPath(repo) ? { forge, host, repo, item } : null;
 }
 
 /**

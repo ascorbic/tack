@@ -37,7 +37,27 @@ export async function verifyWebhook(
 
 export const INSTALLATION_EVENTS = new Set(["installation", "installation_repositories"]);
 
-export async function installationEvent(env: Env, event: string, body: string): Promise<void> {
-	if (!env.TACK_SECRET) return;
-	await instance(env).installationEvent(event, JSON.parse(body) as InstallationPayload);
+/**
+ * An installation event, for the Instance to keep installations current.
+ * Only bodies that are installation events count: the event name is an
+ * unsigned header, and other events' payloads carry an `installation` too
+ * (a replayed `issues` "deleted" mustn't uninstall anything). Each body
+ * counts once (`digest`, see `digestOf`).
+ */
+export async function installationEvent(
+	env: Env,
+	event: string,
+	body: string,
+	digest: string,
+): Promise<"processed" | "duplicate" | "ignored"> {
+	if (!env.TACK_SECRET) return "ignored";
+	const payload = JSON.parse(body) as InstallationPayload & { repository?: unknown };
+	const fits =
+		payload.installation?.account !== undefined &&
+		payload.repository === undefined &&
+		(event === "installation" ||
+			Array.isArray(payload.repositories_added) ||
+			Array.isArray(payload.repositories_removed));
+	if (!fits) return "ignored";
+	return instance(env).installationEvent(event, payload, digest);
 }

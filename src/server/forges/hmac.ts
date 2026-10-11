@@ -37,6 +37,17 @@ export async function sign(secret: string, body: string): Promise<string> {
 	return `sha256=${[...mac].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/**
+ * A delivery's fingerprint: the SHA-256 of its signed body (#60). The
+ * delivery id header isn't signed, so a replayed body can carry any id it
+ * likes; the body can't change without breaking the signature, so this is
+ * what deduplication goes by.
+ */
+export async function digestOf(body: string): Promise<string> {
+	const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(body)));
+	return [...hash].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function hexToBytes(hex: string): Uint8Array | null {
 	if (!/^[0-9a-f]{64}$/i.test(hex)) return null;
 	const bytes = new Uint8Array(32);
