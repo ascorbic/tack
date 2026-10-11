@@ -9,7 +9,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { HistoryContext, ReadOnlyContext } from "./DocContext.ts";
-import { isOffBoardTarget } from "./keys.ts";
+import { isOffBoardTarget, isOnUnselectedShape } from "./keys.ts";
 
 /** A key that would type a character, rather than a combination or a named key. */
 export function isCharacterKey(
@@ -169,6 +169,8 @@ export function useEditing({
 		};
 		const onKey = (event: KeyboardEvent) => {
 			if (isOffBoardTarget(event.target)) return;
+			// Enter on a shape the keyboard moved to selects that shape, not this.
+			if (isOnUnselectedShape(event.target)) return;
 			if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.altKey) {
 				if (!alone()) return;
 				event.preventDefault();

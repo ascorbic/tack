@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { announce } from "../announce.tsx";
 import { useChangesUI } from "./context.ts";
 import { isInFlight, isPending } from "./describe.ts";
 import { OutboxIcon } from "./icons.tsx";
@@ -24,6 +25,35 @@ export function ChangesButton() {
 		if (count > previous.current) setDrops((n) => n + 1);
 		previous.current = count;
 	}, [count]);
+
+	// Pushes in words for screen readers (#61), when the push sheet isn't
+	// open to say so itself: it carries on after the sheet's closed.
+	const inFlight = changes.filter(isInFlight).length;
+	const failedCount = pending.filter((change) => change.status === "failed").length;
+	const announced = useRef(pushing);
+	const sheetOpen = ui?.sheet != null;
+	useEffect(() => {
+		if (pushing === announced.current) return;
+		// A moment's gap between writes isn't the end of a push.
+		const timer = setTimeout(
+			() => {
+				announced.current = pushing;
+				if (sheetOpen) return;
+				if (pushing) {
+					announce(`Pushing ${inFlight === 1 ? "1 change" : `${inFlight} changes`}`);
+				} else {
+					announce(
+						failedCount > 0
+							? `Push finished: ${failedCount === 1 ? "1 change" : `${failedCount} changes`} failed`
+							: "Push finished",
+						failedCount > 0 ? "assertive" : "polite",
+					);
+				}
+			},
+			pushing ? 0 : 1500,
+		);
+		return () => clearTimeout(timer);
+	}, [pushing, sheetOpen, inFlight, failedCount]);
 
 	if (!ui) return null;
 	const label = [

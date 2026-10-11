@@ -30,6 +30,7 @@ import { SilentBadge, SilentButton } from "./facilitation/Silent.tsx";
 import { VoteButton } from "./facilitation/Votes.tsx";
 import { TrayIcon } from "./inbox/icons.tsx";
 import { inboxUI, useTray } from "./inbox/useTray.ts";
+import { isOnUnselectedShape } from "./keys.ts";
 import "./sections.css";
 
 const HANDLES: ResizeHandle[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
@@ -59,6 +60,8 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 			if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.altKey) return;
 			const target = event.target as HTMLElement | null;
 			if (target?.closest("input, textarea, select, [contenteditable]")) return;
+			// Enter on a shape the keyboard moved to selects that shape, not this.
+			if (isOnUnselectedShape(target)) return;
 			event.preventDefault();
 			setEditing(true);
 		};

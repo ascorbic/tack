@@ -2,7 +2,8 @@ import { useReactFlow, useStoreApi } from "@xyflow/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import type * as Y from "yjs";
 import type { SizeOf } from "../shared/sections.ts";
-import { readShape, shapesMap } from "../shared/shapes.ts";
+import { describeNudge } from "../shared/a11y.ts";
+import { type ShapeType, readShape, shapesMap } from "../shared/shapes.ts";
 import {
 	commitMoves,
 	copyClosure,
@@ -11,6 +12,7 @@ import {
 	unstagedByDeleting,
 } from "../shared/structure.ts";
 import { align, distribute, type Item, tidy } from "./arrange.ts";
+import { announce } from "./announce.tsx";
 import {
 	type Position,
 	type ShapeNode,
@@ -23,7 +25,7 @@ import { RUN_COLUMNS } from "../shared/addCards.ts";
 import { PLACE_GAP, PLACED_CARD, slideClear } from "../shared/placement.ts";
 import { cardStore } from "./cardStore.ts";
 import { fitBoxes, shapeBoxes } from "./fitting.ts";
-import { isOffBoardTarget } from "./keys.ts";
+import { isOffBoardTarget, isOnUnselectedShape } from "./keys.ts";
 import { scaledDuration } from "./motion.ts";
 import {
 	CLIPBOARD_TYPE,
@@ -169,6 +171,12 @@ export function useCanvasCommands(options: CommandsOptions) {
 		);
 		transactLocal(doc, () => commitMoves(doc, moves, latest.current.boxSize, { raise: false }));
 		latest.current.previewPositions(new Map([...pending.base.keys()].map((id) => [id, null])));
+		// Said once the nudges settle, for screen readers (#61).
+		const shapes = shapesMap(doc);
+		const types = [...pending.base.keys()].map(
+			(id) => (shapes.get(id)?.get("type") ?? "sticky") as ShapeType,
+		);
+		announce(describeNudge(types, pending.dx, pending.dy));
 	}, [doc]);
 
 	const nudgeBy = useCallback(
@@ -594,6 +602,11 @@ export function useCanvasCommands(options: CommandsOptions) {
 			const shortcut = matchShortcut(event, apple);
 			if (!shortcut) return;
 			const id = shortcut.id as CommandId;
+			// Arrows with nothing selected, or on a shape the keyboard moved to,
+			// move between shapes (navigation.ts).
+			const nothingToNudge =
+				latest.current.selected.size === 0 || isOnUnselectedShape(event.target);
+			if (id.startsWith("nudge") && nothingToNudge) return;
 			if (id === "copy" || id === "cut") {
 				// The copy event that follows does the work. Safari doesn't fire
 				// one without a text selection, so fall back after this task.
@@ -616,6 +629,8 @@ export function useCanvasCommands(options: CommandsOptions) {
 		// node, which moves by 5px rather than 1 and 10.
 		const onArrowCapture = (event: KeyboardEvent) => {
 			if (!event.key.startsWith("Arrow") || isOffBoardTarget(event.target)) return;
+			// On a shape the keyboard moved to, arrows move between shapes (navigation.ts).
+			if (isOnUnselectedShape(event.target)) return;
 			// A toolbar's arrow keys move along it (the selection's action bar).
 			if (event.target instanceof Element && event.target.closest("[role='toolbar']")) return;
 			const shortcut = matchShortcut(event, apple);

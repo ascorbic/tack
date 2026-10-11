@@ -131,6 +131,7 @@ describe("the sheet", () => {
 			"Tools",
 			"Edit",
 			"Selection",
+			"Navigate",
 			"Arrange",
 			"Issues",
 			"View",

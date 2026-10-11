@@ -2,6 +2,7 @@ import type { Node, NodeChange } from "@xyflow/react";
 import { useMemo, useSyncExternalStore } from "react";
 import * as Y from "yjs";
 import { ACTION_SIZE, addActionItem } from "../shared/actionItems.ts";
+import { roleName } from "../shared/a11y.ts";
 import { addDecision } from "../shared/decisions.ts";
 import { type Provenance, addCardShape } from "../shared/provenance.ts";
 import { NOMINAL_SIZE, type SizeOf, readStructure } from "../shared/sections.ts";
@@ -123,6 +124,9 @@ function createNodeStore(doc: Y.Doc) {
 						height: widgetSize(props).h,
 						dragHandle: ".widget-handle",
 					}),
+					// For screen readers (#61): what it is, and its name in words,
+					// which each node draws (shapeLabel.tsx) as card data arrives.
+					domAttributes: shapeAttributes(id, props.type),
 				};
 				cache.set(id, node);
 			}
@@ -166,6 +170,24 @@ function createNodeStore(doc: Y.Doc) {
 			return () => shapes.unobserveDeep(observer);
 		},
 	};
+}
+
+/** The id of the element naming a shape's node (see shapeLabel.tsx). */
+export function shapeLabelId(id: string): string {
+	return `shape-label-${id}`;
+}
+
+const attributes = new Map<string, NonNullable<ShapeNode["domAttributes"]>>();
+
+/** A shape node's role description and name, the same object for the same shape. */
+function shapeAttributes(id: string, type: ShapeType): NonNullable<ShapeNode["domAttributes"]> {
+	const key = `${type}:${id}`;
+	let out = attributes.get(key);
+	if (!out) {
+		out = { "aria-roledescription": roleName(type), "aria-labelledby": shapeLabelId(id) };
+		attributes.set(key, out);
+	}
+	return out;
 }
 
 export type Position = { x: number; y: number };

@@ -92,6 +92,10 @@ import { Guides, useSnapping } from "./Guides.tsx";
 import { BoardContext } from "./DocContext.ts";
 import { fitBoxes, saveViewport, savedViewport, shapeBoxes } from "./fitting.ts";
 import { isOffBoardTarget } from "./keys.ts";
+import { Announcer } from "./announce.tsx";
+import { BoardSummary, SkipToBoard, useAnnounceRemoteChanges } from "./BoardSummary.tsx";
+import { useShapeNavigation } from "./navigation.ts";
+import { withShapeLabel } from "./ShapeLabel.tsx";
 import { BoardMinimap, useMinimapPreference } from "./Minimap.tsx";
 import { nodeTypes } from "./nodes.tsx";
 import { ZoomControls } from "./ZoomControls.tsx";
@@ -136,15 +140,16 @@ import { SinceButton, SincePanel } from "./since/SincePanel.tsx";
 import { sinceStore, useSince } from "./since/store.ts";
 
 // Every shape shows the changes staged about it, and shapes in a section
-// showing a list or mini cards draw as rows or mini cards (#72).
+// showing a list or mini cards draw as rows or mini cards (#72). Each is named
+// for screen readers (#61).
 const NODE_TYPES = Object.fromEntries([
 	...Object.entries(nodeTypes).map(([type, node]) => [
 		type,
-		withBoundary(withStagedMarks(withDisplay(node))),
+		withBoundary(withShapeLabel(withStagedMarks(withDisplay(node)))),
 	]),
 	...Object.entries(sectionNodeTypes).map(([type, node]) => [
 		type,
-		withBoundary(withStagedMarks(node)),
+		withBoundary(withShapeLabel(withStagedMarks(node))),
 	]),
 ]);
 
@@ -154,6 +159,24 @@ const NODE_TYPES = Object.fromEntries([
  */
 const LIST_GROUP_Z = SECTION_Z + 1000;
 const LIST_ROW_Z = 50;
+
+/**
+ * What screen readers hear about shapes, besides each one's name: how to
+ * get around (#61, navigation.ts). React Flow says it after a shape's name.
+ */
+const SHAPE_HELP =
+	"Arrow keys or Tab move between shapes. Enter selects; then Enter edits, the arrow keys move it, and Tab reaches its actions. O opens a card’s issue or pull request.";
+const ARIA_LABELS = {
+	"node.a11yDescription.default": SHAPE_HELP,
+	"node.a11yDescription.keyboardDisabled": SHAPE_HELP,
+	"node.a11yDescription.ariaLiveMessage": ({ direction }: { direction: string }) =>
+		`Moved ${direction}`,
+	"minimap.ariaLabel": "Minimap",
+	"controls.ariaLabel": "Zoom",
+};
+
+/** The id of the board's summary, its region's description. */
+const SUMMARY_ID = "board-summary";
 
 /** How often pressing an edit tool's key on a view-only board says why nothing happened. */
 const VIEW_ONLY_TOAST_MS = 4000;
@@ -797,6 +820,15 @@ export function Board({
 			if (!key) return false;
 			if (key.kind === "select") {
 				setSelected(new Set([key.id]));
+				// Focus follows, if it was on a shape, so the keys stay the selection's.
+				const active = document.activeElement;
+				if (active?.classList.contains("react-flow__node")) {
+					requestAnimationFrame(() =>
+						document
+							.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(key.id)}"]`)
+							?.focus({ preventScroll: true }),
+					);
+				}
 			} else if (key.kind === "move" && !readOnly) {
 				const unsorted = transactLocal(doc, () =>
 					moveInList(doc, key.section, key.ids, key.index, displayRef.current.cardOf),
@@ -809,6 +841,17 @@ export function Board({
 		drawnAt: (id) => displayRef.current.slots.get(id)?.rect,
 		addCards: (keys, options) => addCardsRef.current(keys, options),
 	});
+	// Getting around with the keyboard, and other people's changes said
+	// aloud, for screen readers (#61).
+	useShapeNavigation({
+		nodes,
+		selected,
+		setSelected,
+		sizeOf,
+		canvas,
+		onNavigate: follow.stop,
+	});
+	useAnnounceRemoteChanges(liveDoc, synced);
 
 	const onNodesChange: OnNodesChange<ShapeNode> = useCallback(
 		(incoming) => {
@@ -1251,6 +1294,7 @@ export function Board({
 			>
 				<ServicesContext value={writeServices}>
 					<div className="app" data-read-only={readOnly || undefined}>
+						<SkipToBoard onSkip={() => canvas.current?.focus()} />
 						<TopBar
 							title={
 								<>
@@ -1310,7 +1354,12 @@ export function Board({
 						/>
 						<main
 							ref={canvas}
+							id="board"
 							className="canvas"
+							// The skip link's target, named and summed up for screen readers.
+							tabIndex={-1}
+							aria-label="Board"
+							aria-describedby={SUMMARY_ID}
 							data-tool={tool}
 							data-picking={picking ?? undefined}
 							data-exporting={exporter.drawing || undefined}
@@ -1329,9 +1378,12 @@ export function Board({
 							onDragOver={onDragOver}
 							onDrop={onDrop}
 						>
+							<BoardSummary id={SUMMARY_ID} nodes={shapeNodes} />
+							<Announcer />
 							<DisplayMarksContext value={displayMarks}>
 								<ReactFlow
 									nodes={nodes}
+									ariaLabelConfig={ARIA_LABELS}
 									nodeTypes={NODE_TYPES}
 									onNodesChange={onNodesChange}
 									onPaneClick={onPaneClick}

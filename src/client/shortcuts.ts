@@ -22,6 +22,7 @@ export type ShortcutGroup =
 	| "Tools"
 	| "Edit"
 	| "Selection"
+	| "Navigate"
 	| "Arrange"
 	| "Issues"
 	| "View"
@@ -32,6 +33,7 @@ export const GROUPS: ShortcutGroup[] = [
 	"Tools",
 	"Edit",
 	"Selection",
+	"Navigate",
 	"Arrange",
 	"Issues",
 	"View",
@@ -189,6 +191,57 @@ export const SHORTCUTS: Shortcut[] = [
 		combos: [],
 		display: [["Enter"], ["Double-click"]],
 		keywords: "text write",
+	},
+	// Getting around with the keyboard (#61, navigation.ts): on a shape the
+	// keyboard has moved to, before it's selected. Listed only: their keys
+	// depend on where focus is, so navigation.ts handles them.
+	{
+		id: "skipToBoard",
+		label: "Skip past the top bar to the board",
+		group: "Navigate",
+		combos: [],
+		display: [["Tab"]],
+		keywords: "keyboard skip link focus screen reader",
+	},
+	{
+		id: "nextShape",
+		label: "Next or previous shape, in reading order",
+		group: "Navigate",
+		combos: [],
+		display: [["Tab"], ["Shift", "Tab"]],
+		keywords: "keyboard focus move between shapes",
+	},
+	{
+		id: "nearestShape",
+		label: "Nearest shape that way",
+		group: "Navigate",
+		combos: [],
+		display: [["←", "↑", "→", "↓"]],
+		keywords: "keyboard focus arrow move between shapes",
+	},
+	{
+		id: "firstShape",
+		label: "First or last shape",
+		group: "Navigate",
+		combos: [],
+		display: [["Home"], ["End"]],
+		keywords: "keyboard focus beginning end",
+	},
+	{
+		id: "selectFocused",
+		label: "Select the shape you’re on",
+		group: "Navigate",
+		combos: [],
+		display: [["Enter"], ["Space"]],
+		keywords: "keyboard focus choose",
+	},
+	{
+		id: "openItem",
+		label: "Open a card’s issue or pull request",
+		group: "Navigate",
+		combos: [],
+		display: [["O"]],
+		keywords: "keyboard link github tab",
 	},
 	{
 		id: "nudge",

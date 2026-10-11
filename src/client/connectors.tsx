@@ -51,7 +51,7 @@ import { type SectionDrag, nodeBox } from "./canvasStructure.ts";
 import { ReadOnlyContext } from "./DocContext.ts";
 import { entranceOf } from "./entering.ts";
 import { useAwarenessField } from "./ephemeral.ts";
-import { isOffBoardTarget } from "./keys.ts";
+import { isOffBoardTarget, isOnUnselectedShape } from "./keys.ts";
 import "./connectors.css";
 
 // Connectors live on our own SVG layer inside the React Flow viewport rather
@@ -371,6 +371,7 @@ export function ConnectorLayer({
 		if (!alone || editing || readOnly) return;
 		const onKey = (event: KeyboardEvent) => {
 			if (isOffBoardTarget(event.target)) return;
+			if (isOnUnselectedShape(event.target)) return;
 			if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.altKey) return;
 			event.preventDefault();
 			event.stopPropagation();
