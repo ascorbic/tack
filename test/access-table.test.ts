@@ -262,6 +262,90 @@ const ROWS: Row[] = [
 		refusedAs: [401, 403],
 	},
 	{
+		route: "POST /api/boards/legacy",
+		allowed: instanceUsers,
+		request: (a) => call(a, "POST", "/api/boards/legacy", { name: `legacy-${a}` }),
+	},
+	{
+		route: "POST /api/boards/import",
+		allowed: instanceUsers,
+		// Not an export: people allowed in get past the check to a 422.
+		request: (a) => call(a, "POST", "/api/boards/import", { board: { nope: true } }),
+	},
+	{
+		route: "GET /api/boards/:id/backup",
+		allowed: privateEditors,
+		request: (a) => call(a, "GET", `/api/boards/${privateBoard}/backup`),
+	},
+	{
+		route: "PUT /api/boards/:id/backup",
+		allowed: ["owner"],
+		// Not a repository: the owner gets past the check to a 422.
+		request: (a) =>
+			call(a, "PUT", `/api/boards/${privateBoard}/backup`, {
+				repo: "not a repo",
+				branch: "tack-backups",
+				every: "daily",
+			}),
+		refusedAs: [401, 403],
+	},
+	{
+		route: "POST /api/boards/:id/backup/run",
+		allowed: ["owner"],
+		// Nothing set up: the owner gets past the check to a 400.
+		request: (a) => call(a, "POST", `/api/boards/${privateBoard}/backup/run`),
+		refusedAs: [401, 403],
+	},
+	{
+		route: "DELETE /api/boards/:id/backup",
+		allowed: ["owner"],
+		request: (a) => call(a, "DELETE", `/api/boards/${privateBoard}/backup`),
+	},
+	{
+		route: "GET /api/boards/:id/history/segment",
+		allowed: privateReaders,
+		request: (a) => call(a, "GET", `/api/boards/${privateBoard}/history/segment?step=0`),
+		// A step that isn't there is past the check.
+		refusedAs: [401, 403],
+	},
+	{
+		route: "GET /api/repos/files",
+		allowed: instanceUsers,
+		request: (a) => call(a, "GET", "/api/repos/files?repo=fake.tack/acme/app&path=docs"),
+	},
+	{
+		route: "GET /api/people/:login",
+		allowed: instanceUsers,
+		request: (a) => call(a, "GET", "/api/people/olive"),
+	},
+	{
+		route: "GET /api/setup/webhooks",
+		allowed: ["admin"],
+		request: (a) => call(a, "GET", "/api/setup/webhooks"),
+		refusedAs: [401, 403],
+	},
+	{
+		route: "POST /api/client-errors",
+		allowed: everyone,
+		request: (a) =>
+			call(a, "POST", "/api/client-errors", { message: "test", source: "error", path: "/" }),
+	},
+	{
+		route: "GET /embed/:id.svg (public)",
+		allowed: everyone,
+		request: (a) => call(a, "GET", `/embed/${publicBoard}.svg`),
+	},
+	{
+		route: "GET /embed/:id.svg (private)",
+		allowed: [],
+		request: (a) => call(a, "GET", `/embed/${privateBoard}.svg`),
+	},
+	{
+		route: "GET /og/:id.png (private)",
+		allowed: [],
+		request: (a) => call(a, "GET", `/og/${privateBoard}.png`),
+	},
+	{
 		route: "WS /parties/board/:id (private)",
 		allowed: privateReaders,
 		request: (a) => upgrade(a, privateBoard),

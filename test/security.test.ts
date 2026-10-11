@@ -144,6 +144,11 @@ describe("on the Worker", () => {
 			["PUT", "/api/setup/access"],
 			["POST", "/auth/signout"],
 			["POST", "/api/client-errors"],
+			["POST", "/api/boards/legacy"],
+			["POST", "/api/boards/import"],
+			["PUT", `/api/boards/${board.id}/backup`],
+			["DELETE", `/api/boards/${board.id}/backup`],
+			["POST", `/api/boards/${board.id}/backup/run`],
 		];
 		for (const [method, path] of unsafe) {
 			for (const headers of [

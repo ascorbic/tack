@@ -78,6 +78,11 @@ export async function handleExports(request: Request, env: Env): Promise<Respons
 }
 
 async function importRoute(request: Request, env: Env, visitor: Visitor): Promise<Response> {
+	// Only people who may make boards, before reading up to megabytes of someone's JSON (#60).
+	if (!visitor.allowed) {
+		const error = visitor.user ? "forbidden" : "sign_in_required";
+		return json({ error }, { status: visitor.user ? 403 : 401 });
+	}
 	const length = Number(request.headers.get("content-length") ?? 0);
 	// The board, and a little for the title around it.
 	const limit = BOARD_EXPORT_MAX_BYTES + 4096;
