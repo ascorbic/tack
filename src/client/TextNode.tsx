@@ -95,6 +95,7 @@ export const TextNode = memo(function TextNode({ data, selected }: NodeProps<Sha
 	const latest = useRef(value);
 	latest.current = value;
 	const { editing, setEditing, field, handlers, hint } = useEditing({
+		id: data.id,
 		selected: !!selected,
 		startEditing,
 		onType: (chars) => doc && setStickyText(doc, data.id, latest.current + chars),

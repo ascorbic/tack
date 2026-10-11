@@ -27,6 +27,7 @@ Other people see your drags live, in your colour.
 - <kbd>⌘</kbd> <kbd>D</kbd> duplicates. Move the copy and duplicate again, and the next copy repeats the offset.
 - <kbd>⌫</kbd> or <kbd>Delete</kbd> deletes. Deleting more than three shapes, a decision, or anything with writing on it shows an undo toast.
 - <kbd>⌘</kbd> <kbd>Z</kbd> undoes and <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd> redoes. **Undo only ever undoes your own changes**, never anyone else's, and brings what changed back into view.
+- If someone else deletes a sticky or text you're writing in, a toast says so, with **Restore** to bring it back as you had it.
 
 Copies are always cards placed by you: they don't carry where the original came from, silent mode, or a decision's write-back.
 

@@ -105,7 +105,9 @@ import { InboxLayer } from "./inbox/InboxTray.tsx";
 import { scaledDuration } from "./motion.ts";
 import { RulesButton, RulesPanel } from "./rules/RulesPanel.tsx";
 import { boardRepos } from "../shared/actions.ts";
-import { readShape, shapesMap, transactLocal } from "../shared/shapes.ts";
+import { addShape, readShape, shapesMap, transactLocal } from "../shared/shapes.ts";
+import type * as Y from "yjs";
+import { isEditingShape } from "./useEditing.ts";
 import { placeInSections } from "../shared/structure.ts";
 import { addWidget, widgetDefinition } from "../shared/widgetRegistry.ts";
 import { cardStore } from "./cardStore.ts";
@@ -307,6 +309,37 @@ export function Board({
 	useEffect(() => () => history.destroy(), [history]);
 	const [toasts] = useState(() => new ToastStore());
 	useSilentToasts(liveDoc, toasts);
+	// Someone else deleting the sticky or text you're typing in says so, and
+	// offers it back as you last had it.
+	useEffect(() => {
+		const map = shapesMap(liveDoc);
+		const onChange = (event: Y.YMapEvent<Y.Map<unknown>>, transaction: Y.Transaction) => {
+			if (transaction.local) return;
+			for (const [id, change] of event.changes.keys) {
+				if (change.action !== "delete" || !isEditingShape(id)) continue;
+				const shape = shapeNodesRef.current.find((node) => node.id === id)?.data.shape;
+				if (!shape) continue;
+				const what = shape.type === "text" ? "text" : "sticky";
+				toasts.show({
+					message: `Someone else deleted the ${what} you were writing in`,
+					action: {
+						label: "Restore",
+						run: () => {
+							if (shapesMap(liveDoc).has(id)) return;
+							const parent =
+								typeof shape.parent === "string" && shapesMap(liveDoc).has(shape.parent)
+									? shape.parent
+									: null;
+							transactLocal(liveDoc, () => addShape(liveDoc, id, { ...shape, parent }));
+							setSelected(new Set([id]));
+						},
+					},
+				});
+			}
+		};
+		map.observe(onChange);
+		return () => map.unobserve(onChange);
+	}, [liveDoc, toasts]);
 	// Selection actions: staging changes for the forge (src/client/actions/).
 	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
 	const [actionRequests] = useState(() => new ActionRequests());

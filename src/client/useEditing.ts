@@ -23,7 +23,7 @@ const HINT_MS = 1800;
 
 // Which shapes this client is typing into, so the UI around the selection
 // (the action bar) can step aside while you write.
-const editingShapes = new Set<symbol>();
+const editingShapes = new Map<symbol, string | undefined>();
 const editingListeners = new Set<() => void>();
 const subscribeEditing = (listener: () => void) => {
 	editingListeners.add(listener);
@@ -31,11 +31,17 @@ const subscribeEditing = (listener: () => void) => {
 		editingListeners.delete(listener);
 	};
 };
-function setShapeEditing(token: symbol, on: boolean): void {
+function setShapeEditing(token: symbol, on: boolean, id?: string): void {
 	if (on === editingShapes.has(token)) return;
-	if (on) editingShapes.add(token);
+	if (on) editingShapes.set(token, id);
 	else editingShapes.delete(token);
 	for (const listener of editingListeners) listener();
+}
+
+/** Whether this shape's text is being typed into here. */
+export function isEditingShape(id: string): boolean {
+	for (const editing of editingShapes.values()) if (editing === id) return true;
+	return false;
 }
 
 /** Whether a shape's text is being typed into here. */
@@ -58,10 +64,13 @@ export function useTextEditing(): boolean {
  * note. A key that does nothing else shows "↵ to edit" on the shape instead.
  */
 export function useEditing({
+	id,
 	selected,
 	startEditing,
 	onType,
 }: {
+	/** The shape's id, so someone deleting it while you type can be told (see Board). */
+	id?: string;
 	selected: boolean;
 	/** Start in editing mode, for a shape this client just placed. */
 	startEditing: boolean;
@@ -84,9 +93,9 @@ export function useEditing({
 	const [token] = useState(() => Symbol("editing"));
 
 	useEffect(() => {
-		setShapeEditing(token, editing);
+		setShapeEditing(token, editing, id);
 		return () => setShapeEditing(token, false);
-	}, [token, editing]);
+	}, [token, editing, id]);
 
 	// Distinguish "click a shape that was already selected" from "click to
 	// select it" and from the end of a drag.

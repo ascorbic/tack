@@ -337,3 +337,43 @@ test("edits made offline wait on this device, survive a reload, and are sent on 
 	await expect(sticky(other, "Written online")).toHaveCount(1);
 	await other.context().close();
 });
+
+test("someone deleting the sticky you're writing in says so, and it can be restored", async ({
+	page,
+	browser,
+}) => {
+	test.setTimeout(90_000);
+	const sticky = (on: Page, text: string) =>
+		on.locator(".react-flow__node-sticky", { hasText: text });
+	await signInAs(page, OWNER, `/?board=e2e-deleted-${run}`);
+	await expect(page.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	await page.keyboard.press("s");
+	await page.locator(".react-flow__pane").click({ position: { x: 400, y: 260 } });
+	await page.keyboard.type("Shared note");
+	await page.keyboard.press("Escape");
+
+	// Someone else opens it and starts writing.
+	const writer = await newPage(browser, FRIEND);
+	await writer.goto(page.url());
+	await expect(writer.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	await sticky(writer, "Shared note").click();
+	await writer.keyboard.press("Enter");
+	await expect(writer.getByRole("textbox", { name: "Sticky note" })).toBeFocused();
+	await writer.keyboard.type(" (still writing)");
+	await expect(sticky(page, "still writing")).toBeVisible();
+
+	// The owner deletes it under them.
+	await page.keyboard.press("Escape");
+	await sticky(page, "Shared note").click();
+	await page.keyboard.press("Delete");
+	await expect(sticky(page, "Shared note")).toHaveCount(0);
+
+	const toast = writer.locator(".toast", {
+		hasText: "Someone else deleted the sticky you were writing in",
+	});
+	await expect(toast).toBeVisible();
+	await toast.getByRole("button", { name: "Restore" }).click();
+	await expect(sticky(writer, "Shared note (still writing)")).toBeVisible();
+	await expect(sticky(page, "Shared note (still writing)")).toBeVisible();
+	await writer.context().close();
+});

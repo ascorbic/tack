@@ -180,6 +180,7 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 	latest.current = value;
 	const flip = useRevealFlip(doc, session, data.shape);
 	const { editing, setEditing, field, handlers, hint } = useEditing({
+		id: data.id,
 		selected: !!selected && !faceDown,
 		startEditing: startEditing && !faceDown,
 		onType: (chars) => doc && setStickyText(doc, data.id, latest.current + chars),
