@@ -18,6 +18,8 @@ initTheme();
 const routes: Record<string, ComponentType> = {
 	"/signin": SignInRoute,
 	"/setup": lazy(() => import("./auth/SetupPage.tsx")),
+	// Where the links in digest emails land (#68).
+	"/digest": lazy(() => import("./digests/DigestLinkPage.tsx")),
 	// The playground and galleries are development tools, left out of
 	// production builds entirely.
 	...(import.meta.env.DEV
