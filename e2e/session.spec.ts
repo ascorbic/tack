@@ -233,4 +233,21 @@ test.describe.serial("running a session", () => {
 		await expect(menu(lead)).toContainText("Bring everyone to what you’re looking at");
 		await lead.keyboard.press("Escape");
 	});
+
+	test("calling everyone over moves nobody, and offers a way there", async () => {
+		// Gus is somewhere else.
+		await guest.locator(".react-flow__pane").click({ position: { x: 600, y: 500 } });
+		await guest.mouse.wheel(0, 2000);
+		await settleCanvas(guest);
+		const before = await guest.locator(".react-flow__viewport").getAttribute("style");
+		await openMenu(lead);
+		await menu(lead).getByRole("button", { name: "Call everyone over" }).click();
+		const toast = guest.locator(".toast", { hasText: "Lena Lead is calling everyone over" });
+		await expect(toast).toBeVisible();
+		expect(await guest.locator(".react-flow__viewport").getAttribute("style")).toBe(before);
+		await toast.getByRole("button", { name: "Go there" }).click();
+		await expect(
+			guest.locator(".react-flow__node-section", { hasText: "Brainstorm" }),
+		).toBeInViewport();
+	});
 });

@@ -29,6 +29,7 @@ import { chimeEnabled, setChimeEnabled } from "./chime.ts";
 import { canvasMiddle, requestGesture } from "./gestures.ts";
 import { useServerNow, useTimer, useVotes } from "./hooks.ts";
 import { BatonIcon, DotsIcon, FlipIcon, HushIcon, StampIcon, StopwatchIcon } from "./icons.tsx";
+import { callEveryone } from "./Call.tsx";
 import { type PickKind, sectionPicker } from "./SectionPicker.tsx";
 import { revealSilent, startSilent, useSilentSessions } from "./Silent.tsx";
 import { SpotlightIcon, endSpotlight, startSpotlight, stopSpotlight } from "./Spotlight.tsx";
@@ -304,7 +305,7 @@ export function FacilitateMenu({
 								<p className="facilitate-note">
 									{spotlight && !mine
 										? `${spotlight.user.name} is spotlighting`
-										: "Bring everyone to what you’re looking at"}
+										: "Bring everyone to what you’re looking at, or just call them over"}
 								</p>
 								{mine ? (
 									<button type="button" onClick={stopSpotlight}>
@@ -329,16 +330,29 @@ export function FacilitateMenu({
 										</span>
 									)
 								) : (
-									<button
-										type="button"
-										className="facilitate-primary"
-										onClick={() => {
-											startSpotlight(awareness, user);
-											close();
-										}}
-									>
-										Spotlight me
-									</button>
+									<span className="facilitate-actions">
+										<button
+											type="button"
+											className="facilitate-primary"
+											onClick={() => {
+												startSpotlight(awareness, user);
+												close();
+											}}
+										>
+											Spotlight me
+										</button>
+										<button
+											type="button"
+											title="Everyone gets a note with a way here; nobody is moved"
+											onClick={() => {
+												callEveryone(awareness);
+												close();
+												toasts?.show({ message: "Called everyone over to what you’re looking at" });
+											}}
+										>
+											Call everyone over
+										</button>
+									</span>
 								)}
 							</div>
 						</section>

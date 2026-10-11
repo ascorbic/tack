@@ -65,6 +65,7 @@ import { ConnectorLayer } from "./connectors.tsx";
 import { CursorChat } from "./CursorChat.tsx";
 import { Cursors } from "./Cursors.tsx";
 import { EmptyBoard } from "./EmptyBoard.tsx";
+import { useCalls } from "./facilitation/Call.tsx";
 import { Emotes } from "./facilitation/Emotes.tsx";
 import { FacilitateMenu, facilitationKey } from "./facilitation/FacilitateMenu.tsx";
 import { MarksLayer, dotShape, stampShape } from "./facilitation/Marks.tsx";
@@ -590,6 +591,7 @@ export function Board({
 	// Silent mode and the timer, as they change: with a way to the section.
 	useSilentToasts(liveDoc, toasts, reveal);
 	useTimerToasts(toasts);
+	useCalls({ awareness, people: presence.people, toasts, onGo: follow.jump });
 
 	// Restoring from history: back to the live board, with what came back selected.
 	useRestored(replay.controller, {
