@@ -128,12 +128,66 @@ test.describe("inbox frames", () => {
 		await editor.getByRole("button", { name: /Start collecting/ }).click();
 		// Between Bugs and Later there's no room for its tray: it waits folded.
 		await page.getByRole("button", { name: /Open Docs's inbox/ }).click();
-		await expect(editor.getByRole("list", { name: "New matches" })).toBeVisible();
+		// Collecting: what's new (Triage's search too, so they're shared out between the two).
+		await expect(
+			editor.locator(".inbox-items, .inbox-message, .inbox-elsewhere").first(),
+		).toBeVisible();
 		const docs = (await shapes(page)).find(
 			(shape) =>
 				shape.inbox?.query.q === "repo:acme/imagekit is:issue is:open no:label" && shape.id,
 		);
 		expect(docs).toBeTruthy();
+	});
+
+	test("a second inbox on the same search is warned, and never offers the same item twice", async ({
+		page,
+	}) => {
+		await expect(items(page)).toHaveCount(5);
+		await page.locator(".section-title", { hasText: "Docs" }).click({ position: { x: 12, y: 8 } });
+		await page.getByRole("button", { name: "Make inbox" }).click();
+		const editor = page.getByRole("complementary", { name: "Inbox: Docs" });
+		// The section's name is a label in the repository: it's the first idea.
+		await expect(editor.getByRole("button", { name: "Labelled docs" })).toBeVisible();
+		await editor.getByRole("button", { name: "Needs triage" }).click();
+		await expect(editor.getByRole("note")).toContainText(/“Triage” already collects \d+ of these/);
+		await editor.getByRole("button", { name: /Start collecting/ }).click();
+		await page.getByRole("button", { name: /Open Docs's inbox/ }).click();
+
+		// Each waiting item is in one tray or the other.
+		const docsItems = page
+			.getByRole("complementary", { name: "Inbox: Docs" })
+			.getByRole("list", { name: "New matches" })
+			.locator("li");
+		const titles = async (list: typeof docsItems) =>
+			list.locator(".inbox-item-title").allTextContents();
+		await expect
+			.poll(async () => (await titles(items(page))).length + (await titles(docsItems)).length)
+			.toBe(5);
+		const triage = await titles(items(page));
+		const docs = await titles(docsItems);
+		expect(triage.filter((title) => docs.includes(title))).toEqual([]);
+		// The one that gave its items up says where they went.
+		await expect(page.locator(".inbox-elsewhere")).toContainText(/5 more wait in “(Triage|Docs)”/);
+	});
+
+	test("an inbox can place new matches straight in, as a rule", async ({ page }) => {
+		await page.locator(".section-title", { hasText: "Bugs" }).click({ position: { x: 12, y: 8 } });
+		await page.getByRole("button", { name: "Make inbox" }).click();
+		const editor = page.getByRole("complementary", { name: "Inbox: Bugs" });
+		await editor.getByRole("button", { name: "Open bugs" }).click();
+		await editor.getByRole("checkbox", { name: /Place new matches straight in/ }).check();
+		await editor.getByRole("button", { name: /Start collecting/ }).click();
+		const bugs = (await shapes(page)).find((shape) => shape.title === "Bugs")!;
+		const rules = await page.evaluate(() => {
+			const board = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } })
+				.tackPlayground;
+			return [...board.doc.getMap("rules").values()].map(
+				(rule) => (rule as import("yjs").Map<unknown>).toJSON() as Record<string, never>,
+			);
+		});
+		expect(rules).toMatchObject([
+			{ trigger: { kind: "matches" }, action: { kind: "section", section: bugs.id } },
+		]);
 	});
 
 	test("the editor comes out from under the dock, wherever the section is", async ({ page }) => {
@@ -238,6 +292,30 @@ test.describe("rules", () => {
 		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(2);
 		await expect(page.getByRole("button", { name: /^Rules: \d+ on/ })).toBeVisible();
 		await expect(panel.getByRole("button", { name: "Pause all" })).toBeVisible();
+	});
+
+	test("the composer starts somewhere new, warns of duplicates, and offers an inbox instead", async ({
+		page,
+	}) => {
+		await page.getByRole("button", { name: /^Rules/ }).click();
+		const panel = page.getByRole("dialog", { name: "Rules" });
+		await panel.getByRole("button", { name: "New rule" }).click();
+		const query = panel.getByRole("textbox");
+		// Not the bugs search a rule already uses.
+		await expect(query).not.toHaveValue(/label:bug/);
+		await expect(panel.locator(".rules-count")).toContainText(/\d+ match(es)? now/);
+
+		await query.fill("repo:acme/imagekit is:issue is:open label:bug");
+		await expect(panel.locator(".rules-sentence")).toHaveText(
+			"There’s already a rule that does this.",
+		);
+		await expect(panel.getByRole("button", { name: "Add rule" })).toBeDisabled();
+
+		await query.fill("repo:acme/imagekit is:issue is:open no:label");
+		await panel.getByRole("button", { name: "Make “New bugs” an inbox instead" }).click();
+		await expect(page.locator(".toast")).toContainText("“New bugs” is an inbox");
+		const section = (await shapes(page)).find((shape) => shape.title === "New bugs");
+		expect(section?.inbox?.query.q).toBe("repo:acme/imagekit is:issue is:open no:label");
 	});
 
 	test("rules are added and deleted from the panel", async ({ page }) => {

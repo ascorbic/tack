@@ -9,9 +9,14 @@ import {
 	describeRule,
 	listRules,
 	memoryOfRules,
+	pauseRules,
 	readRuleLog,
+	readRulesPause,
+	resumeRules,
 	ruleProblem,
+	rulesPauseMap,
 	runRules,
+	sameRule,
 	setRuleEnabled,
 	shortRef,
 } from "../src/shared/rules.ts";
@@ -300,5 +305,56 @@ describe("placement", () => {
 			box.x + box.w <= sectionBox.x + sectionBox.w &&
 			box.y + box.h <= sectionBox.y + sectionBox.h;
 		expect(inside || !intersects(box, sectionBox)).toBe(true);
+	});
+});
+
+describe("rules: the same rule twice", () => {
+	const ME = { name: "Alice" };
+	const query = (q: string) => ({ kind: "search" as const, host: "github.com", q });
+
+	it("finds a rule doing the same thing, whatever order the search is written in", () => {
+		const doc = new Y.Doc();
+		const bugs = addSection(doc, { x: 0, y: 0, w: 600, h: 400 }, { title: "Bugs" });
+		const other = addSection(doc, { x: 700, y: 0, w: 600, h: 400 }, { title: "Other" });
+		const id = addRule(
+			doc,
+			{ kind: "matches", query: query("repo:a/b is:open label:bug") },
+			{ kind: "section", section: bugs },
+			ME,
+		);
+		const into = (section: string) => ({ kind: "section" as const, section });
+		expect(
+			sameRule(doc, { kind: "matches", query: query("label:bug  repo:a/b is:open") }, into(bugs))
+				?.id,
+		).toBe(id);
+		// Into another section, or another search, it's a different rule.
+		expect(
+			sameRule(doc, { kind: "matches", query: query("repo:a/b is:open label:bug") }, into(other)),
+		).toBeNull();
+		expect(
+			sameRule(doc, { kind: "matches", query: query("repo:a/b label:bug") }, into(bugs)),
+		).toBeNull();
+	});
+
+	it("tells closing pull requests apart from mentioning ones", () => {
+		const doc = new Y.Doc();
+		addRule(doc, { kind: "pull-links" }, { kind: "beside-linked" }, ME);
+		expect(sameRule(doc, { kind: "pull-links" }, { kind: "beside-linked" })).not.toBeNull();
+		expect(
+			sameRule(doc, { kind: "pull-links", closesOnly: true }, { kind: "beside-linked" }),
+		).toBeNull();
+	});
+});
+
+describe("rules: pausing for a session", () => {
+	it("records who paused, and resuming clears it", () => {
+		const doc = new Y.Doc();
+		expect(readRulesPause(doc)).toBeNull();
+		pauseRules(doc, { name: "Alice" });
+		expect(readRulesPause(doc)).toMatchObject({ by: { name: "Alice" }, held: 0 });
+		rulesPauseMap(doc).set("held", 3);
+		expect(readRulesPause(doc)?.held).toBe(3);
+		resumeRules(doc);
+		expect(readRulesPause(doc)).toBeNull();
 	});
 });

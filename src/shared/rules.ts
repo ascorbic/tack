@@ -224,6 +224,27 @@ export function ruleProblem(doc: Y.Doc, trigger: RuleTrigger, action: RuleAction
 	return null;
 }
 
+/** A rule already on the board that would do the same as this one, if there is one. */
+export function sameRule(doc: Y.Doc, trigger: RuleTrigger, action: RuleAction): Rule | null {
+	const words = (q: string) => q.trim().split(/\s+/).sort().join(" ");
+	return (
+		listRules(doc).find((rule) => {
+			if (rule.trigger.kind !== trigger.kind || rule.action.kind !== action.kind) return false;
+			if (rule.action.kind === "section" && action.kind === "section") {
+				if (rule.action.section !== action.section) return false;
+			}
+			if (rule.trigger.kind === "matches" && trigger.kind === "matches") {
+				return words(rule.trigger.query.q) === words(trigger.query.q);
+			}
+			return (
+				rule.trigger.kind === "pull-links" &&
+				trigger.kind === "pull-links" &&
+				Boolean(rule.trigger.closesOnly) === Boolean(trigger.closesOnly)
+			);
+		}) ?? null
+	);
+}
+
 /** Add a rule, as an undoable local edit. Returns its id. */
 export function addRule(
 	doc: Y.Doc,
@@ -456,7 +477,7 @@ export function describeRule(
 			? rule.trigger.closesOnly
 				? "When a pull request closes a card on this board"
 				: "When a pull request mentions a card on this board"
-			: `When an item matching ${rule.trigger.query.q} appears`;
+			: `When an item starts matching ${rule.trigger.query.q}`;
 	const does =
 		rule.action.kind === "beside-linked"
 			? "place it beside that card"

@@ -18,18 +18,20 @@ Choose **Rules** in the top bar ("Rules: automation that places cards"). The bad
 
 ## The two kinds
 
-**Linked pull requests**: "When a pull request mentions a card on this board, place it beside that card." Tick **Only pull requests that close the card (“Fixes #12”)** to only place pull requests that say they close it.
+**Pull requests for cards**: "When a pull request mentions a card on this board, place it beside that card." Tick **Only pull requests that close the card (“Fixes #12”)** to only place pull requests that say they close it.
 
 - Mentions are `#12`, `owner/repo#12` or a link to the issue, in the pull request's title or description (not in code blocks).
 - Closing means a keyword before the mention: close, closes, closed, fix, fixes, fixed, resolve, resolves or resolved.
 - The pull request lands in free space beside the first card it mentions, to the right if there's room.
 
-**Matching items**: "When an item matching this search appears, add it to “Section”." Write a search and choose a section.
+**Search matches**: "When an item starts matching this search, add it to “Section”." Write a search and choose a section. An item starts matching when it's opened, or labelled or edited so that it matches. The composer counts what matches now, and helps with a search in plain words as list settings do.
 
 - The item goes in the first free spot inside the section, or below it if the section is full.
 - Rules check the search themselves, so they understand a subset of GitHub's search: see [Search syntax](/widgets/search-syntax/#rules). A rule needs a `repo:owner/name`.
 
-Start from **Pull requests beside their issues** or **New matches into a section** if the board has no rules yet, or choose **New rule**. The composer says what the rule will do as you write it, or what's wrong.
+Start from **Pull requests beside their issues** or **New matches into a section** if the board has no rules yet, or choose **New rule**, which starts from a ready-made search and a section no rule uses yet. The composer says what the rule will do as you write it, or what's wrong, including when a rule already does the same.
+
+**Rules or an inbox?** Both bring search matches into a section. A rule places them straight in; an [inbox](/automation/inboxes/) queues them in a tray for people to sort first. The composer offers **Make “Section” an inbox instead**, and an inbox's editor has **Place new matches straight in**, which adds the rule for you.
 
 ## What rules will and won't do
 

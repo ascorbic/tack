@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type * as Y from "yjs";
-import { inboxQuery } from "../../shared/inbox.ts";
+import { inboxQuery, setInbox } from "../../shared/inbox.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
 import {
 	type Rule,
@@ -21,10 +21,14 @@ import {
 	ruleProblem,
 	rulesMap,
 	rulesPauseMap,
+	sameRule,
 	setRuleEnabled,
 	shortRef,
 } from "../../shared/rules.ts";
-import { shapesMap } from "../../shared/shapes.ts";
+import { LOCAL_ORIGIN, shapesMap } from "../../shared/shapes.ts";
+import { listPresets } from "../../shared/widgetRegistry.ts";
+import { inboxStore, usePreview } from "../inbox/store.ts";
+import { QueryHelp } from "../widgets/QueryHelp.tsx";
 import { relativeTime } from "../boards/api.ts";
 import {
 	BesideIcon,
@@ -301,7 +305,13 @@ export function RulesPanel({
 
 				{!readOnly &&
 					(composing ? (
-						<Composer doc={doc} user={user} onDone={() => setComposing(false)} title={title} />
+						<Composer
+							doc={doc}
+							user={user}
+							onDone={() => setComposing(false)}
+							title={title}
+							toasts={toasts}
+						/>
 					) : (
 						rules.length > 0 && (
 							<button type="button" className="rules-new" onClick={() => setComposing(true)}>
@@ -426,7 +436,7 @@ function RuleRow({
 	const does = described.does;
 	// The query is shown on its own below.
 	const when =
-		rule.trigger.kind === "matches" ? "When an item matching this search appears" : described.when;
+		rule.trigger.kind === "matches" ? "When an item starts matching this search" : described.when;
 	const fired = rule.fired ?? 0;
 	const stats = !rule.enabled
 		? "Paused"
@@ -514,7 +524,7 @@ function Suggestions({
 				</span>
 				<span>
 					<strong>New matches into a section</strong>
-					<span>When an issue matching a search appears, add it to a section.</span>
+					<span>When an item starts matching a search, add it to a section.</span>
 				</span>
 			</button>
 		</div>
@@ -526,11 +536,13 @@ function Composer({
 	user,
 	onDone,
 	title,
+	toasts,
 }: {
 	doc: Y.Doc;
 	user: RuleAuthor;
 	onDone: () => void;
 	title: (id: string) => string | null;
+	toasts: ToastStore;
 }) {
 	const refs = useBoardRefs(doc);
 	const firstRepo = useMemo(() => {
@@ -541,16 +553,22 @@ function Composer({
 		() =>
 			[...shapesMap(doc)]
 				.filter(([, shape]) => shape.get("type") === "section")
-				.map(([id]) => ({ id, title: title(id) || "Untitled section" })),
+				.map(([id, shape]) => ({
+					id,
+					title: title(id) || "Untitled section",
+					inbox: shape.has("inbox"),
+				})),
 		// Sections come and go rarely while the composer is open.
 		[doc, title],
 	);
 	const [kind, setKind] = useState<"pull-links" | "matches">("matches");
 	const [closesOnly, setClosesOnly] = useState(false);
 	const repoPath = firstRepo ? firstRepo.slice(firstRepo.indexOf("/") + 1) : "owner/name";
-	const [q, setQ] = useState(`repo:${repoPath} is:issue is:open label:bug`);
-	const [section, setSection] = useState(sections[0]?.id ?? "");
 	const host = firstRepo ? firstRepo.slice(0, firstRepo.indexOf("/")) : "github.com";
+	// Start from a section and a ready-made search no rule uses yet.
+	const [start] = useState(() => freshStart(doc, repoPath, sections));
+	const [q, setQ] = useState(start.q);
+	const [section, setSection] = useState(start.section);
 
 	const trigger: RuleTrigger =
 		kind === "pull-links"
@@ -558,7 +576,12 @@ function Composer({
 			: { kind: "matches", query: inboxQuery(q, host) };
 	const action: RuleAction =
 		kind === "pull-links" ? { kind: "beside-linked" } : { kind: "section", section };
-	const problem = ruleProblem(doc, trigger, action);
+	const duplicate = sameRule(doc, trigger, action);
+	const problem =
+		ruleProblem(doc, trigger, action) ??
+		(duplicate ? "There’s already a rule that does this." : null);
+	const target = sections.find((s) => s.id === section);
+	const count = useLiveCount(kind === "matches" ? section : "", q, host);
 
 	return (
 		<form
@@ -579,7 +602,7 @@ function Composer({
 						checked={kind === "matches"}
 						onChange={() => setKind("matches")}
 					/>
-					Matching items
+					Search matches
 				</label>
 				<label data-checked={kind === "pull-links"}>
 					<input
@@ -588,13 +611,13 @@ function Composer({
 						checked={kind === "pull-links"}
 						onChange={() => setKind("pull-links")}
 					/>
-					Linked pull requests
+					Pull requests for cards
 				</label>
 			</div>
 			{kind === "matches" ? (
 				<>
 					<label className="rules-field">
-						<span>When an item matching</span>
+						<span>When an item starts matching</span>
 						<textarea
 							className="mono"
 							rows={2}
@@ -603,8 +626,12 @@ function Composer({
 							onChange={(event) => setQ(event.target.value)}
 						/>
 					</label>
+					<p className="rules-count" aria-live="polite">
+						{count}
+					</p>
+					<QueryHelp q={q} host={host} onUse={(value) => setQ(value)} />
 					<label className="rules-field">
-						<span>appears, add it to</span>
+						<span>(opened, labelled or edited to match), add it to</span>
 						<select value={section} onChange={(event) => setSection(event.target.value)}>
 							{sections.length === 0 && <option value="">No sections on the board</option>}
 							{sections.map((s) => (
@@ -631,10 +658,38 @@ function Composer({
 						const { when, does } = describeRule({ trigger, action }, title);
 						// The query is right above.
 						const short =
-							trigger.kind === "matches" ? "When an item matching this search appears" : when;
+							trigger.kind === "matches" ? "When an item starts matching this search" : when;
 						return `${short}, ${does}.`;
 					})()}
 			</p>
+			{kind === "matches" && target && (
+				<p className="rules-inbox-hint">
+					{target.inbox ? (
+						<>
+							“{target.title}” is an inbox: this places matches straight in, without waiting in its
+							tray.
+						</>
+					) : (
+						<>
+							Prefer to review them first?{" "}
+							<button
+								type="button"
+								className="inbox-link"
+								disabled={!q.trim()}
+								onClick={() => {
+									setInbox(doc, target.id, inboxQuery(q, host), LOCAL_ORIGIN);
+									toasts.show({
+										message: `“${target.title}” is an inbox: new matches wait in its tray to be sorted`,
+									});
+									onDone();
+								}}
+							>
+								Make “{target.title}” an inbox instead
+							</button>
+						</>
+					)}
+				</p>
+			)}
 			<footer>
 				<button type="button" className="inbox-button" onClick={onDone}>
 					Cancel
@@ -645,4 +700,56 @@ function Composer({
 			</footer>
 		</form>
 	);
+}
+
+/**
+ * Where a new rule starts: the first ready-made search no rule on the board
+ * uses yet, into the first section without a rule of its own (or the first).
+ */
+function freshStart(
+	doc: Y.Doc,
+	repo: string,
+	sections: { id: string }[],
+): { q: string; section: string } {
+	const rules = listRules(doc);
+	const terms = (q: string) => new Set(q.trim().split(/\s+/));
+	const used = rules.flatMap((rule) =>
+		rule.trigger.kind === "matches" ? [terms(rule.trigger.query.q)] : [],
+	);
+	// A search is taken when a rule's says the same, or a little more (`is:issue`).
+	const taken = (q: string) => {
+		const mine = terms(q);
+		return used.some(
+			(other) =>
+				[...mine].every((term) => other.has(term)) || [...other].every((term) => mine.has(term)),
+		);
+	};
+	const presets = listPresets(repo, null, { personal: false });
+	const fresh = presets.find((preset) => !taken(preset.q)) ?? presets[0];
+	const busy = new Set(
+		rules.flatMap((rule) => (rule.action.kind === "section" ? [rule.action.section] : [])),
+	);
+	const section = sections.find((s) => !busy.has(s.id)) ?? sections[0];
+	return { q: fresh?.q ?? `repo:${repo} is:issue is:open`, section: section?.id ?? "" };
+}
+
+/** How many items match the search right now, searched as you, once typing pauses. */
+function useLiveCount(section: string, q: string, host: string): string {
+	const [askedAt, setAskedAt] = useState(0);
+	const preview = usePreview(section);
+	useEffect(() => {
+		if (!section || !q.trim()) return;
+		const timer = setTimeout(() => {
+			setAskedAt(performance.now());
+			inboxStore.preview(section, inboxQuery(q, host));
+		}, 350);
+		return () => clearTimeout(timer);
+	}, [section, q, host]);
+	if (!section || !q.trim()) return "";
+	const answer = preview && askedAt > 0 && preview.received >= askedAt ? preview.result : null;
+	if (!answer) return "Counting…";
+	if (answer.kind === "error") return answer.message;
+	if (answer.kind !== "search") return "";
+	const n = answer.total.toLocaleString();
+	return `${n} ${answer.total === 1 ? "matches" : "match"} now${answer.incomplete ? " (at least)" : ""}. New ones are added as they arrive.`;
 }
