@@ -357,6 +357,7 @@ test("a decision's write-back goes out through the push sheet", async ({ page })
 		has: page.getByRole("article", { name: `Decision: ${title}`, exact: true }),
 	});
 	await node.getByRole("button", { name: "Decide" }).click();
+	await node.getByRole("button", { name: "Decide anyway" }).click();
 	await node.getByRole("button", { name: "Write back" }).click();
 	await page
 		.getByRole("dialog", { name: title })
