@@ -105,7 +105,10 @@ export function RepoName({ repo }: { repo: string }) {
 
 /**
  * Choose a repository: the board's own first (most cards first), then ones
- * you've used lately, or type `owner/repo` for any other.
+ * you've used lately, or type (or paste a link to) any other. Once one's
+ * chosen it reads as a solid value with Change; the list stays folded away
+ * until you type, press ↓ or click Change. The field keeps focus, so Enter
+ * with nothing typed still stages.
  */
 export function RepoPicker({
 	value,
@@ -120,56 +123,131 @@ export function RepoPicker({
 	host: string;
 }) {
 	const [query, setQuery] = useState("");
+	const [browsing, setBrowsing] = useState(false);
+	const input = useRef<HTMLInputElement>(null);
 	const listId = useId();
+	const labelId = useId();
+	const valueId = useId();
 	const typed = parseRepoInput(query, host);
 	const words = query.trim().toLowerCase();
 	const shown = useMemo(() => {
 		// A repository typed earlier stays in the list once chosen.
 		const all =
 			value && !options.some((o) => o.repo === value) ? [...options, { repo: value }] : options;
-		const matches = all.filter((o) => !words || repoName(o.repo).includes(words));
+		// A pasted link matches the repository it's in.
+		const matches = all.filter(
+			(o) => !words || repoName(o.repo).includes(words) || o.repo === typed,
+		);
 		if (typed && !all.some((o) => o.repo === typed)) matches.push({ repo: typed });
 		return matches;
 	}, [options, words, typed, value]);
 	const { active, setActive, onKey } = useActive(shown.length);
+	const chosen = value ? (options.find((o) => o.repo === value) ?? { repo: value }) : null;
+	// The list shows while there's nothing chosen, or while looking for another.
+	const open = !value || browsing || words !== "";
 
 	const choose = (repo: string) => {
 		onChange(repo);
 		setQuery("");
+		setBrowsing(false);
 	};
 
 	return (
-		<div className="repo-picker">
-			<SearchField
-				label="Repository"
-				listId={listId}
-				value={query}
-				onChange={(next) => {
-					setQuery(next);
-					setActive(0);
-				}}
-				placeholder={value ? repoName(value) : "owner/repo"}
-				icon={<RepoIcon />}
-				activeId={active >= 0 && words ? `${listId}-${active}` : undefined}
-				onKeyDown={(event) => {
-					if (onKey(event)) return;
-					// Enter picks what you typed for; with nothing typed it stages.
-					if (event.key === "Enter" && words && shown[active]) {
-						event.preventDefault();
-						choose(shown[active].repo);
-					}
-				}}
-			/>
-			<div className="action-list repo-list" role="listbox" id={listId} aria-label="Repositories">
-				{shown.length === 0 && <p className="action-empty">Type a repository, like owner/repo</p>}
+		<div
+			className="repo-picker"
+			data-open={open || undefined}
+			data-chosen={(!!chosen && !words) || undefined}
+		>
+			<span className="repo-picker-label" id={labelId}>
+				Repository
+			</span>
+			<label className="action-search repo-field">
+				<RepoIcon />
+				<input
+					ref={input}
+					data-autofocus
+					type="text"
+					role="combobox"
+					aria-labelledby={labelId}
+					aria-expanded={open}
+					aria-controls={listId}
+					aria-activedescendant={open && active >= 0 && words ? `${listId}-${active}` : undefined}
+					aria-describedby={chosen && !words ? valueId : undefined}
+					autoComplete="off"
+					spellCheck={false}
+					value={query}
+					placeholder={chosen ? "" : "owner/repo, or paste a link"}
+					onChange={(event) => {
+						setQuery(event.target.value);
+						setActive(0);
+					}}
+					onKeyDown={(event) => {
+						if (!open && event.key === "ArrowDown") {
+							event.preventDefault();
+							setBrowsing(true);
+							return;
+						}
+						if (open && onKey(event)) return;
+						if (event.key === "Escape" && value && (browsing || words)) {
+							// Back to what was chosen, not out of the panel.
+							event.preventDefault();
+							event.stopPropagation();
+							setQuery("");
+							setBrowsing(false);
+							return;
+						}
+						// Enter picks what you typed for, or the one you moved to; with
+						// nothing typed it stages.
+						if (event.key === "Enter" && open && (words || browsing) && shown[active]) {
+							event.preventDefault();
+							choose(shown[active].repo);
+						}
+					}}
+				/>
+				{chosen && !words && (
+					<span className="repo-value" id={valueId}>
+						<RepoName repo={chosen.repo} />
+						{"cards" in chosen && chosen.cards ? (
+							<span className="repo-value-meta">
+								{chosen.cards} card{chosen.cards === 1 ? "" : "s"} here
+							</span>
+						) : null}
+					</span>
+				)}
+				{chosen && !words && (
+					<button
+						type="button"
+						className="repo-change"
+						aria-expanded={open}
+						aria-controls={listId}
+						onClick={() => {
+							setBrowsing(!browsing);
+							input.current?.focus();
+						}}
+					>
+						{browsing ? "Done" : "Change"}
+					</button>
+				)}
+			</label>
+			<div
+				className="action-list repo-list"
+				role="listbox"
+				id={listId}
+				aria-label="Repositories"
+				hidden={!open}
+			>
+				{shown.length === 0 && (
+					<p className="action-empty">Type a repository, like owner/repo, or paste a link to one</p>
+				)}
 				{shown.map((option, i) => (
 					<button
 						key={option.repo}
 						id={`${listId}-${i}`}
 						type="button"
 						role="option"
+						tabIndex={-1}
 						aria-selected={option.repo === value}
-						data-active={words !== "" && i === active}
+						data-active={(words !== "" || browsing) && i === active}
 						className="action-option"
 						onPointerEnter={() => setActive(i)}
 						onClick={() => choose(option.repo)}

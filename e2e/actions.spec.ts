@@ -49,7 +49,7 @@ test("stickies become staged issues, one undo step", async ({ page }) => {
 	const panel = page.getByRole("dialog", { name: "Make issues from stickies" });
 	await expect(panel.getByRole("heading", { name: "Make 2 issues" })).toBeVisible();
 	// The board's busiest repository is chosen; the titles are the first lines.
-	await expect(panel.getByRole("option", { selected: true })).toContainText("acme/imagekit");
+	await expect(panel.locator(".repo-value")).toContainText("acme/imagekit");
 	await expect(panel.getByRole("list", { name: "Issues to make" })).toContainText(
 		"Benchmarks in CI",
 	);
@@ -128,13 +128,28 @@ test("a typed repository, and one without the app", async ({ page }) => {
 	await select(page, "Codemods for 5.0");
 	await bar(page).getByRole("button", { name: "Make issues from stickies" }).click();
 	const panel = page.getByRole("dialog");
+	// The board's own repository is chosen, and reads as a value, with the
+	// list folded away until it's wanted.
+	const field = panel.getByRole("combobox", { name: "Repository" });
+	await expect(panel.locator(".repo-value")).toContainText("acme/imagekit");
+	await expect(field).toHaveAttribute("aria-expanded", "false");
+	await expect(panel.getByRole("listbox")).toBeHidden();
+	await panel.getByRole("button", { name: "Change" }).click();
 	await panel.getByRole("option", { name: /lovell\/sharp/ }).click();
+	await expect(panel.getByRole("listbox")).toBeHidden();
+	await expect(panel.locator(".repo-value")).toContainText("lovell/sharp");
 	await expect(panel.getByText("Tack can’t write to")).toBeVisible();
 	await expect(panel.getByRole("button", { name: "Stage issue" })).toBeDisabled();
 
-	await panel.getByRole("combobox", { name: "Repository" }).fill("acme/new-thing");
+	// A pasted link to an issue picks its repository.
+	await field.fill("https://fake.tack/demo/app/issues/3");
+	await expect(panel.getByRole("option", { name: /demo\/app/ })).toBeVisible();
 	await page.keyboard.press("Enter");
-	await expect(panel.getByRole("option", { selected: true })).toContainText("acme/new-thing");
+	await expect(panel.locator(".repo-value")).toContainText("demo/app");
+
+	await field.fill("acme/new-thing");
+	await page.keyboard.press("Enter");
+	await expect(panel.locator(".repo-value")).toContainText("acme/new-thing");
 	await page.keyboard.press("Enter");
 	expect((await changes(page)).map((c) => c.op)).toEqual([
 		{ kind: "issue.create", repo: "fake.tack/acme/new-thing", title: "Codemods for 5.0" },
@@ -384,7 +399,9 @@ test("the actions gallery shows every state", async ({ page }) => {
 	// New issues that start with labels and a milestone, the labels' list open.
 	const extras = page.locator("figure", { hasText: "With labels and a milestone" });
 	await expect(extras.locator(".issue-extra[data-chosen]")).toHaveCount(2);
-	await expect(extras.getByRole("option", { selected: true })).toHaveCount(1 + 3);
+	// The repository reads as a value (its list folded away), and three labels are ticked.
+	await expect(extras.locator(".repo-value")).toContainText("acme/imagekit");
+	await expect(extras.getByRole("option", { selected: true })).toHaveCount(3);
 	await expect(page.getByText("Tack can’t write to")).toBeVisible();
 	await expect(page.getByText("Make “Benchmarks in CI” an issue first")).toBeVisible();
 	// Expand related: loading, ready, switched off, nothing, all here, and rate limited.

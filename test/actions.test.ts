@@ -709,6 +709,20 @@ describe("parseRepoInput", () => {
 		expect(parseRepoInput("fake.tack/acme/x", "github.com")).toBe("fake.tack/acme/x");
 		expect(parseRepoInput("https://github.com/a/b.git", "fake.tack")).toBe("github.com/a/b");
 		expect(parseRepoInput("https://github.com/a/b/", "fake.tack")).toBe("github.com/a/b");
+		// What people actually have on their clipboard: a link to an issue.
+		expect(parseRepoInput("https://fake.tack/demo/app/issues/3", "github.com")).toBe(
+			"fake.tack/demo/app",
+		);
+		expect(parseRepoInput("https://github.com/emdash-cms/emdash/pull/12#issuecomment-1", "x")).toBe(
+			"github.com/emdash-cms/emdash",
+		);
+		expect(parseRepoInput("https://github.com/a/b/blob/main/README.md?plain=1", "x")).toBe(
+			"github.com/a/b",
+		);
+		expect(parseRepoInput("emdash-cms/emdash#42", "github.com")).toBe(
+			"github.com/emdash-cms/emdash",
+		);
+		expect(parseRepoInput("fake.tack/demo/app#3", "github.com")).toBe("fake.tack/demo/app");
 	});
 
 	it("is null for anything else", () => {

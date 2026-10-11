@@ -161,8 +161,9 @@
 	overscroll-behavior: contain;
 	padding: 14px;
 	border-radius: 14px;
-	background: var(--chrome-strong);
-	backdrop-filter: blur(18px) saturate(1.5);
+	/* Opaque, unlike the glassy bar: the board showing through behind form
+	   fields makes them hard to read. */
+	background: var(--surface);
 	border: 1px solid var(--line);
 	box-shadow: var(--shadow-lifted);
 	color: var(--ink);
@@ -424,6 +425,101 @@
 
 .repo-picker {
 	margin-bottom: 4px;
+}
+
+.repo-picker-label {
+	display: block;
+	margin: 0 0 5px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.repo-field {
+	position: relative;
+}
+
+/* Chosen: the repository reads as a solid value, not a placeholder. The
+   field stays on top (so typing searches straight away), with no caret
+   until there's something typed. */
+.repo-picker[data-chosen] .repo-field {
+	background: var(--surface);
+	border-color: var(--line-strong);
+	color: var(--ink-soft);
+}
+
+.repo-picker[data-chosen] .repo-field:focus-within {
+	border-color: var(--accent);
+}
+
+.repo-picker[data-chosen] .repo-field input {
+	position: absolute;
+	inset: 0;
+	padding-left: 34px;
+	caret-color: transparent;
+}
+
+.repo-value {
+	display: flex;
+	flex: 1;
+	align-items: baseline;
+	gap: 8px;
+	min-width: 0;
+	color: var(--ink);
+	font-size: 13.5px;
+	pointer-events: none;
+	animation: repo-value-in var(--t-base) var(--ease-spring);
+}
+
+@keyframes repo-value-in {
+	from {
+		opacity: 0;
+		transform: translateY(3px);
+	}
+}
+
+.repo-value-meta {
+	flex: none;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.repo-change {
+	position: relative;
+	flex: none;
+	height: 24px;
+	margin-right: -5px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--accent);
+	font-size: 12.5px;
+	font-weight: 620;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.repo-change:hover,
+.repo-change:focus-visible {
+	background: var(--accent-soft);
+	outline: none;
+}
+
+.repo-list[hidden] {
+	display: none;
+}
+
+.repo-picker[data-open] .repo-list {
+	animation: repo-list-in var(--t-base) var(--ease-spring);
+}
+
+@keyframes repo-list-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
 }
 
 /* What new issues start with: a row of pills, each opening its picker in

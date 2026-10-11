@@ -626,15 +626,24 @@ export function boardRepos(doc: Y.Doc): { repo: string; cards: number }[] {
 }
 
 /**
- * A repository someone typed: `owner/repo` (on `host`, the board's usual
- * forge), `host/owner/repo`, or a URL. Null unless it's on a known forge.
+ * A repository someone typed or pasted: `owner/repo` (on `host`, the board's
+ * usual forge), `host/owner/repo`, a URL of the repository or of anything in
+ * it (an issue, a pull request, a file), or an item's key. Null unless it's
+ * on a known forge.
  */
 export function parseRepoInput(text: string, host: string): string | null {
-	const trimmed = text
+	let trimmed = text
 		.trim()
 		.replace(/^https?:\/\//i, "")
+		// A query, an anchor, or the item in a key (`owner/repo#12`, `…!3`).
+		.replace(/[?#].*$/, "")
+		.replace(/!\d+$/, "")
 		.replace(/\.git$/i, "")
 		.replace(/\/+$/, "");
+	// A link to something in a repository (an issue, a pull request, a file):
+	// the repository it's in.
+	const deep = trimmed.split("/");
+	if (deep.length > 3 && forgeForHost(deep[0] ?? "")) trimmed = deep.slice(0, 3).join("/");
 	const parts = trimmed.split("/");
 	const name = /^[\w.-]+$/;
 	if (parts.length === 2 && parts.every((part) => name.test(part))) {
