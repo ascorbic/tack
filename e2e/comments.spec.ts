@@ -116,7 +116,8 @@ test.describe("comments", () => {
 		await expect(toast.getByRole("button", { name: "View" })).toBeVisible();
 		const bell = page.getByRole("button", { name: "Notifications: 2 unread" });
 		await expect(bell).toBeVisible();
-		await expect(bell).toHaveAttribute("title", /2 unread: mentions of you and replies/);
+		// Its tooltip says what the count means.
+		await expect(bell).toHaveAttribute("data-tooltip", /2 unread: mentions of you and replies/);
 		await bell.click();
 		const dialog = page.getByRole("dialog", { name: "Notifications" });
 		await expect(dialog).toContainText("mentioned you");
@@ -168,9 +169,9 @@ test.describe("since you were here", () => {
 		const glyph = panel.getByRole("region", { name: "On GitHub" }).locator(".since-glyph svg");
 		await expect(glyph.first()).toBeVisible();
 		expect(await glyph.first().evaluate((svg) => getComputedStyle(svg).fill)).toBe("none");
-		// The button says what its count is made of.
+		// The button's tooltip says what its count is made of.
 		await expect(page.getByRole("button", { name: /^Since you were here/ })).toHaveAttribute(
-			"title",
+			"data-tooltip",
 			/changes? on the board you haven't looked at, 1 thread with new comments/,
 		);
 
