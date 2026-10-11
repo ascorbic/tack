@@ -521,6 +521,26 @@ button.primary:hover {
 	box-shadow: 0 0 0 3px rgb(47 158 87 / 15%);
 }
 
+/* Offline with edits waiting: amber, and breathing, until they're sent. */
+.status[data-state="waiting"] {
+	padding: 3px 9px 3px 8px;
+	border-radius: 999px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-weight: 550;
+}
+
+.status[data-state="waiting"]::before {
+	background: var(--pending);
+	animation: status-waiting calc(1800ms * var(--motion)) ease-in-out infinite;
+}
+
+@keyframes status-waiting {
+	50% {
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--pending) 25%, transparent);
+	}
+}
+
 .canvas {
 	position: relative;
 	flex: 1;

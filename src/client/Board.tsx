@@ -191,6 +191,7 @@ export function Board({
 	doc: liveDoc,
 	awareness,
 	synced,
+	waiting = 0,
 	user,
 	account,
 	actions,
@@ -1103,9 +1104,7 @@ export function Board({
 							/>
 							<CommentsButton />
 							<ThemeToggle />
-							<span className="status" data-synced={synced}>
-								{synced ? "Synced" : "Connecting…"}
-							</span>
+							<SyncStatus synced={synced} waiting={waiting} />
 							<ChangesButton />
 							{actions}
 						</header>
@@ -1477,6 +1476,45 @@ export function Board({
 				</ServicesContext>
 			</BoardContext>
 		</ChangesContext>
+	);
+}
+
+/**
+ * Whether the board's in step with its server, and if not, what's waiting
+ * for it: edits made offline are kept on this device and sent on reconnecting.
+ */
+function SyncStatus({ synced, waiting }: { synced: boolean; waiting: number }) {
+	const [everSynced, setEverSynced] = useState(synced);
+	if (synced && !everSynced) setEverSynced(true);
+	const state = synced
+		? "synced"
+		: waiting > 0
+			? "waiting"
+			: everSynced
+				? "reconnecting"
+				: "connecting";
+	const label =
+		state === "synced"
+			? "Synced"
+			: state === "waiting"
+				? `Offline · ${waiting} ${waiting === 1 ? "edit" : "edits"} waiting`
+				: state === "reconnecting"
+					? "Reconnecting…"
+					: "Connecting…";
+	return (
+		<span
+			className="status"
+			data-synced={synced}
+			data-state={state}
+			role="status"
+			title={
+				state === "waiting"
+					? "Your edits are kept on this device, and will be sent when the connection’s back."
+					: undefined
+			}
+		>
+			{label}
+		</span>
 	);
 }
 

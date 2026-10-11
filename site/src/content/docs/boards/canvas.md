@@ -48,6 +48,10 @@ Opening a board shows all of it, clear of the toolbar and minimap. Come back to 
 
 For spotlight, timers, emotes and the rest, see [Running a session](/facilitation/running-a-session/).
 
+## When the connection drops
+
+The pill in the top bar says **Synced** while the board's in step with everyone else. If the connection drops, keep working: your edits are kept on this device, the pill counts them (**Offline · 3 edits waiting**), and they're sent as soon as the connection's back, even if you reload the page in the meantime. Closing the tab while edits are waiting asks first.
+
 ## Light and dark
 
 The sun and moon switch in the top bar changes the theme. Tack follows your system's setting until you choose, and remembers your choice in this browser. Stickies stay paper-coloured in both, like paper on a dark desk.

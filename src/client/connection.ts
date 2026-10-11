@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import YProvider from "y-partyserver/provider";
 import type { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
@@ -15,12 +15,18 @@ import { widgetStore } from "./widgets/store.ts";
 import { boardPeople, peopleSource } from "./comments/people.ts";
 import { commentStore } from "./comments/store.ts";
 import { sinceStore } from "./since/store.ts";
+import { PendingEdits } from "./pending.ts";
 
 /** Everything a board needs to render, whether live or simulated. */
 export interface BoardSource {
 	doc: Y.Doc;
 	awareness: Awareness;
 	synced: boolean;
+	/**
+	 * Edits made while disconnected that haven't reached the server yet
+	 * (bursts of typing count once). Kept on this device meanwhile.
+	 */
+	waiting?: number;
 }
 
 /** What the board's server tells a live connection about the board itself. */
@@ -48,6 +54,17 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 	const [connection] = useState(() => {
 		const doc = new Y.Doc();
 		const provider = new YProvider(location.host, name, doc, { party: "board" });
+		// Edits not yet surely on the server, kept on this device, and any kept
+		// from before a reload put back (before anything arrives from the server).
+		const pending = new PendingEdits(
+			doc,
+			name,
+			provider,
+			undefined,
+			undefined,
+			undefined,
+			(update) => provider._updateHandler(update, pending),
+		);
 		provider.on("custom-message", (raw: string) => {
 			const message = JSON.parse(raw) as
 				| CardMessage
@@ -115,7 +132,7 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		sinceStore.reset();
 		sinceStore.board = name;
 		sinceStore.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
-		return { doc, provider };
+		return { doc, provider, pending };
 	});
 	const [synced, setSynced] = useState(false);
 
@@ -123,6 +140,7 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		const { provider } = connection;
 		let asked = false;
 		const onSync = (isSynced: boolean) => {
+			connection.pending.setSynced(isSynced);
 			setSynced(isSynced);
 			// A new connection knows nothing of what this one was watching.
 			if (isSynced) {
@@ -138,11 +156,22 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		provider.on("sync", onSync);
 		// Still here: signed-out visits carry on (signed-in ones are kept by the server).
 		const touch = setInterval(() => sinceStore.touch(), 30_000);
-		const onHide = () => sinceStore.touch();
+		const onHide = () => {
+			sinceStore.touch();
+			connection.pending.flush();
+		};
 		window.addEventListener("pagehide", onHide);
+		// Leaving with edits that never reached the server asks first.
+		const onLeave = (event: BeforeUnloadEvent) => {
+			connection.pending.flush();
+			if (connection.pending.waiting > 0) event.preventDefault();
+		};
+		window.addEventListener("beforeunload", onLeave);
 		return () => {
 			clearInterval(touch);
 			window.removeEventListener("pagehide", onHide);
+			window.removeEventListener("beforeunload", onLeave);
+			connection.pending.destroy();
 			sinceStore.touch();
 			provider.off("sync", onSync);
 			widgetStore.connect(null);
@@ -151,5 +180,7 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		};
 	}, [connection]);
 
-	return { doc: connection.doc, awareness: connection.provider.awareness, synced };
+	const { pending } = connection;
+	const waiting = useSyncExternalStore(pending.subscribe, () => pending.waiting);
+	return { doc: connection.doc, awareness: connection.provider.awareness, synced, waiting };
 }

@@ -272,3 +272,68 @@ test("an empty board has no minimap, and the first sticky doesn't move the view"
 		before,
 	);
 });
+
+test("edits made offline wait on this device, survive a reload, and are sent on reconnecting", async ({
+	page,
+	browser,
+}) => {
+	test.setTimeout(90_000);
+	// The board's connection, cut and restored at will.
+	let offline = false;
+	const open = new Set<import("@playwright/test").WebSocketRoute>();
+	await page.routeWebSocket(/\/parties\/board\//, (ws) => {
+		if (offline) {
+			void ws.close();
+			return;
+		}
+		ws.connectToServer();
+		open.add(ws);
+	});
+	const goOffline = async () => {
+		offline = true;
+		for (const ws of open) await ws.close();
+		open.clear();
+	};
+	const status = page.locator(".status");
+
+	await signInAs(page, OWNER, `/?board=e2e-offline-${run}`);
+	await expect(status).toHaveText("Synced", { timeout: 15_000 });
+	await page.keyboard.press("s");
+	await page.locator(".react-flow__pane").click({ position: { x: 300, y: 220 } });
+	await page.keyboard.type("Written online");
+	await page.keyboard.press("Escape");
+	const url = page.url();
+
+	await goOffline();
+	await expect(status).toHaveText("Reconnecting…");
+	await page.keyboard.press("Escape");
+	await page.keyboard.press("s");
+	await page.locator(".react-flow__pane").click({ position: { x: 600, y: 220 } });
+	await page.keyboard.type("Written offline");
+	await page.keyboard.press("Escape");
+	await expect(status).toHaveText(/^Offline · \d+ edits? waiting$/);
+
+	// Leaving asks first; staying on (reloading anyway) loses nothing.
+	const asked = new Promise<string>((resolve) =>
+		page.once("dialog", (dialog) => {
+			resolve(dialog.type());
+			void dialog.accept();
+		}),
+	);
+	await page.reload();
+	expect(await asked).toBe("beforeunload");
+	await expect(status).toHaveText(/^Offline · \d+ edits? waiting$/);
+
+	// Back online: the edits go to the server, and everyone sees them.
+	offline = false;
+	await expect(status).toHaveText("Synced", { timeout: 30_000 });
+	const sticky = (on: Page, text: string) =>
+		on.locator(".react-flow__node-sticky", { hasText: text });
+	await expect(sticky(page, "Written offline")).toBeVisible();
+	const other = await newPage(browser, OWNER);
+	await other.goto(url);
+	await expect(other.locator(".status")).toHaveText("Synced", { timeout: 15_000 });
+	await expect(sticky(other, "Written offline")).toHaveCount(1);
+	await expect(sticky(other, "Written online")).toHaveCount(1);
+	await other.context().close();
+});
