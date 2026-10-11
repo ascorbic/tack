@@ -69,9 +69,9 @@ export function ShapeHeading({ node }: { node: ShapeNode }) {
 		detail = shape.title?.trim() || "Untitled";
 	}
 	return (
-		<span className="sheet-title">
-			<span className="sheet-kind">{kind}</span>
-			{detail && <span className="sheet-detail">{detail}</span>}
+		<span className="phone-sheet-title">
+			<span className="phone-sheet-kind">{kind}</span>
+			{detail && <span className="phone-sheet-detail">{detail}</span>}
 		</span>
 	);
 }
@@ -120,7 +120,7 @@ function ShapeFace({
 	switch (shape.type) {
 		case "card":
 			return (
-				<div className="sheet-card">
+				<div className="phone-sheet-card">
 					<CardView card={card} cardKey={shape.ref ?? ""} selected />
 				</div>
 			);
@@ -131,20 +131,20 @@ function ShapeFace({
 			const text = (mine ? texts.get(node.id) : shape.text) ?? "";
 			return (
 				<div
-					className="sheet-sticky"
+					className="phone-sheet-sticky"
 					data-color={shape.color ?? "yellow"}
 					data-font={shape.font}
 					data-face-down={faceDown || undefined}
 				>
 					{faceDown ? (
-						<p className="sheet-sticky-hidden">Face down until it’s revealed</p>
+						<p className="phone-sheet-sticky-hidden">Face down until it’s revealed</p>
 					) : (
-						<p className="sheet-sticky-text">{text || <em>Empty</em>}</p>
+						<p className="phone-sheet-sticky-text">{text || <em>Empty</em>}</p>
 					)}
 					{shape.author?.name && (
-						<span className="sheet-sticky-author">
+						<span className="phone-sheet-sticky-author">
 							<span
-								className="sheet-sticky-dot"
+								className="phone-sheet-sticky-dot"
 								style={{ background: shape.author.color }}
 								aria-hidden="true"
 							/>
@@ -158,9 +158,9 @@ function ShapeFace({
 			return <DecisionFace doc={doc} node={node} user={user} readOnly={readOnly} />;
 		case "action":
 			return (
-				<div className="sheet-plain" data-done={shape.done || undefined}>
-					<p className="sheet-plain-text">{shape.text || <em>Empty</em>}</p>
-					<p className="sheet-meta">
+				<div className="phone-sheet-plain" data-done={shape.done || undefined}>
+					<p className="phone-sheet-plain-text">{shape.text || <em>Empty</em>}</p>
+					<p className="phone-sheet-meta">
 						{[
 							shape.done ? "Done" : "To do",
 							shape.owner?.login ? `@${shape.owner.login}` : null,
@@ -177,16 +177,16 @@ function ShapeFace({
 			const config = shape.config as { title?: unknown } | undefined;
 			const title = typeof config?.title === "string" ? config.title : "";
 			return (
-				<div className="sheet-plain">
-					<p className="sheet-plain-text">{title || "A widget"}</p>
-					<p className="sheet-meta">Widgets are easier to read on a bigger screen.</p>
+				<div className="phone-sheet-plain">
+					<p className="phone-sheet-plain-text">{title || "A widget"}</p>
+					<p className="phone-sheet-meta">Widgets are easier to read on a bigger screen.</p>
 				</div>
 			);
 		}
 		default:
 			return (
-				<div className="sheet-plain">
-					<p className="sheet-plain-text">{shape.text || <em>Empty</em>}</p>
+				<div className="phone-sheet-plain">
+					<p className="phone-sheet-plain-text">{shape.text || <em>Empty</em>}</p>
 				</div>
 			);
 	}
@@ -211,26 +211,26 @@ function DecisionFace({
 	const vote = (choice: VoteChoice) =>
 		castVote(doc, node.id, user, mine === choice ? null : choice);
 	return (
-		<div className="sheet-decision" data-status={status}>
-			<span className="sheet-decision-status">{status}</span>
-			<h3 className="sheet-decision-title">{shape.title?.trim() || "Untitled decision"}</h3>
-			{shape.text?.trim() && <p className="sheet-decision-text">{shape.text}</p>}
+		<div className="phone-sheet-decision" data-status={status}>
+			<span className="phone-sheet-decision-status">{status}</span>
+			<h3 className="phone-sheet-decision-title">{shape.title?.trim() || "Untitled decision"}</h3>
+			{shape.text?.trim() && <p className="phone-sheet-decision-text">{shape.text}</p>}
 			{status === "proposed" && (
-				<div className="sheet-choices" role="group" aria-label="Your vote">
+				<div className="phone-sheet-choices" role="group" aria-label="Your vote">
 					{(["agree", "disagree"] as const).map((choice) => (
 						<button
 							key={choice}
 							type="button"
-							className="sheet-choice"
+							className="phone-sheet-choice"
 							data-choice={choice}
 							aria-pressed={mine === choice}
 							disabled={readOnly}
 							onClick={() => vote(choice)}
 						>
-							<span className="sheet-choice-label">
+							<span className="phone-sheet-choice-label">
 								{choice === "agree" ? "Agree" : "Disagree"}
 							</span>
-							<span className="sheet-choice-count">{votes[choice].length}</span>
+							<span className="phone-sheet-choice-count">{votes[choice].length}</span>
 						</button>
 					))}
 				</div>
@@ -267,19 +267,19 @@ function DotVoteRow({
 		if (result === "placed" && navigator.vibrate) navigator.vibrate(8);
 	};
 	return (
-		<section className="sheet-section sheet-vote" aria-label="Dot vote">
-			<div className="sheet-vote-head">
-				<h3 className="sheet-section-title">{vote.title?.trim() || "Dot vote"}</h3>
-				<span className="sheet-vote-left" aria-live="polite">
+		<section className="phone-sheet-section phone-sheet-vote" aria-label="Dot vote">
+			<div className="phone-sheet-vote-head">
+				<h3 className="phone-sheet-section-title">{vote.title?.trim() || "Dot vote"}</h3>
+				<span className="phone-sheet-vote-left" aria-live="polite">
 					{left === 0 ? "No dots left" : `${left} ${left === 1 ? "dot" : "dots"} left`}
 				</span>
 			</div>
-			<div className="sheet-vote-row">
+			<div className="phone-sheet-vote-row">
 				<VoteDots vote={vote} shape={id} me={user} />
-				<span className="sheet-vote-buttons">
+				<span className="phone-sheet-vote-buttons">
 					<button
 						type="button"
-						className="sheet-round"
+						className="phone-sheet-round"
 						aria-label="Take a dot back"
 						disabled={mineHere === 0}
 						onClick={() => dot(true)}
@@ -288,12 +288,12 @@ function DotVoteRow({
 							<path d="M3.5 8h9" />
 						</svg>
 					</button>
-					<span className="sheet-vote-mine" aria-label={`Your dots here: ${mineHere}`}>
+					<span className="phone-sheet-vote-mine" aria-label={`Your dots here: ${mineHere}`}>
 						{mineHere}
 					</span>
 					<button
 						type="button"
-						className="sheet-round sheet-round-primary"
+						className="phone-sheet-round phone-sheet-round-primary"
 						aria-label="Add a dot"
 						disabled={left === 0}
 						onClick={() => dot(false)}
@@ -314,20 +314,20 @@ function Stamps({ doc, id, user }: { doc: Y.Doc; id: string; user: User }) {
 	const byEmoji = new Map(counts.map((count) => [count.emoji, count]));
 	const stamp = (emoji: StampEmoji) => stampShape(doc, id, emoji, user);
 	return (
-		<div className="sheet-stamps" role="group" aria-label="Stamps">
+		<div className="phone-sheet-stamps" role="group" aria-label="Stamps">
 			{STAMPS.map((emoji) => {
 				const count = byEmoji.get(emoji);
 				return (
 					<button
 						key={emoji}
 						type="button"
-						className="sheet-stamp"
+						className="phone-sheet-stamp"
 						aria-pressed={count?.mine ?? false}
 						aria-label={`${emoji}${count ? ` ${count.count}` : ""}`}
 						onClick={() => stamp(emoji)}
 					>
 						<span aria-hidden="true">{emoji}</span>
-						{count && <span className="sheet-stamp-count">{count.count}</span>}
+						{count && <span className="phone-sheet-stamp-count">{count.count}</span>}
 					</button>
 				);
 			})}
@@ -360,13 +360,13 @@ function Comments({
 	const open = here.filter((thread) => !thread.resolved);
 	const resolved = here.filter((thread) => thread.resolved);
 	return (
-		<section className="sheet-section sheet-comments" aria-label="Comments">
-			<h3 className="sheet-section-title">
+		<section className="phone-sheet-section phone-sheet-comments" aria-label="Comments">
+			<h3 className="phone-sheet-section-title">
 				Comments
-				{open.length > 0 && <span className="sheet-count">{open.length}</span>}
+				{open.length > 0 && <span className="phone-sheet-count">{open.length}</span>}
 			</h3>
-			{here.length === 0 && <p className="sheet-empty">No comments yet.</p>}
-			<ul className="sheet-threads">
+			{here.length === 0 && <p className="phone-sheet-empty">No comments yet.</p>}
+			<ul className="phone-sheet-threads">
 				{[...open, ...(showResolved ? resolved : [])].map((thread) => (
 					<li key={thread.id}>
 						<ThreadRow
@@ -379,12 +379,12 @@ function Comments({
 				))}
 			</ul>
 			{resolved.length > 0 && !showResolved && (
-				<button type="button" className="sheet-link" onClick={() => setShowResolved(true)}>
+				<button type="button" className="phone-sheet-link" onClick={() => setShowResolved(true)}>
 					{resolved.length === 1 ? "1 resolved" : `${resolved.length} resolved`}
 				</button>
 			)}
 			{you.canComment ? (
-				<div className="sheet-composer">
+				<div className="phone-sheet-composer">
 					<Composer
 						placeholder="Add a comment"
 						autoFocus={false}
@@ -397,7 +397,7 @@ function Comments({
 					/>
 				</div>
 			) : (
-				<p className="sheet-empty">{cantComment(you)}</p>
+				<p className="phone-sheet-empty">{cantComment(you)}</p>
 			)}
 		</section>
 	);
@@ -422,25 +422,27 @@ function ThreadRow({
 	return (
 		<button
 			type="button"
-			className="sheet-thread"
+			className="phone-sheet-thread"
 			data-unread={unread || undefined}
 			data-resolved={!!thread.resolved || undefined}
 			onClick={onOpen}
 		>
 			{first && <Avatar user={authorUser(first)} />}
-			<span className="sheet-thread-main">
-				<span className="sheet-thread-head">
-					<span className="sheet-thread-name">{first?.name || first?.login || "Someone"}</span>
-					<span className="sheet-thread-time">{relativeTime(thread.updatedAt, now)}</span>
+			<span className="phone-sheet-thread-main">
+				<span className="phone-sheet-thread-head">
+					<span className="phone-sheet-thread-name">
+						{first?.name || first?.login || "Someone"}
+					</span>
+					<span className="phone-sheet-thread-time">{relativeTime(thread.updatedAt, now)}</span>
 				</span>
-				<span className="sheet-thread-body">{excerpt(body, 120)}</span>
+				<span className="phone-sheet-thread-body">{excerpt(body, 120)}</span>
 				{replies > 0 && (
-					<span className="sheet-thread-replies">
+					<span className="phone-sheet-thread-replies">
 						{replies === 1 ? "1 reply" : `${replies} replies`}
 					</span>
 				)}
 			</span>
-			{unread && <span className="sheet-unread" aria-label="Unread" />}
+			{unread && <span className="phone-sheet-unread" aria-label="Unread" />}
 		</button>
 	);
 }
@@ -465,7 +467,7 @@ export function ThreadSheet({
 		store.markRead(thread.id);
 	}, [store, thread]);
 	return (
-		<div className="sheet-thread-view comment-ui">
+		<div className="phone-sheet-thread-view comment-ui">
 			<ThreadView
 				thread={thread}
 				you={you}

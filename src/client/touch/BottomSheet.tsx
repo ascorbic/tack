@@ -116,10 +116,10 @@ export function BottomSheet({
 	const dragging = dy !== null;
 
 	return (
-		<div className="sheet-layer" data-chrome data-leaving={shown.leaving || undefined}>
+		<div className="phone-sheet-layer" data-chrome data-leaving={shown.leaving || undefined}>
 			<section
 				ref={sheet}
-				className="sheet"
+				className="phone-sheet"
 				role="dialog"
 				aria-label={content.label}
 				data-kind={content.kind}
@@ -134,7 +134,7 @@ export function BottomSheet({
 				}
 			>
 				<div
-					className="sheet-top"
+					className="phone-sheet-top"
 					onPointerDown={onPointerDown}
 					onPointerMove={onPointerMove}
 					onPointerUp={onPointerUp}
@@ -143,17 +143,22 @@ export function BottomSheet({
 						setDy(null);
 					}}
 				>
-					<span className="sheet-grip" aria-hidden="true" />
-					<div className="sheet-header">
-						<div className="sheet-heading">{content.header}</div>
-						<button type="button" className="sheet-close" aria-label="Close" onClick={onClose}>
+					<span className="phone-sheet-grip" aria-hidden="true" />
+					<div className="phone-sheet-header">
+						<div className="phone-sheet-heading">{content.header}</div>
+						<button
+							type="button"
+							className="phone-sheet-close"
+							aria-label="Close"
+							onClick={onClose}
+						>
 							<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
 								<path d="M3 3l8 8M11 3l-8 8" />
 							</svg>
 						</button>
 					</div>
 				</div>
-				<div className="sheet-body">{content.children}</div>
+				<div className="phone-sheet-body">{content.children}</div>
 			</section>
 		</div>
 	);

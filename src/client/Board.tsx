@@ -594,7 +594,7 @@ export function Board({
 			// "It's already here": a card someone tried to add again.
 			if (pulsing.has(base.id)) className = `${className ?? ""} pulse`.trim();
 			// Open in a phone’s sheet (#67).
-			if (base.id === sheetShape) className = `${className ?? ""} sheet-open`.trim();
+			if (base.id === sheetShape) className = `${className ?? ""} phone-sheet-open`.trim();
 
 			// In a list or grid: drawn in its slot, at its slot's size (#72).
 			let kind: DisplayKind | undefined;

@@ -297,8 +297,8 @@ export default function MobileGallery() {
 								label="Comment"
 								kind="thread"
 								header={
-									<span className="sheet-title">
-										<span className="sheet-kind">Comment</span>
+									<span className="phone-sheet-title">
+										<span className="phone-sheet-kind">Comment</span>
 									</span>
 								}
 								onClose={noop}
@@ -345,8 +345,8 @@ export default function MobileGallery() {
 								label="New sticky"
 								kind="sticky"
 								header={
-									<span className="sheet-title">
-										<span className="sheet-kind">New sticky</span>
+									<span className="phone-sheet-title">
+										<span className="phone-sheet-kind">New sticky</span>
 									</span>
 								}
 								onClose={noop}

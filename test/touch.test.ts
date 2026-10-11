@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 import {
 	FLICK_SPEED,
@@ -91,5 +92,55 @@ describe("keeping a shape in sight above the sheet", () => {
 		const pan = panToShow({ x: 0, y: 400, w: 600, h: 600 }, clear, 16);
 		expect(0 + (pan?.dx ?? 0)).toBe(16);
 		expect(400 + (pan?.dy ?? 0)).toBe(16);
+	});
+});
+
+/** A selector list split at its top-level commas, not those inside :is(). */
+function topLevel(list: string): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let start = 0;
+	for (let i = 0; i < list.length; i++) {
+		const c = list[i];
+		if (c === "(") depth++;
+		else if (c === ")") depth--;
+		else if (c === "," && depth === 0) {
+			out.push(list.slice(start, i));
+			start = i + 1;
+		}
+	}
+	out.push(list.slice(start));
+	return out;
+}
+
+const TOUCH_CSS = "src/client/touch/touch.css";
+
+describe("touch.css", () => {
+	// It's loaded on every board, phone or not: its rules either wait for a
+	// phone or a touch screen, or style touch's own parts. (The shortcut
+	// sheet's .sheet once caught the phone's sheet's rules.)
+	const OWN = [
+		/^\.app\[data-(phone|touch)\]/,
+		/^\.(phone-|shape-sheet|quick-|multi-select|press-ring)/,
+		/^\.react-flow__node\.phone-sheet-open/,
+	];
+
+	it("only styles phones, touch screens and its own parts", () => {
+		const css = readFileSync(TOUCH_CSS, "utf8")
+			.replace(/\/\*[\s\S]*?\*\//g, "")
+			.replace(/@keyframes[^{]+\{(?:[^{}]*\{[^}]*\})*[^}]*\}/g, "");
+		const selectors = [...css.matchAll(/([^{}@]+)\{[^{}]*\}/g)]
+			.flatMap((match) => topLevel(match[1] ?? ""))
+			.map((selector) => selector.trim().replace(/\s+/g, " "))
+			.filter(Boolean);
+		expect(selectors.length).toBeGreaterThan(50);
+		const stray = selectors.filter((selector) => !OWN.some((own) => own.test(selector)));
+		expect(stray).toEqual([]);
+	});
+
+	it("names its animations as its own", () => {
+		const css = readFileSync(TOUCH_CSS, "utf8");
+		const names = [...css.matchAll(/@keyframes ([\w-]+)/g)].map((match) => match[1]);
+		for (const name of names) expect(name).not.toMatch(/^sheet-/);
 	});
 });

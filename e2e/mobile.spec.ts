@@ -158,22 +158,22 @@ test.describe("on a phone", () => {
 		await expect(sheet).toBeVisible();
 		await expect(sheet.locator(".card")).toContainText("Drop Node 18 support");
 		// The shape stays in sight above the sheet, ringed.
-		await expect(card).toHaveClass(/sheet-open/);
+		await expect(card).toHaveClass(/phone-sheet-open/);
 		await expect(card).toBeInViewport();
 
 		// Its thread, then a reply.
-		await sheet.locator(".sheet-thread").first().tap();
+		await sheet.locator(".phone-sheet-thread").first().tap();
 		const thread = page.getByRole("dialog", { name: "Comment" });
 		await expect(thread).toContainText("Is this still blocked on the CI matrix change?");
 		await thread.getByRole("combobox", { name: "Reply" }).fill("On it from my phone");
 		await thread.getByRole("combobox", { name: "Reply" }).press("Enter");
 		await expect(thread).toContainText("On it from my phone");
 		// Back to the card, and a new comment on it.
-		await thread.locator(".sheet-back").tap();
+		await thread.locator(".phone-sheet-back").tap();
 		await expect(page.getByRole("dialog", { name: "Card" })).toBeVisible();
 		await sheet.getByRole("combobox", { name: "Add a comment" }).fill("Phones can comment too");
 		await sheet.getByRole("combobox", { name: "Add a comment" }).press("Enter");
-		await expect(sheet.locator(".sheet-thread")).toHaveCount(2);
+		await expect(sheet.locator(".phone-sheet-thread")).toHaveCount(2);
 		await expect(sheet).toContainText("Phones can comment too");
 
 		// Tapping the empty board puts it away.
@@ -215,10 +215,10 @@ test.describe("on a phone", () => {
 		const agree = decision.getByRole("group", { name: "Your vote" }).getByRole("button", {
 			name: /Agree/,
 		});
-		const before = Number(await agree.locator(".sheet-choice-count").textContent());
+		const before = Number(await agree.locator(".phone-sheet-choice-count").textContent());
 		await agree.tap();
 		await expect(agree).toHaveAttribute("aria-pressed", "true");
-		await expect(agree.locator(".sheet-choice-count")).toHaveText(String(before + 1));
+		await expect(agree.locator(".phone-sheet-choice-count")).toHaveText(String(before + 1));
 		await agree.tap();
 		await expect(agree).toHaveAttribute("aria-pressed", "false");
 	});
@@ -296,16 +296,20 @@ test.describe("on a phone", () => {
 		await tap(await shapeOnScreen(page));
 		const sheet = page.getByRole("dialog", { name: "Shape" });
 		await expect(sheet).toBeVisible();
-		// Once it's finished rising.
-		await sheet.evaluate((element) =>
-			Promise.all(element.getAnimations().map((animation) => animation.finished)),
-		);
-		const grip = await centre(sheet.locator(".sheet-grip"));
+		// Where its grip is once it's still (rising, or springing back).
+		const grip = async () => {
+			await sheet.evaluate((element) =>
+				Promise.all(element.getAnimations().map((animation) => animation.finished)),
+			);
+			return centre(sheet.locator(".phone-sheet-grip"));
+		};
 		// A little way, slowly: it springs back.
-		await gesture([grip], [[0, 40]], 12);
+		const at = await grip();
+		await gesture([at], [[0, 40]], 12);
 		await expect(sheet).toBeVisible();
+		expect(Math.abs((await grip())[1] - at[1])).toBeLessThan(2);
 		// Further: it goes.
-		await gesture([grip], [[0, 320]], 10);
+		await gesture([await grip()], [[0, 320]], 10);
 		await expect(sheet).toHaveCount(0);
 	});
 

@@ -100,7 +100,7 @@ export function PhoneBoard({
 	const clearArea = useCallback(() => {
 		const bounds = canvas.current?.getBoundingClientRect();
 		if (!bounds) return null;
-		const sheet = canvas.current?.querySelector<HTMLElement>(".sheet");
+		const sheet = canvas.current?.querySelector<HTMLElement>(".phone-sheet");
 		const top = sheet ? bounds.height - sheet.offsetHeight : null;
 		return { bounds, clear: clearOfSheet(bounds, top) };
 	}, [canvas]);
@@ -204,8 +204,8 @@ export function PhoneBoard({
 			kind: "sticky",
 			label: "New sticky",
 			header: (
-				<span className="sheet-title">
-					<span className="sheet-kind">New sticky</span>
+				<span className="phone-sheet-title">
+					<span className="phone-sheet-kind">New sticky</span>
 				</span>
 			),
 			body: <QuickSticky color={stickyColor} onColor={onStickyColor} onAdd={addFromPad} />,
@@ -216,15 +216,19 @@ export function PhoneBoard({
 			kind: "thread",
 			label: "Comment",
 			header: back ? (
-				<button type="button" className="sheet-back" onClick={() => commentStore.openThread(null)}>
+				<button
+					type="button"
+					className="phone-sheet-back"
+					onClick={() => commentStore.openThread(null)}
+				>
 					<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
 						<path d="M8.5 3L4.5 7l4 4" />
 					</svg>
 					<ShapeHeading node={node} />
 				</button>
 			) : (
-				<span className="sheet-title">
-					<span className="sheet-kind">Comment</span>
+				<span className="phone-sheet-title">
+					<span className="phone-sheet-kind">Comment</span>
 				</span>
 			),
 			body: <ThreadSheet thread={thread} login={user.login} toasts={toasts} doc={doc} />,

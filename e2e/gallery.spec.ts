@@ -524,7 +524,7 @@ test("every phone and tablet state renders", async ({ page }) => {
 		}),
 	).toHaveAttribute("aria-pressed", "true");
 	await expect(state("face-down")).toContainText("Face down until it’s revealed");
-	await expect(state("comments").locator(".sheet-thread")).toHaveCount(2);
+	await expect(state("comments").locator(".phone-sheet-thread")).toHaveCount(2);
 	await expect(state("view-only").getByRole("region", { name: "Dot vote" })).toHaveCount(0);
 	await expect(state("view-only").getByRole("group", { name: "Stamps" })).toHaveCount(0);
 	await expect(state("thread")).toContainText("Not for long: the index lands this week.");

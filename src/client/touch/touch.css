@@ -22,7 +22,7 @@
 
 /* --- The sheet ------------------------------------------------------------ */
 
-.sheet-layer {
+.phone-sheet-layer {
 	position: absolute;
 	inset: 0;
 	z-index: 60;
@@ -31,7 +31,7 @@
 	pointer-events: none;
 }
 
-.sheet {
+.phone-sheet {
 	position: absolute;
 	right: 0;
 	bottom: var(--keyboard, 0px);
@@ -55,41 +55,41 @@
 	transition:
 		transform var(--t-settle) var(--ease-spring),
 		bottom var(--t-base) var(--ease-out);
-	animation: sheet-in var(--t-settle) var(--ease-spring) backwards;
+	animation: phone-sheet-in var(--t-settle) var(--ease-spring) backwards;
 }
 
-.sheet[data-dragging] {
+.phone-sheet[data-dragging] {
 	transition: none;
 }
 
-.sheet[data-leaving] {
-	animation: sheet-out calc(260ms * var(--motion)) var(--ease-out) forwards;
+.phone-sheet[data-leaving] {
+	animation: phone-sheet-out calc(260ms * var(--motion)) var(--ease-out) forwards;
 }
 
-@keyframes sheet-in {
+@keyframes phone-sheet-in {
 	from {
 		transform: translateY(100%);
 	}
 }
 
-@keyframes sheet-out {
+@keyframes phone-sheet-out {
 	to {
 		transform: translateY(calc(100% + 24px));
 	}
 }
 
-.sheet-top {
+.phone-sheet-top {
 	flex: none;
 	padding: 8px 12px 6px 18px;
 	touch-action: none;
 	cursor: grab;
 }
 
-.sheet[data-dragging] .sheet-top {
+.phone-sheet[data-dragging] .phone-sheet-top {
 	cursor: grabbing;
 }
 
-.sheet-grip {
+.phone-sheet-grip {
 	display: block;
 	width: 38px;
 	height: 5px;
@@ -99,30 +99,30 @@
 	transition: background var(--t-quick) var(--ease-out);
 }
 
-.sheet[data-dragging] .sheet-grip {
+.phone-sheet[data-dragging] .phone-sheet-grip {
 	background: var(--muted);
 }
 
-.sheet-header {
+.phone-sheet-header {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	min-height: 40px;
 }
 
-.sheet-heading {
+.phone-sheet-heading {
 	flex: 1;
 	min-width: 0;
 }
 
-.sheet-title {
+.phone-sheet-title {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
 	line-height: 1.25;
 }
 
-.sheet-kind {
+.phone-sheet-kind {
 	color: var(--muted);
 	font-size: 12px;
 	font-weight: 620;
@@ -130,7 +130,7 @@
 	text-transform: uppercase;
 }
 
-.sheet-detail {
+.phone-sheet-detail {
 	overflow: hidden;
 	color: var(--ink);
 	font-family: var(--font-display);
@@ -141,8 +141,8 @@
 	white-space: nowrap;
 }
 
-.sheet-close,
-.sheet-back {
+.phone-sheet-close,
+.phone-sheet-back {
 	display: inline-flex;
 	flex: none;
 	align-items: center;
@@ -156,13 +156,13 @@
 		transform var(--t-quick) var(--ease-out);
 }
 
-.sheet-close {
+.phone-sheet-close {
 	width: 36px;
 	height: 36px;
 	border-radius: 50%;
 }
 
-.sheet-back {
+.phone-sheet-back {
 	gap: 8px;
 	max-width: 100%;
 	height: 40px;
@@ -171,16 +171,16 @@
 	text-align: left;
 }
 
-.sheet-back .sheet-detail {
+.phone-sheet-back .phone-sheet-detail {
 	font-size: 14px;
 }
 
-.sheet-back .sheet-kind {
+.phone-sheet-back .phone-sheet-kind {
 	font-size: 10.5px;
 }
 
-.sheet-close svg,
-.sheet-back svg {
+.phone-sheet-close svg,
+.phone-sheet-back svg {
 	flex: none;
 	fill: none;
 	stroke: currentColor;
@@ -189,13 +189,13 @@
 	stroke-linejoin: round;
 }
 
-.sheet-close:active,
-.sheet-back:active {
+.phone-sheet-close:active,
+.phone-sheet-back:active {
 	background: var(--hover);
 	transform: scale(0.94);
 }
 
-.sheet-body {
+.phone-sheet-body {
 	flex: 1;
 	min-height: 0;
 	overflow: auto;
@@ -211,7 +211,7 @@
 }
 
 .shape-sheet > * {
-	animation: sheet-part-in var(--t-settle) var(--ease-spring) backwards;
+	animation: phone-sheet-part-in var(--t-settle) var(--ease-spring) backwards;
 }
 
 .shape-sheet > :nth-child(2) {
@@ -226,19 +226,19 @@
 	animation-delay: calc(120ms * var(--motion));
 }
 
-@keyframes sheet-part-in {
+@keyframes phone-sheet-part-in {
 	from {
 		opacity: 0;
 		transform: translateY(10px);
 	}
 }
 
-.sheet-card .card {
+.phone-sheet-card .card {
 	width: 100%;
 	box-shadow: none;
 }
 
-.sheet-sticky {
+.phone-sheet-sticky {
 	position: relative;
 	display: flex;
 	flex-direction: column;
@@ -252,7 +252,7 @@
 	transform: rotate(-0.6deg);
 }
 
-.sheet-sticky::after {
+.phone-sheet-sticky::after {
 	content: "";
 	position: absolute;
 	right: 0;
@@ -263,7 +263,7 @@
 	background: linear-gradient(135deg, rgb(0 0 0 / 0%) 50%, rgb(0 0 0 / 8%) 50%);
 }
 
-.sheet-sticky-text {
+.phone-sheet-sticky-text {
 	flex: 1;
 	margin: 0;
 	font-size: 21px;
@@ -273,17 +273,17 @@
 	white-space: pre-wrap;
 }
 
-.sheet-sticky[data-font="hand"] .sheet-sticky-text {
+.phone-sheet-sticky[data-font="hand"] .phone-sheet-sticky-text {
 	font-family: var(--font-hand);
 }
 
-.sheet-sticky-text em,
-.sheet-plain-text em {
+.phone-sheet-sticky-text em,
+.phone-sheet-plain-text em {
 	color: var(--muted);
 	font-style: normal;
 }
 
-.sheet-sticky[data-face-down] {
+.phone-sheet-sticky[data-face-down] {
 	background: repeating-linear-gradient(
 		-45deg,
 		var(--sticky),
@@ -293,14 +293,14 @@
 	);
 }
 
-.sheet-sticky-hidden {
+.phone-sheet-sticky-hidden {
 	flex: 1;
 	margin: 0;
 	font-size: 15px;
 	font-weight: 600;
 }
 
-.sheet-sticky-author {
+.phone-sheet-sticky-author {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -309,21 +309,21 @@
 	font-weight: 560;
 }
 
-.sheet-sticky-dot {
+.phone-sheet-sticky-dot {
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
 	box-shadow: 0 0 0 1.5px rgb(255 255 255 / 70%);
 }
 
-.sheet-plain {
+.phone-sheet-plain {
 	padding: 16px 18px;
 	border: 1px solid var(--line);
 	border-radius: 14px;
 	background: var(--surface);
 }
 
-.sheet-plain-text {
+.phone-sheet-plain-text {
 	margin: 0;
 	font-size: 18px;
 	font-weight: 560;
@@ -331,18 +331,18 @@
 	white-space: pre-wrap;
 }
 
-.sheet-plain[data-done] .sheet-plain-text {
+.phone-sheet-plain[data-done] .phone-sheet-plain-text {
 	text-decoration: line-through;
 	text-decoration-color: var(--muted);
 }
 
-.sheet-meta {
+.phone-sheet-meta {
 	margin: 8px 0 0;
 	color: var(--ink-soft);
 	font-size: 13px;
 }
 
-.sheet-decision {
+.phone-sheet-decision {
 	--rail: var(--accent);
 	padding: 16px 18px 18px;
 	border: 1px solid var(--line);
@@ -351,15 +351,15 @@
 	background: var(--surface);
 }
 
-.sheet-decision[data-status="decided"] {
+.phone-sheet-decision[data-status="decided"] {
 	--rail: var(--pass);
 }
 
-.sheet-decision[data-status="superseded"] {
+.phone-sheet-decision[data-status="superseded"] {
 	--rail: var(--muted);
 }
 
-.sheet-decision-status {
+.phone-sheet-decision-status {
 	color: var(--ink-soft);
 	font-size: 11.5px;
 	font-weight: 650;
@@ -367,7 +367,7 @@
 	text-transform: uppercase;
 }
 
-.sheet-decision-title {
+.phone-sheet-decision-title {
 	margin: 4px 0 0;
 	font-family: var(--font-display);
 	font-size: 21px;
@@ -376,7 +376,7 @@
 	letter-spacing: -0.015em;
 }
 
-.sheet-decision-text {
+.phone-sheet-decision-text {
 	margin: 10px 0 0;
 	color: var(--ink-soft);
 	font-size: 15px;
@@ -384,14 +384,14 @@
 	white-space: pre-wrap;
 }
 
-.sheet-choices {
+.phone-sheet-choices {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 10px;
 	margin-top: 16px;
 }
 
-.sheet-choice {
+.phone-sheet-choice {
 	--choice: var(--pass);
 	display: flex;
 	align-items: center;
@@ -412,15 +412,15 @@
 		transform var(--t-quick) var(--ease-out);
 }
 
-.sheet-choice[data-choice="disagree"] {
+.phone-sheet-choice[data-choice="disagree"] {
 	--choice: var(--fail);
 }
 
-.sheet-choice:active:not(:disabled) {
+.phone-sheet-choice:active:not(:disabled) {
 	transform: scale(0.97);
 }
 
-.sheet-choice[aria-pressed="true"] {
+.phone-sheet-choice[aria-pressed="true"] {
 	border-color: var(--choice);
 	background: color-mix(in srgb, var(--choice) 12%, var(--surface));
 	color: color-mix(in srgb, var(--choice) 70%, var(--ink));
@@ -433,7 +433,7 @@
 	}
 }
 
-.sheet-choice-count {
+.phone-sheet-choice-count {
 	min-width: 26px;
 	padding: 2px 8px;
 	border-radius: 10px;
@@ -442,12 +442,12 @@
 	text-align: center;
 }
 
-.sheet-section {
+.phone-sheet-section {
 	display: grid;
 	gap: 10px;
 }
 
-.sheet-section-title {
+.phone-sheet-section-title {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -457,7 +457,7 @@
 	font-weight: 650;
 }
 
-.sheet-count {
+.phone-sheet-count {
 	padding: 1px 7px;
 	border-radius: 9px;
 	background: var(--accent-soft);
@@ -466,34 +466,34 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.sheet-empty {
+.phone-sheet-empty {
 	margin: 0;
 	color: var(--ink-soft);
 	font-size: 14px;
 }
 
 /* A dot vote: your dots, and a stepper to put one on or take one back. */
-.sheet-vote {
+.phone-sheet-vote {
 	padding: 14px 16px;
 	border-radius: 16px;
 	background: var(--accent-soft);
 }
 
-.sheet-vote-head {
+.phone-sheet-vote-head {
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
 	gap: 12px;
 }
 
-.sheet-vote-left {
+.phone-sheet-vote-left {
 	color: var(--accent);
 	font-size: 13px;
 	font-weight: 650;
 	font-variant-numeric: tabular-nums;
 }
 
-.sheet-vote-row {
+.phone-sheet-vote-row {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -501,7 +501,7 @@
 	min-height: 48px;
 }
 
-.sheet-vote-row .vote-dots {
+.phone-sheet-vote-row .vote-dots {
 	justify-content: flex-start;
 	flex: 1;
 	width: auto;
@@ -512,19 +512,19 @@
 	gap: 5px;
 }
 
-.sheet-vote-row .vote-dot {
+.phone-sheet-vote-row .vote-dot {
 	width: 20px;
 	height: 20px;
 }
 
-.sheet-vote-buttons {
+.phone-sheet-vote-buttons {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
 	margin-left: auto;
 }
 
-.sheet-vote-mine {
+.phone-sheet-vote-mine {
 	min-width: 28px;
 	font-size: 20px;
 	font-weight: 680;
@@ -532,7 +532,7 @@
 	text-align: center;
 }
 
-.sheet-round {
+.phone-sheet-round {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -549,37 +549,37 @@
 		opacity var(--t-base) var(--ease-out);
 }
 
-.sheet-round svg {
+.phone-sheet-round svg {
 	fill: none;
 	stroke: currentColor;
 	stroke-width: 2;
 	stroke-linecap: round;
 }
 
-.sheet-round-primary {
+.phone-sheet-round-primary {
 	border-color: var(--accent);
 	background: var(--accent);
 	color: var(--on-accent);
 }
 
-.sheet-round:active:not(:disabled) {
+.phone-sheet-round:active:not(:disabled) {
 	transform: scale(0.9);
 }
 
-.sheet-round:disabled {
+.phone-sheet-round:disabled {
 	border-color: var(--line);
 	background: var(--surface-muted);
 	color: var(--muted);
 	cursor: default;
 }
 
-.sheet-stamps {
+.phone-sheet-stamps {
 	display: grid;
 	grid-template-columns: repeat(8, minmax(0, 1fr));
 	gap: 6px;
 }
 
-.sheet-stamp {
+.phone-sheet-stamp {
 	position: relative;
 	display: flex;
 	align-items: center;
@@ -596,17 +596,17 @@
 		border-color var(--t-base) var(--ease-out);
 }
 
-.sheet-stamp:active {
+.phone-sheet-stamp:active {
 	transform: scale(0.88);
 }
 
-.sheet-stamp[aria-pressed="true"] {
+.phone-sheet-stamp[aria-pressed="true"] {
 	border-color: var(--accent);
 	background: var(--accent-soft);
 	animation: choice-pop var(--t-settle) var(--ease-spring);
 }
 
-.sheet-stamp-count {
+.phone-sheet-stamp-count {
 	position: absolute;
 	top: -5px;
 	right: -4px;
@@ -622,12 +622,12 @@
 }
 
 @media (max-width: 360px) {
-	.sheet-stamps {
+	.phone-sheet-stamps {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 	}
 }
 
-.sheet-threads {
+.phone-sheet-threads {
 	display: grid;
 	gap: 2px;
 	margin: 0;
@@ -635,11 +635,11 @@
 	list-style: none;
 }
 
-.sheet-threads:empty {
+.phone-sheet-threads:empty {
 	display: none;
 }
 
-.sheet-thread {
+.phone-sheet-thread {
 	display: flex;
 	align-items: flex-start;
 	gap: 12px;
@@ -652,52 +652,52 @@
 	text-align: left;
 	cursor: pointer;
 	transition: background var(--t-quick) var(--ease-out);
-	animation: sheet-part-in var(--t-settle) var(--ease-spring) backwards;
+	animation: phone-sheet-part-in var(--t-settle) var(--ease-spring) backwards;
 }
 
-.sheet-thread:active {
+.phone-sheet-thread:active {
 	background: var(--hover);
 }
 
-.sheet-thread[data-resolved] .sheet-thread-body {
+.phone-sheet-thread[data-resolved] .phone-sheet-thread-body {
 	color: var(--ink-soft);
 }
 
-.sheet-thread .avatar {
+.phone-sheet-thread .avatar {
 	flex: none;
 }
 
-.sheet-thread-main {
+.phone-sheet-thread-main {
 	display: grid;
 	flex: 1;
 	gap: 2px;
 	min-width: 0;
 }
 
-.sheet-thread-head {
+.phone-sheet-thread-head {
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
 	gap: 8px;
 }
 
-.sheet-thread-name {
+.phone-sheet-thread-name {
 	font-size: 14px;
 	font-weight: 650;
 }
 
-.sheet-thread-time,
-.sheet-thread-replies {
+.phone-sheet-thread-time,
+.phone-sheet-thread-replies {
 	color: var(--ink-soft);
 	font-size: 12.5px;
 }
 
-.sheet-thread-body {
+.phone-sheet-thread-body {
 	font-size: 15px;
 	line-height: 1.4;
 }
 
-.sheet-unread {
+.phone-sheet-unread {
 	flex: none;
 	width: 9px;
 	height: 9px;
@@ -706,7 +706,7 @@
 	background: var(--accent);
 }
 
-.sheet-link {
+.phone-sheet-link {
 	justify-self: start;
 	padding: 6px 8px;
 	border: 0;
@@ -718,7 +718,7 @@
 	cursor: pointer;
 }
 
-.sheet-composer {
+.phone-sheet-composer {
 	padding: 4px;
 	border: 1px solid var(--line);
 	border-radius: 16px;
@@ -726,7 +726,7 @@
 }
 
 /* A thread, open in the sheet: the popover's thread, flattened. */
-.sheet-thread-view .comment-thread {
+.phone-sheet-thread-view .comment-thread {
 	width: auto;
 	max-height: none;
 	border: 0;
@@ -979,7 +979,7 @@
 }
 
 /* The shape whose sheet is open, ringed on the board above it. */
-.react-flow__node.sheet-open::before {
+.react-flow__node.phone-sheet-open::before {
 	content: "";
 	position: absolute;
 	inset: -7px;
@@ -987,10 +987,10 @@
 	border: 2.5px solid var(--accent);
 	border-radius: 16px;
 	pointer-events: none;
-	animation: sheet-ring var(--t-settle) var(--ease-spring);
+	animation: phone-sheet-ring var(--t-settle) var(--ease-spring);
 }
 
-@keyframes sheet-ring {
+@keyframes phone-sheet-ring {
 	from {
 		opacity: 0;
 		transform: scale(1.08);
@@ -1183,6 +1183,6 @@
 }
 
 /* The sheet has its own close. */
-.sheet-thread-view .comment-thread-head .comment-icon-button[aria-label="Close"] {
+.phone-sheet-thread-view .comment-thread-head .comment-icon-button[aria-label="Close"] {
 	display: none;
 }
