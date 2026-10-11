@@ -175,7 +175,7 @@ Who may use every route and every message on a board's connection (#60). "Can op
 | `POST /api/boards/:id/push`                                                        | Editors, signed in                                                                      |
 | `GET /api/boards/:id/search`, `GET /api/boards/:id/related`                        | Can open; asked with their own token, so only what they may read                        |
 | `POST /api/boards/:id/snapshots`                                                   | Editors                                                                                 |
-| `POST /api/boards/:id/ai`                                                          | Editors, signed in, while AI is on (`TACK_AI`); within the board's AI budget            |
+| `POST /api/boards/:id/ai`                                                          | Editors, while AI is on (`TACK_AI`), within the board’s AI budget                       |
 | `POST /api/boards/:id/carry`                                                       | Editors of the board carried to, who can open the board carried from                    |
 | `GET /api/boards/:id/backup`                                                       | Editors                                                                                 |
 | `PUT`/`DELETE /api/boards/:id/backup`, `POST /api/boards/:id/backup/run`           | The owner, who must be able to write the repository                                     |
