@@ -77,9 +77,22 @@ Invited people keep their own role whatever the visibility, as long as they're s
 
 For people who can edit, the dialog also lists the board's repositories under **On GitHub**, and whether Tack can push to each: "Live · Tack can push", or "Updates while open · read-only" with **Install the app**. Check it before a session, so a missing installation doesn't show up when the first push fails.
 
+On a public board, Share also offers **Embed in a README**: a live image of the board, or part of it, to put in a README or docs page. See [Embeds and link previews](/boards/embeds/).
+
 ### Public boards and signed-out visitors
 
-Someone who isn't signed in can open a public board and look around, but can't edit, comment or vote. Cards from private repositories show as "Private" placeholders to them, as they would to anyone who can't read the repository, and widgets only show public results. They see a **Sign in** link in the top bar.
+Someone who isn't signed in can open a public board and look around, but can't edit, comment or vote. A note at the bottom says "You're viewing a public board", and that signing in with GitHub lets them comment, and see cards from private repositories they can read; **Sign in** is there and in the top bar, and **×** puts the note away for good on that board. The **View only** badge says "You can look around. Sign in to comment".
+
+They only ever get what anyone may see:
+
+- Cards from private repositories (or any repository Tack doesn't know to be public) are "Private" placeholders, with nothing but where they are on the board, as they are for anyone who can't read the repository. Their titles, labels and states never reach a signed-out visitor's browser.
+- Widgets and inboxes only show results from public repositories, and searching from the card tool, and **Expand related**, only find public items.
+- **What's new** only lists GitHub activity on public repositories' cards, and the push history says no more about a change to a private repository than "A change to a private repository" (this goes for signed-in people who can't read the repository too).
+- History replays the board's own content (stickies, sections, connectors and where cards are), never card data.
+
+Everything else on a public board is public: stickies, text, sections, decisions, comments, and the board's history. Silent mode's hidden text is the exception: it never leaves its author's browser before the reveal, so nobody else can see it, signed in or not.
+
+A public board's link unfurls in Slack, Discord, GitHub and social sites with its title, a description of what's on it (naming only public repositories) and an image of it. See [Embeds and link previews](/boards/embeds/).
 
 ## Archiving
 

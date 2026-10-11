@@ -32,6 +32,11 @@ No KV, R2, D1 or Queues.
 - **Pushes**: one write a second, run from the board object's alarm.
 - **Storage**: each board's document (saved in chunks), its comments, push history, change log and [history](/boards/history/) (up to 8 MB), and backlink snapshots (each up to 1.5 MB, up to 1000 per board). Repository objects cache their cards.
 - **Logs**: one line per event; busy instances log a lot of `webhook.` and `repo.` events.
+- **Images of public boards** ([embeds and link previews](/boards/embeds/)): drawing one takes a few hundred milliseconds of CPU time (more for a big board, and for PNG), and wakes the board's object. Each image is drawn once for each change to what it shows: after that, browsers and GitHub's image proxy are told it's unchanged, and drawn images are kept in Cloudflare's cache. Opening a public board's page asks the board for a description of it, for link previews.
+
+:::caution[Images need more CPU time than the Free plan allows]
+The Workers Free plan allows 10 ms of CPU time per request, which isn't enough to draw a board. On Free, embeds and link preview images may fail (everything else works). On the Paid plan they're well within the limits. The image renderer (Satori and resvg, as WebAssembly) also adds about 1.3 MB, compressed, to the Worker (about 1.6 MB in all, within the Free plan's 3 MB).
+:::
 
 ## GitHub
 
