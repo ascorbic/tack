@@ -27,24 +27,24 @@ The Worker itself, read by the `cf` CLI and the build. Change it in your copy of
 | ----------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `name`                                    | `tack`                | The Worker's name. Change each Durable Object binding's `worker` with it, and regenerate `wrangler.jsonc` (`pnpm run wrangler-config`). Renaming a deployed Worker makes a new one, with new, empty Durable Objects                                                            |
 | `TACK_COMMAND_ALIAS`                      | empty                 | Short names the app answers to in [comment commands](/automation/comment-commands/#aliases), besides its GitHub App slug: comma-separated, e.g. `tack`. Empty by default, because a short name like `tack` is someone's real GitHub login, and every command would notify them |
-| `TACK_AI`, `AI`                           | `on`, and the binding | [AI suggestions](#ai-suggestions): naming stacks and Group these. `off` turns them off. `AI` is the Workers AI binding they use                                                                                                                                                |
+| `TACK_AI`, `AI`                           | `on`, and the binding | [AI suggestions](#ai-suggestions): naming stacks, Group these, and [AI on boards](/boards/ai/) (widgets in words, summaries and drafted decisions). `off` turns them all off. `AI` is the Workers AI binding they use                                                          |
 | `triggers`                                | every ten minutes     | The cron that asks GitHub to redeliver webhooks that failed to arrive                                                                                                                                                                                                          |
 | `observability`                           | on                    | [Workers Logs](/self-hosting/observability/). Turning it off loses Tack's logs                                                                                                                                                                                                 |
 | `compatibilityDate`, `compatibilityFlags` | in `compatibility.ts` | The Workers runtime Tack is built for. Shared with the tests: change them only with a new version of Tack                                                                                                                                                                      |
 
-Bindings you don't see here (the four Durable Objects, `assets`) are part of how Tack works: leave them as they are.
+Bindings you don't see here (the four Durable Objects, `assets`, `AI`) are part of how Tack works: leave them as they are.
 
 `wrangler.jsonc` is generated from `cloudflare.config.ts` for the [Deploy to Cloudflare button](/self-hosting/deploy/#the-buttons-limits), and nothing else reads it. After changing `cloudflare.config.ts`, run `pnpm run wrangler-config`; the tests fail until you do.
 
 ### AI suggestions
 
-[Stacks](/boards/stacks/) are named from what their stickies say, and **Group these** sorts a selection into named stacks, by a language model on [Workers AI](https://developers.cloudflare.com/workers-ai/), on your own Cloudflare account. They're on by default, through the `AI` binding in `cloudflare.config.ts`; `/setup` says whether they're on, and which model they use.
+[Stacks](/boards/stacks/) are named from what their stickies say, and **Group these** sorts a selection into named stacks, by a language model on [Workers AI](https://developers.cloudflare.com/workers-ai/), on your own Cloudflare account. Editors can also ask it for a widget in words, a summary of what's selected, or a draft decision ([AI on boards](/boards/ai/)). They're on by default, through the `AI` binding in `cloudflare.config.ts`, with Gemma 4 26B A4B; `/setup` says whether they're on, and which model they use.
 
-- **What's sent**: only stickies' visible text, a stack's or a selection's at a time. Never face-down stickies in silent mode (their text isn't on the board until the reveal), cards, comments, names or anything else.
-- **How often**: a stack is named a moment after its text changes, and never twice for the same text (names are kept per board). Each board asks at most 20 times a minute and 240 an hour; Group these counts as four.
-- **What it costs**: Workers AI has a free daily allocation, then it's billed per use (see [Costs](/self-hosting/costs/)). Naming a stack is a few hundred tokens.
-- **Turning them off**: set `TACK_AI` to `off` in `cloudflare.config.ts` and deploy (removing the `AI` binding does the same, and `/setup` says they're unavailable). Stacks are then "Untitled stack" until someone names them, and Group these isn't offered.
-- **Local development** uses a stand-in that names stacks from their words, with nothing sent anywhere. Start `pnpm dev` with `TACK_DEV_AI=workers-ai` to ask the real model (it needs a Cloudflare login, and is billed).
+- **What's sent**: for stacks, only stickies' visible text, a stack's or a selection's at a time: never face-down stickies in silent mode (their text isn't on the board until the reveal), cards, comments, names or anything else. For AI on boards, what's selected as the person asking may read it: stickies' and notes' text and cards' titles, never face-down stickies or cards (or even the names of repositories) they can't read; for a widget, their description, the board's repositories and its sections' names.
+- **How often**: a stack is named a moment after its text changes, and never twice for the same text (names are kept per board). Each board asks at most 20 times a minute and 240 an hour; Group these counts as four. AI on boards asks only when an editor does: 12 requests a minute and 120 an hour per board, 6 a minute per person.
+- **What it costs**: Workers AI has a free daily allocation, then it's billed per use (see [Costs](/self-hosting/costs/#ai)). Naming a stack is a few hundred tokens; a summary at most a few thousand.
+- **Turning them off**: set `TACK_AI` to `off` in `cloudflare.config.ts` and deploy (removing the `AI` binding does the same, and `/setup` says they're unavailable). Stacks are then "Untitled stack" until someone names them, and neither Group these nor AI on boards is offered.
+- **Local development** uses a stand-in that names stacks from their words, and makes widgets, summaries and decisions from keywords, with nothing sent anywhere. Start `pnpm dev` with `TACK_DEV_AI=workers-ai` to ask the real model (it needs a Cloudflare login, and is billed).
 
 ### Custom domains
 
@@ -60,6 +60,7 @@ On the instance, for admins (also **Instance settings** in the account menu):
 
 - **The GitHub App**: created here once, then a link to its settings on GitHub. See [Set up the GitHub App](/self-hosting/github-app/).
 - **Webhooks** and **Where it's installed**: checks, not settings. See [After setup](/self-hosting/github-app/#after-setup).
+- **AI suggestions**: whether they're on, and with which model. See [AI suggestions](#ai-suggestions).
 - **Who can use this instance**: admins, people and organisations. See [Who can use it](/self-hosting/access/).
 
 ## The GitHub App's settings
@@ -68,8 +69,9 @@ On GitHub (**App settings** on `/setup`): the app's name and logo, its URLs (abo
 
 ## Local development only
 
-| Variable          | What it does                                                                                                                                                           |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TACK_DEV_AUTH=1` | Fake sign-in at `/auth/dev`, on localhost only. Only read by the dev server, and never set it in production. See [Local development](/self-hosting/local-development/) |
+| Variable                 | What it does                                                                                                                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TACK_DEV_AUTH=1`        | Fake sign-in at `/auth/dev`, on localhost only. Only read by the dev server, and never set it in production. See [Local development](/self-hosting/local-development/)                                                  |
+| `TACK_DEV_AI=workers-ai` | An environment variable for `pnpm dev`, not `.dev.vars`: gives the dev server the real Workers AI, through your Cloudflare account (`cf auth login`), billed. Without it, a stand-in answers from the board's own words |
 
 Put local secrets in `.dev.vars` (git ignores it): copy `.dev.vars.example` and fill it in.

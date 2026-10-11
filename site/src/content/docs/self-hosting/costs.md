@@ -10,17 +10,18 @@ Tack is designed to be self-hostable on a free plan, but what it costs you depen
 - [Workers pricing and limits](https://developers.cloudflare.com/workers/platform/pricing/)
 - [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/) and [limits](https://developers.cloudflare.com/durable-objects/platform/limits/)
 - [Workers Logs pricing](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#pricing)
+- [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)
 
 ## What Tack uses on Cloudflare
 
-| Product                         | How Tack uses it                                                              |
-| ------------------------------- | ----------------------------------------------------------------------------- |
-| Workers                         | One Worker, `tack`: the API, sign-in, webhooks and board connections          |
-| Static assets                   | The app itself (HTML, scripts, fonts)                                         |
-| Durable Objects, SQLite storage | One object per board, one per repository on a board, and two for the instance |
-| Cron Triggers                   | One, every ten minutes, to redeliver failed webhooks                          |
-| Workers Logs                    | Every log event                                                               |
-| Workers AI                      | [AI suggestions](/self-hosting/configuration/#ai-suggestions): naming stacks  |
+| Product                         | How Tack uses it                                                                                                                                |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workers                         | One Worker, `tack`: the API, sign-in, webhooks and board connections                                                                            |
+| Static assets                   | The app itself (HTML, scripts, fonts)                                                                                                           |
+| Durable Objects, SQLite storage | One object per board, one per repository on a board, and two for the instance                                                                   |
+| Cron Triggers                   | One, every ten minutes, to redeliver failed webhooks                                                                                            |
+| Workers Logs                    | Every log event                                                                                                                                 |
+| Workers AI                      | [AI suggestions](/self-hosting/configuration/#ai-suggestions): naming stacks, and [AI on boards](/boards/ai/) when someone asks (see [AI](#ai)) |
 
 No KV, R2, D1 or Queues.
 
@@ -39,6 +40,10 @@ No KV, R2, D1 or Queues.
 :::caution[Images need more CPU time than the Free plan allows]
 The Workers Free plan allows 10 ms of CPU time per request, which isn't enough to draw a board. On Free, embeds and link preview images may fail (everything else works). On the Paid plan they're well within the limits. The image renderer (Satori and resvg, as WebAssembly) also adds about 1.3 MB, compressed, to the Worker (about 1.6 MB in all, within the Free plan's 3 MB).
 :::
+
+## AI
+
+Besides naming stacks (above), [AI on boards](/boards/ai/) calls Workers AI only when an editor asks: once per request, or twice when the first answer for a widget doesn't fit its settings. Nothing runs in the background. A request sends at most about 24,000 characters of board content and gets a short answer back, which with the default model (Gemma 4 26B A4B) costs a fraction of a cent; Workers AI includes a daily free allocation. Each board allows 12 requests a minute and 120 an hour, and each person 6 a minute, so a busy board can't run up much. To make sure it costs nothing, set `TACK_AI` to `off` ([Configuration](/self-hosting/configuration/#ai-suggestions)), which turns stacks' names off too.
 
 ## GitHub
 
