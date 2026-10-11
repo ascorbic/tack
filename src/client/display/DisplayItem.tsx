@@ -181,7 +181,7 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 						))}
 					</span>
 				)}
-				{ci && <span className="display-ci" data-ci={ci} aria-label={`CI ${ci}`} />}
+				{ci && <span className="display-ci" data-ci={ci} role="img" aria-label={`CI ${ci}`} />}
 			</article>
 		);
 	}
@@ -212,7 +212,13 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 				</span>
 			)}
 			{tier === "full" && ci && (
-				<span className="display-ci-dot" data-ci={ci} title={`CI ${ci}`} aria-label={`CI ${ci}`} />
+				<span
+					className="display-ci-dot"
+					data-ci={ci}
+					title={`CI ${ci}`}
+					role="img"
+					aria-label={`CI ${ci}`}
+				/>
 			)}
 			{tier === "full" && card && state !== "open" && (
 				<span className="display-chip">{stateLabel(card)}</span>

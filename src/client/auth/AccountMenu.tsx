@@ -72,7 +72,6 @@ export function AccountMenu({
 				<div
 					id={menuId}
 					className="account-menu"
-					role="menu"
 					data-state={state}
 					onAnimationEnd={() => {
 						if (state === "closing") setState("closed");
@@ -99,7 +98,7 @@ function AccountMenuBody({ me, user }: { me: Me; user: User }) {
 
 	if (me.viewer) {
 		return (
-			<>
+			<div className="account-menu-items" role="menu" aria-label="Account">
 				<div className="account-who">
 					<Avatar user={user} />
 					<span>
@@ -125,40 +124,42 @@ function AccountMenuBody({ me, user }: { me: Me; user: User }) {
 				>
 					{signingOut ? "Signing out…" : "Sign out"}
 				</button>
-			</>
+			</div>
 		);
 	}
 
 	return (
 		<>
-			<div className="account-who">
-				<Avatar user={user} />
-				<span>
-					<strong>{user.name}</strong>
-					<span className="account-login">Guest</span>
-				</span>
-			</div>
-			{me.signIn === "ready" && (
-				<a className="account-item account-item-github" role="menuitem" href={signInHref()}>
-					<GitHubMark />
-					Sign in with GitHub
-				</a>
-			)}
-			{me.signIn === "unconfigured" && (
-				<>
-					<p className="account-note">Sign-in isn’t set up on this instance yet.</p>
-					<a className="account-item" role="menuitem" href="/setup">
-						Set up Tack
+			<div className="account-menu-items" role="menu" aria-label="Account">
+				<div className="account-who">
+					<Avatar user={user} />
+					<span>
+						<strong>{user.name}</strong>
+						<span className="account-login">Guest</span>
+					</span>
+				</div>
+				{me.signIn === "ready" && (
+					<a className="account-item account-item-github" role="menuitem" href={signInHref()}>
+						<GitHubMark />
+						Sign in with GitHub
 					</a>
-				</>
-			)}
-			{me.signIn === "unavailable" && (
-				<p className="account-note">
-					Sign-in isn’t available here (this instance has no <code>TACK_SECRET</code>, as on
-					previews). You can still use boards as a guest.
-				</p>
-			)}
-			<ThemeMenuRow />
+				)}
+				{me.signIn === "unconfigured" && (
+					<>
+						<p className="account-note">Sign-in isn’t set up on this instance yet.</p>
+						<a className="account-item" role="menuitem" href="/setup">
+							Set up Tack
+						</a>
+					</>
+				)}
+				{me.signIn === "unavailable" && (
+					<p className="account-note">
+						Sign-in isn’t available here (this instance has no <code>TACK_SECRET</code>, as on
+						previews). You can still use boards as a guest.
+					</p>
+				)}
+				<ThemeMenuRow />
+			</div>
 			{me.devAuth && <DevSignIn />}
 		</>
 	);

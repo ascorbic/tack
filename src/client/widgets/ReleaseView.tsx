@@ -434,7 +434,7 @@ function CopyButton({ text, onCopied }: { text: string; onCopied?: () => void })
 
 function Skeleton() {
 	return (
-		<div className="release" aria-busy="true" aria-label="Loading">
+		<div className="release" role="status" aria-busy="true" aria-label="Loading">
 			<div className="release-next release-next-skeleton">
 				<span className="skeleton" style={{ width: 56 }} />
 				<span className="skeleton" style={{ width: 56 }} />

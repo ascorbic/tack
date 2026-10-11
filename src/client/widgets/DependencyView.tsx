@@ -642,7 +642,7 @@ function Skeleton() {
 	const node = MAP_SIZE.node;
 	const col = node.w + MAP_SIZE.gap.x;
 	return (
-		<div className="depmap depmap-skeleton" aria-busy="true" aria-label="Loading">
+		<div className="depmap depmap-skeleton" role="status" aria-busy="true" aria-label="Loading">
 			<svg width={3 * col} height={170} aria-hidden="true">
 				{[
 					[0, 2],

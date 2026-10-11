@@ -89,7 +89,8 @@ test("dev sign-in shows who you are, and signing out makes you a guest", async (
 	await expect(menu).toContainText("@e2e-octocat");
 
 	// Theme lives in the account menu, not the top bar.
-	await expect(menu.getByRole("radiogroup", { name: "Theme" })).toBeVisible();
+	await expect(menu.getByRole("group", { name: "Theme" })).toBeVisible();
+	await expect(menu.getByRole("menuitemradio", { name: "Dark theme" })).toBeVisible();
 	await expect(page.locator(".topbar .theme-switch")).toHaveCount(0);
 
 	await menu.getByRole("menuitem", { name: "Sign out" }).click();

@@ -279,7 +279,7 @@ export function BacklinkPanel({
 						) : current?.status === "failed" ? (
 							<figcaption>{current.error}</figcaption>
 						) : current?.status === "rendering" ? (
-							<span className="backlink-shimmer" aria-label="Drawing the snapshot" />
+							<span className="backlink-shimmer" role="img" aria-label="Drawing the snapshot" />
 						) : null}
 					</figure>
 					{group && group.hiddenInView > 0 && (

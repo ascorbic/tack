@@ -158,9 +158,10 @@ test("a clicked row, or Enter on one, adds its card beside the list, then shows 
 
 	// The keyboard does the same: Tab to a row, Enter.
 	const next = bugs
-		.locator('.widget-row[role="button"]')
+		.locator(".widget-row[data-activatable]")
 		.filter({ hasNot: page.locator(".widget-row-marker") })
-		.first();
+		.first()
+		.getByRole("button", { name: /Enter to add it/ });
 	await next.focus();
 	await page.keyboard.press("Enter");
 	await expect.poll(async () => (await cards()).length).toBe(before + 2);

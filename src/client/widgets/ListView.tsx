@@ -309,6 +309,7 @@ function Row({
 	onActivate?: (card: Card) => void;
 }) {
 	const repo = card.repo.split("/").at(-1);
+	const activation = rowActivation(card, onBoard, { readOnly, onRowActivate: onActivate });
 	return (
 		<li
 			className="widget-row nodrag nopan"
@@ -322,12 +323,12 @@ function Row({
 			onPointerEnter={() => onHover?.(card.key)}
 			onPointerLeave={() => onHover?.(null)}
 			onPointerDown={(event) => onPointerDown?.(event, card)}
-			{...rowActivation(card, onBoard, { readOnly, onRowActivate: onActivate })}
+			{...activation.row}
 		>
 			<span className="state-icon" aria-hidden="true">
 				<StateIcon card={card} size={14} />
 			</span>
-			<span className="widget-row-main">
+			<span className="widget-row-main" {...activation.handle}>
 				<span className="widget-row-title">{card.title}</span>
 				<span className="widget-row-meta">
 					<span className="mono">

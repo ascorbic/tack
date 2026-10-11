@@ -151,8 +151,21 @@ function Bar({ actions, open, install }: { actions: Action[]; open?: string; ins
 
 /** A panel as it looks open, without needing a bar to hang from. */
 function Panel({ children, wide }: { children: ReactNode; wide?: boolean }) {
+	// Named by its heading, as the board's popovers are by their label.
+	const named = (el: HTMLDivElement | null) => {
+		const title =
+			el?.querySelector("h3")?.textContent ||
+			el?.closest("figure")?.querySelector("figcaption")?.textContent;
+		if (el && title) el.setAttribute("aria-label", title);
+	};
 	return (
-		<div className="action-popover" data-static data-wide={wide || undefined} role="dialog">
+		<div
+			ref={named}
+			className="action-popover"
+			data-static
+			data-wide={wide || undefined}
+			role="dialog"
+		>
 			{children}
 		</div>
 	);

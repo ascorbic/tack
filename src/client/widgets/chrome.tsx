@@ -7,6 +7,7 @@ import {
 	useState,
 } from "react";
 import type { QueryError, QueryResult } from "../../shared/widgets.ts";
+import { useScrollFocusable } from "../a11y.ts";
 import { ago, clock } from "./describe.ts";
 import { ClockIcon, LockIcon, RefreshIcon, SearchIcon, SettingsIcon, WarnIcon } from "./icons.tsx";
 import "./chrome.css";
@@ -82,6 +83,7 @@ export interface ShellProps {
 
 export function WidgetShell(props: ShellProps) {
 	const { status, stale } = props;
+	const bodyRef = useScrollFocusable(props.bodyRef);
 	return (
 		<section
 			className={`widget widget-${props.kind}`}
@@ -141,7 +143,7 @@ export function WidgetShell(props: ShellProps) {
 			</header>
 			<div className="widget-main">
 				<div
-					ref={props.bodyRef}
+					ref={bodyRef}
 					className={`widget-body nowheel${props.bodyClass ? ` ${props.bodyClass}` : ""}`}
 				>
 					{props.children}

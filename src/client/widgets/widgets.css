@@ -400,11 +400,16 @@
 }
 
 /* Rows are buttons too: click or Enter puts the card beside the widget. */
-.widget-row[role="button"] {
+.widget-row[data-activatable] {
 	cursor: pointer;
 }
 
-.widget-row[role="button"]:focus-visible {
+/* The row's main part is the button the keyboard reaches: the whole row shows it. */
+.widget-row-main[role="button"]:focus-visible {
+	outline: none;
+}
+
+.widget-row:has(> .widget-row-main[role="button"]:focus-visible) {
 	outline: 2px solid var(--accent);
 	outline-offset: -2px;
 	background: var(--accent-soft);
@@ -643,11 +648,9 @@
 
 /* Stale: what's shown is older than it should be. */
 .widget[data-stale] .widget-rows {
-	opacity: 0.72;
-	filter: saturate(0.5);
-	transition:
-		opacity var(--t-base) var(--ease-out),
-		filter var(--t-base) var(--ease-out);
+	/* Drained of colour, not faded: its words stay readable, and the foot says it's stale. */
+	filter: saturate(0.3);
+	transition: filter var(--t-base) var(--ease-out);
 }
 
 /* Empty, not set up, and errors -------------------------------------------------- */

@@ -71,17 +71,26 @@ export function ThemeMenuRow() {
 	return (
 		<div className="account-theme">
 			<span id={id}>Theme</span>
-			<ThemeChoice labelled={false} labelledBy={id} />
+			<ThemeChoice labelled={false} labelledBy={id} inMenu />
 		</div>
 	);
 }
 
-function ThemeChoice({ labelled = true, labelledBy }: { labelled?: boolean; labelledBy?: string }) {
+function ThemeChoice({
+	labelled = true,
+	labelledBy,
+	inMenu = false,
+}: {
+	labelled?: boolean;
+	labelledBy?: string;
+	/** In a menu: a group of menu radios, as a menu may hold. */
+	inMenu?: boolean;
+}) {
 	const { preference } = useTheme();
 	return (
 		<div
 			className="theme-toggle"
-			role="radiogroup"
+			role={inMenu ? "group" : "radiogroup"}
 			aria-label={labelledBy ? undefined : "Theme"}
 			aria-labelledby={labelledBy}
 			data-labelled={labelled}
@@ -90,7 +99,7 @@ function ThemeChoice({ labelled = true, labelledBy }: { labelled?: boolean; labe
 				<button
 					key={option.value}
 					type="button"
-					role="radio"
+					role={inMenu ? "menuitemradio" : "radio"}
 					aria-checked={preference === option.value}
 					aria-label={labelled ? undefined : `${option.label} theme`}
 					title={labelled ? undefined : option.label}

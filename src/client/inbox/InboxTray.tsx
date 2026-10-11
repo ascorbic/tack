@@ -546,9 +546,13 @@ function useArrivals(items: Card[]): Set<string> {
 
 function TraySkeleton() {
 	return (
-		<div className="inbox-skeleton" aria-busy="true" aria-label="Searching">
+		<div className="inbox-skeleton" role="status" aria-busy="true" aria-label="Searching">
 			{[0, 1, 2].map((i) => (
-				<span key={i} className="inbox-skeleton-row" style={{ animationDelay: `${i * 90}ms` }}>
+				<span
+					key={i}
+					className="inbox-skeleton-row"
+					style={{ animationDelay: `calc(${i * 90}ms * var(--motion))` }}
+				>
 					<span className="skeleton" style={{ width: "40%" }} />
 					<span className="skeleton" style={{ width: "88%" }} />
 				</span>

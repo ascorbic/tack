@@ -45,6 +45,7 @@ export function SearchField({
 	label,
 	activeId,
 	listId,
+	describedBy,
 	icon = <SearchIcon />,
 	autoFocus,
 }: {
@@ -54,7 +55,10 @@ export function SearchField({
 	onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 	label: string;
 	activeId?: string;
-	listId: string;
+	/** The listbox it controls; without one it's a plain text field. */
+	listId?: string;
+	/** What describes what was typed, for a field without a list. */
+	describedBy?: string;
 	icon?: ReactNode;
 	autoFocus?: boolean;
 }) {
@@ -66,11 +70,12 @@ export function SearchField({
 				// oxlint-disable-next-line jsx-a11y/no-autofocus -- opened on purpose, by a click or a key
 				autoFocus={autoFocus}
 				type="text"
-				role="combobox"
+				role={listId ? "combobox" : undefined}
 				aria-label={label}
-				aria-expanded="true"
+				aria-expanded={listId ? "true" : undefined}
 				aria-controls={listId}
-				aria-activedescendant={activeId}
+				aria-activedescendant={listId ? activeId : undefined}
+				aria-describedby={describedBy}
 				autoComplete="off"
 				spellCheck={false}
 				value={value}

@@ -136,6 +136,13 @@ export function OwnerPicker({
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
+/** A month's days in weeks of seven, for the grid's rows. */
+function weeks(days: readonly string[]): string[][] {
+	const rows: string[][] = [];
+	for (let i = 0; i < days.length; i += 7) rows.push(days.slice(i, i + 7));
+	return rows;
+}
+
 function monthOf(date: string): string {
 	return date.slice(0, 7);
 }
@@ -257,33 +264,39 @@ export function DuePicker({
 					}
 				}}
 			>
-				{WEEKDAYS.map((day) => (
-					<span key={day} className="calendar-weekday" role="columnheader">
-						{day}
-					</span>
-				))}
-				{days.map((day, i) => (
-					<button
-						key={day}
-						type="button"
-						role="gridcell"
-						className="calendar-day"
-						data-date={day}
-						data-outside={!day.startsWith(month) || undefined}
-						data-weekend={i % 7 >= 5 || undefined}
-						data-today={day === today || undefined}
-						aria-pressed={day === value}
-						aria-label={new Date(`${day}T12:00:00`).toLocaleDateString(undefined, {
-							weekday: "long",
-							day: "numeric",
-							month: "long",
-						})}
-						tabIndex={day === cursor ? 0 : -1}
-						onFocus={() => setCursor(day)}
-						onClick={() => onPick(day)}
-					>
-						{Number(day.slice(8))}
-					</button>
+				<div className="calendar-row" role="row">
+					{WEEKDAYS.map((day) => (
+						<span key={day} className="calendar-weekday" role="columnheader">
+							{day}
+						</span>
+					))}
+				</div>
+				{weeks(days).map((week) => (
+					<div key={week[0]} className="calendar-row" role="row">
+						{week.map((day, i) => (
+							<button
+								key={day}
+								type="button"
+								role="gridcell"
+								className="calendar-day"
+								data-date={day}
+								data-outside={!day.startsWith(month) || undefined}
+								data-weekend={i >= 5 || undefined}
+								data-today={day === today || undefined}
+								aria-selected={day === value}
+								aria-label={new Date(`${day}T12:00:00`).toLocaleDateString(undefined, {
+									weekday: "long",
+									day: "numeric",
+									month: "long",
+								})}
+								tabIndex={day === cursor ? 0 : -1}
+								onFocus={() => setCursor(day)}
+								onClick={() => onPick(day)}
+							>
+								{Number(day.slice(8))}
+							</button>
+						))}
+					</div>
 				))}
 			</div>
 			{value && (
@@ -387,7 +400,7 @@ export function LinkPicker({
 				<p className="link-section-title">{current ? "Link another issue" : "Link an issue"}</p>
 				<SearchField
 					label="Issue"
-					listId={listId}
+					describedBy={key ? listId : undefined}
 					value={query}
 					onChange={setQuery}
 					placeholder={usualRepo ? `#123, or paste a link` : "owner/repo#123, or paste a link"}

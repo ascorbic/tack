@@ -185,19 +185,21 @@ export function HistoryPanel({
 
 				{state.status === "loading" && <ListSkeleton />}
 				{state.status === "error" && (
-					<p className="history-message" role="alert">
-						{state.error}{" "}
-						<button
-							type="button"
-							className="history-link"
-							onClick={() => void controller.refresh()}
-						>
-							Try again
-						</button>
-					</p>
+					<div role="listitem">
+						<p className="history-message" role="alert">
+							{state.error}{" "}
+							<button
+								type="button"
+								className="history-link"
+								onClick={() => void controller.refresh()}
+							>
+								Try again
+							</button>
+						</p>
+					</div>
 				)}
 				{state.status === "ready" && groups.length === 0 && (
-					<p className="history-message">
+					<p className="history-message" role="listitem">
 						{section
 							? `Nothing’s happened in “${section.title}” yet.`
 							: "Nothing’s changed since history began. Edits show up here as people make them."}

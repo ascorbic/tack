@@ -7,6 +7,7 @@ import { type PendingChange, type PushAs, retryCanWork } from "../../shared/chan
 import type { AuditEntry, RepoMeta } from "../../shared/push.ts";
 import { forgeName, forgeNameOf, sentenceCase } from "../../shared/refs.ts";
 import { relativeTime } from "../boards/api.ts";
+import { useScrollFocusable } from "../a11y.ts";
 import { scaledDuration } from "../motion.ts";
 import type { User } from "../presence.ts";
 import { type Loaded, useRepoMeta } from "./api.ts";
@@ -430,6 +431,7 @@ function ReviewView({
 	const you = signedIn(user);
 	const repoCount = new Set(groupByRepo(included, index).map((group) => group.repo)).size;
 	const creditable = credit ? included.filter((change) => credit.of(change)) : [];
+	const bodyRef = useScrollFocusable<HTMLDivElement>();
 
 	if (pending.length === 0) {
 		return (
@@ -445,7 +447,7 @@ function ReviewView({
 
 	return (
 		<>
-			<div className="push-body">
+			<div className="push-body" ref={bodyRef}>
 				<p className="push-lede">
 					{included.length === 0
 						? "Everything’s left out. Turn on the changes you want to push."

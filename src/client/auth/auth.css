@@ -93,6 +93,11 @@
 	animation: menu-in var(--t-settle) var(--ease-spring);
 }
 
+/* The menu proper: dev sign-in (a form) sits after it, outside the menu role. */
+.account-menu-items {
+	display: contents;
+}
+
 .account-menu[data-state="closing"] {
 	animation: menu-out var(--t-quick) var(--ease-out) forwards;
 }
@@ -922,15 +927,16 @@
 	background: color-mix(in srgb, var(--pending-bg) 55%, var(--surface));
 }
 
+/* Suspended: set back on a quieter ground rather than faded, so it still reads. */
 .install[data-tone="off"] {
-	opacity: 0.8;
+	background: var(--surface-muted);
 }
 
 .install-skeleton {
 	min-height: 64px;
 	background: linear-gradient(90deg, var(--skeleton), var(--skeleton-shine), var(--skeleton));
 	background-size: 200% 100%;
-	animation: shimmer 1.4s linear infinite;
+	animation: shimmer calc(1400ms * var(--motion)) linear infinite;
 }
 
 .install-head {
@@ -996,7 +1002,7 @@
 
 .install-status[data-tone="off"] {
 	background: var(--chip);
-	color: var(--muted);
+	color: var(--ink-soft);
 }
 
 .install-status .icon {

@@ -93,6 +93,7 @@ export function ItemRow({
 	data?: Record<string, string | boolean | undefined>;
 }) {
 	const onBoard = rows.onBoard?.(card.key) ?? false;
+	const activation = rowActivation(card, onBoard, rows);
 	const attributes = Object.fromEntries(
 		Object.entries(data ?? {}).map(([key, value]) => [`data-${key}`, value || undefined]),
 	);
@@ -109,13 +110,13 @@ export function ItemRow({
 			onPointerEnter={() => rows.onRowHover?.(card.key)}
 			onPointerLeave={() => rows.onRowHover?.(null)}
 			onPointerDown={(event) => rows.onRowPointerDown?.(event, card)}
-			{...rowActivation(card, onBoard, rows)}
+			{...activation.row}
 			{...attributes}
 		>
 			<span className="state-icon" aria-hidden="true">
 				<StateIcon card={card} size={14} />
 			</span>
-			<span className="widget-row-main">
+			<span className="widget-row-main" {...activation.handle}>
 				<span className="widget-row-title">{card.title}</span>
 				<span className="widget-row-meta">
 					<span className="mono">
@@ -168,6 +169,11 @@ export function ItemRow({
  * A row as a button: click it, or Enter or Space when it has focus, to put
  * its card on the board beside the widget (or show the one that's there).
  * Dragging it out is the other way, and a drag never counts as a click.
+ *
+ * The whole row takes the click (`row`, on the list item), and its main part
+ * is the button the keyboard and screen readers reach (`handle`), so the
+ * row stays a list item and the pin and link out beside it aren't nested
+ * inside a button.
  */
 export function rowActivation(
 	card: Card,
@@ -176,28 +182,33 @@ export function rowActivation(
 ) {
 	const activate = rows.onRowActivate;
 	const usable = activate && (onBoard || !rows.readOnly);
-	if (!usable) return {};
+	if (!usable) return { row: {}, handle: {} };
 	const label = `${card.repo.split("/").at(-1)} ${card.item}: ${card.title}`;
 	return {
-		tabIndex: 0,
-		role: "button",
-		"aria-label": onBoard
-			? `${label}. On the board: Enter to show it`
-			: `${label}. Enter to add it`,
-		title: onBoard
-			? "On the board: click to show it"
-			: "Click to add beside the widget, or drag it out",
-		onClick: (event: React.MouseEvent) => {
-			if ((event.target as Element).closest("a, button")) return;
-			event.stopPropagation();
-			activate(card);
+		row: {
+			"data-activatable": true,
+			title: onBoard
+				? "On the board: click to show it"
+				: "Click to add beside the widget, or drag it out",
+			onClick: (event: React.MouseEvent) => {
+				if ((event.target as Element).closest("a, button")) return;
+				event.stopPropagation();
+				activate(card);
+			},
 		},
-		onKeyDown: (event: React.KeyboardEvent) => {
-			if (event.target !== event.currentTarget) return;
-			if (event.key !== "Enter" && event.key !== " ") return;
-			event.preventDefault();
-			event.stopPropagation();
-			activate(card);
+		handle: {
+			tabIndex: 0,
+			role: "button",
+			"aria-label": onBoard
+				? `${label}. On the board: Enter to show it`
+				: `${label}. Enter to add it`,
+			onKeyDown: (event: React.KeyboardEvent) => {
+				if (event.target !== event.currentTarget) return;
+				if (event.key !== "Enter" && event.key !== " ") return;
+				event.preventDefault();
+				event.stopPropagation();
+				activate(card);
+			},
 		},
 	};
 }

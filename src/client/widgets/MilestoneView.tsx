@@ -239,7 +239,7 @@ function Choose(props: MilestoneViewProps) {
 
 function Loading() {
 	return (
-		<div className="milestone-report" aria-busy="true" aria-label="Loading">
+		<div className="milestone-report" role="status" aria-busy="true" aria-label="Loading">
 			<div className="milestone-hero">
 				<span className="skeleton milestone-ring-skeleton" />
 				<span className="milestone-hero-text">

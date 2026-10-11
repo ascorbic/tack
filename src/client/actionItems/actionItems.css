@@ -510,7 +510,7 @@ button.action-chip:focus-visible {
 .owner-option-you {
 	padding: 1px 6px;
 	border-radius: 999px;
-	background: var(--accent-soft);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 	color: var(--accent);
 	font-size: 11px;
 	font-weight: 650;
@@ -596,6 +596,11 @@ button.action-chip:focus-visible {
 	gap: 2px;
 }
 
+/* Rows are for assistive technology: the days sit in the grid's columns. */
+.calendar-row {
+	display: contents;
+}
+
 .calendar-weekday {
 	padding: 4px 0;
 	color: var(--muted);
@@ -631,9 +636,10 @@ button.action-chip:focus-visible {
 	transform: scale(0.9);
 }
 
+/* Days of the months either side: quieter, but still readable and pickable. */
 .calendar-day[data-outside] {
 	color: var(--muted);
-	opacity: 0.55;
+	font-weight: 400;
 }
 
 .calendar-day[data-weekend] {
@@ -652,14 +658,14 @@ button.action-chip:focus-visible {
 	background: var(--accent);
 }
 
-.calendar-day[aria-pressed="true"] {
+.calendar-day[aria-selected="true"] {
 	background: var(--accent);
 	color: var(--on-accent);
 	font-weight: 680;
 	animation: pop-in var(--t-settle) var(--ease-spring);
 }
 
-.calendar-day[aria-pressed="true"]::after {
+.calendar-day[aria-selected="true"]::after {
 	background: var(--on-accent);
 }
 
