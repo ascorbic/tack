@@ -135,6 +135,16 @@ const ROWS: Row[] = [
 		request: (a) => call(a, "PATCH", `/api/boards/${privateBoard}`, { visibility: "private" }),
 	},
 	{
+		route: "PATCH /api/boards/:id (custom widgets)",
+		allowed: ["owner"],
+		request: (a) => call(a, "PATCH", `/api/boards/${privateBoard}`, { customWidgets: false }),
+	},
+	{
+		route: "GET /sandbox/widget",
+		allowed: everyone,
+		request: (a) => call(a, "GET", "/sandbox/widget"),
+	},
+	{
 		route: "GET /api/boards/:id/members (private)",
 		allowed: privateReaders,
 		request: (a) => call(a, "GET", `/api/boards/${privateBoard}/members`),
@@ -553,6 +563,7 @@ describe("the access table: board messages", () => {
 			widget: "list",
 			config: { host: "fake.tack", q: "repo:acme/app is:open" },
 		});
+		stranger.send({ type: "widget-query", id: "nothing", queries: { all: { q: "is:open" } } });
 		stranger.send({ type: "recheck" });
 		await eventually(() => received(stranger, "clock").length === 1);
 		await eventually(() => received(stranger, "since").length === 1);

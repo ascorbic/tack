@@ -703,7 +703,11 @@ export class WidgetRunner {
 					Object.assign(custom, asked);
 					Object.assign(results, watching.customErrors.get(id));
 				} else {
-					for (const name of Object.keys(asked)) results[name] = customWidgetsOff();
+					const names = [
+						...Object.keys(asked),
+						...Object.keys(watching.customErrors.get(id) ?? {}),
+					];
+					for (const name of names) results[name] = customWidgetsOff();
 				}
 			}
 			let oldest = this.now();
