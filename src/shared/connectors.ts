@@ -393,3 +393,41 @@ export function withFallbacks(
 export function looseEnd(at: Point): ConnectorEnd {
 	return { x: Math.round(at.x), y: Math.round(at.y) };
 }
+
+/** Roughly how wide a label is, in board units: 13px type, and its padding. */
+export function labelWidth(label: string): number {
+	return 16 + 7.2 * Math.max(label.length, 5);
+}
+
+/**
+ * Where a connector's label goes: on the middle of its route, or, when the
+ * route is too short to show it there (two shapes close together), just
+ * beside the middle, off the line: above it, or left of an upright one.
+ */
+export function labelPoint(route: Pick<Route, "points" | "middle">, label: string): Point {
+	const first = route.points[0];
+	const last = route.points.at(-1);
+	if (!first || !last) return route.middle;
+	let length = 0;
+	for (let i = 1; i < route.points.length; i++) {
+		const a = route.points[i - 1]!;
+		const b = route.points[i]!;
+		length += Math.hypot(b.x - a.x, b.y - a.y);
+	}
+	const width = labelWidth(label);
+	if (length >= width + 24) return route.middle;
+	const dx = last.x - first.x;
+	const dy = last.y - first.y;
+	const span = Math.hypot(dx, dy);
+	if (span === 0) return { x: route.middle.x, y: route.middle.y - 22 };
+	// The side of the line that's up, or left for an upright line.
+	let nx = -dy / span;
+	let ny = dx / span;
+	if (ny > 0 || (ny === 0 && nx > 0)) {
+		nx = -nx;
+		ny = -ny;
+	}
+	// Clear of the line: half the label's height, and its half-width sideways.
+	const by = 22 + (Math.abs(nx) * width) / 2;
+	return { x: route.middle.x + nx * by, y: route.middle.y + ny * by };
+}

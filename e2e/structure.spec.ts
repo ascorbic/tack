@@ -187,6 +187,33 @@ test("connect two cards, and the connector follows when one moves", async ({ pag
 	expect(after.x + after.width).toBeGreaterThan(moved.x - 20);
 });
 
+test("labelling a connector hides its end handles, which would cover the label", async ({
+	page,
+}) => {
+	await openScenario(page, "planning");
+	await page.keyboard.press("x");
+	const start = await centre(card(page, "Drop Node 18 support"));
+	const end = await centre(card(page, "Remove Node 18 from the CI"));
+	await page.mouse.move(start.x, start.y);
+	await page.mouse.down();
+	await page.mouse.move(end.x, end.y, { steps: 10 });
+	await page.mouse.up();
+	await connectors(page).locator(".connector-hit").first().click({ force: true });
+	const ends = page.locator(".connector-end");
+	await expect(ends).toHaveCount(2);
+	await page
+		.getByRole("toolbar", { name: "Connector" })
+		.getByRole("button", { name: "Label" })
+		.click();
+	const field = page.getByRole("textbox", { name: "Connector label" });
+	await expect(field).toBeFocused();
+	await expect(ends).toHaveCount(0);
+	await page.keyboard.type("blocks");
+	await page.keyboard.press("Enter");
+	await expect(page.locator(".connector-label", { hasText: "blocks" })).toBeVisible();
+	await expect(ends).toHaveCount(2);
+});
+
 test("deleting a connected card leaves its connectors with a loose end", async ({ page }) => {
 	await openScenario(page, "connectors");
 	const count = (await connectorEnds(page)).length;

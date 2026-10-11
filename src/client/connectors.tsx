@@ -21,6 +21,7 @@ import {
 	arrowHead,
 	arrowTrim,
 	endAt,
+	labelPoint,
 	readConnector,
 	resolveEnds,
 	routeConnector,
@@ -530,7 +531,10 @@ export function ConnectorLayer({
 						<ConnectorLabel
 							key={entry.id}
 							id={entry.id}
-							at={geometry.middle}
+							at={labelPoint(
+								geometry,
+								editing === entry.id ? connector.label || "Label" : connector.label,
+							)}
 							label={connector.label}
 							color={connector.color}
 							editing={editing === entry.id}
@@ -545,38 +549,42 @@ export function ConnectorLayer({
 
 				{singleDrawn && !readOnly && (
 					<>
-						<EndHandle
-							at={singleDrawn.geometry.start}
-							bound={!!singleDrawn.connector.from.shape}
-							onPointerDown={(event) =>
-								track(
-									{
-										id: singleDrawn.entry.id,
-										from: singleDrawn.entry.connector.from,
-										to: singleDrawn.entry.connector.to,
-										moving: "from",
-										live: false,
-									},
-									event,
-								)
-							}
-						/>
-						<EndHandle
-							at={singleDrawn.geometry.end}
-							bound={!!singleDrawn.connector.to.shape}
-							onPointerDown={(event) =>
-								track(
-									{
-										id: singleDrawn.entry.id,
-										from: singleDrawn.entry.connector.from,
-										to: singleDrawn.entry.connector.to,
-										moving: "to",
-										live: false,
-									},
-									event,
-								)
-							}
-						/>
+						{editing !== singleDrawn.entry.id && (
+							<>
+								<EndHandle
+									at={singleDrawn.geometry.start}
+									bound={!!singleDrawn.connector.from.shape}
+									onPointerDown={(event) =>
+										track(
+											{
+												id: singleDrawn.entry.id,
+												from: singleDrawn.entry.connector.from,
+												to: singleDrawn.entry.connector.to,
+												moving: "from",
+												live: false,
+											},
+											event,
+										)
+									}
+								/>
+								<EndHandle
+									at={singleDrawn.geometry.end}
+									bound={!!singleDrawn.connector.to.shape}
+									onPointerDown={(event) =>
+										track(
+											{
+												id: singleDrawn.entry.id,
+												from: singleDrawn.entry.connector.from,
+												to: singleDrawn.entry.connector.to,
+												moving: "to",
+												live: false,
+											},
+											event,
+										)
+									}
+								/>
+							</>
+						)}
 						{editing !== singleDrawn.entry.id && (
 							<ConnectorToolbar
 								at={singleDrawn.geometry.middle}
@@ -967,6 +975,7 @@ export function ConnectorSample({
 	selected?: boolean;
 }) {
 	const geometry = geometryOf(connector, (id) => boxes.get(id));
+	const label = labelPoint(geometry, connector.label);
 	return (
 		<div className="connector-sample" style={{ width, height }}>
 			<svg className="connectors" width={width} height={height} aria-hidden="true">
@@ -992,7 +1001,7 @@ export function ConnectorSample({
 					className="connector-label"
 					data-color={connector.color}
 					style={{
-						transform: `translate(${geometry.middle.x}px, ${geometry.middle.y}px) translate(-50%, -50%)`,
+						transform: `translate(${label.x}px, ${label.y}px) translate(-50%, -50%)`,
 					}}
 				>
 					{connector.label}
