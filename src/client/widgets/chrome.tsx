@@ -280,7 +280,12 @@ export function WidgetEmpty({
 	children?: ReactNode;
 }) {
 	return (
-		<div className="widget-empty" data-tone={tone}>
+		<div
+			className="widget-empty"
+			data-tone={tone}
+			// Short widgets hide the detail: it's still here on hover.
+			title={typeof detail === "string" ? detail : undefined}
+		>
 			<span className="widget-empty-icon">{icon}</span>
 			<p className="widget-empty-title">{title}</p>
 			{detail && <p className="widget-empty-detail">{detail}</p>}

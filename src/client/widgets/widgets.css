@@ -288,6 +288,8 @@
 	flex: 1;
 	min-height: 0;
 	overflow: auto;
+	/* Sized by the widget, never its contents: so what's in it can fit itself to it. */
+	container: widget-body / size;
 	overscroll-behavior: contain;
 	scrollbar-width: thin;
 	scrollbar-color: var(--line-strong) transparent;
@@ -630,6 +632,40 @@
 	line-height: 1.45;
 	text-wrap: pretty;
 	overflow-wrap: anywhere;
+}
+
+/* A short widget: no illustration, so what it says fits above the footer. */
+@container widget-body (max-height: 170px) {
+	.widget-empty {
+		gap: 3px;
+		padding: 12px 16px;
+	}
+
+	.widget-empty-icon {
+		display: none;
+	}
+
+	.widget-empty-detail {
+		display: -webkit-box;
+		overflow: hidden;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+	}
+}
+
+/* Shorter still: what it is and what to do, on a line (the rest is its tooltip). */
+@container widget-body (max-height: 130px) {
+	.widget-empty {
+		flex-flow: row wrap;
+		justify-content: center;
+		gap: 6px 10px;
+		padding: 10px 14px;
+	}
+
+	.widget-empty-detail {
+		display: none;
+	}
 }
 
 .widget-presets,

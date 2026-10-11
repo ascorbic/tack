@@ -326,3 +326,14 @@ test("the gallery shows every widget state", async ({ page }) => {
 		page.locator('[data-state="live-update"] .widget-row[data-motion="enter"]'),
 	).toHaveCount(1);
 });
+
+test("a short widget's empty state fits, without its illustration", async ({ page }) => {
+	const flaky = list(page, "Mentions flaky");
+	await expect(flaky.locator(".widget-empty-title")).toHaveText("Nothing matches this search");
+	await expect(flaky.locator(".widget-empty-icon")).toBeHidden();
+	const fits = await flaky.evaluate((node) => {
+		const body = node.querySelector<HTMLElement>(".widget-body")!;
+		return body.scrollHeight <= body.clientHeight;
+	});
+	expect(fits).toBe(true);
+});
