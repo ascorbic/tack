@@ -139,7 +139,11 @@ test.describe("comments", () => {
 		await page.keyboard.press("Escape");
 
 		await page.getByLabel(/Signed in/).uncheck();
-		await expect(tools).toHaveCount(0);
+		// Still looking around, with the comment tool greyed out, saying why.
+		await expect(tools.getByRole("button", { name: /^Comment/ })).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
 		await page.getByRole("button", { name: /Comment by Jo Rivera/ }).click();
 		await expect(popover(page)).toContainText("Sign in to reply.");
 	});

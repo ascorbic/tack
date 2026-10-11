@@ -31,6 +31,8 @@ export interface BoardPageProps {
 	/** The title in the top bar, renameable for editors. */
 	title: ReactNode;
 	readOnly: boolean;
+	/** Why: archived, or you can only view it. */
+	readOnlyReason: string;
 	/** Top bar controls: Share, or a "View only" badge. */
 	actions: ReactNode;
 	/** Drawn over the canvas: the archived notice, and role-change toasts. */
@@ -254,7 +256,10 @@ function LoadedBoard({
 				{editable && (me.viewer || me.signIn !== "ready") && <BoardMenu board={board} />}
 			</>
 		),
-		readOnly: !editable,
+		readOnly: !editable || archived,
+		readOnlyReason: archived
+			? "This board is archived, so it’s read-only"
+			: "You can view this board, but not edit it. Ask its owner if you need to.",
 		actions,
 		overlay,
 		events,

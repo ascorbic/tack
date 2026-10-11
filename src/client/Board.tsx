@@ -166,6 +166,8 @@ interface BoardProps extends BoardSource {
 	 * refuses their writes anyway).
 	 */
 	readOnly?: boolean;
+	/** Why it's view only, said when someone presses a tool's key that would change it. */
+	readOnlyReason?: string;
 	user: User;
 	/**
 	 * Your avatar in the top bar, e.g. an account menu, given the label the
@@ -207,6 +209,7 @@ export function Board({
 	name,
 	title,
 	readOnly: viewOnly = false,
+	readOnlyReason = "You can view this board, but not edit it. Ask its owner if you need to.",
 	doc: liveDoc,
 	awareness,
 	synced,
@@ -949,7 +952,6 @@ export function Board({
 	]);
 
 	// Tool shortcuts, ignored while typing.
-	const archivedBoard = comments.commentBlocked === "archived";
 	const viewOnlyToldAt = useRef(0);
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -964,11 +966,7 @@ export function Board({
 			if (next && readOnly && !VIEW_TOOLS.has(next)) {
 				if (!event.repeat && Date.now() - viewOnlyToldAt.current > VIEW_ONLY_TOAST_MS) {
 					viewOnlyToldAt.current = Date.now();
-					toasts.show({
-						message: archivedBoard
-							? "This board is archived, so it’s read-only"
-							: "You can view this board, but not edit it. Ask its owner if you need to.",
-					});
+					toasts.show({ message: readOnlyReason });
 				}
 				return;
 			}
@@ -979,7 +977,7 @@ export function Board({
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [readOnly, archivedBoard, toasts]);
+	}, [readOnly, readOnlyReason, toasts]);
 
 	useEffect(() => {
 		if (tool !== "sticky") setGhost(null);

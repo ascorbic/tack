@@ -224,7 +224,19 @@ export const MANY: BoardList = (() => {
 		archived: [
 			board("Old roadmap (2024)", { layout: "triage", ago: 90 * DAY, archivedAt: NOW - 20 * DAY }),
 		],
-		open: all.filter((b) => b.visibility !== "private"),
+		// The team's own boards too: not yours, and not shared with you.
+		open: [
+			...all.filter((b) => b.visibility !== "private"),
+			...["Contributor summit", "Docs sprint"].map((title, i) =>
+				board(title, {
+					layout: LAYOUTS[i % LAYOUTS.length],
+					ago: (30 + i * 9) * HOUR,
+					owner: TOM,
+					role: "editor",
+					canManage: false,
+				}),
+			),
+		],
 		canCreate: true,
 	};
 })();

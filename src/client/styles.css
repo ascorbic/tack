@@ -578,6 +578,8 @@ button.primary:hover {
 	/* Nothing in it (the title's hidden sizer, a tooltip) ever scrolls the
 	   page sideways; menus and tooltips still hang below it. */
 	overflow-x: clip;
+	/* Its menus open over whatever floats on the canvas below. */
+	z-index: 20;
 }
 
 .board-bar .brand {
@@ -638,6 +640,8 @@ button.primary:hover {
 
 .topbar [data-tooltip]:not(.avatar)::after {
 	content: attr(data-tooltip);
+	/* Empty alt text: a tooltip isn't part of its button's name. */
+	content: attr(data-tooltip) / "";
 	position: absolute;
 	top: calc(100% + 8px);
 	left: 50%;
@@ -666,6 +670,7 @@ button.primary:hover {
 
 .topbar [data-tooltip][data-shortcut]:not(.avatar)::after {
 	content: attr(data-tooltip) "   " attr(data-shortcut);
+	content: attr(data-tooltip) "   " attr(data-shortcut) / "";
 }
 
 .topbar [data-tooltip][data-tooltip-align="end"]::after {

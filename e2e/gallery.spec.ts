@@ -283,6 +283,8 @@ test.describe("boards gallery", () => {
 		// Many boards: tabs, a search box and archived boards.
 		const many = section("Home").locator("figure").nth(3);
 		await expect(many.getByRole("tab")).toHaveCount(5);
+		// Team boards leaves out yours and those shared with you.
+		await expect(many.getByRole("tab", { name: /Team boards/ })).toContainText("2");
 		await expect(many.getByRole("searchbox")).toBeVisible();
 
 		await expect(section("Tiles").locator(".board-tile")).toHaveCount(8);
@@ -291,7 +293,7 @@ test.describe("boards gallery", () => {
 		await expect(section("Tiles").locator(".board-tile[data-archived]")).toHaveCount(1);
 
 		const shares = section("Share").locator(".share");
-		await expect(shares).toHaveCount(3);
+		await expect(shares).toHaveCount(5);
 		await expect(shares.first().getByRole("listitem")).toHaveCount(4);
 		await expect(shares.nth(1).getByRole("button", { name: "Leave board" })).toBeVisible();
 		await expect(shares.nth(1).getByLabel("Who can open this board")).toHaveCount(0);
