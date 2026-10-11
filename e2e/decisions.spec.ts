@@ -124,7 +124,19 @@ test("deciding stamps it, then the write-back stages an ADR pull request", async
 	await expect(dialog).toBeVisible();
 	// Numbered after the repository's records and the one staged on this board.
 	const path = "docs/decisions/0004-require-node-20-in-imagekit-5-0.md";
-	await expect(dialog.locator(".writeback-path")).toHaveText(path);
+	await expect(dialog.getByRole("textbox", { name: "Folder" })).toHaveValue("docs/decisions");
+	await expect(dialog.locator(".writeback-preview-label")).toHaveText(path);
+	// The repository reads as a value, and the folder can be changed in place.
+	await expect(dialog.locator(".repo-value")).toContainText("acme/imagekit");
+	const folder = dialog.getByRole("textbox", { name: "Folder" });
+	await folder.fill("docs/adr");
+	await folder.press("Enter");
+	await expect(dialog.locator(".writeback-preview-label")).toHaveText(
+		"docs/adr/0001-require-node-20-in-imagekit-5-0.md",
+	);
+	await folder.fill("docs/decisions");
+	await folder.press("Enter");
+	await expect(dialog.locator(".writeback-preview-label")).toHaveText(path);
 	const preview = dialog.getByRole("region", { name: "Preview" });
 	await expect(preview.locator("h1")).toHaveText(`4. ${PROPOSED}`);
 	await expect(preview.locator("h2")).toHaveText([

@@ -1264,6 +1264,60 @@
 	opacity: 0.55;
 }
 
+/* The folder is editable in place: it reads as part of the path until
+   pointed at, then as a field. */
+.writeback-dir {
+	display: inline-flex;
+	flex: none;
+	max-width: 60%;
+	margin-right: -7px;
+}
+
+.writeback-dir + .mono {
+	min-width: 0;
+}
+
+.writeback-dir input {
+	width: auto;
+	min-width: 4ch;
+	max-width: 100%;
+	padding: 1px 3px;
+	font-family: var(--font-mono);
+	border: 1px dashed transparent;
+	border-radius: 5px;
+	background: transparent;
+	color: inherit;
+	font-size: 12px;
+	field-sizing: content;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+}
+
+.writeback-dir input:hover {
+	border-color: var(--line-strong);
+}
+
+.writeback-dir input:focus {
+	border-style: solid;
+	border-color: var(--accent);
+	background: var(--surface);
+	outline: none;
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.writeback-dir input[aria-invalid="true"] {
+	border-color: var(--danger);
+}
+
+.writeback-repo .repo-picker-label {
+	color: var(--ink-soft);
+}
+
+.writeback-repo .repo-picker {
+	margin: 0;
+}
+
 .writeback-path b {
 	display: inline-block;
 	color: var(--accent);

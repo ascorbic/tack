@@ -14,6 +14,49 @@ import type { DecisionStatus } from "./shapes.ts";
 /** Where decision records live in a repository. */
 export const DECISIONS_DIR = "docs/decisions";
 
+/**
+ * Where projects keep their decision records, most common first: a
+ * repository with records in one of these gets its next one there.
+ */
+export const ADR_DIRS: readonly string[] = [
+	DECISIONS_DIR,
+	"docs/adr",
+	"adr",
+	"doc/adr",
+	"docs/adrs",
+	"docs/architecture/decisions",
+	"decisions",
+];
+
+/**
+ * A folder someone typed for records, tidied (`/docs/adr/` → `docs/adr`),
+ * or null if it isn't a plain relative path inside the repository.
+ */
+export function recordDir(input: string): string | null {
+	const dir = input
+		.trim()
+		.replace(/^\/+|\/+$/g, "")
+		.replace(/\/{2,}/g, "/");
+	if (!dir || dir.length > 200) return null;
+	const parts = dir.split("/");
+	return parts.every(
+		(part) => /^[\w.@ -]+$/.test(part) && part !== "." && part !== ".." && part !== ".git",
+	)
+		? dir
+		: null;
+}
+
+/**
+ * The folder a repository's records are in: the first of `ADR_DIRS` whose
+ * listing has a numbered record, else `docs/decisions`.
+ */
+export function detectRecordDir(listings: ReadonlyMap<string, readonly string[]>): string {
+	for (const dir of ADR_DIRS) {
+		if ((listings.get(dir) ?? []).some((name) => recordNumber(name) !== null)) return dir;
+	}
+	return DECISIONS_DIR;
+}
+
 /** An item linked to the decision, as it appears in the record. */
 export interface AdrLink {
 	/** The item's key, e.g. `github.com/acme/imagekit#412`. */
@@ -107,20 +150,25 @@ export function nextAdrNumber(existing: Iterable<string>, staged: Iterable<strin
  * failed: staged, being pushed, or opened but perhaps not merged yet (so not
  * in the directory listing).
  */
-export function stagedRecordPaths(changes: Iterable<PendingChange>, repo: string): string[] {
+export function stagedRecordPaths(
+	changes: Iterable<PendingChange>,
+	repo: string,
+	dir = DECISIONS_DIR,
+): string[] {
 	const paths: string[] = [];
 	for (const change of changes) {
 		const { op } = change;
 		if (op.kind !== "pr.create" || op.repo !== repo || change.status === "failed") continue;
 		for (const file of op.files) {
-			if (file.path.startsWith(`${DECISIONS_DIR}/`)) paths.push(file.path);
+			const rest = file.path.startsWith(`${dir}/`) ? file.path.slice(dir.length + 1) : null;
+			if (rest !== null && !rest.includes("/")) paths.push(file.path);
 		}
 	}
 	return paths;
 }
 
-export function adrPath(number: number, title: string): string {
-	return `${DECISIONS_DIR}/${padNumber(number)}-${slugify(title)}.md`;
+export function adrPath(number: number, title: string, dir = DECISIONS_DIR): string {
+	return `${dir}/${padNumber(number)}-${slugify(title)}.md`;
 }
 
 /** Text for inside a link's square brackets. */
@@ -193,7 +241,8 @@ export function discussionMarkdown(input: AdrInput): string {
 }
 
 export type WriteBackTarget =
-	| { kind: "pr"; repo: string; number: number }
+	/** `dir` is the folder the record goes in, `docs/decisions` unless the repository uses another. */
+	| { kind: "pr"; repo: string; number: number; dir?: string }
 	| { kind: "discussion"; repo: string; category: string };
 
 /**
@@ -212,7 +261,7 @@ export function writeBackOperation(input: AdrInput, target: WriteBackTarget): Op
 		};
 	}
 	const record = { ...input, number: target.number };
-	const path = adrPath(target.number, title);
+	const path = adrPath(target.number, title, target.dir);
 	const where = input.boardUrl ? `, decided on [the Tack board](${input.boardUrl})` : "";
 	const prBody = [
 		`Records the decision **${title}**${where}, as \`${path}\`.`,

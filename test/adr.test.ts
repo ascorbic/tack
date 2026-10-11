@@ -3,6 +3,8 @@ import {
 	type AdrInput,
 	adrMarkdown,
 	adrPath,
+	detectRecordDir,
+	recordDir,
 	discussionMarkdown,
 	itemUrl,
 	nextAdrNumber,
@@ -148,6 +150,26 @@ describe("record numbers and paths", () => {
 		expect(adrPath(12345, "x")).toBe("docs/decisions/12345-x.md");
 	});
 
+	it("puts records where the repository keeps them", () => {
+		expect(adrPath(4, "Use ESM", "docs/adr")).toBe("docs/adr/0004-use-esm.md");
+		expect(recordDir(" /docs/adr/ ")).toBe("docs/adr");
+		expect(recordDir("adr")).toBe("adr");
+		expect(recordDir("docs//adr")).toBe("docs/adr");
+		for (const bad of ["", "../x", "docs/../x", ".git/x", "a/./b", "a\\b"]) {
+			expect(recordDir(bad)).toBeNull();
+		}
+		const listings = new Map([
+			["docs/decisions", []],
+			["docs/adr", ["README.md"]],
+			["adr", ["0001-record-architecture-decisions.md", "template.md"]],
+		]);
+		expect(detectRecordDir(listings)).toBe("adr");
+		expect(detectRecordDir(new Map())).toBe("docs/decisions");
+		expect(
+			writeBackOperation(DECISION, { kind: "pr", repo: "github.com/a/b", number: 2, dir: "adr" }),
+		).toMatchObject({ files: [{ path: expect.stringMatching(/^adr\/0002-/) }] });
+	});
+
 	it("finds staged records per repository, ignoring failed ones", () => {
 		const change = (
 			repo: string,
@@ -185,6 +207,7 @@ describe("record numbers and paths", () => {
 			"docs/decisions/0003-x.md",
 			"docs/decisions/0004-y.md",
 		]);
+		expect(stagedRecordPaths(changes, "github.com/acme/a", "src")).toEqual(["src/other.md"]);
 	});
 });
 

@@ -11,10 +11,13 @@ import {
 import { createPortal } from "react-dom";
 import type * as Y from "yjs";
 import {
+	ADR_DIRS,
 	type AdrInput,
 	type AdrLink,
 	DECISIONS_DIR,
 	adrMarkdown,
+	detectRecordDir,
+	recordDir,
 	adrPath,
 	discussionMarkdown,
 	itemUrl,
@@ -41,6 +44,8 @@ import { transactLocal } from "../undo.ts";
 import { repoApi } from "../changes/api.ts";
 import { DecisionContext } from "./context.ts";
 import { DiscussionIcon, RecordIcon } from "./icons.tsx";
+import { type RepoOption, RepoPicker } from "../actions/pickers.tsx";
+import "../actions/actions.css";
 import { useDocValue } from "./useDocValue.ts";
 
 type Kind = "pr" | "discussion";
@@ -69,25 +74,22 @@ export function candidateRepos(boardKeys: Iterable<string>, linked: string[]): s
 		.map(([repo]) => repo);
 }
 
-/** A repository typed by hand: `owner/repo`, a GitHub URL, or a full key. */
-export function parseRepoInput(input: string): string | null {
-	const text = input
-		.trim()
-		.replace(/^https?:\/\//, "")
-		.replace(/\.git$/, "")
-		.replace(/\/+$/, "");
-	const parts = text.split("/");
-	if (parts.length === 2 && parts.every((part) => /^[\w.-]+$/.test(part))) {
-		return `${DEFAULT_HOST}/${text}`.toLowerCase();
+/** Where this person last put a repository's records, if they chose. */
+function rememberedDir(repo: string): string | null {
+	try {
+		return recordDir(localStorage.getItem(`tack.adrDir.${repo}`) ?? "");
+	} catch {
+		return null;
 	}
-	if (
-		parts.length === 3 &&
-		parts[0]?.includes(".") &&
-		parts.slice(1).every((p) => /^[\w.-]+$/.test(p))
-	) {
-		return text.toLowerCase();
+}
+
+function rememberDir(repo: string, dir: string): void {
+	try {
+		if (dir === DECISIONS_DIR) localStorage.removeItem(`tack.adrDir.${repo}`);
+		else localStorage.setItem(`tack.adrDir.${repo}`, dir);
+	} catch {
+		// Remembering is a nicety.
 	}
-	return null;
 }
 
 function today(): string {
@@ -135,10 +137,20 @@ export function WriteBackDialog({
 		return shape ? readShape(shape) : null;
 	});
 	const repos = useMemo(() => candidateRepos(cardRefs(doc), linked), [doc, linked]);
+	const repoOptions = useMemo((): RepoOption[] => {
+		const cards = new Map<string, number>();
+		for (const key of cardRefs(doc)) {
+			const repo = repoKeyOf(key);
+			cards.set(repo, (cards.get(repo) ?? 0) + 1);
+		}
+		return repos.map((repo) => ({ repo, cards: cards.get(repo) }));
+	}, [doc, repos]);
 
 	const [kind, setKind] = useState<Kind>("pr");
-	const [repo, setRepo] = useState(repos[0] ?? "");
-	const [typedRepo, setTypedRepo] = useState("");
+	const [repo, setRepo] = useState<string | null>(repos[0] ?? null);
+	// The folder records go in: where this repository already keeps them.
+	const [dir, setDir] = useState<{ repo: string; dir: string } | null>(null);
+	const [dirDraft, setDirDraft] = useState<string | null>(null);
 	const [category, setCategory] = useState("");
 	// What the record says lives on the decision, written as people type, so
 	// it's on the board for everyone, and nothing's lost on Cancel or a retry.
@@ -164,7 +176,8 @@ export function WriteBackDialog({
 	const [meta, setMeta] = useState<Load<RepoMeta>>({ state: "loading" });
 	const [files, setFiles] = useState<Load<string[]>>({ state: "loading" });
 
-	const target = repos.length > 0 ? repo : parseRepoInput(typedRepo);
+	const target = repo;
+	const folder = dir && dir.repo === target ? dir.dir : null;
 
 	useEffect(() => {
 		dialog.current?.showModal();
@@ -197,15 +210,39 @@ export function WriteBackDialog({
 				if (state) setMeta(state);
 			},
 		);
-		repoApi.files(target, DECISIONS_DIR, abort.signal).then(
-			(value) => !abort.signal.aborted && setFiles({ state: "ready", value }),
-			(error) => {
-				const state = failed(error);
-				if (state) setFiles(state);
-			},
-		);
+		// Where its records are: where this person last put them, else the
+		// first usual folder that has some.
+		const remembered = rememberedDir(target);
+		if (remembered) setDir({ repo: target, dir: remembered });
+		else {
+			void Promise.all(
+				ADR_DIRS.map((path) =>
+					repoApi.files(target, path, abort.signal).then(
+						(names) => [path, names] as const,
+						() => [path, [] as string[]] as const,
+					),
+				),
+			).then((listings) => {
+				if (!abort.signal.aborted) {
+					setDir({ repo: target, dir: detectRecordDir(new Map(listings)) });
+				}
+			});
+		}
 		return () => abort.abort();
 	}, [target]);
+
+	useEffect(() => {
+		if (!target || !folder) return;
+		const abort = new AbortController();
+		setFiles({ state: "loading" });
+		repoApi.files(target, folder, abort.signal).then(
+			(value) => !abort.signal.aborted && setFiles({ state: "ready", value }),
+			(error) =>
+				!abort.signal.aborted &&
+				setFiles({ state: "error", error: error instanceof Error ? error.message : String(error) }),
+		);
+		return () => abort.abort();
+	}, [target, folder]);
 
 	const categories = meta.state === "ready" ? meta.value.discussionCategories : [];
 	const discussionsOff = meta.state === "ready" && categories.length === 0;
@@ -213,7 +250,8 @@ export function WriteBackDialog({
 		if (discussionsOff && kind === "discussion") setKind("pr");
 	}, [discussionsOff, kind]);
 
-	const staged = target ? stagedRecordPaths(listChanges(doc), target) : [];
+	const recordsIn = folder ?? DECISIONS_DIR;
+	const staged = target ? stagedRecordPaths(listChanges(doc), target, recordsIn) : [];
 	const number = nextAdrNumber(files.state === "ready" ? files.value : [], staged);
 
 	const links: AdrLink[] = linked.map((key) => {
@@ -238,7 +276,9 @@ export function WriteBackDialog({
 	const ready =
 		!!target &&
 		!!decision &&
-		(kind === "pr" ? files.state !== "loading" : meta.state === "ready" && category !== "");
+		(kind === "pr"
+			? !!folder && files.state !== "loading" && dirDraft === null
+			: meta.state === "ready" && category !== "");
 
 	const close = () => {
 		if (closing) return;
@@ -255,9 +295,10 @@ export function WriteBackDialog({
 		const op = writeBackOperation(
 			input,
 			kind === "pr"
-				? { kind: "pr", repo: target, number }
+				? { kind: "pr", repo: target, number, dir: recordsIn }
 				: { kind: "discussion", repo: target, category },
 		);
+		if (kind === "pr") rememberDir(target, recordsIn);
 		transactLocal(doc, () => {
 			if (retrying) unstageChanges(doc, [retrying]);
 			stageWriteBack(doc, decisionId, op, {
@@ -269,8 +310,13 @@ export function WriteBackDialog({
 		close();
 	};
 
-	const repoName = (key: string) => key.slice(key.indexOf("/") + 1);
-	const path = adrPath(number, decision?.title ?? "");
+	const path = adrPath(number, decision?.title ?? "", recordsIn);
+	const commitDir = () => {
+		if (dirDraft === null || !target) return;
+		const tidy = recordDir(dirDraft);
+		if (tidy) setDir({ repo: target, dir: tidy });
+		setDirDraft(null);
+	};
 	const writable = meta.state === "ready" ? meta.value.writable : true;
 
 	return createPortal(
@@ -324,34 +370,51 @@ export function WriteBackDialog({
 							/>
 						</div>
 
-						<label className="writeback-field">
-							<span>Repository</span>
-							{repos.length > 0 ? (
-								<select value={repo} onChange={(event) => setRepo(event.target.value)}>
-									{repos.map((key) => (
-										<option key={key} value={key}>
-											{repoName(key)}
-										</option>
-									))}
-								</select>
-							) : (
-								<input
-									value={typedRepo}
-									placeholder="owner/repo"
-									aria-invalid={typedRepo !== "" && !target}
-									onChange={(event) => setTypedRepo(event.target.value)}
-								/>
-							)}
-						</label>
+						<div className="writeback-repo">
+							<RepoPicker
+								value={repo}
+								onChange={setRepo}
+								options={repoOptions}
+								host={DEFAULT_HOST}
+							/>
+						</div>
 
 						{kind === "pr" ? (
-							<p className="writeback-path" data-loading={files.state === "loading" || undefined}>
+							<div
+								className="writeback-path"
+								data-loading={files.state === "loading" || !folder || undefined}
+							>
 								<RecordIcon size={13} />
+								<label className="writeback-dir">
+									<input
+										className="mono"
+										aria-label="Folder"
+										value={dirDraft ?? recordsIn}
+										size={Math.max(4, (dirDraft ?? recordsIn).length)}
+										spellCheck={false}
+										aria-invalid={dirDraft !== null && recordDir(dirDraft) === null}
+										onFocus={() => setDirDraft(recordsIn)}
+										onChange={(event) => setDirDraft(event.target.value)}
+										onBlur={commitDir}
+										onKeyDown={(event) => {
+											if (event.key === "Enter") {
+												event.preventDefault();
+												commitDir();
+												event.currentTarget.blur();
+											} else if (event.key === "Escape") {
+												event.preventDefault();
+												event.stopPropagation();
+												setDirDraft(null);
+												event.currentTarget.blur();
+											}
+										}}
+									/>
+								</label>
 								<span className="mono">
-									{DECISIONS_DIR}/<b key={number}>{padNumber(number)}</b>
-									{path.slice(DECISIONS_DIR.length + 5)}
+									/<b key={number}>{padNumber(number)}</b>
+									{path.slice(recordsIn.length + 5)}
 								</span>
-							</p>
+							</div>
 						) : (
 							<label className="writeback-field">
 								<span>Category</span>
@@ -371,8 +434,8 @@ export function WriteBackDialog({
 
 						{files.state === "error" && kind === "pr" && (
 							<p className="writeback-note" data-tone="warn">
-								Couldn’t read {DECISIONS_DIR} ({files.error}), so the number only counts this
-								board’s records. Check it before merging.
+								Couldn’t read {recordsIn} ({files.error}), so the number only counts this board’s
+								records. Check it before merging.
 							</p>
 						)}
 						{meta.state === "error" && kind === "discussion" && (

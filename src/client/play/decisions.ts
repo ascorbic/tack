@@ -55,9 +55,11 @@ export const fakeRepoApi: RepoApi = {
 			writable: true,
 		};
 	},
-	async files() {
+	async files(repo, path) {
 		await sleep(350);
-		return EXISTING_RECORDS;
+		// sharp keeps its records in adr/, as plenty of projects do.
+		const dir = repo.endsWith("/sharp") ? "adr" : "docs/decisions";
+		return path === dir ? EXISTING_RECORDS : [];
 	},
 };
 

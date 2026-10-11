@@ -218,7 +218,7 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 	await expect(decision.locator(".decision")).toHaveAttribute("data-status", "decided");
 	await decision.getByRole("button", { name: "Write back" }).click();
 	const writeBack = page.getByRole("dialog", { name: DECISION });
-	await expect(writeBack.locator(".writeback-path")).toHaveText(
+	await expect(writeBack.locator(".writeback-preview-label")).toHaveText(
 		"docs/decisions/0001-store-boards-as-yjs-documents.md",
 	);
 	await writeBack.getByRole("button", { name: "Stage write-back" }).click();
