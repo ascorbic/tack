@@ -49,6 +49,11 @@ Widgets are live views on the board: searches and summaries that keep themselves
 		description="Items gone quiet, with quick ways to tidy them."
 		href="/widgets/stale-finder/"
 	/>
+	<LinkCard
+		title="Custom widgets"
+		description="Your own code, in a sandbox, drawing the board's data. Off unless the owner allows them."
+		href="/widgets/custom/"
+	/>
 </CardGrid>
 
 ## Adding a widget
@@ -78,7 +83,7 @@ Every setting of every kind is in its reference page, generated from the widget'
 
 ## When widgets refresh
 
-- **On a schedule**, while anyone has the widget on screen: every 5 minutes for lists, timelines, review queues and milestones; every 10 for release drafts and dependency maps; every 15 for stale finders.
+- **On a schedule**, while anyone has the widget on screen: every 5 minutes for lists, timelines, review queues, milestones and custom widgets; every 10 for release drafts and dependency maps; every 15 for stale finders.
 - **When GitHub says something changed** in a repository a widget searches (or whose items it's showing), from the [app's webhooks](/self-hosting/repositories/). Searches with no `repo:`, `org:` or `user:` run again on any delivery the board hears about. These refreshes wait a couple of seconds for more news, and never run a search more than once every ten seconds. Repositories without the app send no webhooks, so widgets over them refresh on the schedule.
 - **When you ask**: the header's **Refresh**.
 - **When its settings change**.

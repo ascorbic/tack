@@ -2,7 +2,7 @@
 title: Search syntax
 description: What searches widgets, inboxes and rules understand.
 sidebar:
-  order: 9
+  order: 10
 ---
 
 Widgets, inboxes and rules all take searches written as on GitHub, like `repo:owner/name is:issue is:open label:bug`.
