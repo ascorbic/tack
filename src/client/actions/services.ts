@@ -4,6 +4,7 @@ import type { Stager } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import type { QueryError, RelatedResult, SearchResult } from "../../shared/widgets.ts";
 import { canEdit } from "../../shared/boards.ts";
+import { type AiService, liveAi } from "../ai/service.ts";
 import { boardsApi } from "../boards/api.ts";
 import { repoApi } from "../changes/api.ts";
 import type { User } from "../presence.ts";
@@ -34,6 +35,8 @@ export interface WriteServices {
 	carryTargets?(): Promise<BoardInfo[] | null>;
 	/** Carry this board's open action items (or just `shapes`) over to another. Never throws. */
 	carryOver?(to: string, shapes?: string[]): Promise<CarryResponse | { error: string }>;
+	/** AI (#64): widgets from descriptions, summaries and drafted decisions. */
+	ai?: AiService;
 }
 
 const SNAPSHOT_ERRORS: Record<string, string> = {
@@ -49,6 +52,7 @@ export function liveServices(boardId: string): WriteServices {
 		boardId,
 		boardUrl: () => location.origin + location.pathname,
 		boardTitle: () => document.title.replace(/ · Tack$/, "") || null,
+		ai: liveAi(boardId),
 		// The shared repository endpoint (src/client/changes/api.ts).
 		repoMeta: (repo) => repoApi.meta(repo).catch(() => null),
 		async uploadSnapshot(png) {

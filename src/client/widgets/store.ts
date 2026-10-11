@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type * as Y from "yjs";
+import { isWidgetPreview } from "../../shared/ai.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import type { WidgetMessage } from "../../shared/widgets.ts";
 
@@ -36,6 +37,8 @@ class WidgetStore {
 	/** Widgets asked to refresh, until their next results arrive. */
 	private refreshing = new Set<string>();
 	private transport: WidgetTransport | null = null;
+	/** Asking again for a preview's results (its refresh button). */
+	onPreviewRefresh: ((id: string) => void) | null = null;
 
 	/** Connect to a board (or the playground). Everything wanted is watched again. */
 	connect(transport: WidgetTransport | null): void {
@@ -71,6 +74,10 @@ class WidgetStore {
 	}
 
 	refresh(id: string): void {
+		if (isWidgetPreview(id)) {
+			this.onPreviewRefresh?.(id);
+			return;
+		}
 		this.refreshing.add(id);
 		this.emit(id);
 		this.transport?.refresh(id);
@@ -82,6 +89,9 @@ class WidgetStore {
 
 	/** Want a widget's data while the returned function hasn't been called. */
 	want(id: string): () => void {
+		// A proposed widget's preview (#64) isn't on the board to watch: its
+		// data comes from asking for the preview (see src/client/ai/).
+		if (isWidgetPreview(id)) return () => {};
 		const timer = this.lingering.get(id);
 		if (timer) {
 			clearTimeout(timer);

@@ -1,4 +1,6 @@
-import type { DragEvent } from "react";
+import { type DragEvent, useState } from "react";
+import { AI_PROMPT_MAX } from "../../shared/ai.ts";
+import { SparkIcon } from "../ai/icons.tsx";
 import { WIDGETS, listPresets } from "../../shared/widgetRegistry.ts";
 import { ListIcon, MilestoneIcon, ReviewIcon, StaleIcon, UnknownIcon } from "./icons.tsx";
 import { DependencyIcon, ReleaseIcon, TimelineIcon } from "./kindIcons.tsx";
@@ -16,7 +18,8 @@ export type AddWidget = (
 /** The MIME type for dragging a widget off the picker onto the canvas. */
 export const WIDGET_DRAG_TYPE = "application/x-tack-widget";
 
-const ICONS: Record<string, () => React.ReactNode> = {
+/** Each kind's icon, at the picker's size. */
+export const KIND_ICONS: Record<string, () => React.ReactNode> = {
 	list: () => <ListIcon size={18} />,
 	timeline: () => <TimelineIcon size={18} />,
 	release: () => <ReleaseIcon size={18} />,
@@ -30,13 +33,17 @@ export function WidgetPicker({
 	suggestedRepo,
 	login = null,
 	onAdd,
+	onAsk,
 }: {
 	/** The board's busiest repository (`owner/name`), for ready-made lists. */
 	suggestedRepo: string | null;
 	/** Who's adding it, signed in: `@me` in ready-made lists is them, the same for everyone. */
 	login?: string | null;
 	onAdd: (kind: string, config?: Record<string, unknown>) => void;
+	/** Ask the AI for one, described in words (#64): offered when AI's on here. */
+	onAsk?: (prompt: string) => void;
 }) {
+	const [prompt, setPrompt] = useState("");
 	const presets = listPresets(suggestedRepo, login);
 	const drag = (kind: string, config?: Record<string, unknown>) => (event: DragEvent) => {
 		event.dataTransfer.setData(WIDGET_DRAG_TYPE, JSON.stringify({ kind, config }));
@@ -44,6 +51,32 @@ export function WidgetPicker({
 	};
 	return (
 		<div className="toolbar-options widget-picker" role="group" aria-label="Widgets">
+			{onAsk && (
+				<form
+					className="widget-picker-ask"
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (prompt.trim()) onAsk(prompt.trim());
+					}}
+				>
+					<span className="ai-ask-spark" aria-hidden="true">
+						<SparkIcon size={16} />
+					</span>
+					<input
+						className="ai-ask-input"
+						type="text"
+						value={prompt}
+						maxLength={AI_PROMPT_MAX}
+						aria-label="Ask for a widget: describe it"
+						placeholder="Ask for one: describe what it should show"
+						onChange={(event) => setPrompt(event.target.value)}
+					/>
+					<button type="submit" className="ai-ask-go" disabled={!prompt.trim()}>
+						Ask
+						<kbd aria-hidden="true">↵</kbd>
+					</button>
+				</form>
+			)}
 			{Object.values(WIDGETS).map((definition) => (
 				<button
 					key={definition.kind}
@@ -55,7 +88,7 @@ export function WidgetPicker({
 					onClick={() => onAdd(definition.kind)}
 				>
 					<span className="widget-kind" data-kind={definition.kind} aria-hidden="true">
-						{ICONS[definition.kind]?.() ?? <UnknownIcon size={18} />}
+						{KIND_ICONS[definition.kind]?.() ?? <UnknownIcon size={18} />}
 					</span>
 					<span className="widget-picker-text">
 						<strong>{definition.title}</strong>

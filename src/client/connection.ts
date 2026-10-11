@@ -13,6 +13,7 @@ import { type FacilitationIncoming, facilitation } from "./facilitation/store.ts
 import { isStackMessage, stackStore } from "./stacks/store.ts";
 import { inboxStore } from "./inbox/store.ts";
 import { widgetStore } from "./widgets/store.ts";
+import { previewChannel } from "./ai/service.ts";
 import { boardPeople, peopleSource } from "./comments/people.ts";
 import { commentStore } from "./comments/store.ts";
 import { sinceStore } from "./since/store.ts";
@@ -171,6 +172,10 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 		provider.on("status", ({ status }: { status: string }) => {
 			if (status === "connected") widgetStore.rewatch();
 		});
+		// Previews of widgets the AI proposes (#64), answered as `widget-data`.
+		previewChannel.send = (message) => {
+			if (provider.wsconnected) provider.sendMessage(JSON.stringify(message));
+		};
 		facilitation.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
 		// Stacks' suggestions and "Group these" (#73).
 		stackStore.reset();

@@ -1,4 +1,6 @@
-import type { DragEvent } from "react";
+import { type DragEvent, useEffect, useState } from "react";
+import { AskWidget } from "./ai/AskWidget.tsx";
+import { useAi } from "./ai/service.ts";
 import { STAMPS, type StampEmoji } from "../shared/facilitation.ts";
 import { STICKY_COLORS, type StickyColor } from "./board.ts";
 import { type AddOutcome, CardPicker, type CardScope } from "./CardPicker.tsx";
@@ -103,6 +105,12 @@ export function Toolbar({
 	note = null,
 	commentBlocked,
 }: ToolbarProps) {
+	// Asking the AI for a widget (#64), from the widget picker: what was asked.
+	const ai = useAi();
+	const [asking, setAsking] = useState<string | null>(null);
+	useEffect(() => {
+		if (tool !== "widget") setAsking(null);
+	}, [tool]);
 	const commentHint = tool === "comment" && (
 		<ToolHint>Click anything to comment on it, or anywhere on the board</ToolHint>
 	);
@@ -178,7 +186,19 @@ export function Toolbar({
 			{tool === "action" && (
 				<ToolHint>Click to add an action item, then give it an owner and a due date</ToolHint>
 			)}
-			{tool === "widget" && onAddWidget && (
+			{tool === "widget" && onAddWidget && ai && asking !== null && (
+				<AskWidget
+					ai={ai}
+					initial={asking}
+					repo={suggestedRepo}
+					onBack={() => setAsking(null)}
+					onPlace={(kind, config) => {
+						onAddWidget(kind, config);
+						onTool("select");
+					}}
+				/>
+			)}
+			{tool === "widget" && onAddWidget && asking === null && (
 				<WidgetPicker
 					suggestedRepo={suggestedRepo}
 					login={login}
@@ -186,6 +206,7 @@ export function Toolbar({
 						onAddWidget(kind, config);
 						onTool("select");
 					}}
+					onAsk={ai ? setAsking : undefined}
 				/>
 			)}
 			<div className="toolbar" role="toolbar" aria-label="Tools">
