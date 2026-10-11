@@ -111,8 +111,12 @@ test.describe("comments", () => {
 		// Priya mentioned you a few hours ago.
 		await expect(page.getByRole("button", { name: "Notifications: 1 unread" })).toBeVisible();
 		await play(page, "Someone mentions you").click();
+		// You're on the board: a toast says so, with a way to the thread.
+		const toast = page.locator(".toast", { hasText: "mentioned you" });
+		await expect(toast.getByRole("button", { name: "View" })).toBeVisible();
 		const bell = page.getByRole("button", { name: "Notifications: 2 unread" });
 		await expect(bell).toBeVisible();
+		await expect(bell).toHaveAttribute("title", /2 unread: mentions of you and replies/);
 		await bell.click();
 		const dialog = page.getByRole("dialog", { name: "Notifications" });
 		await expect(dialog).toContainText("mentioned you");

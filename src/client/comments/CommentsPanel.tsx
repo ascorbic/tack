@@ -77,7 +77,13 @@ export function CommentsButton({ store = commentStore }: { store?: CommentStore 
 			className="comments-button"
 			aria-pressed={ui.panel}
 			aria-label={`Comments: ${open.length} open${unread > 0 ? `, ${unread} unread` : ""}`}
-			title="Comments (B to add one)"
+			title={[
+				`${open.length} open ${open.length === 1 ? "thread" : "threads"} on this board`,
+				unread > 0 ? `${unread} with replies you haven’t read` : null,
+				"B to add one",
+			]
+				.filter(Boolean)
+				.join(" · ")}
 			data-unread={unread > 0 || undefined}
 			onClick={() => store.setUI({ panel: !ui.panel })}
 		>

@@ -1,6 +1,6 @@
 import { useReactFlow } from "@xyflow/react";
 import { useCallback, useEffect, useRef } from "react";
-import { type CommentThread, mentions, pinPosition } from "../../shared/comments.ts";
+import { type CommentThread, liveMessages, pinPosition } from "../../shared/comments.ts";
 import { NOMINAL_SIZE, type SizeOf } from "../../shared/sections.ts";
 import { centreClearOf, clearView } from "../clearView.ts";
 import type { ShapeNode } from "../board.ts";
@@ -64,21 +64,42 @@ export function useCommentsOnBoard({
 		if (ui.open && board) void notificationStore.read({ board, thread: ui.open });
 	}, [ui.open, board]);
 
-	// A new mention of you here: the inbox hears straight away, not in a minute.
+	// A new mention of you here, while you're here: the inbox hears straight
+	// away, not in a minute, and a toast says who, with a way to the thread.
+	const openThread = useRef<(thread: CommentThread) => void>(() => {});
 	useEffect(() => {
-		const login = user.login;
+		const login = user.login?.toLowerCase();
 		if (!login) return;
-		let known = -1;
+		let known: Set<string> | null = null;
 		const check = () => {
-			const count = [...commentStore.getState().threads.values()].filter((thread) =>
-				mentions(thread, login),
-			).length;
-			if (known >= 0 && count > known) void notificationStore.refresh();
-			known = count;
+			const state = commentStore.getState();
+			if (!state.ready) return;
+			const now = new Set<string>();
+			let fresh: { thread: CommentThread; name: string } | null = null;
+			for (const thread of state.threads.values()) {
+				for (const message of liveMessages(thread)) {
+					if (!message.mentions?.includes(login)) continue;
+					if (message.author.login.toLowerCase() === login) continue;
+					now.add(message.id);
+					if (known && !known.has(message.id)) {
+						fresh = { thread, name: message.author.name || message.author.login };
+					}
+				}
+			}
+			known = now;
+			if (!fresh) return;
+			void notificationStore.refresh();
+			// Not while you're reading that thread already.
+			if (commentStore.getUI().open === fresh.thread.id) return;
+			const { thread } = fresh;
+			toasts.show({
+				message: `${fresh.name} mentioned you`,
+				action: { label: "View", run: () => openThread.current(thread) },
+			});
 		};
 		check();
 		return commentStore.subscribe(check);
-	}, [user.login]);
+	}, [user.login, toasts]);
 
 	const pointOf = useCallback((thread: CommentThread) => {
 		const shape = thread.anchor.shape;
@@ -109,6 +130,7 @@ export function useCommentsOnBoard({
 		},
 		[flow, pointOf],
 	);
+	openThread.current = jumpToThread;
 
 	const jumpToShape = useCallback(
 		(id: string) => {

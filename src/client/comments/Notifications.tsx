@@ -185,7 +185,11 @@ export function NotificationsButton({
 				className="notifications-button"
 				aria-label={unread > 0 ? `Notifications: ${unread} unread` : "Notifications"}
 				aria-expanded={open}
-				title="Mentions and replies"
+				title={
+					unread > 0
+						? `${unread} unread: mentions of you and replies in threads you’re in, on any board`
+						: "Mentions of you and replies in threads you’re in, on any board"
+				}
 				data-unread={unread > 0 || undefined}
 				onClick={() => {
 					setOpen((value) => !value);
