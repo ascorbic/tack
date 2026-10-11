@@ -186,7 +186,11 @@ export function StaleWidget({ id, shape, selected }: KindProps) {
 							: null;
 			if (!action) continue;
 			const list = marks.get(op.target.key) ?? [];
-			list.push({ id: change.id, action });
+			list.push({
+				id: change.id,
+				action,
+				...(op.kind === "item.comment" && typeof op.body === "string" ? { detail: op.body } : {}),
+			});
 			marks.set(op.target.key, list);
 		}
 		return marks;

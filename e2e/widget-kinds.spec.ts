@@ -151,6 +151,11 @@ test("the stale finder groups by age, and its quick actions stage changes", asyn
 	await imgix.hover();
 	await imgix.getByRole("button", { name: /still wanted/ }).click();
 	await expect(imgix.locator(".stale-staged")).toHaveText(["Closing", "Pinging"]);
+	// What the ping will say, before anything's pushed.
+	await expect(imgix.locator('.stale-staged[data-action="ping"]')).toHaveAttribute(
+		"title",
+		/Will comment, as you: “.*has been quiet for/,
+	);
 	const comment = (await changes(page)).find((c) => c.op.kind === "item.comment");
 	expect(comment?.op.body).toMatch(/^@priya: this issue has been quiet for 52 days/);
 

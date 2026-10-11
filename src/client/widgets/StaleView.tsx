@@ -44,6 +44,8 @@ export type StaleAction = "close" | "label" | "ping";
 export interface StagedMark {
 	id: string;
 	action: StaleAction;
+	/** What it'll say: a ping's comment, shown before anything's pushed. */
+	detail?: string;
 }
 
 export interface StaleViewProps extends RowProps {
@@ -368,7 +370,12 @@ function StaleRow(
 			meta={
 				<>
 					{marks.map((mark) => (
-						<span key={mark.id} className="stale-staged" data-action={mark.action}>
+						<span
+							key={mark.id}
+							className="stale-staged"
+							data-action={mark.action}
+							title={mark.detail ? `Will comment, as you: “${mark.detail}”` : undefined}
+						>
 							{STAGED_TEXT[mark.action]}
 							{props.onUnstage && !props.readOnly && (
 								<button
