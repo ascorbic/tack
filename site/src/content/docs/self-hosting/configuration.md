@@ -39,6 +39,10 @@ Bindings you don't see here (the four Durable Objects, `assets`) are part of how
 
 Add one to the Worker under Workers & Pages → `tack` → Settings → Domains & Routes. The GitHub App is made for the address `/setup` was run on, so add the domain **before** setup if you can. If you add it afterwards, update the app on GitHub: its **Callback URL** to `https://your-domain/auth/callback`, its **Webhook URL** to `https://your-domain/webhooks/github`, and its **Setup URL** to `https://your-domain/setup/installed`. `/setup`'s webhook check says "Going elsewhere" until the webhook URL matches.
 
+### Security headers
+
+Tack sends a Content Security Policy and the usual security headers with everything it serves: the app only runs its own scripts, nothing may put it in a frame, and browsers are told to use HTTPS for a year. If you change Tack to load something from elsewhere (an analytics script, a font service) or to be framed by another site, change the policy in `src/server/securityHeaders.ts` too, or browsers will block it. Images of public boards for READMEs and link previews are unaffected: they're images, not pages.
+
 ## `/setup`
 
 On the instance, for admins (also **Instance settings** in the account menu):
