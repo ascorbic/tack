@@ -1,4 +1,5 @@
 import type * as Y from "yjs";
+import { type WidgetPreviewRequest, widgetPreviewId } from "../../shared/ai.ts";
 import { type Card, isMissing } from "../../shared/cards.ts";
 import {
 	INBOX_LIMIT,
@@ -212,8 +213,17 @@ export class WidgetRunner {
 
 	/** Handle a request from a connection. Returns false if it wasn't a widget request. */
 	request(connection: string, message: unknown): boolean {
-		const request = message as WidgetRequest | InboxPreviewRequest | null;
+		const request = message as WidgetRequest | InboxPreviewRequest | WidgetPreviewRequest | null;
 		switch (request?.type) {
+			case "widget-preview":
+				if (
+					typeof request.id === "string" &&
+					request.id.length <= 100 &&
+					typeof request.widget === "string"
+				) {
+					void this.previewWidget(connection, request.id, request.widget, request.config);
+				}
+				return true;
 			case "inbox-preview":
 				if (typeof request.id === "string" && request.query) {
 					void this.preview(connection, request.id, request.query);
@@ -313,6 +323,62 @@ export class WidgetRunner {
 			id: previewId(id),
 			results: { [INBOX_QUERY]: result },
 			at: new Date().toISOString(),
+		});
+	}
+
+	/**
+	 * Run what a widget would run with this config, for a preview of one
+	 * that isn't on the board yet (#64, an AI's proposal), as whoever's on
+	 * the connection, answered under `widgetPreviewId(id)`. Its queries are
+	 * cached and budgeted like any widget's, so placing it shows the same
+	 * results at once.
+	 */
+	async previewWidget(
+		connection: string,
+		id: string,
+		kind: string,
+		config: unknown,
+	): Promise<void> {
+		let watching = this.connections.get(connection);
+		if (!watching) {
+			watching = this.watching(connection);
+			this.connections.set(connection, watching);
+		}
+		const results: WidgetMessage["results"] = {};
+		let oldest = this.now();
+		try {
+			const definition = widgetDefinition(kind);
+			const shape = { widget: kind, config };
+			const queries = definition
+				? widgetQueries(shape, boardQueryContext(this.host.doc, this.now()))
+				: {};
+			const access = await watching.access;
+			const keep = (query: WidgetQuery) => {
+				// Kept warm while it's previewed, as an inbox's query is while it's written.
+				watching.previews.add(JSON.stringify(query));
+				while (watching.previews.size > 12) {
+					watching.previews.delete(watching.previews.values().next().value as string);
+				}
+			};
+			const resolve = async ([name, query]: [string, WidgetQuery]) => {
+				keep(query);
+				const entry = await this.resolve(query, access, this.timing.freshMs);
+				results[name] = entry.result ?? unavailable();
+				if (entry.at !== undefined && entry.at < oldest) oldest = entry.at;
+			};
+			await Promise.all(Object.entries(queries).map(resolve));
+			const followUps = definition ? widgetFollowUps(shape, results) : {};
+			await pool(Object.entries(followUps), FOLLOW_UP_CONCURRENCY, resolve);
+		} catch (error) {
+			this.host.log.error("widget.send.failed", { connection, widget: "preview", error });
+			return;
+		}
+		if (!this.connections.has(connection)) return;
+		this.host.send(connection, {
+			type: "widget-data",
+			id: widgetPreviewId(id),
+			results,
+			at: new Date(oldest).toISOString(),
 		});
 	}
 
