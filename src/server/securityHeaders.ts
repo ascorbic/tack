@@ -53,7 +53,14 @@ export function appCsp(hashes: InlineHashes): string {
 		"font-src": ["'self'", "data:"],
 		// Snapshots and exported images fetch avatars to inline them, some by
 		// way of github.com/{login}.png, which redirects to the avatars host.
-		"connect-src": ["'self'", "https://avatars.githubusercontent.com", "https://github.com"],
+		// `wss:` for the board's live connection: Safari before 15.4 didn't
+		// count same-host WebSockets as 'self'.
+		"connect-src": [
+			"'self'",
+			"wss:",
+			"https://avatars.githubusercontent.com",
+			"https://github.com",
+		],
 		"worker-src": ["'self'", "blob:"],
 		"frame-src": ["'self'"],
 		"object-src": ["'none'"],
