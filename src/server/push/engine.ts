@@ -325,7 +325,10 @@ export class PushEngine {
 				}
 			}
 			try {
-				if (!(await adapter.canWrite(repo, token ?? "", this.host.env))) noAccess.push(repoKey);
+				const pusher = { id: by.id, login: by.login };
+				if (!(await adapter.canWrite(repo, token ?? "", this.host.env, pusher))) {
+					noAccess.push(repoKey);
+				}
 			} catch (error) {
 				log.warn("push.access.failed", { board: this.host.name, repo: repoKey, error });
 				return {

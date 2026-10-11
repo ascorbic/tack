@@ -1,6 +1,9 @@
 import type { ForgeId } from "../../shared/refs.ts";
 import { fake } from "./fake.ts";
+import { forgejo } from "./forgejo.ts";
 import { github } from "./github.ts";
+import { gitlab } from "./gitlab.ts";
+import { tangled } from "./tangled.ts";
 import type { ForgeAdapter } from "./types.ts";
 
 export type {
@@ -23,7 +26,7 @@ export type {
 	WriteAuth,
 } from "./types.ts";
 
-const ADAPTERS: Record<ForgeId, ForgeAdapter> = { github, fake };
+const ADAPTERS: Record<ForgeId, ForgeAdapter> = { github, fake, forgejo, gitlab, tangled };
 
 export function forge(id: ForgeId): ForgeAdapter {
 	return ADAPTERS[id];

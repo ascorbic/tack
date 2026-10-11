@@ -18,6 +18,7 @@ import { type Logger, log } from "./log.ts";
 import { type SqlMigration, addColumn, migrateSql } from "./migrations.ts";
 import { boards } from "./namespaces.ts";
 import { realTime } from "./testClock.ts";
+import { configureForges } from "./forges/config.ts";
 
 /** Changes to the `Repo`'s tables (see migrations.ts). */
 const REPO_MIGRATIONS: readonly SqlMigration[] = [
@@ -58,6 +59,12 @@ const POLL_INTERVAL_MS = { token: 60_000, anonymous: 5 * 60_000 };
 const POLL_ON_VIEW_MS = { token: 15_000, anonymous: 60_000 };
 /** How long to believe whether the app is installed, between notifications. */
 const INSTALLED_TTL_MS = 10 * 60_000;
+/**
+ * Forges whose webhooks are set up by hand (GitLab, Forgejo): a repository
+ * counts as live for this long after a delivery from it, and is polled while
+ * watched after that, until the next one.
+ */
+const DELIVERIES_LIVE_MS = 7 * 24 * 60 * 60_000;
 /** How long to reuse a viewer's token for reading, before asking for it again. */
 const READER_TOKEN_TTL_MS = 60_000;
 
@@ -116,6 +123,8 @@ export class Repo extends DurableObject<Env> {
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
+		// Which forge hosts keys may name: this object may be in an isolate of its own.
+		configureForges(env);
 		this.sql.exec(`
 			DROP TABLE IF EXISTS cards;
 			DROP TABLE IF EXISTS subscriptions;
@@ -271,15 +280,29 @@ export class Repo extends DurableObject<Env> {
 		const identity = this.identity();
 		if (!identity) return { live: false, writable: false, visibility: "private" };
 		const adapter = forge(identity.forge);
-		// Forges that can't say whether the app is installed are live (no webhooks to miss),
-		// and writable if they can write at all: that's the fake forge, whose writes go
-		// nowhere, so the whole push flow can be tried locally. GitHub needs the app.
-		const installed = adapter.installed ? (this.installedState()?.installed ?? false) : true;
+		const visibility = !adapter.canRead || identity.private === false ? "public" : "private";
+		if (adapter.installed) {
+			// GitHub: live and writable once the app is installed.
+			const installed = this.installedState()?.installed ?? false;
+			return { live: installed, writable: installed && adapter.apply !== undefined, visibility };
+		}
+		// Forges without an app to install: live while webhooks set up by hand keep
+		// arriving (GitLab, Forgejo), or always (the fake forge, which has none to
+		// miss); writable if the instance can write there (the fake forge's writes go
+		// nowhere, so the whole push flow can be tried locally).
 		return {
-			live: installed,
-			writable: installed && adapter.apply !== undefined,
-			visibility: !adapter.canRead || identity.private === false ? "public" : "private",
+			live: adapter.liveFromDeliveries ? this.deliveredLately() : true,
+			writable: adapter.apply !== undefined && (adapter.writable?.(identity, this.env) ?? true),
+			visibility,
 		};
+	}
+
+	/** Whether a verified delivery from this repository arrived lately (#65). */
+	private deliveredLately(): boolean {
+		const row = this.sql
+			.exec<{ value: string }>("SELECT value FROM meta WHERE key = 'delivered'")
+			.toArray()[0];
+		return row !== undefined && Date.now() - Number(row.value) < DELIVERIES_LIVE_MS;
 	}
 
 	/**
@@ -385,6 +408,13 @@ export class Repo extends DurableObject<Env> {
 
 		// Deliveries know the repository's current name.
 		const renamed = this.noticeIdentity(delivery.repo);
+		// On forges whose webhooks are set up by hand, deliveries are what make it live.
+		const before = this.status();
+		this.sql.exec(
+			"INSERT OR REPLACE INTO meta (key, value) VALUES ('delivered', ?)",
+			String(Date.now()),
+		);
+		const wentLive = !before.live && this.status().live;
 
 		const fresh: Card[] = [];
 		const stale: string[] = [];
@@ -425,6 +455,8 @@ export class Repo extends DurableObject<Env> {
 		const notified = await this.fanOut(dedupe([...renamed, ...updated]), {
 			delivery: delivery.id,
 		});
+		// Every watched card says it's live now, not just the ones this delivery changed.
+		if (wentLive) await this.fanOutAll({ reason: "status" });
 		// Rules and inboxes hear about every item a delivery touched, on the board or not.
 		await this.fanOutActivity(delivery, fresh);
 		// Comment commands run from the alarm, once per comment, so the forge
@@ -645,6 +677,10 @@ export class Repo extends DurableObject<Env> {
 
 	/** Whether there's someone whose token can be used to read. */
 	private hasReader(): boolean {
+		// Forges besides GitHub read with the instance's own token (or anonymously),
+		// whoever's looking, and their limits allow a poll a minute.
+		const identity = this.identity();
+		if (identity && forge(identity.forge).liveFromDeliveries) return true;
 		return Boolean(this.env.GITHUB_TOKEN) || (this.reader?.until ?? 0) > Date.now();
 	}
 

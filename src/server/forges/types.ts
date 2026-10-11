@@ -123,7 +123,9 @@ export type WebhookResult =
  * How to read a repository the app isn't installed on. `token` is someone's
  * own token (a viewer who's looking at the board), used where there's no
  * installation: it only reaches public data there, but with a far better
- * rate limit than reading anonymously.
+ * rate limit than reading anonymously. It's always a GitHub token: other
+ * forges' adapters never send it anywhere (#65), and read with the
+ * instance's own token for their host, or anonymously.
  */
 export interface ReadAuth {
 	token?: string | null;
@@ -239,6 +241,22 @@ export interface ForgeAdapter {
 	 */
 	installed?(repo: RepoIdentity, env: Env, options?: { fresh?: boolean }): Promise<boolean>;
 	/**
+	 * For forges without an app to install (no `installed`), whose webhooks
+	 * are set up by hand on each repository or group (GitLab, Forgejo, #65):
+	 * the instance can't know which repositories send them, so a repository
+	 * counts as live while verified deliveries from it keep arriving (`Repo`
+	 * remembers the last), and is polled while watched otherwise. Forges that
+	 * send none (Tangled) are never live, so always polled. Absent: always
+	 * live (the fake forge).
+	 */
+	liveFromDeliveries?: boolean;
+	/**
+	 * For forges without an app to install: whether this instance can write
+	 * to a repository at all (it holds a token for the host, with writes
+	 * turned on). Absent: whenever `apply` is defined.
+	 */
+	writable?(repo: RepoIdentity, env: Env): boolean;
+	/**
 	 * Ask to be told when `installed` changes for a repository (a path, e.g.
 	 * `owner/repo`): the `Repo` object holding it gets `installationChanged`,
 	 * a board that couldn't read it at all gets `repoInstallChanged`.
@@ -264,7 +282,9 @@ export interface ForgeAdapter {
 	/**
 	 * Whether the holder of `token` (a viewer's own token, or null for an
 	 * anonymous viewer) can read a repository. Throws if the forge can't say.
-	 * Forges without this have no private repositories.
+	 * Forges without this have no private repositories. Forges where people
+	 * don't sign in (all but GitHub) answer for the repository alone: only
+	 * public ones, since Tack can't tell who may read the others.
 	 */
 	canRead?(repo: RepoIdentity, token: string | null, env: Env): Promise<boolean>;
 	/** Verify and normalise an incoming webhook, for forges that send them. */
@@ -283,9 +303,17 @@ export interface ForgeAdapter {
 	): Promise<ApplyResult>;
 	/**
 	 * Whether the holder of `token` can write to a repository (push access on
-	 * GitHub). Pushing needs this even when writing as the app.
+	 * GitHub). Pushing needs this even when writing as the app. Forges
+	 * without an app to install get no token (`""`): they write with the
+	 * instance's own, and decide by `pusher` (who's pushing, by their GitHub
+	 * login) and what that token may do.
 	 */
-	canWrite?(repo: RepoIdentity, token: string, env: Env): Promise<boolean>;
+	canWrite?(
+		repo: RepoIdentity,
+		token: string,
+		env: Env,
+		pusher?: { id: number; login: string },
+	): Promise<boolean>;
 	/**
 	 * Commit files to a branch that's only for them (#59: a board's backups):
 	 * made as an orphan branch, with no history, the first time; a commit on
