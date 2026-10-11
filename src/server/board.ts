@@ -1,6 +1,7 @@
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import type { Connection, ConnectionContext, WSMessage } from "partyserver";
+import * as awarenessProtocol from "y-protocols/awareness";
 import { YServer } from "y-partyserver";
 import * as Y from "yjs";
 import { sanitizeAwareness } from "./awareness.ts";
@@ -110,6 +111,12 @@ export const ACCESS_REVOKED = 4403;
 
 /** y-protocols' message type for presence (awareness) updates. */
 const MESSAGE_AWARENESS = 1;
+/**
+ * Presence goes out in batches this far apart: cursors move a frame or two
+ * later, and a board with a hundred people moving theirs sends a hundred
+ * times fewer messages (see AGENTS.md, Load).
+ */
+const AWARENESS_BATCH_MS = 40;
 
 // Durable Object storage rows max out at 2 MB, so snapshots are chunked.
 const CHUNK_SIZE = 512 * 1024;
@@ -229,6 +236,9 @@ export class Board extends YServer<Env> {
 	private backups: Backups | null = null;
 	/** Presence client ids, by the connection that speaks for them (see awareness.ts). */
 	private awarenessOwners = new Map<number, string>();
+	/** Presence changed since the last batch went out, and when the next goes. */
+	private awarenessDirty = new Set<number>();
+	private awarenessTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Compacting very old documents, and keeping old copies of them out (#60). */
 	private compaction: BoardCompaction | null = null;
 
@@ -806,10 +816,37 @@ export class Board extends YServer<Env> {
 			});
 		}
 		if (!result.update) return null;
+		// Applied here (y-partyserver notes which clients the connection speaks
+		// for), and relayed with everyone else's in the next batch, rather than
+		// to every connection on every message: presence is most of a busy
+		// board's traffic, and it fans out to everyone (see AGENTS.md, Load).
+		awarenessProtocol.applyAwarenessUpdate(this.document.awareness, result.update, connection);
+		for (const clientId of result.claimed) this.awarenessDirty.add(clientId);
+		this.awarenessTimer ??= setTimeout(() => this.flushAwareness(), AWARENESS_BATCH_MS);
+		return null;
+	}
+
+	/** Send everyone the presence that changed since the last batch, in one message. */
+	private flushAwareness(): void {
+		this.awarenessTimer = undefined;
+		const awareness = this.document.awareness;
+		const changed = [...this.awarenessDirty].filter((clientId) => awareness.meta.has(clientId));
+		this.awarenessDirty.clear();
+		if (changed.length === 0) return;
 		const encoder = encoding.createEncoder();
 		encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
-		encoding.writeVarUint8Array(encoder, result.update);
-		return encoding.toUint8Array(encoder);
+		encoding.writeVarUint8Array(
+			encoder,
+			awarenessProtocol.encodeAwarenessUpdate(awareness, changed),
+		);
+		const message = encoding.toUint8Array(encoder);
+		for (const connection of this.getConnections()) {
+			try {
+				connection.send(message);
+			} catch {
+				// Closing: it'll hear nothing more.
+			}
+		}
 	}
 
 	override onCustomMessage(connection: Connection, message: string): void {
