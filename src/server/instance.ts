@@ -16,7 +16,15 @@ import type {
 	AccessUpdateRequest,
 	AccessUpdateResponse,
 	InstallationSummary,
+	WebhookHealth,
 } from "../shared/auth.ts";
+import { NOT_INSTALLED_LIMIT } from "../shared/auth.ts";
+import {
+	DELIVERIES_READ,
+	type HookConfig,
+	type HookDelivery,
+	assessWebhooks,
+} from "./github/webhookHealth.ts";
 import { getServerByName } from "partyserver";
 import type { Board } from "./board.ts";
 import type { Viewer } from "./identity.ts";
@@ -647,6 +655,44 @@ export class Instance extends DurableObject<Env> {
 				return summary;
 			}),
 		);
+	}
+
+	/**
+	 * Repositories Tack has looked for the app on and found it isn't
+	 * installed, newest first: for the setup page, so an admin sees which of
+	 * their boards' repositories still need it.
+	 */
+	async notInstalled(limit = NOT_INSTALLED_LIMIT): Promise<string[]> {
+		return this.sql
+			.exec<{ repo: string }>(
+				"SELECT repo FROM repositories WHERE installation_id IS NULL ORDER BY checked_at DESC LIMIT ?",
+				limit,
+			)
+			.toArray()
+			.map((row) => row.repo);
+	}
+
+	/**
+	 * Whether GitHub's webhooks reach this instance at `origin`: the app's
+	 * webhook settings and recent deliveries, straight from GitHub.
+	 */
+	async webhookHealth(origin: string): Promise<WebhookHealth> {
+		const jwt = await this.appJwt();
+		if (!jwt) return assessWebhooks(origin, null, null);
+		const auth = `Bearer ${jwt}`;
+		const [config, deliveries] = await Promise.all([
+			ghJson<HookConfig>("/app/hook/config", { auth }).catch((error: unknown) => {
+				log.warn("github.webhooks.failed", { during: "config", error });
+				return null;
+			}),
+			ghJson<HookDelivery[]>(`/app/hook/deliveries?per_page=${DELIVERIES_READ}`, { auth }).catch(
+				(error: unknown) => {
+					log.warn("github.webhooks.failed", { during: "deliveries", error });
+					return null;
+				},
+			),
+		]);
+		return assessWebhooks(origin, config, deliveries);
 	}
 
 	// ---------------------------------------------------------------------

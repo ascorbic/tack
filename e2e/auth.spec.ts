@@ -24,9 +24,9 @@ test("every sign-in, access and setup state renders", async ({ page }) => {
 		has: page.locator("figcaption", { hasText: "Installed: one read-only, one suspended" }),
 	});
 	await expect(installed.getByRole("heading", { name: "Where it’s installed" })).toBeVisible();
-	await expect(installed.locator(".install")).toHaveCount(3);
-	await expect(installed.locator(".install[data-tone=ok]")).toContainText("Live · Tack can push");
-	await expect(installed.locator(".install[data-tone=warn]")).toContainText("Live, read-only");
+	await expect(installed.locator(".installs-list .install")).toHaveCount(3);
+	await expect(installed.locator(".installs-list .install[data-tone=ok]")).toContainText("Live · Tack can push");
+	await expect(installed.locator(".installs-list .install[data-tone=warn]")).toContainText("Live, read-only");
 	await expect(installed.getByRole("img", { name: "Private" })).toHaveCount(1);
 	const fresh = page
 		.locator("figure")
@@ -36,6 +36,38 @@ test("every sign-in, access and setup state renders", async ({ page }) => {
 		has: page.locator("figcaption", { hasText: "Installed, GitHub unreachable" }),
 	});
 	await expect(down.getByRole("alert")).toContainText("Couldn’t ask GitHub");
+	// Repositories on boards that the app isn't on.
+	const missing = installed.getByRole("region", { name: "On boards, without the app" });
+	await expect(missing.getByRole("listitem")).toHaveText(["withastro/astro", "acme/new"]);
+});
+
+test("the setup checklist says where an instance stands, and what to do next", async ({ page }) => {
+	await page.goto("/play/auth");
+	const figure = (caption: string) =>
+		page.locator("figure").filter({ has: page.locator("figcaption", { hasText: caption }) });
+
+	// No secret: one made in the browser, ready to copy.
+	const secret = figure("No TACK_SECRET");
+	const checklist = secret.getByRole("navigation", { name: "Setup checklist" });
+	await expect(checklist).toContainText("0 of 5 done");
+	await expect(checklist.locator("[aria-current=step]")).toContainText("Secret");
+	await expect(secret.getByLabel("A new secret")).toHaveText(/^[A-Za-z0-9+/]{43}=$/);
+	await expect(secret.getByRole("button", { name: "I’ve set it: check again" })).toBeVisible();
+
+	// Everything done.
+	const done = figure("All set").getByRole("navigation", { name: "Setup checklist" });
+	await expect(done).toContainText("All set");
+	await expect(done.locator("[data-tone=done]")).toHaveCount(5);
+
+	// Webhooks refused: the checklist points at them, and says how to fix it.
+	const refused = figure("Webhooks refused");
+	await expect(refused.locator("[aria-current=step]")).toContainText("Webhooks");
+	const webhooks = refused.getByRole("region", { name: "Webhooks" });
+	await expect(webhooks).toContainText("Refused");
+	await expect(webhooks).toContainText("GITHUB_WEBHOOK_SECRET");
+	await expect(webhooks.getByRole("link", { name: "App settings" })).toBeVisible();
+	await expect(figure("Webhooks going elsewhere")).toContainText("tack.ascorbic.workers.dev");
+	await expect(figure("Running locally")).toContainText("Off while local");
 });
 
 test("dev sign-in shows who you are, and signing out makes you a guest", async ({ page }) => {

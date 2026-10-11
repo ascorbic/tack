@@ -232,6 +232,12 @@ export class FakeGitHub {
 	requests: FakeRequest[] = [];
 	/** The app's webhook delivery log, newest first. */
 	hookDeliveries: FakeHookDelivery[] = [];
+	/** The app's webhook settings (`GET /app/hook/config`); null makes GitHub fail to answer. */
+	hookConfig: { url: string; content_type: string; insecure_ssl: string } | null = {
+		url: "https://tack.example.com/webhooks/github",
+		content_type: "json",
+		insecure_ssl: "0",
+	};
 	/** Delivery ids GitHub was asked to redeliver. */
 	readonly redelivered: number[] = [];
 
@@ -702,6 +708,11 @@ export class FakeGitHub {
 					private: this.repoByName(full_name)?.private ?? false,
 				})),
 			});
+		}
+
+		if (path === "/app/hook/config" && request.method === "GET") {
+			this.verifyJwt(auth);
+			return this.hookConfig ? json(this.hookConfig) : json({ message: "Server Error" }, 500);
 		}
 
 		if (path === "/app/hook/deliveries" && request.method === "GET") {

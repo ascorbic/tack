@@ -90,6 +90,52 @@ export interface InstallationSummary {
 
 export interface InstallationList {
 	installations: InstallationSummary[];
+	/**
+	 * Repositories Tack has looked for the app on (cards on boards, mostly)
+	 * and found it isn't installed: newest first, at most `NOT_INSTALLED_LIMIT`.
+	 * Public ones still work, read-only and not live. Absent from older servers.
+	 */
+	notInstalled?: string[];
+}
+
+/** How many uninstalled repositories `/api/setup/installations` lists. */
+export const NOT_INSTALLED_LIMIT = 50;
+
+/**
+ * `GET /api/setup/webhooks` (admins only): whether GitHub's webhooks reach
+ * this instance, from the app's webhook settings and delivery log on GitHub.
+ *
+ * - `ok`: the latest delivery arrived and Tack took it
+ * - `waiting`: nothing delivered yet (GitHub sends one when something
+ *   happens in a repository the app's installed on)
+ * - `failing`: the latest delivery didn't arrive or was refused (`reason`)
+ * - `elsewhere`: the app sends its webhooks to another address than this
+ *   instance's (`url` versus `expected`)
+ * - `local`: this instance is on this machine, where GitHub can't reach it
+ * - `unknown`: GitHub couldn't be asked
+ */
+export interface WebhookHealth {
+	state: "ok" | "waiting" | "failing" | "elsewhere" | "local" | "unknown";
+	/** Where the app sends its webhooks, from its settings on GitHub. */
+	url: string | null;
+	/** Where this instance takes them. */
+	expected: string;
+	/** The newest delivery GitHub has a record of. */
+	last: WebhookDelivery | null;
+	/** How many of the recent deliveries never arrived or were refused, counting redeliveries. */
+	failed: number;
+	/** Why the latest one failed: GitHub couldn't connect, Tack refused it (signature), or Tack failed. */
+	reason?: "unreachable" | "rejected" | "error";
+}
+
+export interface WebhookDelivery {
+	/** The event, e.g. `issues`. */
+	event: string;
+	/** When GitHub sent it, ISO 8601. */
+	at: string;
+	/** What Tack answered; 0 when GitHub couldn't connect. */
+	status: number;
+	redelivery: boolean;
 }
 
 /** `PUT /api/setup/access` */

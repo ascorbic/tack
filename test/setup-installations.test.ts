@@ -78,3 +78,96 @@ describe("where the app is installed", () => {
 		expect((await installations("")).status).toBe(403);
 	});
 });
+
+describe("repositories the app isn't installed on", () => {
+	it("lists the ones Tack looked for it on, so an admin can install it before a session", async () => {
+		github.addRepo(5, "emdash-cms/plugins");
+		const instance = await instanceStub(mf);
+		// A card from it on a board looks the app up, and doesn't find it.
+		expect(await instance.isInstalled("emdash-cms/plugins")).toBe(false);
+		const admin = await signIn(mf, "matt", { admin: true });
+		const list = (await (await installations(admin)).json()) as InstallationList;
+		expect(list.notInstalled).toContain("emdash-cms/plugins");
+		expect(list.notInstalled).not.toContain("emdash-cms/emdash");
+
+		// Installing it there takes it off the list.
+		github.install(14, "emdash-cms", ["emdash-cms/plugins"]);
+		const after = (await (await installations(admin)).json()) as InstallationList;
+		expect(after.notInstalled).not.toContain("emdash-cms/plugins");
+	});
+});
+
+describe("whether webhooks reach the instance", () => {
+	const ORIGIN = "https://tack.example.com";
+
+	async function webhooks(cookie: string, origin = ORIGIN) {
+		return mf.dispatchFetch(`${origin}/api/setup/webhooks`, { headers: { cookie } });
+	}
+
+	const delivery = (id: number, status: number) => ({
+		id,
+		guid: `guid-${id}`,
+		delivered_at: "2026-10-11T09:00:00Z",
+		redelivery: false,
+		status_code: status,
+		event: "issues",
+	});
+
+	it("says so when GitHub's latest delivery arrived", async () => {
+		github.hookDeliveries = [delivery(2, 202), delivery(1, 0)];
+		const admin = await signIn(mf, "matt", { admin: true });
+		const response = await webhooks(admin);
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			state: "ok",
+			url: `${ORIGIN}/webhooks/github`,
+			expected: `${ORIGIN}/webhooks/github`,
+			last: { event: "issues", status: 202, at: "2026-10-11T09:00:00Z" },
+			failed: 1,
+		});
+	});
+
+	it("explains failures: unreachable, refused, or failing", async () => {
+		const admin = await signIn(mf, "matt", { admin: true });
+		for (const [status, reason] of [
+			[0, "unreachable"],
+			[401, "rejected"],
+			[500, "error"],
+		] as const) {
+			github.hookDeliveries = [delivery(3, status)];
+			expect(await (await webhooks(admin)).json()).toMatchObject({ state: "failing", reason });
+		}
+	});
+
+	it("notices an app sending its webhooks somewhere else", async () => {
+		const admin = await signIn(mf, "matt", { admin: true });
+		github.hookDeliveries = [delivery(4, 202)];
+		expect(await (await webhooks(admin, "https://tack.other.dev")).json()).toMatchObject({
+			state: "elsewhere",
+			url: `${ORIGIN}/webhooks/github`,
+			expected: "https://tack.other.dev/webhooks/github",
+		});
+	});
+
+	it("waits for a first delivery, knows GitHub can't reach this machine, and copes with GitHub not answering", async () => {
+		const admin = await signIn(mf, "matt", { admin: true });
+		github.hookDeliveries = [];
+		expect(await (await webhooks(admin)).json()).toMatchObject({ state: "waiting", last: null });
+		expect(await (await webhooks(admin, "http://localhost")).json()).toMatchObject({
+			state: "local",
+		});
+		const config = github.hookConfig;
+		github.hookConfig = null;
+		try {
+			expect(await (await webhooks(admin)).json()).toMatchObject({ state: "unknown" });
+		} finally {
+			github.hookConfig = config;
+		}
+	});
+
+	it("is only for admins", async () => {
+		const someone = await signIn(mf, "alice");
+		expect((await webhooks(someone)).status).toBe(403);
+		expect((await webhooks("")).status).toBe(403);
+	});
+});

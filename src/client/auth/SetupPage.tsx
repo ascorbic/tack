@@ -2,14 +2,17 @@ import { type FormEvent, useEffect, useState } from "react";
 import {
 	type AccessSettings,
 	type AccessUpdateResponse,
-	type InstallationSummary,
+	type InstallationList,
 	type Person,
 	type SetupInfo,
+	type WebhookHealth,
 	manifestFormAction,
 } from "../../shared/auth.ts";
 import { Avatar } from "../People.tsx";
 import { AuthPage } from "./AccessGate.tsx";
 import { Installations } from "./Installations.tsx";
+import { Checklist, SecretHelp, WebhookCheck } from "./SetupChecks.tsx";
+import { type Loaded, configuredSteps, firstSteps } from "./setupChecks.ts";
 import "./auth.css";
 import { GitHubMark } from "./GitHubMark.tsx";
 import { personUser, signInHref } from "./me.ts";
@@ -26,13 +29,14 @@ const SETUP_ERRORS: Record<string, string> = {
 export default function SetupPage() {
 	const [info, setInfo] = useState<SetupInfo | null>(null);
 	const [failed, setFailed] = useState(false);
+	const [round, setRound] = useState(0);
 
 	useEffect(() => {
 		fetch("/api/setup", { headers: { accept: "application/json" } })
 			.then((response) => response.json() as Promise<SetupInfo>)
 			.then(setInfo)
 			.catch(() => setFailed(true));
-	}, []);
+	}, [round]);
 
 	const params = new URLSearchParams(location.search);
 	if (failed) {
@@ -44,7 +48,16 @@ export default function SetupPage() {
 		);
 	}
 	if (!info) return <div className="auth-page" aria-busy="true" />;
-	return <SetupView info={info} params={params} />;
+	return (
+		<SetupView
+			info={info}
+			params={params}
+			onRecheck={() => {
+				setInfo(null);
+				setRound((n) => n + 1);
+			}}
+		/>
+	);
 }
 
 /** The setup page for a given state; the gallery renders this directly. */
@@ -52,40 +65,45 @@ export function SetupView({
 	info,
 	params,
 	loadInstallations,
+	loadWebhooks,
+	onRecheck,
 }: {
 	info: SetupInfo;
 	params: URLSearchParams;
 	/** Where the app is installed (the gallery fakes it). */
-	loadInstallations?: () => Promise<InstallationSummary[]>;
+	loadInstallations?: () => Promise<InstallationList>;
+	/** Whether webhooks arrive (the gallery fakes it). */
+	loadWebhooks?: () => Promise<WebhookHealth>;
+	/** Ask the server for the page's state again. */
+	onRecheck?: () => void;
 }) {
 	switch (info.status) {
 		case "unavailable":
-			return <NeedsSecret />;
+			return <NeedsSecret onRecheck={onRecheck} />;
 		case "unconfigured":
 			return <CreateApp info={info} error={params.get("error")} />;
 		case "configured":
-			return <Configured info={info} params={params} loadInstallations={loadInstallations} />;
+			return (
+				<Configured
+					info={info}
+					params={params}
+					loadInstallations={loadInstallations}
+					loadWebhooks={loadWebhooks}
+				/>
+			);
 	}
 }
 
-function NeedsSecret() {
+function NeedsSecret({ onRecheck }: { onRecheck?: () => void }) {
 	return (
-		<AuthPage>
+		<AuthPage wide>
 			<h1>Tack needs a secret first</h1>
 			<p className="auth-lead">
 				Sign-in and setup are off until this Worker has a <code>TACK_SECRET</code>. Tack uses it to
 				sign session cookies and encrypt the GitHub App’s credentials.
 			</p>
-			<ol className="setup-steps">
-				<li>
-					Generate a long random value, e.g. <code>openssl rand -base64 32</code>
-				</li>
-				<li>
-					Add it as a secret named <code>TACK_SECRET</code> on the Worker (Cloudflare dashboard →
-					Workers → tack → Settings → Variables and secrets)
-				</li>
-				<li>Come back here</li>
-			</ol>
+			<Checklist steps={firstSteps("secret")} />
+			<SecretHelp onCheck={onRecheck} />
 			<p className="auth-note">Previews never get secrets, so boards there are guest-only.</p>
 		</AuthPage>
 	);
@@ -120,12 +138,13 @@ function CreateApp({
 				Tack talks to GitHub through a GitHub App that you own. GitHub fills in everything; you just
 				confirm. Whoever creates it becomes this instance’s first admin.
 			</p>
+			<Checklist steps={firstSteps("app")} />
 			{error && (
 				<p className="auth-alert" role="alert">
 					{SETUP_ERRORS[error] ?? `Setup didn’t finish (${error}).`}
 				</p>
 			)}
-			<form className="setup-form" method="post" action={action}>
+			<form id="setup-app" className="setup-form" method="post" action={action}>
 				<input
 					type="hidden"
 					name="manifest"
@@ -206,12 +225,19 @@ function Configured({
 	info,
 	params,
 	loadInstallations,
+	loadWebhooks,
 }: {
 	info: Extract<SetupInfo, { status: "configured" }>;
 	params: URLSearchParams;
-	loadInstallations?: () => Promise<InstallationSummary[]>;
+	loadInstallations?: () => Promise<InstallationList>;
+	loadWebhooks?: () => Promise<WebhookHealth>;
 }) {
 	const installed = params.get("installed");
+	const [webhooks, setWebhooks] = useState<Loaded<WebhookHealth>>({ status: "loading" });
+	const [installations, setInstallations] = useState<Loaded<InstallationList>>({
+		status: "loading",
+	});
+	const [access, setAccess] = useState(info.access);
 	return (
 		<AuthPage wide>
 			{params.has("created") && (
@@ -234,11 +260,14 @@ function Configured({
 					</span>
 				</div>
 			)}
-			<h1>{info.app.name}</h1>
+			<h1 id="setup-app">{info.app.name}</h1>
 			<p className="auth-lead">
 				This instance’s GitHub App. Install it on repositories to make their cards live (and private
 				repositories visible); public repositories work without it.
 			</p>
+			{info.admin && (
+				<Checklist steps={configuredSteps(webhooks, installations, info.access && access)} />
+			)}
 			<div className="auth-actions">
 				<a className="auth-button primary" href={info.app.installUrl}>
 					<GitHubMark size={18} />
@@ -249,9 +278,22 @@ function Configured({
 				</a>
 			</div>
 
-			{info.admin && <Installations installUrl={info.app.installUrl} load={loadInstallations} />}
+			{info.admin && (
+				<WebhookCheck
+					appSettingsUrl={info.app.htmlUrl}
+					load={loadWebhooks}
+					onChange={setWebhooks}
+				/>
+			)}
+			{info.admin && (
+				<Installations
+					installUrl={info.app.installUrl}
+					load={loadInstallations}
+					onChange={setInstallations}
+				/>
+			)}
 
-			<h2>Who can use this instance</h2>
+			<h2 id="setup-people">Who can use this instance</h2>
 			{!info.viewer && (
 				<>
 					<p className="auth-note">Sign in as an admin to manage access.</p>
@@ -263,7 +305,7 @@ function Configured({
 			{info.viewer && !info.admin && (
 				<p className="auth-note">Only this instance’s admins can change who can use it.</p>
 			)}
-			{info.admin && info.access && <AccessEditor initial={info.access} />}
+			{info.admin && info.access && <AccessEditor initial={info.access} onSaved={setAccess} />}
 		</AuthPage>
 	);
 }
@@ -285,9 +327,12 @@ function draftFrom(access: AccessSettings): Draft {
 export function AccessEditor({
 	initial,
 	save = saveAccess,
+	onSaved,
 }: {
 	initial: AccessSettings;
 	save?: (draft: Draft) => Promise<AccessUpdateResponse>;
+	/** Told what was saved, for the setup checklist. */
+	onSaved?: (access: AccessSettings) => void;
 }) {
 	const [saved, setSaved] = useState(initial);
 	const [draft, setDraft] = useState(() => draftFrom(initial));
@@ -304,6 +349,7 @@ export function AccessEditor({
 				setSaved(result.access);
 				setDraft(draftFrom(result.access));
 				setStatus("saved");
+				onSaved?.(result.access);
 			} else {
 				setError(accessError(result));
 				setStatus("failed");

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import type {
 	AccessUpdateResponse,
+	InstallationList,
 	InstallationSummary,
 	Me,
 	Person,
 	SetupInfo,
+	WebhookHealth,
 } from "../../shared/auth.ts";
 import { NotAllowedPage, SignInPage } from "../auth/AccessGate.tsx";
 import { AccountMenu, SignInButton } from "../auth/AccountMenu.tsx";
@@ -99,15 +101,39 @@ const INSTALLATIONS: InstallationSummary[] = [
 	},
 ];
 
-const installed = () => Promise.resolve(INSTALLATIONS);
-const nowhere = () => Promise.resolve([]);
+const installed = () =>
+	Promise.resolve({ installations: INSTALLATIONS, notInstalled: ["withastro/astro", "acme/new"] });
+const allLive = () =>
+	Promise.resolve({ installations: INSTALLATIONS.slice(0, 1), notInstalled: [] });
+const nowhere = () => Promise.resolve({ installations: [] });
 const unreachable = () => Promise.reject(new Error("GitHub is down"));
+
+const HOOK = "https://tack.example.com/webhooks/github";
+const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
+const hooks = (health: Partial<WebhookHealth>) => () =>
+	Promise.resolve<WebhookHealth>({
+		state: "ok",
+		url: HOOK,
+		expected: HOOK,
+		last: { event: "pull_request", at: minutesAgo(3), status: 202, redelivery: false },
+		failed: 0,
+		...health,
+	});
+
+const configured = (access: Extract<SetupInfo, { status: "configured" }>["access"]): SetupInfo => ({
+	status: "configured",
+	app: APP,
+	viewer: OCTOCAT,
+	admin: true,
+	access,
+});
 
 const SETUPS: {
 	label: string;
 	info: SetupInfo;
 	params?: string;
-	installations?: () => Promise<InstallationSummary[]>;
+	installations?: () => Promise<InstallationList>;
+	webhooks?: () => Promise<WebhookHealth>;
 }[] = [
 	{ label: "No TACK_SECRET", info: { status: "unavailable" } },
 	{ label: "Fresh instance", info: { status: "unconfigured", state: "demo", manifest: MANIFEST } },
@@ -120,28 +146,62 @@ const SETUPS: {
 		label: "Just created",
 		params: "created=1",
 		installations: nowhere,
-		info: {
-			status: "configured",
-			app: APP,
-			viewer: OCTOCAT,
-			admin: true,
-			access: { users: [], orgs: [], admins: [OCTOCAT] },
-		},
+		webhooks: hooks({ state: "waiting", last: null }),
+		info: configured({ users: [], orgs: [], admins: [OCTOCAT] }),
+	},
+	{
+		label: "All set",
+		installations: allLive,
+		webhooks: hooks({}),
+		info: configured({ users: ["mallory"], orgs: ["emdash-cms"], admins: [OCTOCAT, PRIYA] }),
 	},
 	{
 		label: "Installed: one read-only, one suspended",
 		installations: installed,
-		info: {
-			status: "configured",
-			app: APP,
-			viewer: OCTOCAT,
-			admin: true,
-			access: { users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] },
-		},
+		webhooks: hooks({ failed: 2 }),
+		info: configured({ users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] }),
+	},
+	{
+		label: "Webhooks refused",
+		installations: allLive,
+		webhooks: hooks({
+			state: "failing",
+			reason: "rejected",
+			failed: 6,
+			last: { event: "issues", at: minutesAgo(12), status: 401, redelivery: true },
+		}),
+		info: configured({ users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] }),
+	},
+	{
+		label: "Webhooks not arriving",
+		installations: allLive,
+		webhooks: hooks({
+			state: "failing",
+			reason: "unreachable",
+			failed: 12,
+			last: { event: "issues", at: minutesAgo(40), status: 0, redelivery: false },
+		}),
+		info: configured({ users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] }),
+	},
+	{
+		label: "Webhooks going elsewhere",
+		installations: allLive,
+		webhooks: hooks({
+			state: "elsewhere",
+			url: "https://tack.ascorbic.workers.dev/webhooks/github",
+		}),
+		info: configured({ users: [], orgs: ["emdash-cms"], admins: [OCTOCAT] }),
+	},
+	{
+		label: "Running locally",
+		installations: nowhere,
+		webhooks: hooks({ state: "local", last: null }),
+		info: configured({ users: [], orgs: [], admins: [OCTOCAT] }),
 	},
 	{
 		label: "Installed, GitHub unreachable",
 		installations: unreachable,
+		webhooks: unreachable,
 		info: {
 			status: "configured",
 			app: APP,
@@ -257,12 +317,14 @@ export default function AuthGallery() {
 			<section>
 				<h2>Setup</h2>
 				<div className="gallery-grid auth-gallery-pages">
-					{SETUPS.map(({ label, info, params, installations }) => (
+					{SETUPS.map(({ label, info, params, installations, webhooks }) => (
 						<Frame key={label} label={label} round={round}>
 							<SetupView
 								info={info}
 								params={new URLSearchParams(params)}
 								loadInstallations={installations}
+								loadWebhooks={webhooks}
+								onRecheck={() => {}}
 							/>
 						</Frame>
 					))}

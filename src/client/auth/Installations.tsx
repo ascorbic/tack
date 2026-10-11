@@ -1,20 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { InstallationList, InstallationSummary } from "../../shared/auth.ts";
+import type { Loaded } from "./setupChecks.ts";
 
 type Load =
 	| { status: "loading" }
-	| { status: "ready"; installations: InstallationSummary[] }
+	| { status: "ready"; installations: InstallationSummary[]; notInstalled: string[] }
 	| { status: "failed" };
 
 /** Show a filter once there are this many repositories to look through. */
 const FILTER_FROM = 10;
 
-export async function fetchInstallations(): Promise<InstallationSummary[]> {
+export async function fetchInstallations(): Promise<InstallationList> {
 	const response = await fetch("/api/setup/installations", {
 		headers: { accept: "application/json" },
 	});
 	if (!response.ok) throw new Error(`${response.status}`);
-	return ((await response.json()) as InstallationList).installations;
+	return (await response.json()) as InstallationList;
 }
 
 /** How an installation is doing, in a few words, and how it should look. */
@@ -50,23 +51,37 @@ export function installationState(installation: InstallationSummary): {
 export function Installations({
 	installUrl,
 	load = fetchInstallations,
+	onChange,
 }: {
 	installUrl: string;
-	load?: () => Promise<InstallationSummary[]>;
+	load?: () => Promise<InstallationList>;
+	/** Told what's loaded, for the setup checklist. */
+	onChange?: (state: Loaded<InstallationList>) => void;
 }) {
 	const [state, setState] = useState<Load>({ status: "loading" });
 	const [round, setRound] = useState(0);
 	const [filter, setFilter] = useState("");
+	const changed = useRef(onChange);
+	changed.current = onChange;
 
 	useEffect(() => {
 		let cancelled = false;
 		setState({ status: "loading" });
+		changed.current?.({ status: "loading" });
 		load()
-			.then((installations) => {
-				if (!cancelled) setState({ status: "ready", installations });
+			.then((list) => {
+				if (cancelled) return;
+				setState({
+					status: "ready",
+					installations: list.installations,
+					notInstalled: list.notInstalled ?? [],
+				});
+				changed.current?.({ status: "ready", value: list });
 			})
 			.catch(() => {
-				if (!cancelled) setState({ status: "failed" });
+				if (cancelled) return;
+				setState({ status: "failed" });
+				changed.current?.({ status: "failed" });
 			});
 		return () => {
 			cancelled = true;
@@ -81,6 +96,7 @@ export function Installations({
 
 	return (
 		<section
+			id="setup-repositories"
 			className="installs"
 			aria-labelledby="installs-title"
 			aria-busy={state.status === "loading"}
@@ -149,6 +165,40 @@ export function Installations({
 						)}
 				</>
 			)}
+			{state.status === "ready" && state.notInstalled.length > 0 && (
+				<NotInstalled
+					repos={state.notInstalled.filter((repo) => !query || repo.includes(query))}
+					installUrl={installUrl}
+				/>
+			)}
+		</section>
+	);
+}
+
+/**
+ * Repositories Tack has looked for the app on (cards on boards, mostly) and
+ * not found it: the ones to install it on before a session.
+ */
+function NotInstalled({ repos, installUrl }: { repos: string[]; installUrl: string }) {
+	const title = useId();
+	if (repos.length === 0) return null;
+	return (
+		<section className="installs-missing" aria-labelledby={title}>
+			<div className="installs-head">
+				<h3 id={title}>On boards, without the app</h3>
+				<a className="install-settings" href={installUrl}>
+					Install on these
+				</a>
+			</div>
+			<p className="install-detail">
+				Cards from these show, if they’re public, but don’t update live, and Tack can’t push to
+				them. Install the app on any you’ll plan with.
+			</p>
+			<ul className="install-repos" aria-label="Repositories without the app">
+				{repos.map((repo) => (
+					<li key={repo}>{repo}</li>
+				))}
+			</ul>
 		</section>
 	);
 }
