@@ -50,6 +50,9 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | votes        | decision           | nested Y.Map of voter key → `Vote`, so votes  |
 // |              |                    | from different people merge (decisions.ts)    |
 // | writeback    | decision           | id of its write-back in `changes`             |
+// | outcome      | decision           | what was decided, in words for its record,    |
+// |              |                    | when that's more than its title               |
+// | consequences | decision           | what becomes easier or harder because of it   |
 // | inbox        | section            | an inbox frame's query (`InboxConfig`)        |
 // | dismissed    | section            | nested Y.Map of item key → `Dismissal`: items |
 // |              |                    | dismissed from an inbox's tray (inbox.ts)     |
@@ -213,6 +216,10 @@ export interface ShapeProps {
 	votes?: Record<string, Vote>;
 	/** Decisions: the id of its write-back in the board's `changes`. */
 	writeback?: string;
+	/** Decisions: what was decided, for its record, when that's more than its title. */
+	outcome?: string;
+	/** Decisions: what becomes easier or harder because of it. */
+	consequences?: string;
 	/** Widgets: the kind (see src/shared/widgets.ts). */
 	widget?: string;
 	/** Widgets: the kind's config. */

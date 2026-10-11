@@ -99,6 +99,44 @@ function votesMap(shape: Y.Map<unknown>): Y.Map<Vote> {
 	return fresh;
 }
 
+function readString(value: unknown): string | undefined {
+	return typeof value === "string" ? value : undefined;
+}
+
+/** What a decision's record says, kept on the decision so the board shows it. */
+export interface DecisionRecord {
+	/** Its context: the decision's body. */
+	text?: string;
+	/** What was decided; the same as the title unless someone wrote more. */
+	outcome?: string;
+	/** What becomes easier or harder because of it. */
+	consequences?: string;
+}
+
+/**
+ * Write what a decision's record says onto the decision, as people type in
+ * the write-back dialog, so nothing typed there lives only in the dialog.
+ * An outcome that's just the title, or anything emptied, isn't kept. Wrap in
+ * `transactLocal` for undo.
+ */
+export function setDecisionRecord(doc: Y.Doc, id: string, record: DecisionRecord): void {
+	doc.transact(() => {
+		const shape = decisionMap(doc, id);
+		if (!shape) return;
+		for (const [key, value] of Object.entries(record) as [keyof DecisionRecord, string?][]) {
+			if (value === undefined) continue;
+			// An outcome that's just the title says nothing more; empty consequences say nothing.
+			const nothing =
+				key === "outcome"
+					? value.trim() === (readString(shape.get("title")) ?? "").trim()
+					: key === "consequences" && value.trim() === "";
+			if (nothing) {
+				if (shape.has(key)) shape.delete(key);
+			} else if (shape.get(key) !== value) shape.set(key, value);
+		}
+	});
+}
+
 /**
  * Cast, change or withdraw (`null`) a vote, as a local edit. Votes are only
  * taken while a decision is proposed.

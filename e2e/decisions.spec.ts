@@ -131,9 +131,19 @@ test("deciding stamps it, then the write-back stages an ADR pull request", async
 		"Links",
 	]);
 
-	// Consequences typed in the dialog land in the record.
+	// Consequences typed in the dialog land in the record, and on the decision:
+	// Cancel doesn't lose them, and the board shows them.
 	await dialog.getByRole("textbox", { name: "Consequences" }).fill("Users on 18 stay on 4.x.");
 	await expect(preview).toContainText("Users on 18 stay on 4.x.");
+	await dialog.getByRole("button", { name: "Cancel" }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect(proposed.locator(".decision-consequences")).toContainText(
+		"Users on 18 stay on 4.x.",
+	);
+	await proposed.getByRole("button", { name: "Write back" }).click();
+	await expect(dialog.getByRole("textbox", { name: "Consequences" })).toHaveValue(
+		"Users on 18 stay on 4.x.",
+	);
 	await dialog.getByRole("button", { name: "Stage write-back" }).click();
 	await expect(dialog).toHaveCount(0);
 

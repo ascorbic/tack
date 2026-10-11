@@ -175,6 +175,9 @@ test("every decision state renders", async ({ page }) => {
 		"Open",
 	);
 	await expect(at("ADR merged").locator(".decision-record .chip.state")).toHaveText("Merged");
+	await expect(at("ADR merged").locator(".decision-consequences")).toContainText(
+		"Commit messages need a type",
+	);
 	await expect(at("Posted as a Discussion").locator(".decision-writeback")).toHaveAttribute(
 		"href",
 		/discussions\/18$/,

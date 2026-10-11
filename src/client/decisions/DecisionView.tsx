@@ -55,6 +55,8 @@ export interface OtherDecision {
 export interface DecisionViewProps {
 	title: string;
 	text: string;
+	/** What becomes easier or harder because of it, as written for its record. */
+	consequences?: string;
 	status: DecisionStatus;
 	votes: Tally;
 	/** Your own vote, if you've cast one. */
@@ -119,6 +121,7 @@ function formatDate(iso?: string): string | null {
 export function DecisionView({
 	title,
 	text,
+	consequences = "",
 	status,
 	votes,
 	myVote = null,
@@ -289,6 +292,13 @@ export function DecisionView({
 							{text || BODY_PLACEHOLDER}
 						</p>
 					)}
+				</div>
+			)}
+
+			{consequences.trim() !== "" && (
+				<div className="decision-consequences">
+					<span className="decision-consequences-label">Consequences</span>
+					<p>{consequences}</p>
 				</div>
 			)}
 

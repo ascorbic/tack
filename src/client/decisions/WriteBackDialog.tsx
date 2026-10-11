@@ -25,7 +25,13 @@ import {
 } from "../../shared/adr.ts";
 import { isMissing } from "../../shared/cards.ts";
 import { listChanges, unstageChanges } from "../../shared/changes.ts";
-import { stageWriteBack, statusOf, tally } from "../../shared/decisions.ts";
+import {
+	type DecisionRecord,
+	setDecisionRecord,
+	stageWriteBack,
+	statusOf,
+	tally,
+} from "../../shared/decisions.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import { DEFAULT_HOST, repoKeyOf } from "../../shared/refs.ts";
 import { cardRefs, readShape, shapesMap } from "../../shared/shapes.ts";
@@ -35,6 +41,7 @@ import { transactLocal } from "../undo.ts";
 import { repoApi } from "../changes/api.ts";
 import { DecisionContext } from "./context.ts";
 import { DiscussionIcon, RecordIcon } from "./icons.tsx";
+import { useDocValue } from "./useDocValue.ts";
 
 type Kind = "pr" | "discussion";
 
@@ -133,9 +140,27 @@ export function WriteBackDialog({
 	const [repo, setRepo] = useState(repos[0] ?? "");
 	const [typedRepo, setTypedRepo] = useState("");
 	const [category, setCategory] = useState("");
-	const [context, setContext] = useState(decision?.text ?? "");
-	const [decisionText, setDecisionText] = useState(decision?.title ?? "");
-	const [consequences, setConsequences] = useState("");
+	// What the record says lives on the decision, written as people type, so
+	// it's on the board for everyone, and nothing's lost on Cancel or a retry.
+	const record = useDocValue(
+		doc,
+		(d) => {
+			const shape = shapesMap(d).get(decisionId);
+			if (!shape) return null;
+			const props = readShape(shape);
+			return {
+				text: props.text ?? "",
+				outcome: props.outcome ?? props.title ?? "",
+				consequences: props.consequences ?? "",
+			};
+		},
+		decisionId,
+	);
+	const context = record?.text ?? "";
+	const decisionText = record?.outcome ?? "";
+	const consequences = record?.consequences ?? "";
+	const write = (edit: DecisionRecord) =>
+		transactLocal(doc, () => setDecisionRecord(doc, decisionId, edit));
 	const [meta, setMeta] = useState<Load<RepoMeta>>({ state: "loading" });
 	const [files, setFiles] = useState<Load<string[]>>({ state: "loading" });
 
@@ -368,7 +393,7 @@ export function WriteBackDialog({
 								rows={3}
 								value={context}
 								placeholder="What prompted this, and what was considered?"
-								onChange={(event) => setContext(event.target.value)}
+								onChange={(event) => write({ text: event.target.value })}
 							/>
 						</label>
 						<label className="writeback-field">
@@ -377,7 +402,7 @@ export function WriteBackDialog({
 								rows={2}
 								value={decisionText}
 								placeholder="What was decided?"
-								onChange={(event) => setDecisionText(event.target.value)}
+								onChange={(event) => write({ outcome: event.target.value })}
 							/>
 						</label>
 						<label className="writeback-field">
@@ -386,7 +411,7 @@ export function WriteBackDialog({
 								rows={2}
 								value={consequences}
 								placeholder="What becomes easier or harder because of it?"
-								onChange={(event) => setConsequences(event.target.value)}
+								onChange={(event) => write({ consequences: event.target.value })}
 							/>
 						</label>
 					</div>
@@ -403,7 +428,8 @@ export function WriteBackDialog({
 
 				<footer className="writeback-foot">
 					<p className="writeback-hint">
-						Staged with the board’s other changes. Nothing is written until someone pushes.
+						What you write here is kept on the decision. Staged with the board’s other changes:
+						nothing is written until someone pushes.
 					</p>
 					<button type="button" className="writeback-cancel" onClick={close}>
 						Cancel

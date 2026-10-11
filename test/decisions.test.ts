@@ -8,6 +8,7 @@ import {
 	linkedItems,
 	otherDecisions,
 	readVotes,
+	setDecisionRecord,
 	setDecisionStatus,
 	stageWriteBack,
 	statusOf,
@@ -34,6 +35,33 @@ const sync = (a: Y.Doc, b: Y.Doc) => {
 	Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
 	Y.applyUpdate(a, Y.encodeStateAsUpdate(b));
 };
+
+describe("the record", () => {
+	it("keeps what's written for the record on the decision, and drops what says nothing", () => {
+		const { doc, get } = board();
+		setDecisionRecord(doc, "d", {
+			text: "It's EOL, and CI is slow.",
+			consequences: "Faster CI. Some users must upgrade.",
+		});
+		expect(get()).toMatchObject({
+			text: "It's EOL, and CI is slow.",
+			consequences: "Faster CI. Some users must upgrade.",
+		});
+		// An outcome that's just the title isn't kept; one that says more is.
+		setDecisionRecord(doc, "d", { outcome: "Drop Node 18 " });
+		expect(get().outcome).toBeUndefined();
+		setDecisionRecord(doc, "d", { outcome: "Drop Node 18 in 5.0, with a codemod." });
+		expect(get().outcome).toBe("Drop Node 18 in 5.0, with a codemod.");
+		// Emptied consequences go; an emptied context is still the body.
+		setDecisionRecord(doc, "d", { consequences: "  ", text: "" });
+		expect(get().consequences).toBeUndefined();
+		expect(get().text).toBe("");
+		// Only decisions.
+		addShape(doc, "s", { type: "sticky", x: 0, y: 0, z: nextZ(doc), text: "hi" });
+		setDecisionRecord(doc, "s", { consequences: "no" });
+		expect(readShape(shapesMap(doc).get("s") as Y.Map<unknown>).consequences).toBeUndefined();
+	});
+});
 
 describe("votes", () => {
 	it("keys voters by login, case-insensitively, or by name when signed out", () => {

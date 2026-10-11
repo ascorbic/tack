@@ -272,6 +272,7 @@ export const DecisionNode = memo(function DecisionNode({ data, selected }: NodeP
 			<DecisionView
 				title={title}
 				text={text}
+				consequences={shape.consequences}
 				status={status}
 				votes={votes}
 				myVote={myVote}

@@ -128,6 +128,7 @@ const SAMPLES: Sample[] = [
 		props: {
 			title: "Adopt Conventional Commits",
 			text: "So release notes and version bumps can be generated from history.",
+			consequences: "Commit messages need a type. A lint check in CI enforces it.",
 			votes: votes([TOM, "agree"], [JO, "agree"]),
 			decidedBy: TOM,
 			decidedAt: DECIDED_AT,
