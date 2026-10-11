@@ -118,6 +118,9 @@ test("a stack spreads into a tray when clicked, and Escape gathers it back", asy
 	await expect(tray).toHaveCount(0);
 	await expect(sticky(page, "Builds got 2x slower")).toHaveCount(0);
 	await expect(stack.locator(".stack-count")).toHaveText("3");
+	// Still selected: Enter spreads it again, from the keyboard.
+	await page.keyboard.press("Enter");
+	await expect(tray).toBeVisible();
 });
 
 test("dragging a sticky out of an open stack takes it out; a stack of one dissolves", async ({

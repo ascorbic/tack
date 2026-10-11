@@ -8,6 +8,7 @@ import { isFresh, type ShapeNode } from "../board.ts";
 import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { useSilentTexts } from "../facilitation/store.ts";
 import { StickyView } from "../StickyNode.tsx";
+import { isOnUnselectedShape } from "../keys.ts";
 import { transactLocal } from "../undo.ts";
 import { stackStore, useStacks } from "./store.ts";
 import type { StackView } from "./view.ts";
@@ -20,6 +21,22 @@ export const StackNode = memo(function StackNode({ id, data, selected }: NodePro
 	const { ai } = useStacks();
 	const [enter] = useState(() => isFresh(id));
 	const view = data.stack;
+	// Enter spreads a selected stack open, as a click does (#61's keyboard rule:
+	// Enter selects a shape, then Enter acts on it).
+	const closed = !!selected && !!view && !view.open;
+	useEffect(() => {
+		if (!closed) return;
+		const onKey = (event: globalThis.KeyboardEvent) => {
+			if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.altKey) return;
+			const target = event.target as HTMLElement | null;
+			if (target?.closest("input, textarea, select, button, [contenteditable]")) return;
+			if (isOnUnselectedShape(target)) return;
+			event.preventDefault();
+			stackStore.setOpen(id);
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [closed, id]);
 	if (!view) return null;
 	const rename = (name: string) => {
 		if (doc && !readOnly) transactLocal(doc, () => setStackName(doc, id, name));
