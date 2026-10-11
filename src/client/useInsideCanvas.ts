@@ -54,6 +54,11 @@ export function useInsideCanvas(
 		apply();
 		const observer = new ResizeObserver(apply);
 		observer.observe(el);
-		return () => observer.disconnect();
+		// Measured mid-entrance it's smaller than it ends up: check again after.
+		el.addEventListener("animationend", apply);
+		return () => {
+			observer.disconnect();
+			el.removeEventListener("animationend", apply);
+		};
 	});
 }
