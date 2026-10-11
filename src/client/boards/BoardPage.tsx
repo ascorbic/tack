@@ -271,7 +271,14 @@ export function ShareButton({
 	onClick?: () => void;
 }) {
 	return (
-		<button type="button" className="share-button" data-visibility={visibility} onClick={onClick}>
+		<button
+			type="button"
+			className="share-button"
+			data-visibility={visibility}
+			data-tooltip="Invite people, and choose who can open it"
+			data-tooltip-align="end"
+			onClick={onClick}
+		>
 			{visibility === "private" ? <ShareIcon /> : <VisibilityIcon visibility={visibility} />}
 			<span className="share-label">Share</span>
 		</button>

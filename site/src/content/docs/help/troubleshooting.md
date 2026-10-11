@@ -41,7 +41,7 @@ sidebar:
 **A card shows "Private", with nothing else**
 : It's in a private repository you can't read on GitHub. If you've just been given access, choose **Got access? Check again**.
 
-**"Tack can't read owner/repo. If it's private, install the app on it."**
+**"Tack can't read acme/vault. If it's private, an owner of acme can install the app on it."**
 : Private repositories need the app installed, even for people who can read them.
 
 **Cards stopped updating**

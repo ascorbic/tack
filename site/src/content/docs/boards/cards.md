@@ -59,7 +59,7 @@ A card from a private repository only shows its details to people who can read t
 
 The same goes for a pull request's linked issues: one in a private repository you can't read shows as "in a private repository".
 
-Other cards that can't load say why: "You don't have access to this repository.", "This item doesn't exist, or was deleted.", or "Tack can't read owner/repo. If it's private, install the app on it."
+Other cards that can't load say why: "You don't have access to this repository.", "This item doesn't exist, or was deleted.", or "Tack can't read acme/vault. If it's private, an owner of acme can install the app on it."
 
 ## Expand related
 

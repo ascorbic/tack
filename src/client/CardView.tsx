@@ -473,7 +473,7 @@ function MissingCardView({ card, selected }: { card: MissingCard; selected?: boo
 	const installable =
 		card.installed === false && (card.reason === "not_found" || card.reason === "forbidden");
 	const message = installable
-		? `Tack can’t read ${repoOfKey(card.key)}. If it’s private, install the app on it.`
+		? `Tack can’t read ${repoOfKey(card.key)}. If it’s private, an owner of ${repoOfKey(card.key).split("/")[0]} can install the app on it.`
 		: {
 				forbidden: "You don’t have access to this repository.",
 				not_found: "This item doesn’t exist, or was deleted.",
