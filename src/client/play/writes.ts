@@ -53,7 +53,8 @@ export function fakeMeta(repo: string): RepoMeta | null {
 			{ title: "5.1", dueOn: LATER(60) },
 			{ title: "Someday", dueOn: null },
 		],
-		assignees: ["priya", "kai", "tom", "jo", "ascorbic"],
+		// Nobody to assign in the private vault: Assign says so.
+		assignees: name.startsWith("acme/vault") ? [] : ["priya", "kai", "tom", "jo", "ascorbic"],
 		discussionCategories: ["Ideas", "Q&A"],
 		watchers: 214,
 		defaultBranch: "main",
