@@ -21,6 +21,7 @@ Tack understands:
 
 - issue and pull request URLs on github.com: `https://github.com/owner/repo/issues/12` and `https://github.com/owner/repo/pull/34` (anything after the number, like `/files`, is fine, and so are `www.` and `http://`)
 - the short form `owner/repo#12`
+- issues and merge requests on GitLab (`https://gitlab.com/group/project/-/issues/12`, `/-/merge_requests/34`, in groups as deep as they go), issues and pull requests on Codeberg (`https://codeberg.org/owner/repo/issues/12`, `/pulls/34`), and issues and pulls on Tangled (`https://tangled.org/handle/repo/issues/12`), plus any self-hosted GitLab or Forgejo your instance [is set up for](/self-hosting/forges/)
 
 Discussions, releases, milestones, commits and code links aren't cards. Pasting text that isn't only links makes a sticky instead, and a single link Tack can't show as a card says so: "Added as a sticky".
 
@@ -53,9 +54,13 @@ Checks and reviews need the app too: without it, a pull request card says "Check
 
 See [Repositories, live and not](/self-hosting/repositories/) for the details.
 
+Cards from GitLab, Codeberg and Tangled have no app to install. They're live while webhooks from their repository keep arriving, and otherwise show **Not live**, "Checked while you look"; whether Tack can push there is up to the instance. See [Other forges](/self-hosting/forges/).
+
 ## Private repositories
 
 A card from a private repository only shows its details to people who can read that repository on GitHub, checked with their own GitHub account. Everyone else sees a placeholder with a lock and a **Private** chip: "This is in a private repository you can't see on GitHub, so its details stay hidden." If you've just been given access, choose **Got access? Check again**.
+
+On other forges, Tack only ever shows what's public: an item in a private project, or a confidential GitLab issue, is a placeholder for everyone ("This isn't public on GitLab, and Tack only shows what's public there").
 
 The same goes for a pull request's linked issues: one in a private repository you can't read shows as "in a private repository".
 

@@ -17,6 +17,8 @@ A board can hold items from any repository. What Tack can do with a repository d
 
 This is because of how GitHub Apps work: people's sign-ins through the app only reach repositories where it's installed, plus public data.
 
+GitLab, Codeberg and Tangled work differently: there's no app, and the instance's own token and webhooks decide what's live and writable. See [Other forges](/self-hosting/forges/).
+
 ## Live repositories
 
 With the app installed, GitHub sends Tack a webhook whenever an issue, pull request, review, check or workflow run changes, and the cards update within seconds. CI and review changes are gathered for a couple of seconds and fetched together.
