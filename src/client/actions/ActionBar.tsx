@@ -202,7 +202,11 @@ export function ActionBar(props: ActionBarProps) {
 	const staged = useChangeList(changesUI?.store ?? null);
 	const marked = useMemo(
 		() =>
-			staged.length > 0 && selected.some((n) => (changesUI?.store.forShape(n.id).length ?? 0) > 0),
+			// Marks show what's still to land; landed changes have none.
+			staged.length > 0 &&
+			selected.some((n) =>
+				(changesUI?.store.forShape(n.id) ?? []).some((change) => change.status !== "applied"),
+			),
 		[staged, selected, changesUI],
 	);
 	const markZoom = useStore((s) =>

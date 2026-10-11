@@ -171,7 +171,7 @@ test("one session: stickies to issues, triage, blocked-by, an ADR and backlinks"
 	await select(page, [sticky(page, "Faster cold starts"), sticky(page, "Cache the manifest")]);
 	await page.keyboard.press("Alt+KeyI");
 	const issues = page.getByRole("dialog", { name: "Make issues from stickies" });
-	await expect(issues.getByRole("option", { selected: true })).toContainText("demo/app");
+	await expect(issues.locator(".repo-value")).toContainText("demo/app");
 	// Labelled as they're made, so they need no second push for it.
 	await issues
 		.getByRole("group", { name: "Start with" })
