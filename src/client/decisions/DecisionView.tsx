@@ -5,6 +5,7 @@ import {
 	type PointerEvent,
 	type Ref,
 	useEffect,
+	useId,
 	useRef,
 	useState,
 } from "react";
@@ -158,6 +159,15 @@ export function DecisionView({
 	const firstWriteBack = useRef(writeBackState);
 	const writeBackChanged = stamp || writeBackState !== firstWriteBack.current;
 	const [menuOpen, setMenuOpen] = useState(false);
+	// Someone disagrees: deciding asks once more, so nobody decides mid-vote by accident.
+	const [confirming, setConfirming] = useState(false);
+	const id = useId();
+	const contested = votes.disagree.length > 0;
+	useEffect(() => {
+		if (!confirming) return;
+		const timer = setTimeout(() => setConfirming(false), 6000);
+		return () => clearTimeout(timer);
+	}, [confirming]);
 	useEffect(() => {
 		if (!selected) setMenuOpen(false);
 	}, [selected]);
@@ -330,12 +340,27 @@ export function DecisionView({
 							<button
 								type="button"
 								className="decision-decide nodrag"
+								data-confirming={confirming || undefined}
+								aria-describedby={confirming ? `${id}-split` : undefined}
 								onPointerDown={(event) => event.stopPropagation()}
-								onClick={act(() => onStatus?.("decided"))}
+								onBlur={() => setConfirming(false)}
+								onClick={act(() => {
+									if (contested && !confirming) {
+										setConfirming(true);
+										return;
+									}
+									setConfirming(false);
+									onStatus?.("decided");
+								})}
 							>
 								<GavelIcon size={14} />
-								Decide
+								{confirming ? "Decide anyway" : "Decide"}
 							</button>
+						)}
+						{confirming && (
+							<p className="decision-contested" id={`${id}-split`} role="status">
+								{votes.agree.length} agree, {votes.disagree.length} disagree
+							</p>
 						)}
 					</>
 				) : (

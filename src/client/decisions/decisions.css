@@ -560,6 +560,30 @@
 }
 
 .decision-vote:not(:disabled):active,
+/* Someone disagrees: Decide asks once more, and says how the vote stands. */
+.decision-decide[data-confirming] {
+	border-color: color-mix(in srgb, var(--fail) 45%, transparent);
+	background: color-mix(in srgb, var(--fail) 10%, var(--surface));
+	color: var(--fail-ink);
+	animation: decide-ask var(--t-settle) var(--ease-spring);
+}
+
+@keyframes decide-ask {
+	30% {
+		transform: scale(1.06);
+	}
+}
+
+.decision-contested {
+	flex-basis: 100%;
+	margin: 2px 0 0;
+	color: var(--fail-ink);
+	font-size: 11.5px;
+	font-weight: 600;
+	text-align: right;
+	animation: fade-in var(--t-base) var(--ease-out);
+}
+
 .decision-decide:active,
 .decision-writeback-offer:active {
 	transform: scale(0.94);

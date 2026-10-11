@@ -109,7 +109,11 @@ test("voting: one vote per person, changed or withdrawn with a click", async ({ 
 
 test("deciding stamps it, then the write-back stages an ADR pull request", async ({ page }) => {
 	const proposed = decision(page, PROPOSED);
+	// Someone disagrees, so Decide asks once more, saying how the vote stands.
 	await proposed.getByRole("button", { name: "Decide" }).click();
+	await expect(proposed.locator(".decision")).toHaveAttribute("data-status", "proposed");
+	await expect(proposed.locator(".decision-contested")).toHaveText("2 agree, 1 disagree");
+	await proposed.getByRole("button", { name: "Decide anyway" }).click();
 	await expect(proposed.locator(".decision")).toHaveAttribute("data-status", "decided");
 	await expect(proposed.locator(".decision-stamp")).toHaveText("Decided");
 	// Votes close once it's decided.
@@ -174,6 +178,7 @@ test("deciding stamps it, then the write-back stages an ADR pull request", async
 test("the write-back can be a Discussion post, and staging it can be undone", async ({ page }) => {
 	const proposed = decision(page, PROPOSED);
 	await proposed.getByRole("button", { name: "Decide" }).click();
+	await proposed.getByRole("button", { name: "Decide anyway" }).click();
 	await proposed.getByRole("button", { name: "Write back" }).click();
 	const dialog = page.getByRole("dialog", { name: PROPOSED });
 	await dialog.getByRole("radio", { name: /Discussion post/ }).click();
