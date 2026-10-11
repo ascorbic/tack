@@ -2,6 +2,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import {
 	type ChildInput,
 	type IssueExtras,
+	type ParentMode,
 	type Presence,
 	canWrite,
 	issueFromText,
@@ -9,7 +10,7 @@ import {
 import type { OperationKind } from "../../shared/changes.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import { installUrl } from "../CardView.tsx";
-import { IssueIcon, LabelIcon, MilestoneIcon, PersonIcon, PullIcon } from "./icons.tsx";
+import { IssueIcon, LabelIcon, MilestoneIcon, ParentIcon, PersonIcon, PullIcon } from "./icons.tsx";
 import {
 	LabelOption,
 	MilestonePicker,
@@ -368,9 +369,42 @@ export interface ChildPreview {
 	label: string;
 	ref?: string;
 	color?: string;
+	/**
+	 * The parent issue it already has (`#4`), and whether that's the one
+	 * the section or selection already has (`same`).
+	 */
+	parent?: { label: string; same: boolean };
 }
 
-/** A parent issue with sub-issues: a title, a repository, and what goes under it. */
+/** The parent issue a section or selection already has, for the panel. */
+export interface ExistingParentPreview {
+	/** `#4`, or a staged issue's title in quotes. */
+	label: string;
+	title?: string;
+}
+
+/** `#5`, `#5 and #6`, `#5, #6 and 2 more`. */
+function refList(labels: string[]): string {
+	const unique = [...new Set(labels)];
+	if (unique.length <= 1) return unique.join("");
+	if (unique.length <= 3) return `${unique.slice(0, -1).join(", ")} and ${unique.at(-1)}`;
+	return `${unique.slice(0, 2).join(", ")} and ${unique.length - 2} more`;
+}
+
+/** What happens to one child, in each mode. */
+function fateOf(item: ChildPreview, mode: ParentMode): "add" | "already" | "move" | "out" {
+	if (!item.parent) return "add";
+	if (mode === "add") return item.parent.same ? "already" : "out";
+	return mode === "move" ? "move" : "out";
+}
+
+/**
+ * A parent issue with sub-issues: a title, a repository, and what goes
+ * under it. When some of it already has a parent (the section was made a
+ * parent issue before, say), it says so and offers what to do: add the new
+ * ones to the parent that's there (the default), make a new parent and
+ * move them to it, or make a new parent without them.
+ */
 export function ParentIssuePanel({
 	title: initialTitle,
 	from,
@@ -378,6 +412,9 @@ export function ParentIssuePanel({
 	repos,
 	host,
 	initialRepo,
+	existing = null,
+	checking = false,
+	initialMode,
 	onStage,
 }: {
 	title: string;
@@ -387,55 +424,175 @@ export function ParentIssuePanel({
 	repos: RepoOption[];
 	host: string;
 	initialRepo: string | null;
-	onStage: (repo: string, title: string) => void;
+	existing?: ExistingParentPreview | null;
+	/** Still finding out which already have a parent. */
+	checking?: boolean;
+	initialMode?: ParentMode;
+	onStage: (repo: string, title: string, mode: ParentMode) => void;
 }) {
 	const [title, setTitle] = useState(initialTitle);
 	const [repo, setRepo] = useState(initialRepo);
+	const [chosen, setMode] = useState<ParentMode | null>(initialMode ?? null);
+	const mode: ParentMode = chosen ?? (existing ? "add" : "skip");
 	const access = useRepoAccess(repo, "item.subIssue");
 	const children = items.filter(
 		(item) => !("card" in item.input) || item.input.card.kind === "issue",
 	);
 	const pulls = items.length - children.length;
-	const ready = !!repo && title.trim() !== "" && !access.blocked;
+	const parented = children.filter((item) => item.parent);
+	const under = parented.filter((item) => item.parent?.same);
+	const elsewhere = parented.filter((item) => !item.parent?.same);
+	const fates = children.map((item) => fateOf(item, mode));
+	const going = fates.filter((fate) => fate === "add" || fate === "move").length;
+	const moving = fates.filter((fate) => fate === "move").length;
+	const adding = mode === "add";
+	const choosing = !checking && (existing !== null || parented.length > 0);
+	const ready =
+		!!repo && !checking && !access.blocked && (adding ? going > 0 : title.trim() !== "");
+	const shown = children.slice(0, 5);
+
+	const name = existing ? `${existing.label}${existing.title ? ` ${existing.title}` : ""}` : "";
+	const already = (() => {
+		if (checking) return null;
+		if (existing && under.length > 0 && elsewhere.length === 0) {
+			return under.length === children.length
+				? `${children.length === 1 ? "This is" : "These are"} already ${children.length === 1 ? "a sub-issue" : "sub-issues"} of ${name}.`
+				: `${refList(under.map((item) => item.ref ?? item.label))} ${under.length === 1 ? "is" : "are"} already ${under.length === 1 ? "a sub-issue" : "sub-issues"} of ${name}.`;
+		}
+		if (existing)
+			return `${from === "this section" ? "This section" : "The selection"} is already ${name}.`;
+		if (parented.length > 0) {
+			const refs = refList(parented.map((item) => item.ref ?? item.label));
+			const theirs = refList(parented.map((item) => item.parent?.label ?? ""));
+			return `${refs} already ${parented.length === 1 ? "has a parent issue" : "have parent issues"} (${theirs}), and an issue can only have one.`;
+		}
+		return null;
+	})();
 
 	return (
 		<form
-			className="issue-panel"
+			className="issue-panel parent-panel"
+			data-mode={mode}
 			onSubmit={(event) => {
 				event.preventDefault();
-				if (ready && repo) onStage(repo, title);
+				if (ready && repo) onStage(repo, title, mode);
 			}}
 		>
 			<PopoverHead
-				title="Parent issue with sub-issues"
-				detail={`Everything in ${from} goes under one new issue.`}
+				title={adding && existing ? `Add to ${existing.label}` : "Parent issue with sub-issues"}
+				detail={
+					adding && existing
+						? `What’s new in ${from} goes under the parent issue it already has.`
+						: `Everything in ${from} goes under one new issue.`
+				}
 			/>
-			<label className="action-field">
-				<span>Title</span>
-				<input
-					data-autofocus
-					type="text"
-					value={title}
-					maxLength={256}
-					placeholder="What ties these together?"
-					onChange={(event) => setTitle(event.target.value)}
-				/>
-			</label>
-			<RepoPicker value={repo} onChange={setRepo} options={repos} host={host} />
+			{checking && (
+				<p className="parent-checking" role="status">
+					<span className="parent-checking-dot" aria-hidden="true" />
+					Checking which already have a parent…
+				</p>
+			)}
+			{already && (
+				<Notice tone="warn" icon={<ParentIcon />}>
+					{already}
+				</Notice>
+			)}
+			{choosing && (
+				<fieldset className="parent-choice">
+					<legend className="visually-hidden">What to do</legend>
+					{existing && (
+						<ParentChoice
+							value="add"
+							mode={mode}
+							onChange={setMode}
+							label={`Add to ${existing.label}${existing.title ? ` ${existing.title}` : ""}`}
+							detail={
+								children.length - parented.length > 0
+									? `${count(children.length - parented.length, "new sub-issue")}${under.length ? `; ${under.length} already there` : ""}`
+									: "Nothing new to add"
+							}
+						/>
+					)}
+					{parented.length > 0 && (
+						<ParentChoice
+							value="move"
+							mode={mode}
+							onChange={setMode}
+							label="Make a new parent and move them"
+							detail={`Takes ${refList(parented.map((item) => item.ref ?? item.label))} off ${refList(parented.map((item) => item.parent?.label ?? ""))}`}
+						/>
+					)}
+					<ParentChoice
+						value="skip"
+						mode={mode}
+						onChange={setMode}
+						label={
+							parented.length > 0
+								? "Make a new parent without them"
+								: "Make a new parent issue anyway"
+						}
+						detail={
+							parented.length > 0
+								? `${refList(parented.map((item) => item.ref ?? item.label))} ${parented.length === 1 ? "stays" : "stay"} where ${parented.length === 1 ? "it is" : "they are"}`
+								: `A second parent issue for ${from}`
+						}
+					/>
+				</fieldset>
+			)}
+			{!adding && (
+				<label className="action-field">
+					<span>Title</span>
+					<input
+						data-autofocus
+						type="text"
+						value={title}
+						maxLength={256}
+						placeholder="What ties these together?"
+						onChange={(event) => setTitle(event.target.value)}
+					/>
+				</label>
+			)}
+			<RepoPicker
+				value={repo}
+				onChange={setRepo}
+				options={repos}
+				host={host}
+				label={adding ? "New issues in" : undefined}
+			/>
 			{access.notice}
-			<ol className="issue-preview tree" aria-label="Sub-issues">
-				{children.slice(0, 5).map((item) => (
-					<li key={item.input.shape}>
-						{"card" in item.input ? (
-							<IssueIcon />
-						) : (
-							<span className="issue-preview-dot" data-color={item.color ?? "yellow"} />
-						)}
-						{item.ref && <span className="mono issue-preview-ref">{item.ref}</span>}
-						<span className="issue-preview-title">{item.label}</span>
-						{!("card" in item.input) && <span className="issue-preview-body">new</span>}
-					</li>
-				))}
+			<ol
+				className="issue-preview tree"
+				aria-label="Sub-issues"
+				data-checking={checking || undefined}
+			>
+				{shown.map((item, i) => {
+					const fate = checking ? "add" : (fates[i] ?? "add");
+					return (
+						<li key={item.input.shape} data-fate={fate}>
+							{"card" in item.input ? (
+								<IssueIcon />
+							) : (
+								<span className="issue-preview-dot" data-color={item.color ?? "yellow"} />
+							)}
+							{item.ref && <span className="mono issue-preview-ref">{item.ref}</span>}
+							<span className="issue-preview-title">{item.label}</span>
+							{fate === "already" && (
+								<span className="issue-preview-body">already under {item.parent?.label}</span>
+							)}
+							{fate === "move" && (
+								<span className="issue-preview-body parent-fate-move">
+									moves from {item.parent?.label}
+								</span>
+							)}
+							{fate === "out" && (
+								<span className="issue-preview-body">stays under {item.parent?.label}</span>
+							)}
+							{fate === "add" && !("card" in item.input) && (
+								<span className="issue-preview-body">new</span>
+							)}
+						</li>
+					);
+				})}
 				{children.length > 5 && (
 					<li className="issue-preview-more">and {children.length - 5} more</li>
 				)}
@@ -450,11 +607,57 @@ export function ParentIssuePanel({
 			<footer className="action-foot">
 				<Footnote />
 				<StageButton disabled={!ready}>
-					{children.length > 0
-						? `Stage with ${children.length} sub-issue${children.length === 1 ? "" : "s"}`
-						: "Stage"}
+					{checking
+						? "Checking…"
+						: adding && existing
+							? going > 0
+								? `Add ${count(going, "sub-issue")} to ${existing.label}`
+								: "Nothing new to add"
+							: going > 0
+								? moving === 0
+									? `Stage with ${count(going, "sub-issue")}`
+									: moving === going
+										? `Stage, moving ${going === 1 ? "it" : `all ${going}`}`
+										: `Stage ${going}, moving ${moving}`
+								: "Stage"}
 				</StageButton>
 			</footer>
 		</form>
+	);
+}
+
+function count(n: number, noun: string): string {
+	return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+
+/** One way to go, as a card you pick. */
+function ParentChoice({
+	value,
+	mode,
+	onChange,
+	label,
+	detail,
+}: {
+	value: ParentMode;
+	mode: ParentMode;
+	onChange: (mode: ParentMode) => void;
+	label: string;
+	detail: string;
+}) {
+	return (
+		<label className="parent-choice-option" data-checked={mode === value}>
+			<input
+				type="radio"
+				name="parent-mode"
+				value={value}
+				checked={mode === value}
+				onChange={() => onChange(value)}
+			/>
+			<span className="parent-choice-mark" aria-hidden="true" />
+			<span className="parent-choice-text">
+				<strong>{label}</strong>
+				<small>{detail}</small>
+			</span>
+		</label>
 	);
 }

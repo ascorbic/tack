@@ -1167,6 +1167,164 @@ button.issue-preview-body[aria-expanded="true"] {
 	border-top: 1.5px solid var(--line-strong);
 }
 
+/* Parent issues: what to do about what already has one ------------------- */
+
+.parent-checking {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 10px 0 0;
+	color: var(--muted);
+	font-size: 12.5px;
+	animation: notice-in var(--t-base) var(--ease-out);
+}
+
+/* A soft pulse while the forge is asked, not a spinner. */
+.parent-checking-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--accent);
+	animation: parent-checking calc(900ms * var(--motion)) var(--ease-out) infinite alternate;
+}
+
+@keyframes parent-checking {
+	from {
+		opacity: 0.25;
+		transform: scale(0.7);
+	}
+}
+
+.parent-choice {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+	margin: 10px 0 0;
+	padding: 0;
+	border: 0;
+	animation: notice-in var(--t-base) var(--ease-out);
+}
+
+.parent-choice-option {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	min-width: 0;
+	padding: 8px 11px;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 11px;
+	background: var(--surface);
+	cursor: pointer;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.parent-choice-option:hover {
+	border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong));
+}
+
+.parent-choice-option:active {
+	transform: scale(0.985);
+}
+
+.parent-choice-option[data-checked="true"] {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent-soft) 60%, var(--surface));
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.parent-choice-option:has(input:focus-visible) {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.parent-choice-option input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* The radio, drawn: a ring that fills with a springy dot. */
+.parent-choice-mark {
+	flex: none;
+	width: 14px;
+	height: 14px;
+	margin-top: 2px;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 50%;
+	background: var(--surface);
+	transition: border-color var(--t-quick) var(--ease-out);
+}
+
+.parent-choice-mark::after {
+	content: "";
+	display: block;
+	width: 6px;
+	height: 6px;
+	margin: 2.5px;
+	border-radius: 50%;
+	background: var(--accent);
+	transform: scale(0);
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.parent-choice-option[data-checked="true"] .parent-choice-mark {
+	border-color: var(--accent);
+}
+
+.parent-choice-option[data-checked="true"] .parent-choice-mark::after {
+	transform: scale(1);
+}
+
+.parent-choice-text {
+	display: grid;
+	gap: 1px;
+	min-width: 0;
+}
+
+.parent-choice-text strong {
+	overflow: hidden;
+	color: var(--ink);
+	font-size: 13px;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.parent-choice-text small {
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.35;
+}
+
+/* Each sub-issue says what happens to it, and fades if it's left where it is. */
+.issue-preview li[data-fate] {
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.issue-preview li[data-fate="already"],
+.issue-preview li[data-fate="out"] {
+	opacity: 0.55;
+}
+
+.issue-preview li[data-fate="out"] .issue-preview-title {
+	text-decoration: line-through;
+	text-decoration-color: var(--line-strong);
+}
+
+.issue-preview .parent-fate-move {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.issue-preview[data-checking] li {
+	opacity: 0.7;
+}
+
 /* Backlinks ---------------------------------------------------------------- */
 
 .backlink-versions {

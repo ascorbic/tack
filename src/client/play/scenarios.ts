@@ -537,7 +537,7 @@ export const SCENARIOS: Record<string, Scenario> = {
 	writes: {
 		name: "Write back",
 		description:
-			"Select stickies, a section, cards or the arrow to stage issues, sub-issues, blocked-by, triage and backlinks.",
+			"Select stickies, a section, cards or the arrow to stage issues, sub-issues, blocked-by, triage and backlinks. “Node 20 cleanup” is already under #412: make it a parent issue to see.",
 		seed: seedWrites,
 	},
 	push: {

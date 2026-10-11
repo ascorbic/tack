@@ -18,7 +18,7 @@ import {
 	PULL_GALLERY,
 	fixture,
 } from "./fixtures.ts";
-import { playRelated } from "./related.ts";
+import { RELATED_CARDS, playRelated } from "./related.ts";
 
 // Writing back (M2) in the playground: a board to try the selection actions
 // on, and stand-ins for the Worker's repository metadata and snapshot
@@ -201,9 +201,15 @@ function connect(doc: Y.Doc, from: string, to: string, label?: string): string {
 
 export function seedWrites(doc: Y.Doc): void {
 	const upstream = ACCESS_GALLERY[0]?.card;
-	for (const c of [...CARDS, ...(upstream ? [upstream] : [])]) cardStore.set(c);
+	// Sub-issues of #412 (see related.ts), whose cards don't say so: the
+	// parent issue panel asks, as it does a live board's related route.
+	const matrix = RELATED_CARDS.find((c) => c.item === "#441");
+	const engines = RELATED_CARDS.find((c) => c.item === "#442");
+	for (const c of [...CARDS, ...(upstream ? [upstream] : []), matrix, engines]) {
+		if (c) cardStore.set(c);
+	}
 	const [node18, domains, docs, keep, vault] = CARDS;
-	if (!node18 || !domains || !docs || !keep || !vault) return;
+	if (!node18 || !domains || !docs || !keep || !vault || !matrix || !engines) return;
 	doc.transact(() => {
 		// Brainstormed stickies, ready to become issues.
 		sticky(
@@ -231,5 +237,16 @@ export function seedWrites(doc: Y.Doc): void {
 		// A private repository's card next to public ones, for backlinks.
 		card(doc, vault.key, 700, 540);
 		if (upstream) card(doc, upstream.key, 40, 760);
+
+		// A section whose issues are already sub-issues of #412: making it a
+		// parent issue offers to add to #412 instead of making another.
+		card(doc, matrix.key, 430, 800);
+		card(doc, engines.key, 690, 800);
+		sticky(doc, "Drop Node 18 from the docs examples", "green", 430, 960);
+		addSection(
+			doc,
+			{ x: 400, y: 740, w: 560, h: 380 },
+			{ title: "Node 20 cleanup", color: "green" },
+		);
 	});
 }

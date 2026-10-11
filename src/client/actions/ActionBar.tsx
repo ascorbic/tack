@@ -9,6 +9,7 @@ import {
 	issueFromText,
 	milestoneInWords,
 	pendingIssueFor,
+	readHierarchy,
 	sectionTitle,
 	setEditsInWords,
 	stageComments,
@@ -57,6 +58,7 @@ import {
 	RelatedIcon,
 } from "./icons.tsx";
 import { type ChildPreview, MakeIssuesPanel, ParentIssuePanel } from "./IssuePanels.tsx";
+import { useKnownParents } from "./parents.ts";
 import {
 	LabelOption,
 	MilestonePicker,
@@ -1041,15 +1043,60 @@ function ParentPanel({
 	for (const repo of cardRepos) tally.set(repo, (tally.get(repo) ?? 0) + 1);
 	const likely = [...tally].sort((a, b) => b[1] - a[1])[0]?.[0];
 
+	// What's already above them: never a second parent, never a refused write.
+	const services = useServices();
+	const issueKeys = useMemo(
+		() =>
+			items.flatMap((i) =>
+				"card" in i.input && i.input.card.kind === "issue" ? [i.input.card.key] : [],
+			),
+		[items],
+	);
+	const { known, checking } = useKnownParents(issueKeys, services);
+	const from = useMemo(
+		() => ({
+			...(section ? { section: section.id } : {}),
+			shapes: selected.map((n) => n.id),
+		}),
+		[section, selected],
+	);
+	const hierarchy = useMemo(
+		() =>
+			readHierarchy(
+				doc,
+				from,
+				items.map((i) => i.input),
+				known,
+			),
+		[doc, from, items, known],
+	);
+	const existing = hierarchy.existing;
+	const previews = useMemo(
+		() =>
+			items.map((item): ChildPreview => {
+				const has = hierarchy.parents.get(item.input.shape);
+				if (!has) return item;
+				const same =
+					!!existing &&
+					("key" in has.target && "key" in existing.target
+						? has.target.key.toLowerCase() === existing.target.key.toLowerCase()
+						: JSON.stringify(has.target) === JSON.stringify(existing.target));
+				return { ...item, parent: { label: has.label, same } };
+			}),
+		[items, hierarchy, existing],
+	);
+
 	return (
 		<ParentIssuePanel
 			title={section ? sectionTitle(doc, section.id) : ""}
 			from={section ? "this section" : "the selection"}
-			items={items}
+			items={previews}
 			repos={options}
 			host={hostOf(options)}
 			initialRepo={likely ?? recentRepos()[0] ?? options[0]?.repo ?? null}
-			onStage={(repo, title) => {
+			existing={existing ? { label: existing.label, title: existing.title } : null}
+			checking={checking}
+			onStage={(repo, title, mode) => {
 				const result = stageParentIssue(
 					doc,
 					{
@@ -1061,10 +1108,14 @@ function ParentPanel({
 					},
 					items.map((i) => i.input),
 					stagerFor(user),
+					{ hierarchy, mode },
 				);
 				rememberRepo(repo);
+				const moved = result.moved > 0 ? `, moving ${result.moved}` : "";
 				onDone(
-					`Staged “${title.trim()}” with ${count(result.children, "sub-issue")} for ${repoName(repo)}`,
+					result.into && existing
+						? `Staged ${count(result.children, "sub-issue")} for ${existing.label}${existing.title ? ` ${existing.title}` : ""}`
+						: `Staged “${title.trim()}” with ${count(result.children, "sub-issue")}${moved} for ${repoName(repo)}`,
 				);
 			}}
 		/>

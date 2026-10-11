@@ -396,6 +396,121 @@ export default function ActionsGallery() {
 							</Panel>
 							<figcaption>A section to a parent issue, with a pull request left out</figcaption>
 						</figure>
+						<figure>
+							<Panel wide>
+								<ParentIssuePanel
+									title="Resizing"
+									from="this section"
+									repos={REPOS}
+									host="fake.tack"
+									initialRepo={REPO}
+									existing={{ label: "#4", title: "Resizing" }}
+									items={[
+										{
+											input: { shape: "c5", card: { key: `${REPO}#5`, kind: "issue" } },
+											label: "Wobble on resize",
+											ref: "#5",
+											parent: { label: "#4", same: true },
+										},
+										{
+											input: { shape: "c6", card: { key: `${REPO}#6`, kind: "issue" } },
+											label: "Snap back after a drag",
+											ref: "#6",
+											parent: { label: "#4", same: true },
+										},
+										{
+											input: { shape: "s7", sticky: "Handles are too small" },
+											label: "Handles are too small",
+											color: "pink",
+										},
+									]}
+									onStage={() => {}}
+								/>
+							</Panel>
+							<figcaption>Already a parent issue: adds what’s new to #4</figcaption>
+						</figure>
+						<figure>
+							<Panel wide>
+								<ParentIssuePanel
+									title="Resizing"
+									from="this section"
+									repos={REPOS}
+									host="fake.tack"
+									initialRepo={REPO}
+									existing={{ label: "#4", title: "Resizing" }}
+									initialMode="move"
+									items={[
+										{
+											input: { shape: "c5", card: { key: `${REPO}#5`, kind: "issue" } },
+											label: "Wobble on resize",
+											ref: "#5",
+											parent: { label: "#4", same: true },
+										},
+										{
+											input: { shape: "c6", card: { key: `${REPO}#6`, kind: "issue" } },
+											label: "Snap back after a drag",
+											ref: "#6",
+											parent: { label: "#4", same: true },
+										},
+									]}
+									onStage={() => {}}
+								/>
+							</Panel>
+							<figcaption>Making a new parent and moving them to it</figcaption>
+						</figure>
+						<figure>
+							<Panel wide>
+								<ParentIssuePanel
+									title="Polish"
+									from="the selection"
+									repos={REPOS}
+									host="fake.tack"
+									initialRepo={REPO}
+									items={[
+										{
+											input: { shape: "c5", card: { key: `${REPO}#5`, kind: "issue" } },
+											label: "Wobble on resize",
+											ref: "#5",
+											parent: { label: "#4", same: false },
+										},
+										{
+											input: { shape: "c9", card: { key: `${REPO}#9`, kind: "issue" } },
+											label: "Toolbar flickers",
+											ref: "#9",
+											parent: { label: "#2", same: false },
+										},
+										{
+											input: { shape: "c11", card: { key: `${REPO}#11`, kind: "issue" } },
+											label: "Cursor lags behind",
+											ref: "#11",
+										},
+									]}
+									onStage={() => {}}
+								/>
+							</Panel>
+							<figcaption>Some have other parents: left where they are, by default</figcaption>
+						</figure>
+						<figure>
+							<Panel wide>
+								<ParentIssuePanel
+									title="Docs for 5.0"
+									from="this section"
+									repos={REPOS}
+									host="fake.tack"
+									initialRepo={REPO}
+									checking
+									items={[
+										{
+											input: { shape: "c1", card: { key: `${REPO}#431`, kind: "issue" } },
+											label: "Document every provider’s options",
+											ref: "#431",
+										},
+									]}
+									onStage={() => {}}
+								/>
+							</Panel>
+							<figcaption>Checking which already have a parent</figcaption>
+						</figure>
 					</div>
 				</section>
 

@@ -188,6 +188,42 @@ test("a section becomes a parent issue with sub-issues", async ({ page }) => {
 	expect(links.filter((c) => "pending" in (c.op.child as object))).toHaveLength(2);
 });
 
+test("a section that's already under a parent issue adds to it, rather than making another", async ({
+	page,
+}) => {
+	await page.locator(".section-handle", { hasText: "Node 20 cleanup" }).click();
+	await bar(page).getByRole("button", { name: "Make a parent issue from this section" }).click();
+	const panel = page.getByRole("dialog");
+	// It asks the forge which parents its cards have, then says.
+	await expect(panel.getByText("Checking which already have a parent…")).toBeVisible();
+	await expect(panel.locator(".action-notice[data-tone=warn]")).toHaveText(
+		"#441 and #442 are already sub-issues of #412 Drop Node 18 support.",
+	);
+	const choices = panel.getByRole("group", { name: "What to do" });
+	await expect(choices.getByRole("radio", { name: /^Add to #412/ })).toBeChecked();
+	await expect(panel.getByRole("textbox", { name: "Title" })).toHaveCount(0);
+	const list = panel.getByRole("list", { name: "Sub-issues" });
+	await expect(list.locator("li[data-fate=already]")).toHaveCount(2);
+	await expect(list.locator("li[data-fate=already]").first()).toContainText("already under #412");
+
+	// Moving them to a new parent says so, row by row.
+	await choices.locator("label", { hasText: "Make a new parent and move them" }).click();
+	await expect(list.locator("li[data-fate=move]")).toHaveCount(2);
+	await expect(panel.getByRole("textbox", { name: "Title" })).toHaveValue("Node 20 cleanup");
+	await expect(panel.getByRole("button", { name: /^Stage 3, moving 2/ })).toBeVisible();
+
+	// The default: only the sticky is new, and it goes under #412.
+	await choices.locator("label", { hasText: "Add to #412" }).click();
+	await panel.getByRole("button", { name: /^Add 1 sub-issue to #412/ }).click();
+	const staged = await changes(page);
+	expect(staged.filter((c) => c.op.kind === "issue.create").map((c) => c.op.title)).toEqual([
+		"Drop Node 18 from the docs examples",
+	]);
+	const links = staged.filter((c) => c.op.kind === "item.subIssue");
+	expect(links).toHaveLength(1);
+	expect(links[0]?.op.parent).toEqual({ key: expect.stringMatching(/#412$/) });
+});
+
 test("labels, milestone and closing on selected cards", async ({ page }) => {
 	await select(page, "Drop Node 18", "Custom domains");
 	await page.keyboard.press("Alt+KeyL");
@@ -427,7 +463,17 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
 	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
-	await expect(page.locator(".action-popover")).toHaveCount(23);
+	await expect(page.locator(".action-popover")).toHaveCount(27);
+	// Parent issues over what already has one: add to it, move them, or leave them.
+	const already = page.locator("figure", { hasText: "Already a parent issue" });
+	await expect(already.getByText("#5 and #6 are already sub-issues of #4 Resizing.")).toBeVisible();
+	await expect(already.getByRole("button", { name: /^Add 1 sub-issue to #4/ })).toBeVisible();
+	const moving = page.locator("figure", { hasText: "Making a new parent and moving them" });
+	await expect(moving.locator("li[data-fate=move]")).toHaveCount(2);
+	const others = page.locator("figure", { hasText: "Some have other parents" });
+	await expect(others.locator("li[data-fate=out]")).toHaveCount(2);
+	await expect(others.getByRole("radio", { name: "Make a new parent without them" })).toBeChecked();
+	await expect(page.getByText("Checking which already have a parent…")).toBeVisible();
 	await expect(page.locator(".backlink-snapshot img")).toHaveCount(2);
 	// New issues that start with labels and a milestone, the labels' list open.
 	const extras = page.locator("figure", { hasText: "With labels and a milestone" });

@@ -7,10 +7,17 @@ import type { Miniflare } from "miniflare";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
 import {
+	type ChildInput,
+	moveSubIssueHere,
+	readHierarchy,
+	stageParentIssue,
+} from "../src/shared/actions.ts";
+import {
 	changesMap,
 	type Operation,
 	type PendingChange,
 	readChange,
+	retryCanWork,
 	stageChange,
 	type Stager,
 } from "../src/shared/changes.ts";
@@ -470,6 +477,172 @@ describe("pushing", () => {
 			error: "This needed “Create issue “Parent” in acme/widgets”, which wasn't created.",
 		});
 		expect(writes(github)).toEqual([]);
+	});
+});
+
+describe("parent issues that are already there", () => {
+	/** A "Resizing" section of two stickies, made a parent issue and pushed. */
+	async function resized() {
+		const context = await setup();
+		const { mf, alice, board, client } = context;
+		const doc = client.doc;
+		addShape(doc, "section", {
+			type: "section",
+			x: 0,
+			y: 0,
+			z: "a0",
+			w: 800,
+			h: 600,
+			title: "Resizing",
+		});
+		for (const [id, text, x] of [
+			["s1", "Wobble on resize", 40],
+			["s2", "Snap back after a drag", 400],
+		] as const) {
+			addShape(doc, id, { type: "sticky", x, y: 60, z: "a1", parent: "section", text });
+		}
+		const children: ChildInput[] = [
+			{ shape: "s1", sticky: "Wobble on resize" },
+			{ shape: "s2", sticky: "Snap back after a drag" },
+		];
+		const first = stageParentIssue(
+			doc,
+			{ repo: REPO, title: "Resizing", shapes: ["section"], near: ["section"] },
+			children,
+			STAGER,
+		);
+		await client.roundTrip();
+		expect((await push(mf, board, alice, first.staged)).status).toBe(202);
+		for (const id of first.staged) await until(client, id, "applied");
+		const parent = change(client, first.parent!)!.result!.key!;
+		// The stickies are cards for their issues now.
+		await eventually(
+			() => !shapesMap(doc).has("s1") || shapesMap(doc).get("s1")?.get("type") === "card",
+		);
+		return { ...context, parent };
+	}
+
+	const cardsIn = (client: BoardClient): ChildInput[] =>
+		[...shapesMap(client.doc)]
+			.filter(([, shape]) => shape.get("type") === "card" && shape.get("parent") === "section")
+			.map(([shape, s]) => ({ shape, card: { key: s.get("ref") as string, kind: "issue" } }));
+
+	it("adds what's new to the parent issue a section already has, never making a second", async () => {
+		const { github, mf, alice, board, client, parent } = await resized();
+		addShape(client.doc, "s3", {
+			type: "sticky",
+			x: 40,
+			y: 300,
+			z: "a2",
+			parent: "section",
+			text: "Handles are too small",
+		});
+		const children: ChildInput[] = [
+			...cardsIn(client),
+			{ shape: "s3", sticky: "Handles are too small" },
+		];
+		expect(children).toHaveLength(3);
+		const hierarchy = readHierarchy(
+			client.doc,
+			{ section: "section", shapes: ["section"] },
+			children,
+			() => undefined,
+		);
+		expect(hierarchy.existing).toMatchObject({ target: { key: parent }, title: "Resizing" });
+		const again = stageParentIssue(
+			client.doc,
+			{ repo: REPO, title: "Resizing", shapes: ["section"], near: ["section"] },
+			children,
+			STAGER,
+			{ hierarchy },
+		);
+		expect(again).toMatchObject({ parent: null, into: { key: parent }, children: 1 });
+		await client.roundTrip();
+		expect((await push(mf, board, alice, again.staged)).status).toBe(202);
+		for (const id of again.staged) await until(client, id, "applied");
+
+		const titled = (title: string) =>
+			[...Array(40).keys()].filter((n) => github.item(WIDGETS, n)?.title === title);
+		expect(titled("Resizing")).toHaveLength(1);
+		const number = Number(parent.split("#")[1]);
+		expect(github.subIssues.get(`${WIDGETS}#${number}`)).toHaveLength(3);
+	});
+
+	it("explains a second parent in plain words, then moves it there when asked", async () => {
+		const { github, mf, alice, board, client, stage, parent } = await resized();
+		const [child] = cardsIn(client);
+		const childKey = (child as { card: { key: string } }).card.key;
+		await stage("other", { kind: "issue.create", repo: REPO, title: "Interactions" });
+		await stage("link", {
+			kind: "item.subIssue",
+			parent: { pending: "other" },
+			child: { key: childKey },
+		});
+		expect((await push(mf, board, alice, ["other", "link"])).status).toBe(202);
+		await until(client, "other", "applied");
+		const failed = await until(client, "link", "failed");
+		const short = (key: string) => key.replace(/^.*#/, "#");
+		expect(failed).toMatchObject({
+			error: `${short(childKey)} already has a parent issue (${short(parent)}), and an issue can only have one.`,
+			errorDetail: expect.stringContaining("Sub issue may only have one parent"),
+			problem: { code: "has_parent", parent },
+		});
+		expect(retryCanWork(failed.problem)).toBe(false);
+
+		// Move it here: the same link, taking it off its parent.
+		expect(moveSubIssueHere(client.doc, "link")).toBe(true);
+		await client.roundTrip();
+		expect((await push(mf, board, alice, ["link"])).status).toBe(202);
+		const moved = await until(client, "link", "applied");
+		expect(moved.problem).toBeUndefined();
+		expect(moved.op).toMatchObject({ replaceParent: true, previousParent: parent });
+		const number = (key: string) => Number(key.split("#")[1]);
+		const childId = github.databaseId(WIDGETS, number(childKey));
+		expect(github.subIssues.get(`${WIDGETS}#${number(parent)}`)).not.toContain(childId);
+		const other = change(client, "other")!.result!.key!;
+		expect(github.subIssues.get(`${WIDGETS}#${number(other)}`)).toEqual([childId]);
+		const audit = (await (
+			await api(mf, `/api/boards/${board}/pushes`, alice)
+		).json()) as AuditEntry[];
+		expect(audit[0]?.changes[0]?.summary).toBe(
+			`Move ${childKey.replace("github.com/", "")} from ${parent.replace("github.com/", "")} to new issue “Interactions”`,
+		);
+
+		// Its card says which parent it has now, read again after the write.
+		const stub = await boardStub(mf, board);
+		await eventually(
+			async () =>
+				(await stub.liveCards()).some(
+					(card) => card.key === childKey && "parent" in card && card.parent?.key === other,
+				),
+			10_000,
+		);
+	});
+
+	it("makes a new parent and moves them to it", async () => {
+		const { github, mf, alice, board, client, parent } = await resized();
+		const children = cardsIn(client);
+		const hierarchy = readHierarchy(
+			client.doc,
+			{ section: "section", shapes: ["section"] },
+			children,
+			() => undefined,
+		);
+		const moved = stageParentIssue(
+			client.doc,
+			{ repo: REPO, title: "Resizing, again", shapes: ["section"], near: ["section"] },
+			children,
+			STAGER,
+			{ hierarchy, mode: "move" },
+		);
+		expect(moved.moved).toBe(2);
+		await client.roundTrip();
+		expect((await push(mf, board, alice, moved.staged)).status).toBe(202);
+		for (const id of moved.staged) await until(client, id, "applied");
+		const number = (key: string) => Number(key.split("#")[1]);
+		const next = change(client, moved.parent!)!.result!.key!;
+		expect(github.subIssues.get(`${WIDGETS}#${number(parent)}`)).toEqual([]);
+		expect(github.subIssues.get(`${WIDGETS}#${number(next)}`)).toHaveLength(2);
 	});
 });
 

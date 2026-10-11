@@ -66,6 +66,10 @@ export type SkipReason =
 	| "staged"
 	/** Pull requests can't be sub-issues or blocked. */
 	| "pull"
+	/** Already a sub-issue of the parent it'd go under. */
+	| "already"
+	/** A sub-issue of another parent, and left there. */
+	| "parented"
 	/** Not something that can be part of an issue: text, sections, unknown cards. */
 	| "unsupported";
 
@@ -213,10 +217,206 @@ export interface ParentInput {
 }
 
 export interface ParentResult extends StageResult {
-	/** The parent's `issue.create` change. */
+	/** The parent's `issue.create` change (none when adding to one that's there). */
 	parent: string | null;
-	/** How many sub-issues it'll have. */
+	/** How many sub-issues it'll have (new ones, when adding to one that's there). */
 	children: number;
+	/** How many of them move from another parent. */
+	moved: number;
+	/** The parent they went under, when it was one already there. */
+	into?: Target;
+}
+
+/**
+ * What the forge (or someone who asked it) says an item's parent is: its
+ * key, or null for none. `at` is when that was so (a card's `updatedAt`),
+ * to weigh against what this board pushed since. Undefined: unknown.
+ */
+export interface KnownParent {
+	key: string | null;
+	title?: string;
+	at?: string;
+}
+
+/** A parent issue: one on the forge (`key`), or one staged here (`pending`). */
+export interface ParentRef {
+	target: Target;
+	/** `#4`, or a staged issue's title in quotes. */
+	label: string;
+	title?: string;
+}
+
+/**
+ * What's already above a section's (or a selection's) contents, for making
+ * a parent issue of them without making a second one (#4 already being
+ * "Resizing", say), or asking GitHub for a second parent it won't give.
+ */
+export interface Hierarchy {
+	/**
+	 * The parent issue the section or selection already has, if it has one:
+	 * one this board made from it (its `place` effect), a card connected
+	 * down into the section (as that effect leaves), or the parent every
+	 * child that has one shares.
+	 */
+	existing: (ParentRef & { via: "board" | "connector" | "children" }) | null;
+	/** Children (by shape) that already have a parent, or will once what's staged is pushed. */
+	parents: Map<string, ParentRef & { staged?: string }>;
+}
+
+/** Changes on their way or done, that a parent may come from. */
+const MADE: ReadonlySet<ChangeStatus> = new Set(["staged", "sending", "sent", "applied", "failed"]);
+
+/** A change's created item as a parent: its key once it's made, else the change itself. */
+function createdRef(change: PendingChange): ParentRef | null {
+	if (change.op.kind !== "issue.create") return null;
+	const key = change.result?.key;
+	if (key) return { target: { key }, label: itemOf(key) ?? key, title: change.op.title };
+	if (change.status === "sent" || change.status === "applied") return null;
+	return { target: { pending: change.id }, label: `“${change.op.title}”`, title: change.op.title };
+}
+
+function keyRef(key: string, title?: string): ParentRef {
+	return { target: { key }, label: itemOf(key) ?? key, ...(title ? { title } : {}) };
+}
+
+function sameRef(a: ParentRef, b: ParentRef): boolean {
+	if ("key" in a.target && "key" in b.target) {
+		return a.target.key.toLowerCase() === b.target.key.toLowerCase();
+	}
+	return sameTarget(a.target, b.target);
+}
+
+/**
+ * Read what's above `children` (the contents of `section`, or a selection
+ * of `shapes`) from the board and from what's known about each card's
+ * parent (`known`: card data, or the related route). Pure.
+ */
+export function readHierarchy(
+	doc: Y.Doc,
+	from: { section?: string; shapes: readonly string[] },
+	children: readonly ChildInput[],
+	known: (key: string) => KnownParent | undefined,
+): Hierarchy {
+	const changes = listChanges(doc);
+	const byId = new Map(changes.map((change) => [change.id, change]));
+	const childShapes = new Set(children.map((child) => child.shape));
+
+	// What this board has made a sub-issue of what, newest last.
+	const links = changes.filter(
+		(change) =>
+			change.op.kind === "item.subIssue" &&
+			(change.status === "staged" ||
+				change.status === "sending" ||
+				change.status === "sent" ||
+				change.status === "applied"),
+	);
+	const parents: Hierarchy["parents"] = new Map();
+	for (const child of children) {
+		const key = "card" in child ? child.card.key.toLowerCase() : null;
+		const pending = "sticky" in child ? pendingIssueFor(doc, child.shape)?.id : undefined;
+		let board: (ParentRef & { staged?: string; at?: string }) | null = null;
+		for (const change of links) {
+			if (change.op.kind !== "item.subIssue") continue;
+			const c = change.op.child;
+			const mine =
+				("key" in c && key !== null && c.key.toLowerCase() === key) ||
+				("pending" in c && (c.pending === pending || change.shapes?.includes(child.shape)));
+			if (!mine) continue;
+			const p = change.op.parent;
+			const ref =
+				"key" in p
+					? keyRef(p.key)
+					: (() => {
+							const made = byId.get(p.pending);
+							return made ? createdRef(made) : null;
+						})();
+			if (!ref) continue;
+			board = {
+				...ref,
+				...(change.status === "staged" ? { staged: change.id } : {}),
+				at: change.updatedAt ?? change.stagedAt,
+			};
+		}
+		const card = "card" in child ? known(child.card.key) : undefined;
+		// The forge's word, unless this board has pushed (or staged) since.
+		const forgeSays =
+			card !== undefined && (!board || (!board.staged && (card.at ?? "") > (board.at ?? "")));
+		if (forgeSays) {
+			if (card.key) parents.set(child.shape, keyRef(card.key, card.title));
+			continue;
+		}
+		if (!board) continue;
+		const { at: _at, ...ref } = board;
+		parents.set(child.shape, ref);
+	}
+
+	let existing: Hierarchy["existing"] = null;
+	// A parent issue this board made from the section, or from these shapes.
+	let best = 0;
+	for (const change of changes) {
+		if (change.op.kind !== "issue.create" || change.effect?.kind !== "place") continue;
+		if (!MADE.has(change.status)) continue;
+		const near = new Set([...change.effect.near, ...(change.shapes ?? [])]);
+		const score = from.section
+			? near.has(from.section)
+				? Number.POSITIVE_INFINITY
+				: 0
+			: [...childShapes].filter((shape) => near.has(shape)).length;
+		const ref = score > 0 ? createdRef(change) : null;
+		if (ref && score >= best) {
+			best = score;
+			existing = { ...ref, via: "board" };
+		}
+	}
+	// A card connected down into the section, as a parent issue's card is.
+	if (!existing && from.section) {
+		for (const shape of shapesMap(doc).values()) {
+			if (shape.get("type") !== "connector") continue;
+			const read = readConnector(readShape(shape));
+			if (read?.to.shape !== from.section || !read.from.shape) continue;
+			const parent = shapesMap(doc).get(read.from.shape);
+			const ref = parent?.get("ref");
+			if (parent?.get("type") !== "card" || typeof ref !== "string" || !ref.includes("#")) continue;
+			existing = { ...keyRef(ref, known(ref)?.title), via: "connector" };
+			break;
+		}
+	}
+	// Every child that has a parent has the same one.
+	if (!existing) {
+		const all = [...parents.values()];
+		const first = all[0];
+		if (first && all.every((ref) => sameRef(ref, first))) {
+			const { staged: _staged, ...ref } = first;
+			existing = { ...ref, via: "children" };
+		}
+	}
+	// A title for the parent from any child that knows it.
+	if (existing && !existing.title) {
+		const titled = [...parents.values()].find((ref) => ref.title && sameRef(ref, existing!));
+		if (titled?.title) existing = { ...existing, title: titled.title };
+	}
+	return { existing, parents };
+}
+
+/**
+ * What to do about children that already have a parent:
+ * - `add`: no new parent; put the children that have none under the
+ *   existing one (`Hierarchy.existing`), leaving out any under another
+ * - `move`: a new parent, moving children here from theirs
+ *   (`replaceParent`, or re-pointing a staged link that hasn't gone yet)
+ * - `skip`: a new parent, leaving out children that have one
+ */
+export type ParentMode = "add" | "move" | "skip";
+
+export interface ParentOptions {
+	hierarchy?: Hierarchy;
+	/** Default: `add` when there's an existing parent, else `skip`. */
+	mode?: ParentMode;
+}
+
+/** The mode a panel starts in: never a second parent, never a refused write. */
+export function defaultParentMode(hierarchy: Hierarchy | undefined): ParentMode {
+	return hierarchy?.existing ? "add" : "skip";
 }
 
 /**
@@ -224,35 +424,50 @@ export interface ParentResult extends StageResult {
  * one for each sticky (made in the parent's repository, and turned into its
  * card in place), and an `item.subIssue` linking each child to the parent.
  * Stickies already staged as issues are reused rather than made twice.
+ *
+ * With a `hierarchy` (`readHierarchy`), children that already have a parent
+ * are added, moved or left out as `mode` says, and `add` puts the rest
+ * under the parent that's already there rather than making another.
  */
 export function stageParentIssue(
 	doc: Y.Doc,
 	parent: ParentInput,
 	children: ChildInput[],
 	stager: Stager,
+	options: ParentOptions = {},
 ): ParentResult {
-	const result: ParentResult = { staged: [], skipped: [], parent: null, children: 0 };
+	const result: ParentResult = { staged: [], skipped: [], parent: null, children: 0, moved: 0 };
+	const { hierarchy } = options;
+	const mode = options.mode ?? defaultParentMode(hierarchy);
+	const existing = mode === "add" ? (hierarchy?.existing ?? null) : null;
 	const title = parent.title.trim();
-	if (!title) return result;
+	if (!existing && !title) return result;
 	const batch = new Batcher();
 	transactLocal(doc, () => {
-		const parentId = stageChange(
-			doc,
-			{
-				kind: "issue.create",
-				repo: parent.repo,
-				title: title.slice(0, TITLE_MAX),
-				...(parent.body?.trim() ? { body: parent.body.trim() } : {}),
-			},
-			stager,
-			{ shapes: parent.shapes, batch },
-		);
-		result.parent = parentId;
-		result.staged.push(parentId);
+		let parentTarget: Target;
+		let parentId: string | null = null;
+		if (existing) {
+			parentTarget = existing.target;
+			result.into = existing.target;
+		} else {
+			parentId = stageChange(
+				doc,
+				{
+					kind: "issue.create",
+					repo: parent.repo,
+					title: title.slice(0, TITLE_MAX),
+					...(parent.body?.trim() ? { body: parent.body.trim() } : {}),
+				},
+				stager,
+				{ shapes: parent.shapes, batch },
+			);
+			parentTarget = { pending: parentId };
+			result.parent = parentId;
+			result.staged.push(parentId);
+		}
 		const seen = new Set<string>();
 		const subIssues: string[] = [];
 		for (const child of children) {
-			let target: Target;
 			if ("card" in child) {
 				if (child.card.kind !== "issue") {
 					result.skipped.push({ shape: child.shape, reason: "pull" });
@@ -260,6 +475,32 @@ export function stageParentIssue(
 				}
 				if (seen.has(child.card.key)) continue;
 				seen.add(child.card.key);
+			}
+			const has = hierarchy?.parents.get(child.shape);
+			let move: { previousParent?: string } | null = null;
+			if (has) {
+				if (existing && sameRef(has, existing)) {
+					result.skipped.push({ shape: child.shape, reason: "already" });
+					continue;
+				}
+				if (mode !== "move") {
+					result.skipped.push({ shape: child.shape, reason: "parented" });
+					continue;
+				}
+				// A link staged here that hasn't gone: point it here instead.
+				const staged = has.staged ? changesMap(doc).get(has.staged) : undefined;
+				const op = staged?.get("op") as Operation | undefined;
+				if (staged && op?.kind === "item.subIssue") {
+					staged.set("op", { ...op, parent: parentTarget });
+					result.children++;
+					result.moved++;
+					subIssues.push(child.shape);
+					continue;
+				}
+				move = "key" in has.target ? { previousParent: has.target.key } : {};
+			}
+			let target: Target;
+			if ("card" in child) {
 				target = { key: child.card.key };
 			} else {
 				const pending = pendingIssueFor(doc, child.shape);
@@ -288,16 +529,22 @@ export function stageParentIssue(
 			result.staged.push(
 				stageChange(
 					doc,
-					{ kind: "item.subIssue", parent: { pending: parentId }, child: target },
+					{
+						kind: "item.subIssue",
+						parent: parentTarget,
+						child: target,
+						...(move ? { replaceParent: true, ...move } : {}),
+					},
 					stager,
 					{ shapes: [child.shape], batch },
 				),
 			);
 			subIssues.push(child.shape);
 			result.children++;
+			if (move) result.moved++;
 		}
 		const near = parent.near === "children" ? subIssues : parent.near;
-		if (near?.length) {
+		if (parentId && near?.length) {
 			const effect: ChangeEffect = { kind: "place", near };
 			changesMap(doc).get(parentId)?.set("effect", effect);
 		}

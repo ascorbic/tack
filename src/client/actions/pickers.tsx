@@ -115,12 +115,14 @@ export function RepoPicker({
 	onChange,
 	options,
 	host,
+	label = "Repository",
 }: {
 	value: string | null;
 	onChange: (repo: string) => void;
 	options: RepoOption[];
 	/** Where a bare `owner/repo` lives. */
 	host: string;
+	label?: string;
 }) {
 	const [query, setQuery] = useState("");
 	const [browsing, setBrowsing] = useState(false);
@@ -159,7 +161,7 @@ export function RepoPicker({
 			data-chosen={(!!chosen && !words) || undefined}
 		>
 			<span className="repo-picker-label" id={labelId}>
-				Repository
+				{label}
 			</span>
 			<label className="action-search repo-field">
 				<RepoIcon />
