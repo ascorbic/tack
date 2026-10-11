@@ -1,0 +1,84 @@
+// Generated from cloudflare.config.ts by `node scripts/wrangler-config.ts`:
+// don't edit it by hand. It's here for the Deploy to Cloudflare button, which
+// reads a Wrangler configuration to see what the Worker needs. Tack itself is
+// built and deployed with the cf CLI (`pnpm run deploy`), from
+// cloudflare.config.ts.
+{
+	"name": "tack",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-06",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "Board",
+				"class_name": "Board",
+				"script_name": "tack"
+			},
+			{
+				"name": "Repo",
+				"class_name": "Repo",
+				"script_name": "tack"
+			},
+			{
+				"name": "Instance",
+				"class_name": "Instance",
+				"script_name": "tack"
+			},
+			{
+				"name": "Directory",
+				"class_name": "Directory",
+				"script_name": "tack"
+			}
+		]
+	},
+	"vars": {
+		"TACK_COMMAND_ALIAS": ""
+	},
+	"secrets": {
+		"required": [
+			"TACK_SECRET"
+		]
+	},
+	"assets": {
+		"not_found_handling": "single-page-application",
+		"run_worker_first": [
+			"/parties/*",
+			"/webhooks/*",
+			"/api/*",
+			"/auth/*",
+			"/setup/callback",
+			"/setup/install",
+			"/setup/installed",
+			"/snapshots/*"
+		]
+	},
+	"exports": {
+		"Board": {
+			"type": "durable-object",
+			"storage": "sqlite"
+		},
+		"Repo": {
+			"type": "durable-object",
+			"storage": "sqlite"
+		},
+		"Instance": {
+			"type": "durable-object",
+			"storage": "sqlite"
+		},
+		"Directory": {
+			"type": "durable-object",
+			"storage": "sqlite"
+		}
+	},
+	"triggers": {
+		"crons": [
+			"*/10 * * * *"
+		]
+	}
+}

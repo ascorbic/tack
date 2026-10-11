@@ -14,6 +14,7 @@
 		"deploy": "vp build && cf deploy --prebuilt",
 		"deploy:preview": "CLOUDFLARE_PREVIEW_BUILD=true vp build && cf previews deploy --prebuilt",
 		"types": "cf workers types",
+		"wrangler-config": "node scripts/wrangler-config.ts",
 		"test": "vp test",
 		"e2e": "playwright test -c e2e/playwright.config.ts",
 		"e2e:update": "VISUAL=1 playwright test -c e2e/playwright.config.ts --update-snapshots",
@@ -53,5 +54,17 @@
 	"engines": {
 		"node": ">=22"
 	},
-	"packageManager": "pnpm@10.33.4"
+	"packageManager": "pnpm@10.33.4",
+	"cloudflare": {
+		"label": "Tack",
+		"products": [
+			"Workers",
+			"Durable Objects"
+		],
+		"bindings": {
+			"TACK_SECRET": {
+				"description": "Signs sessions and encrypts the GitHub App's credentials. Generate one with `openssl rand -base64 32`, keep a copy somewhere safe, and **never change it**."
+			}
+		}
+	}
 }

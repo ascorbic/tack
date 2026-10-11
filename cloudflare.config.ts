@@ -36,16 +36,24 @@ export default defineConfig(({ isPreview, mode }) => ({
 			// empty for the slug alone. Empty by default: a short alias like `tack`
 			// is someone's real GitHub login, and every command would notify them.
 			TACK_COMMAND_ALIAS: bindings.text(""),
-			...(isPreview
-				? {}
-				: {
+			// The one secret an instance needs. A declared secret is required: the
+			// first deploy fails without it (give it with `--secrets-file`, or the
+			// Deploy to Cloudflare button asks for it), and later deploys keep it.
+			...(isPreview ? {} : { TACK_SECRET: bindings.secret() }),
+			// Optional secrets, declared only in dev so .dev.vars can set them.
+			// In production they're set on the Worker when wanted (deploys keep
+			// secrets that aren't declared), so a new instance doesn't need them:
+			// GITHUB_WEBHOOK_SECRET, a second webhook secret (apps set up by hand,
+			// test webhooks); GITHUB_TOKEN, for reading public repositories
+			// without the app. TACK_DEV_AUTH is fake sign-in (`/auth/dev`): never
+			// set it in production.
+			...(mode === "development"
+				? {
 						GITHUB_WEBHOOK_SECRET: bindings.secret(),
 						GITHUB_TOKEN: bindings.secret(),
-						TACK_SECRET: bindings.secret(),
-					}),
-			// Fake sign-in for local development (`/auth/dev`). Only declared in
-			// dev, so .dev.vars can set it; never set it in production.
-			...(mode === "development" ? { TACK_DEV_AUTH: bindings.secret() } : {}),
+						TACK_DEV_AUTH: bindings.secret(),
+					}
+				: {}),
 		},
 		exports: {
 			Board: exports.durableObject({ storage: "sqlite" }),

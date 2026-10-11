@@ -35,6 +35,13 @@ export default defineConfig({
 	},
 	fmt: {
 		useTabs: true,
-		ignorePatterns: [".claude/worktrees/**", ".cloudflare/**", ".wrangler/**", "dist/**"],
+		// wrangler.jsonc is generated from cloudflare.config.ts (scripts/wrangler-config.ts).
+		ignorePatterns: [
+			".claude/worktrees/**",
+			".cloudflare/**",
+			".wrangler/**",
+			"dist/**",
+			"wrangler.jsonc",
+		],
 	},
 });

@@ -1,0 +1,9 @@
+# Secrets the Deploy to Cloudflare button asks for when it sets up a new
+# instance. Signs sessions and encrypts the GitHub App's credentials:
+# generate one with `openssl rand -base64 32`, keep a copy somewhere safe,
+# and never change it.
+#
+# For local development, copy this to .dev.vars, fill it in, and add
+# TACK_DEV_AUTH=1 for fake sign-in at /auth/dev (local only; never set it in
+# production).
+TACK_SECRET=

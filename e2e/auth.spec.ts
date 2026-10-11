@@ -25,8 +25,12 @@ test("every sign-in, access and setup state renders", async ({ page }) => {
 	});
 	await expect(installed.getByRole("heading", { name: "Where it’s installed" })).toBeVisible();
 	await expect(installed.locator(".installs-list .install")).toHaveCount(3);
-	await expect(installed.locator(".installs-list .install[data-tone=ok]")).toContainText("Live · Tack can push");
-	await expect(installed.locator(".installs-list .install[data-tone=warn]")).toContainText("Live, read-only");
+	await expect(installed.locator(".installs-list .install[data-tone=ok]")).toContainText(
+		"Live · Tack can push",
+	);
+	await expect(installed.locator(".installs-list .install[data-tone=warn]")).toContainText(
+		"Live, read-only",
+	);
 	await expect(installed.getByRole("img", { name: "Private" })).toHaveCount(1);
 	const fresh = page
 		.locator("figure")
