@@ -432,6 +432,7 @@ export function formatRemaining(ms: number): string {
 	const m = Math.floor((s % 3600) / 60);
 	if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
 	if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
-	if (m > 0) return `${m}m`;
-	return `${s}s`;
+	// Short votes count down by the second, like the timer.
+	if (m < 10) return `${m}:${String(s % 60).padStart(2, "0")}`;
+	return `${m}m`;
 }

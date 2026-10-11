@@ -300,6 +300,25 @@ test.describe("dot voting", () => {
 		await expect(bar).toContainText("results hidden");
 		await expect(bar.getByRole("img", { name: "4 of 4 dots left" })).toBeVisible();
 	});
+
+	test("a vote can run for a few minutes, counting down by the second", async ({ page }) => {
+		await page
+			.locator(".section-title", { hasText: "Next quarter" })
+			.click({ position: { x: 12, y: 8 } });
+		await page
+			.getByRole("region", { name: "Vote on “Next quarter”" })
+			.getByRole("button", { name: "Close vote" })
+			.click();
+		await page
+			.locator(".section-title", { hasText: "Next quarter" })
+			.click({ position: { x: 12, y: 8 } });
+		await page.getByRole("button", { name: "Vote", exact: true }).click();
+		const form = page.getByRole("dialog", { name: "Dot vote on “Next quarter”" });
+		await form.getByText("Custom").click();
+		await form.getByRole("spinbutton", { name: "Minutes until the vote closes" }).fill("3");
+		await form.getByRole("button", { name: "Start voting" }).click();
+		await expect(page.locator(".vote-bar[data-open=true]")).toContainText(/closes in (2:5\d|3:00)/);
+	});
 });
 
 test("on a board without sections, silent mode makes one in view", async ({ page }) => {

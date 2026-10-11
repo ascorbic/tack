@@ -171,7 +171,9 @@ describe("formatRemaining", () => {
 		expect(formatRemaining(2 * 86_400_000 + 4 * 3_600_000 + 5_000)).toBe("2d 4h");
 		expect(formatRemaining(3 * 3_600_000 + 20 * 60_000)).toBe("3h 20m");
 		expect(formatRemaining(12 * 60_000)).toBe("12m");
-		expect(formatRemaining(44_100)).toBe("45s");
+		// Under ten minutes it counts down by the second, like the timer.
+		expect(formatRemaining(4 * 60_000 + 30_000)).toBe("4:30");
+		expect(formatRemaining(44_100)).toBe("0:45");
 		expect(formatRemaining(-1)).toBe("0s");
 	});
 });

@@ -108,8 +108,20 @@ function sectionTitle(doc: Y.Doc, id: string | null): string {
 	return typeof title === "string" && title ? `“${title}”` : "this section";
 }
 
-const ENDINGS: { label: string; ms: number | null }[] = [
+const MINUTE = 60_000;
+
+/** A vote's length in minutes, for "Custom": a few minutes in the room, up to a working day. */
+const CUSTOM_MIN = 1;
+const CUSTOM_MAX = 480;
+const CUSTOM_DEFAULT = 3;
+
+/** `ms: "custom"` is however many minutes are chosen. */
+const ENDINGS: { label: string; ms: number | null | "custom" }[] = [
 	{ label: "When it’s closed", ms: null },
+	{ label: "In 2 minutes", ms: 2 * MINUTE },
+	{ label: "In 5 minutes", ms: 5 * MINUTE },
+	{ label: "In 10 minutes", ms: 10 * MINUTE },
+	{ label: "Custom", ms: "custom" },
 	{ label: "In an hour", ms: 3_600_000 },
 	{ label: "Tomorrow", ms: 86_400_000 },
 	{ label: "In 3 days", ms: 3 * 86_400_000 },
@@ -165,6 +177,7 @@ export function StartVoteForm({
 }) {
 	const [dots, setDots] = useState(DOTS_DEFAULT);
 	const [ending, setEnding] = useState(0);
+	const [minutes, setMinutes] = useState(CUSTOM_DEFAULT);
 	const [hidden, setHidden] = useState(false);
 	// Off unless asked for: in a room, what's popular on the forge shouldn't
 	// outvote what the room chose.
@@ -184,7 +197,8 @@ export function StartVoteForm({
 		window.addEventListener("keydown", onKey, true);
 		return () => window.removeEventListener("keydown", onKey, true);
 	}, [onCancel]);
-	const end = ENDINGS[ending]?.ms;
+	const chosen = ENDINGS[ending]?.ms;
+	const end = chosen === "custom" ? minutes * MINUTE : chosen;
 	return (
 		<form
 			className="vote-start"
@@ -266,6 +280,26 @@ export function StartVoteForm({
 						</label>
 					))}
 				</span>
+				{chosen === "custom" && (
+					<label className="vote-custom">
+						In
+						<input
+							type="number"
+							min={CUSTOM_MIN}
+							max={CUSTOM_MAX}
+							step={1}
+							value={minutes}
+							aria-label="Minutes until the vote closes"
+							onChange={(event) => {
+								const value = Math.round(Number(event.target.value));
+								if (Number.isFinite(value)) {
+									setMinutes(Math.min(CUSTOM_MAX, Math.max(CUSTOM_MIN, value)));
+								}
+							}}
+						/>
+						{minutes === 1 ? "minute" : "minutes"}
+					</label>
+				)}
 			</fieldset>
 			<label className="vote-toggle">
 				<input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
@@ -453,6 +487,9 @@ function useVoteReminders(
 			const left = Date.parse(vote.endsAt) - now;
 			const dots = dotsLeft(vote, user);
 			if (left > 86_400_000 || dots === 0) continue;
+			// A vote of a few minutes in the room: only a nudge at the very end.
+			const length = Date.parse(vote.endsAt) - Date.parse(vote.startedAt);
+			if (length < 15 * MINUTE && left > 30_000) continue;
 			reminded.current.add(vote.id);
 			toasts.show({
 				message: `Voting closes in ${formatRemaining(left)}: you have ${dots} ${dots === 1 ? "dot" : "dots"} left`,
@@ -856,7 +893,7 @@ export function TallyView({
 					) : reopening ? (
 						<span className="tally-reopen">
 							Reopen
-							{ENDINGS.map((option) => (
+							{ENDINGS.filter((option) => option.ms !== "custom").map((option) => (
 								<button
 									key={option.label}
 									type="button"
@@ -865,13 +902,17 @@ export function TallyView({
 											reopenVote(
 												doc,
 												vote.id,
-												option.ms ? new Date(now + option.ms).toISOString() : undefined,
+												typeof option.ms === "number"
+													? new Date(now + option.ms).toISOString()
+													: undefined,
 											),
 										);
 										setReopening(false);
 									}}
 								>
-									{option.ms ? option.label.replace(/^In /, "for ") : "until closed"}
+									{typeof option.ms === "number"
+										? option.label.replace(/^In /, "for ")
+										: "until closed"}
 								</button>
 							))}
 						</span>
