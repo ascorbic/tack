@@ -253,7 +253,11 @@ function LoadedBoard({
 					instanceRole={board.instanceRole}
 					onClick={canShare ? () => setSharing(true) : undefined}
 				/>
-				{editable && (me.viewer || me.signIn !== "ready") && <BoardMenu board={board} />}
+				<BoardMenu
+					board={board}
+					canSaveTemplate={editable && (me.viewer !== null || me.signIn !== "ready")}
+					canBackup={board.role === "owner" && me.viewer !== null}
+				/>
 			</>
 		),
 		readOnly: !editable || archived,

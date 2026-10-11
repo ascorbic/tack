@@ -633,6 +633,7 @@ const ConnectorPath = memo(function ConnectorPath({
 	return (
 		<g
 			className="connector"
+			data-connector={id}
 			data-color={color}
 			data-selected={selected}
 			data-moving={moving}
@@ -700,6 +701,7 @@ function ConnectorLabel({
 	return (
 		<div
 			data-enter={entrance ? "draw" : undefined}
+			data-connector={id}
 			className="connector-label connector-ui nodrag nopan"
 			data-color={color}
 			data-selected={selected}

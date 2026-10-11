@@ -18,10 +18,18 @@ const linear = (t: number) => t;
  * Publishes the part of the board this person can see, so others can
  * follow them. Render inside <ReactFlow>.
  */
-export function ViewPublisher({ awareness }: { awareness: Awareness }) {
+export function ViewPublisher({
+	awareness,
+	paused = false,
+}: {
+	awareness: Awareness;
+	/** Not while the board's moving for its own reasons (drawing an export): followers stay put. */
+	paused?: boolean;
+}) {
 	const view = useStore((state) => viewOf(state.transform, state.width, state.height), sameView);
 	const last = useRef(0);
 	useEffect(() => {
+		if (paused) return;
 		const publish = () => {
 			last.current = performance.now();
 			awareness.setLocalStateField("view", view);
@@ -34,7 +42,7 @@ export function ViewPublisher({ awareness }: { awareness: Awareness }) {
 		// Trailing update, so the last view of a gesture always goes out.
 		const timer = setTimeout(publish, wait);
 		return () => clearTimeout(timer);
-	}, [awareness, view]);
+	}, [awareness, view, paused]);
 	return null;
 }
 

@@ -5,6 +5,9 @@ import {
 	TEMPLATE_TITLE_MAX,
 	type TemplateInfo,
 } from "../../shared/templates.ts";
+import { BackupDialog } from "../export/BackupDialog.tsx";
+import { exportUI } from "../export/store.ts";
+import { isApplePlatform } from "../shortcuts.ts";
 import { MoreIcon } from "./icons.tsx";
 import { Modal } from "./Modal.tsx";
 import { templateLibrary, templatesApi } from "./templates.ts";
@@ -15,10 +18,23 @@ import "./templates.css";
 // the instance to start boards from, with the repositories its widgets,
 // inboxes and rules read as choices to make.
 
-/** The board's menu: things to do with the whole board. */
-export function BoardMenu({ board }: { board: BoardInfo }) {
+/**
+ * The board's menu: things to do with the whole board. Export is for
+ * everyone who can see it; saving it as a template for its editors, and
+ * backups for its owner.
+ */
+export function BoardMenu({
+	board,
+	canSaveTemplate = true,
+	canBackup = false,
+}: {
+	board: BoardInfo;
+	canSaveTemplate?: boolean;
+	canBackup?: boolean;
+}) {
 	const [open, setOpen] = useState(false);
 	const [saving, setSaving] = useState(false);
+	const [backingUp, setBackingUp] = useState(false);
 	const root = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -56,16 +72,66 @@ export function BoardMenu({ board }: { board: BoardInfo }) {
 						role="menuitem"
 						onClick={() => {
 							setOpen(false);
-							setSaving(true);
+							exportUI.open();
 						}}
 					>
-						<TemplateIcon />
-						Save as template…
+						<ExportIcon />
+						Export…
+						<kbd className="board-actions-menu-key" aria-hidden="true">
+							{isApplePlatform() ? "⇧⌘E" : "Ctrl+Shift+E"}
+						</kbd>
 					</button>
+					{canSaveTemplate && (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={() => {
+								setOpen(false);
+								setSaving(true);
+							}}
+						>
+							<TemplateIcon />
+							Save as template…
+						</button>
+					)}
+					{canBackup && (
+						<button
+							type="button"
+							role="menuitem"
+							onClick={() => {
+								setOpen(false);
+								setBackingUp(true);
+							}}
+						>
+							<BackupIcon />
+							Back up to GitHub…
+						</button>
+					)}
 				</div>
 			)}
-			<SaveTemplateDialog board={board} open={saving} onClose={() => setSaving(false)} />
+			{canSaveTemplate && (
+				<SaveTemplateDialog board={board} open={saving} onClose={() => setSaving(false)} />
+			)}
+			{canBackup && (
+				<BackupDialog board={board} open={backingUp} onClose={() => setBackingUp(false)} />
+			)}
 		</div>
+	);
+}
+
+function ExportIcon() {
+	return (
+		<svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+			<path d="M8 10V2.5M5 5.5l3-3 3 3M3 9.5v3a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3" />
+		</svg>
+	);
+}
+
+function BackupIcon() {
+	return (
+		<svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+			<path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.5H5M8 5v3l2 1.25" />
+		</svg>
 	);
 }
 

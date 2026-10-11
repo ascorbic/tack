@@ -418,6 +418,14 @@ export const SHORTCUTS: Shortcut[] = [
 		combos: [{ code: "KeyH", mod: true, alt: true, shift: true }],
 		keywords: "timeline replay version past scrub restore bring back deleted",
 	},
+	// Handled by export/ExportDialog.tsx.
+	{
+		id: "export",
+		label: "Export: PNG, SVG or JSON",
+		group: "View",
+		combos: [{ key: "e", mod: true, shift: true, alt: false }],
+		keywords: "image picture download save png svg json backup",
+	},
 	{
 		id: "pan",
 		label: "Pan",

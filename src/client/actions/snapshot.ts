@@ -78,7 +78,7 @@ export function atRest(root: Element): void {
  * under no pointer, and with animations and transitions off (`.snapshot-stage`
  * in actions.css), so every shape is drawn as it settles.
  */
-function stage(
+export function stage(
 	viewport: HTMLElement,
 	flow: HTMLElement,
 	size: { width: number; height: number },
@@ -142,7 +142,7 @@ export interface SnapshotRequest {
 	sizeOf?: (id: string) => { width: number; height: number } | undefined;
 }
 
-function themeColor(name: string, fallback: string): string {
+export function themeColor(name: string, fallback: string): string {
 	return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 

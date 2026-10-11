@@ -1,11 +1,13 @@
 import { type KeyboardEvent, useId, useMemo, useRef, useState } from "react";
 import { parseRepoInput } from "../../shared/actions.ts";
+import type { BoardExport } from "../../shared/boardExport.ts";
 import type { BoardInfo, Visibility } from "../../shared/boards.ts";
 import { DEFAULT_HOST } from "../../shared/refs.ts";
 import { TEMPLATE_REPOS_MAX, type TemplateInfo } from "../../shared/templates.ts";
 import { widgetDefinition } from "../../shared/widgetRegistry.ts";
 import { repoName } from "../actions/selection.ts";
 import { recentRepos } from "../actions/services.ts";
+import { ImportDetails } from "../export/ImportBoard.tsx";
 import { relativeTime } from "./api.ts";
 import { BoardThumbnail } from "./BoardThumbnail.tsx";
 import { PlusIcon, VisibilityIcon } from "./icons.tsx";
@@ -32,9 +34,12 @@ export interface NewBoardRequest {
 	carryFrom: string | null;
 	/** Who can open it, when there was a choice. */
 	visibility?: Visibility;
+	/** A board exported from Tack, to import (#59) rather than lay out a template. */
+	imported?: BoardExport;
 }
 
 const BLANK = "blank";
+const IMPORT = "import";
 const COLUMNS = 3;
 
 export function NewBoardDialog({
@@ -100,6 +105,7 @@ export function NewBoardPicker({
 			BLANK,
 			...builtIns.map((t) => t.id),
 			...savedList.map((t) => t.id),
+			IMPORT,
 		],
 		[featured, builtIns, savedList],
 	);
@@ -155,28 +161,81 @@ export function NewBoardPicker({
 					))}
 				</div>
 				<SavedSection saved={saved} chosenId={chosenId} onChoose={setChosen} now={now} />
+				<section className="template-saved" aria-label="From a file">
+					<h3 className="template-section-title">From a file</h3>
+					<div className="template-grid" role="listbox" aria-label="Import">
+						<ImportTile chosen={chosenId === IMPORT} onChoose={() => setChosen(IMPORT)} />
+					</div>
+				</section>
 			</div>
-			<Details
-				key={`${chosenId}:${chosen ? "ready" : "waiting"}`}
-				template={chosen}
-				boards={boards}
-				creating={creating}
-				error={error}
-				visibility={visibility}
-				onVisibility={setVisibility}
-				onCancel={onCancel}
-				onCreate={onCreate}
-				onDelete={
-					chosen && !chosen.builtIn && chosen.canDelete && onDelete
-						? async () => {
-								const gone = await onDelete(chosen);
-								if (gone) setChosen(featured[0]?.id ?? BLANK);
-							}
-						: undefined
-				}
-				now={now}
-			/>
+			{chosenId === IMPORT ? (
+				<ImportDetails
+					creating={creating}
+					error={error}
+					access={visibility && <AccessField value={visibility} onChange={setVisibility} />}
+					onCancel={onCancel}
+					onImport={(imported, title) =>
+						onCreate({
+							template: null,
+							title,
+							repos: [],
+							carryFrom: null,
+							imported,
+							...(visibility ? { visibility } : {}),
+						})
+					}
+				/>
+			) : (
+				<Details
+					key={`${chosenId}:${chosen ? "ready" : "waiting"}`}
+					template={chosen}
+					boards={boards}
+					creating={creating}
+					error={error}
+					visibility={visibility}
+					onVisibility={setVisibility}
+					onCancel={onCancel}
+					onCreate={onCreate}
+					onDelete={
+						chosen && !chosen.builtIn && chosen.canDelete && onDelete
+							? async () => {
+									const gone = await onDelete(chosen);
+									if (gone) setChosen(featured[0]?.id ?? BLANK);
+								}
+							: undefined
+					}
+					now={now}
+				/>
+			)}
 		</div>
+	);
+}
+
+/** Import a board exported from Tack (#59): its own tile, after the templates. */
+function ImportTile({ chosen, onChoose }: { chosen: boolean; onChoose: () => void }) {
+	return (
+		<button
+			type="button"
+			role="option"
+			aria-selected={chosen}
+			className="template-tile import-tile"
+			data-template={IMPORT}
+			tabIndex={chosen ? 0 : -1}
+			onClick={onChoose}
+		>
+			<span className="template-thumb">
+				<svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true">
+					<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+					<path d="M14 3v5h5M12 11v6M9.5 14.5 12 17l2.5-2.5" />
+				</svg>
+			</span>
+			<span className="template-tile-body">
+				<span className="template-tile-title">Import a board</span>
+				<span className="template-tile-description">
+					From a JSON export or a backup: everything on it, as a new board.
+				</span>
+			</span>
+		</button>
 	);
 }
 

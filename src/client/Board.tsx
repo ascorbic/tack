@@ -95,6 +95,8 @@ import { isOffBoardTarget } from "./keys.ts";
 import { BoardMinimap, useMinimapPreference } from "./Minimap.tsx";
 import { nodeTypes } from "./nodes.tsx";
 import { ZoomControls } from "./ZoomControls.tsx";
+import { ExportDialog } from "./export/ExportDialog.tsx";
+import { useBoardExport } from "./export/useBoardExport.ts";
 import { PanelBoundary, withBoundary } from "./ShapeBoundary.tsx";
 import { People } from "./People.tsx";
 import { type User, authorFor, useBoardColor, usePresence } from "./presence.ts";
@@ -280,6 +282,8 @@ export function Board({
 	const spotlight = useSpotlightFollow(awareness, presence.people, follow);
 	usePublishStatus(awareness);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	// Export (#59): drawing the board as an image draws all of it, at 100%, for a moment.
+	const exporter = useBoardExport({ doc, canvas, selected });
 	const [measured, setMeasured] = useState<Map<string, { width: number; height: number }>>(
 		() => new Map(),
 	);
@@ -1309,6 +1313,7 @@ export function Board({
 							className="canvas"
 							data-tool={tool}
 							data-picking={picking ?? undefined}
+							data-exporting={exporter.drawing || undefined}
 							data-history={
 								replay.state.open ? (replay.state.position === null ? "now" : "past") : undefined
 							}
@@ -1335,7 +1340,7 @@ export function Board({
 										if (rememberView && fitted.current) saveViewport(rememberView, viewport);
 									}}
 									proOptions={{ hideAttribution: true }}
-									onlyRenderVisibleElements
+									onlyRenderVisibleElements={!exporter.drawing}
 									selectionOnDrag={tool === "select"}
 									panOnDrag={tool === "hand" ? true : [1, 2]}
 									panOnScroll
@@ -1516,7 +1521,7 @@ export function Board({
 									)}
 									<Cursors people={presence.people} />
 									<Emotes awareness={awareness} user={user} people={presence.people} />
-									<ViewPublisher awareness={awareness} />
+									<ViewPublisher awareness={awareness} paused={exporter.drawing} />
 									{!readOnly && (
 										<ShapeToolbar
 											doc={doc}
@@ -1684,6 +1689,7 @@ export function Board({
 							<RowGhost />
 							<Toasts store={toasts} />
 							<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+							<ExportDialog doc={doc} exporter={exporter} selected={selected} toasts={toasts} />
 							<PanelBoundary name="Changes">
 								<ChangesPanel />
 							</PanelBoundary>

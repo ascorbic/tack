@@ -15,6 +15,7 @@ import { AccountMenu, SignInButton } from "../auth/AccountMenu.tsx";
 import { personUser, useMe } from "../auth/me.ts";
 import { BrandMark } from "../BrandMark.tsx";
 import { NotificationsButton } from "../comments/Notifications.tsx";
+import { importApi } from "../export/api.ts";
 import { takeFlash } from "../flash.ts";
 import { scaledDuration } from "../motion.ts";
 import { localUser, type User } from "../presence.ts";
@@ -131,6 +132,27 @@ export function HomeRoute() {
 		setCreating(true);
 		setCreateError(null);
 		if (request.visibility) rememberAccess(login, request.visibility);
+		if (request.imported) {
+			const imported = await importApi.create({
+				board: request.imported,
+				...(request.title ? { title: request.title } : {}),
+				...(request.visibility ? { visibility: request.visibility } : {}),
+			});
+			if (imported.ok) {
+				location.assign(`${boardPath(imported.value)}?new=1`);
+				return;
+			}
+			setCreating(false);
+			setCreateError(
+				imported.message ??
+					(imported.error === "too_large"
+						? "That’s too big to import: boards up to 4 MB can be."
+						: imported.error === "offline"
+							? "Couldn’t reach Tack just now. Try again?"
+							: "Couldn’t import the board. Try again?"),
+			);
+			return;
+		}
 		const result = await boardsApi.create({
 			...(request.title ? { title: request.title } : {}),
 			...(request.visibility ? { visibility: request.visibility } : {}),

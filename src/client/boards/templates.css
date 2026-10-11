@@ -713,6 +713,15 @@
 	cursor: pointer;
 }
 
+.board-actions-menu-key {
+	margin-left: auto;
+	padding-left: 12px;
+	color: var(--muted);
+	font-family: inherit;
+	font-size: 11.5px;
+	font-weight: 500;
+}
+
 .board-actions-menu-list button:hover,
 .board-actions-menu-list button:focus-visible {
 	background: var(--hover);

@@ -1,0 +1,705 @@
+/* Export, import and backups (#59). */
+
+/* While the board's being drawn for an export, the live canvas fades out
+   behind the dialog: it's drawing everything at 100% for a moment. */
+.canvas[data-exporting] > .react-flow:not(.snapshot-stage) {
+	opacity: 0;
+	transition: opacity var(--t-quick) var(--ease-out);
+}
+
+.export-dialog,
+.backup-dialog,
+.import-dialog {
+	width: min(520px, calc(100vw - 32px));
+	max-height: calc(100dvh - 32px);
+	padding: 0;
+	overflow: auto;
+	border: 1px solid var(--line);
+	border-radius: 20px;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-lifted);
+	animation: export-in var(--t-settle) var(--ease-spring);
+}
+
+.export-dialog::backdrop,
+.backup-dialog::backdrop,
+.import-dialog::backdrop {
+	background: rgb(16 17 20 / 32%);
+	backdrop-filter: blur(2px);
+}
+
+.export-dialog[data-closing],
+.backup-dialog[data-closing],
+.import-dialog[data-closing] {
+	animation: export-out var(--t-quick) var(--ease-out) forwards;
+}
+
+@keyframes export-in {
+	from {
+		opacity: 0;
+		transform: translateY(14px) scale(0.95);
+	}
+}
+
+@keyframes export-out {
+	to {
+		opacity: 0;
+		transform: translateY(6px) scale(0.98);
+	}
+}
+
+.export {
+	display: grid;
+	gap: 14px;
+	padding: 22px;
+}
+
+.export-head h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 720;
+	letter-spacing: -0.025em;
+}
+
+.export-lede {
+	margin: 4px 0 0;
+	color: var(--ink-soft);
+	font-size: 13.5px;
+	line-height: 1.45;
+	text-wrap: pretty;
+}
+
+.export-row {
+	display: grid;
+	grid-template-columns: 64px 1fr;
+	align-items: center;
+	gap: 10px;
+}
+
+.export-row-label {
+	color: var(--muted);
+	font-size: 12.5px;
+	font-weight: 600;
+}
+
+/* One choice of a few: a thumb springs across to the one picked. */
+.export-segmented {
+	position: relative;
+	display: grid;
+	grid-template-columns: repeat(var(--count), 1fr);
+	padding: 3px;
+	border-radius: 11px;
+	background: var(--well);
+}
+
+.export-segmented-thumb {
+	position: absolute;
+	top: 3px;
+	bottom: 3px;
+	left: 3px;
+	width: calc((100% - 6px) / var(--count));
+	border-radius: 8px;
+	background: var(--surface);
+	box-shadow: var(--shadow-rest);
+	transform: translateX(calc(100% * var(--index)));
+	transition: transform var(--t-settle) var(--ease-settle);
+}
+
+.export-segmented button {
+	position: relative;
+	z-index: 1;
+	height: 30px;
+	padding: 0 10px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink-soft);
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: color var(--t-quick) var(--ease-out);
+}
+
+.export-segmented button[aria-checked="true"] {
+	color: var(--ink);
+}
+
+.export-segmented button:disabled {
+	color: var(--muted);
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.export-segmented button:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
+}
+
+/* The preview: the image as it'll come out, settling in when it's drawn. */
+.export-preview {
+	position: relative;
+	display: grid;
+	place-items: center;
+	height: 220px;
+	margin: 0;
+	overflow: hidden;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--ground);
+}
+
+/* Nothing behind it: the checks say so. */
+.export-preview[data-transparent] {
+	background-color: var(--surface);
+	background-image:
+		linear-gradient(45deg, var(--well) 25%, transparent 25%),
+		linear-gradient(-45deg, var(--well) 25%, transparent 25%),
+		linear-gradient(45deg, transparent 75%, var(--well) 75%),
+		linear-gradient(-45deg, transparent 75%, var(--well) 75%);
+	background-size: 16px 16px;
+	background-position:
+		0 0,
+		0 8px,
+		8px -8px,
+		-8px 0;
+}
+
+.export-preview img {
+	max-width: calc(100% - 24px);
+	max-height: 194px;
+	object-fit: contain;
+	border-radius: 4px;
+	filter: drop-shadow(0 6px 14px rgb(23 25 28 / 12%));
+	animation: export-preview-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes export-preview-in {
+	from {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+}
+
+.export-preview-note {
+	display: grid;
+	justify-items: center;
+	gap: 10px;
+	padding: 0 24px;
+	color: var(--muted);
+	font-size: 13px;
+	text-align: center;
+}
+
+/* Three dots, drawing. */
+.export-drawing {
+	display: inline-flex;
+	gap: 5px;
+}
+
+.export-drawing span {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--accent);
+	animation: export-dot calc(900ms * var(--motion)) var(--ease-out) infinite;
+}
+
+.export-drawing span:nth-child(2) {
+	animation-delay: calc(120ms * var(--motion));
+}
+
+.export-drawing span:nth-child(3) {
+	animation-delay: calc(240ms * var(--motion));
+}
+
+@keyframes export-dot {
+	0%,
+	100% {
+		opacity: 0.25;
+		transform: translateY(0);
+	}
+	40% {
+		opacity: 1;
+		transform: translateY(-4px);
+	}
+}
+
+.export-options {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px 14px;
+}
+
+.export-scales {
+	display: inline-flex;
+	gap: 2px;
+	padding: 3px;
+	border-radius: 10px;
+	background: var(--well);
+}
+
+.export-scale {
+	min-width: 34px;
+	height: 26px;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: var(--ink-soft);
+	font: inherit;
+	font-size: 12.5px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring);
+}
+
+.export-scale:hover {
+	color: var(--ink);
+}
+
+.export-scale[aria-checked="true"] {
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-rest);
+}
+
+.export-scale:active {
+	transform: scale(0.94);
+}
+
+/* A small switch, its knob sliding over on a spring. */
+.export-switch {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--ink-soft);
+	font-size: 13px;
+	font-weight: 560;
+	cursor: pointer;
+}
+
+.export-switch input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.export-switch-track {
+	position: relative;
+	width: 30px;
+	height: 18px;
+	border-radius: 9px;
+	background: var(--line-strong);
+	transition: background var(--t-base) var(--ease-out);
+}
+
+.export-switch-knob {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--surface);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.export-switch input:checked + .export-switch-track {
+	background: var(--accent);
+}
+
+.export-switch input:checked + .export-switch-track .export-switch-knob {
+	transform: translateX(12px);
+}
+
+.export-switch input:focus-visible + .export-switch-track {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.export-size {
+	margin-left: auto;
+	color: var(--muted);
+	font-size: 12.5px;
+	font-variant-numeric: tabular-nums;
+}
+
+.export-capped {
+	color: var(--pending-ink);
+}
+
+.export-json {
+	display: grid;
+	gap: 10px;
+	padding: 14px 16px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--surface-muted);
+	animation: export-preview-in var(--t-settle) var(--ease-spring);
+}
+
+.export-json-counts {
+	margin: 0;
+	color: var(--ink);
+	font-size: 13.5px;
+	font-weight: 600;
+	line-height: 1.5;
+}
+
+.export-json-size {
+	color: var(--muted);
+	font-weight: 500;
+}
+
+.export-json-notes {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding-left: 18px;
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	line-height: 1.45;
+}
+
+.export-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.export-copy {
+	height: 38px;
+	padding: 0 14px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 13.5px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring);
+}
+
+.export-copy:hover {
+	background: var(--hover);
+}
+
+.export-copy:active {
+	transform: scale(0.97);
+}
+
+.export-copy:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.export-actions .primary .icon {
+	fill: none;
+	stroke: currentcolor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+/* --- Backups ------------------------------------------------------------------- */
+
+.backup {
+	display: grid;
+	gap: 14px;
+	padding: 22px;
+}
+
+.backup h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 22px;
+	font-weight: 720;
+	letter-spacing: -0.025em;
+}
+
+.backup-explain {
+	display: grid;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--ink-soft);
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+.backup-explain li {
+	display: grid;
+	grid-template-columns: 18px 1fr;
+	gap: 8px;
+}
+
+.backup-explain svg {
+	margin-top: 1px;
+	fill: none;
+	stroke: var(--accent);
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.backup-fields {
+	display: grid;
+	grid-template-columns: 1.4fr 1fr;
+	gap: 10px;
+}
+
+.backup-status {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: start;
+	gap: 10px;
+	padding: 12px 14px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--surface-muted);
+	font-size: 13px;
+	line-height: 1.45;
+	animation: export-preview-in var(--t-settle) var(--ease-spring);
+}
+
+.backup-status[data-tone="error"] {
+	border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+	background: var(--fail-bg);
+}
+
+.backup-status[data-tone="warning"] {
+	border-color: color-mix(in srgb, var(--pending) 45%, transparent);
+	background: var(--pending-bg);
+}
+
+.backup-status p {
+	margin: 0;
+}
+
+.backup-status a {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.backup-dot {
+	width: 10px;
+	height: 10px;
+	margin-top: 4px;
+	border-radius: 50%;
+	background: var(--pass);
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--pass) 18%, transparent);
+}
+
+.backup-status[data-tone="error"] .backup-dot {
+	background: var(--fail);
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--fail) 18%, transparent);
+}
+
+.backup-status[data-tone="warning"] .backup-dot {
+	background: var(--pending);
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--pending) 22%, transparent);
+}
+
+.backup-status[data-tone="busy"] .backup-dot {
+	background: var(--accent);
+	animation: export-dot calc(900ms * var(--motion)) var(--ease-out) infinite;
+}
+
+.backup-muted {
+	color: var(--muted);
+}
+
+.backup-off {
+	height: 38px;
+	padding: 0 6px;
+	margin-right: auto;
+	border: 0;
+	background: transparent;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12.5px;
+	cursor: pointer;
+}
+
+.backup-off:hover {
+	color: var(--danger);
+}
+
+/* --- Importing, in New board ------------------------------------------------------ */
+
+.import-drop {
+	position: relative;
+	display: grid;
+	flex: none;
+	place-content: center;
+	justify-items: center;
+	gap: 6px;
+	aspect-ratio: 16 / 10;
+	border: 1.5px dashed var(--line-strong);
+	border-radius: 14px;
+	background-color: var(--ground);
+	background-image: radial-gradient(var(--ground-dots) 1px, transparent 1.2px);
+	background-size: 10px 10px;
+	color: var(--ink-soft);
+	cursor: pointer;
+	transition:
+		border-color var(--t-base) var(--ease-out),
+		background-color var(--t-base) var(--ease-out),
+		transform var(--t-settle) var(--ease-spring);
+}
+
+.import-drop:hover,
+.import-drop:focus-within {
+	border-color: var(--accent);
+}
+
+.import-drop[data-dragging] {
+	border-color: var(--accent);
+	background-color: var(--accent-soft);
+	transform: scale(1.015);
+}
+
+.import-drop input {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.import-drop-art {
+	position: relative;
+	width: 54px;
+	height: 54px;
+	margin-bottom: 6px;
+}
+
+.import-drop-sheet {
+	position: absolute;
+	inset: 4px 9px;
+	border-radius: 6px;
+	background: var(--sticky-yellow);
+	box-shadow: var(--sticky-shadow);
+	transform: rotate(-4deg);
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.import-drop-arrow {
+	position: absolute;
+	right: -4px;
+	bottom: -4px;
+	display: grid;
+	width: 28px;
+	height: 28px;
+	place-items: center;
+	border-radius: 50%;
+	background: var(--accent);
+	color: var(--on-accent);
+	box-shadow: var(--shadow-hover);
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.import-drop-arrow svg {
+	fill: none;
+	stroke: currentcolor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.import-drop:hover .import-drop-sheet,
+.import-drop[data-dragging] .import-drop-sheet {
+	transform: rotate(3deg) translateY(-3px);
+}
+
+.import-drop:hover .import-drop-arrow,
+.import-drop[data-dragging] .import-drop-arrow {
+	transform: translateY(3px);
+}
+
+.import-drop-title {
+	color: var(--ink);
+	font-size: 14px;
+	font-weight: 650;
+}
+
+.import-drop-hint {
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.import-paste-link {
+	justify-self: start;
+	align-self: flex-start;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--accent);
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.import-paste-link:hover {
+	text-decoration: underline;
+}
+
+.import-paste {
+	min-height: 96px;
+	padding: 9px 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	font-family: ui-monospace, "SF Mono", Menlo, monospace;
+	font-size: 12px;
+	resize: vertical;
+}
+
+.import-tile .template-thumb {
+	display: grid;
+	place-items: center;
+	color: var(--accent);
+}
+
+.import-tile .template-thumb svg {
+	fill: none;
+	stroke: currentcolor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.import-tile:hover .template-thumb svg,
+.import-tile[aria-selected="true"] .template-thumb svg {
+	transform: translateY(-3px);
+}
+
+@media (max-width: 520px) {
+	.backup-fields {
+		grid-template-columns: 1fr;
+	}
+
+	.export-row {
+		grid-template-columns: 1fr;
+		gap: 6px;
+	}
+
+	.export-size {
+		margin-left: 0;
+	}
+}
