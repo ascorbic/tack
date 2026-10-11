@@ -106,6 +106,9 @@ test.describe.serial("the M3 exit on real boards", () => {
 			}),
 		]);
 		await card.click();
+		// The board opened showing all of it, too far out for a card's details:
+		// zoom to the card.
+		await page.keyboard.press("Shift+Digit2");
 		await expect(card).toContainText("From the “Incoming” inbox");
 	});
 

@@ -135,7 +135,8 @@ test("pasting links adds cards in free space, and a link Tack can't show says so
 
 	// Again: it's here already, so nothing's added, and the toast says why.
 	await paste(page, "fake.tack/acme/imagekit#20");
-	const toast = page.getByRole("status").locator(".toast");
+	// The one showing, not one still sliding away.
+	const toast = page.getByRole("status").locator('.toast:not([data-leaving="true"])');
 	await expect(toast).toContainText("imagekit#20 is already on the board");
 	expect(await added(page, before)).toHaveLength(2);
 	await toast.getByRole("button", { name: "Add another copy" }).click();

@@ -163,6 +163,9 @@ test("a retro, taking turns: silent writing, the reveal, votes, comments, action
 
 	// Lena makes the winner an action item, Priya's, staged as an issue and pushed.
 	await sticky(lena.page, "Flaky CI").click();
+	// The board opened showing all of it; up close, Priya's comment pin isn't
+	// over the action item's chips.
+	await lena.page.keyboard.press("Shift+Digit2");
 	await lena.page.getByRole("button", { name: "Make an action item" }).click();
 	const action = lena.page.locator(".action-item", { hasText: "Flaky CI" });
 	await expect(action).toBeVisible();
