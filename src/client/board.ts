@@ -280,9 +280,9 @@ export function addSticky(
 		// In a silent section, its text stays off the document (see shared/silent.ts).
 		silent = joinSilentSession(doc, id);
 	});
-	// Claim it once the sticky itself has gone to the server (this may be
-	// inside a bigger transaction, which ends first).
-	if (silent && mine) queueMicrotask(() => facilitation.claim(id));
+	// Yours from the start, so it opens for writing rather than face down
+	// (the claim itself goes to the server once the sticky has).
+	if (silent && mine) facilitation.claim(id);
 	return id;
 }
 

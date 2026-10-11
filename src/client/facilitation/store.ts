@@ -164,13 +164,19 @@ class FacilitationStore {
 		return this.textsSnapshot;
 	}
 
-	/** A silent sticky you just made: claim it on the server straight away. */
+	/**
+	 * A silent sticky you just made: yours at once, and claimed on the server
+	 * straight after the sticky itself reaches it (it may be inside a bigger
+	 * transaction, which ends first).
+	 */
 	claim(id: string, text = ""): void {
 		this.made.add(id);
 		this.texts.set(id, text);
 		this.textsSnapshot = new Map(this.texts);
-		this.channel.send({ type: "silent-text", shape: id, text });
 		this.emit();
+		queueMicrotask(() =>
+			this.channel.send({ type: "silent-text", shape: id, text: this.texts.get(id) ?? text }),
+		);
 	}
 
 	/** Type into one of your silent stickies. Shown at once, sent shortly. */
