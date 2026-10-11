@@ -1,4 +1,5 @@
 import { routePartykitRequest } from "partyserver";
+import { handleAi } from "./server/ai/routes.ts";
 import { handleAuth } from "./server/auth/routes.ts";
 import { authorizeBoardConnection, handleBoards } from "./server/boards/routes.ts";
 import { handlePeople } from "./server/boards/people.ts";
@@ -60,6 +61,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 	// Searching for issues and pull requests to add, as the viewer (the card tool).
 	const search = await handleItemSearch(request, env);
 	if (search) return search;
+
+	// AI: a widget from a description, summaries and drafted decisions (#64).
+	const ai = await handleAi(request, env);
+	if (ai) return ai;
 
 	// The board's history: its timeline, and segments of it to replay.
 	const history = await handleHistory(request, env);

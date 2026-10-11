@@ -89,6 +89,8 @@ import { loadSnapshot, storeSnapshot } from "./snapshots.ts";
 import { realTime } from "./testClock.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
 import { type RunnerTiming, WidgetRunner } from "./widgets/runner.ts";
+import { type AiPrepareInput, type AiPrepared, BoardAi } from "./ai/board.ts";
+import type { AiLimits } from "./ai/limits.ts";
 
 /**
  * The Worker checks access before a connection reaches the board (see
@@ -209,6 +211,8 @@ export class Board extends YServer<Env> {
 
 	/** Pushes staged changes to forges (M2). Ready once the document has loaded. */
 	private pushes: PushEngine | null = null;
+	/** AI's budget and reading (#64), made on first use. */
+	private ai: BoardAi | null = null;
 	/** Runs the board's rules on webhook deliveries (#44). */
 	private rules: RulesEngine | null = null;
 	/**
@@ -1445,6 +1449,35 @@ export class Board extends YServer<Env> {
 		const entries = [...this.cards.values()].filter((entry) => refs.has(entry.key));
 		const cards = await this.visibleTo(null, entries);
 		return { shapes: [...readShapes(this.document)], cards };
+	}
+
+	/**
+	 * AI (#64): spend one of the board's AI requests, and read what the model
+	 * may: the selection's text and the cards the asker may read (see
+	 * src/server/ai/board.ts). RPC only, from the AI route, which has checked
+	 * the asker may edit the board.
+	 */
+	async aiPrepare(input: AiPrepareInput): Promise<AiPrepared> {
+		return this.boardAi().prepare(input);
+	}
+
+	/** For tests: change how many AI requests the board allows. */
+	async aiLimits(limits: Partial<AiLimits>): Promise<void> {
+		const budget = this.boardAi().budget;
+		budget.limits = { ...budget.limits, ...limits };
+	}
+
+	private boardAi(): BoardAi {
+		this.ai ??= new BoardAi({
+			doc: this.document,
+			cards: (keys) => keys.flatMap((key) => this.cards.get(key) ?? []),
+			visibleTo: (userId, entries) => this.visibleTo(userId, entries),
+			settled: async () => {
+				if (!this.syncing) return;
+				await Promise.race([this.syncing, new Promise((resolve) => setTimeout(resolve, 2_000))]);
+			},
+		});
+		return this.ai;
 	}
 
 	/** For tests: shorten the push engine's pauses. */
