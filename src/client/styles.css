@@ -2895,6 +2895,12 @@ a.card-title {
 		transform var(--t-quick) var(--ease-out);
 }
 
+.toast-secondary {
+	margin-right: -6px;
+	background: none;
+	color: color-mix(in srgb, var(--on-tooltip) 75%, transparent);
+}
+
 .toast-action:hover {
 	background: color-mix(in srgb, var(--on-tooltip) 20%, transparent);
 }

@@ -20,12 +20,14 @@ import {
 	ruleLog,
 	ruleProblem,
 	rulesMap,
+	ruleName,
 	rulesPauseMap,
 	sameRule,
 	setRuleEnabled,
 	shortRef,
 } from "../../shared/rules.ts";
-import { LOCAL_ORIGIN, shapesMap } from "../../shared/shapes.ts";
+import { LOCAL_ORIGIN, shapesMap, transactLocal } from "../../shared/shapes.ts";
+import { removeShapes } from "../../shared/structure.ts";
 import { listPresets } from "../../shared/widgetRegistry.ts";
 import { inboxStore, usePreview } from "../inbox/store.ts";
 import { QueryHelp } from "../widgets/QueryHelp.tsx";
@@ -158,11 +160,20 @@ export function RulesButton({
 		const latest = placed.at(-1);
 		if (latest?.shape && !openRef.current) {
 			const shape = latest.shape;
+			const title = sectionTitle(doc);
+			const rule = listRules(doc).find((r) => r.id === latest.rule);
+			const name = rule ? (rule.name ?? ruleName(rule, title)) : "A rule";
+			const shapes = placed.flatMap((entry) => (entry.shape ? [entry.shape] : []));
 			toasts.show({
 				message:
 					placed.length > 1
 						? `Rules placed ${placed.length} cards`
-						: `A rule: ${describeEntry(latest, sectionTitle(doc))}`,
+						: `${describeEntry(latest, title)}, by “${name}”`,
+				// Placed by a rule, it can't be undone; removing it can.
+				secondary: {
+					label: "Remove",
+					run: () => transactLocal(doc, () => removeShapes(doc, shapes)),
+				},
 				action: { label: "Show", run: () => onReveal(shape) },
 			});
 		}

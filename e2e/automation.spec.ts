@@ -249,6 +249,7 @@ test.describe("rules", () => {
 		await play(page, "PR fixes a card").click();
 		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(1);
 		await expect(page.locator(".toast")).toContainText(/Placed #\d+ beside #\d+/);
+		await expect(page.locator(".toast")).toContainText("by “Pull requests beside their issues”");
 
 		await page.getByRole("button", { name: /^Rules/ }).click();
 		const panel = page.getByRole("dialog", { name: "Rules" });
@@ -256,6 +257,16 @@ test.describe("rules", () => {
 			/Placed #\d+ beside #\d+/,
 		);
 		await expect(panel).toContainText("Placed 1 card");
+	});
+
+	test("a card a rule placed can be removed from its toast", async ({ page }) => {
+		await play(page, "New bug").click();
+		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(1);
+		await page.locator(".toast").getByRole("button", { name: "Remove" }).click();
+		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(0);
+		// Removing is an ordinary edit: it undoes.
+		await page.keyboard.press("ControlOrMeta+z");
+		await expect(page.locator(".provenance[data-via='rule']")).toHaveCount(1);
 	});
 
 	test("new bugs go into their section; paused rules do nothing", async ({ page }) => {

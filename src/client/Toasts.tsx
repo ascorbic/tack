@@ -7,6 +7,8 @@ export interface Toast {
 	id: number;
 	message: string;
 	action?: { label: string; hint?: string; run: () => void };
+	/** A second, lesser action, before the main one: "Remove · Show". */
+	secondary?: { label: string; run: () => void };
 }
 
 const LIFETIME_MS = 6000;
@@ -103,6 +105,19 @@ function ToastView({
 			}}
 		>
 			<span className="toast-message">{toast.message}</span>
+			{toast.secondary && (
+				<button
+					type="button"
+					className="toast-action toast-secondary"
+					tabIndex={leaving ? -1 : 0}
+					onClick={() => {
+						toast.secondary?.run();
+						onDismiss();
+					}}
+				>
+					{toast.secondary.label}
+				</button>
+			)}
 			{toast.action && (
 				<button
 					type="button"
