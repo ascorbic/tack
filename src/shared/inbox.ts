@@ -196,3 +196,30 @@ export function inboxResult(message: WidgetMessage): SearchResult | null {
 	const result = message.results[INBOX_QUERY];
 	return result?.kind === "search" ? result : null;
 }
+
+/** An inbox's waiting items, for deciding which tray each goes in. */
+export interface TrayCandidates {
+	id: string;
+	/** Everything its search matches, for how narrow it is. */
+	total: number;
+	/** Keys waiting: not on the board, and not dismissed from this inbox. */
+	keys: Iterable<string>;
+}
+
+/**
+ * Which inbox's tray each waiting item goes in, when inboxes on a board
+ * overlap: an item two searches match waits in one tray, not both, so
+ * nobody sorts it twice. It goes to the narrowest search (fewest matches),
+ * the most specific home for it, then by section id so everyone agrees.
+ * An item dismissed from one inbox can still wait in another's.
+ */
+export function trayClaims(inboxes: TrayCandidates[]): Map<string, string> {
+	const order = [...inboxes].sort((a, b) =>
+		a.total !== b.total ? a.total - b.total : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+	);
+	const claims = new Map<string, string>();
+	for (const inbox of order) {
+		for (const key of inbox.keys) if (!claims.has(key)) claims.set(key, inbox.id);
+	}
+	return claims;
+}

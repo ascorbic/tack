@@ -19,7 +19,7 @@ import { PLACED_CARD, spotBelow, spotInSection } from "../../shared/placement.ts
 import { SECTION_DEFAULT, type SizeOf } from "../../shared/sections.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
 import { shortRef } from "../../shared/rules.ts";
-import { type ShapeProps, LOCAL_ORIGIN } from "../../shared/shapes.ts";
+import { type ShapeProps, LOCAL_ORIGIN, shapesMap } from "../../shared/shapes.ts";
 import { readShapes } from "../../shared/structure.ts";
 import type { ShapeNode } from "../board.ts";
 import { focusWhenMounted } from "../board.ts";
@@ -43,7 +43,7 @@ import { boxOf } from "../../shared/sections.ts";
 import { InboxEditor } from "./InboxEditor.tsx";
 import { TRAY_GAP, TRAY_WIDTH, type TraySide, trayHeight, traySide } from "./layout.ts";
 import { inboxStore, useRefreshing } from "./store.ts";
-import { inboxUI, isFolded, useInboxUI, useTray } from "./useTray.ts";
+import { type Tray, inboxUI, isFolded, useInboxUI, useTray } from "./useTray.ts";
 import "./inbox.css";
 
 // Inbox trays: on the right edge of every inbox section, new matches wait,
@@ -209,7 +209,7 @@ export const InboxTray = memo(function InboxTray({
 	const y = section?.y ?? 0;
 	const anchor = isStatic ? undefined : { transform: `translate(${x}px, ${y}px)` };
 	const trayRef = useRef<HTMLElement>(null);
-	useKeepInView(trayRef, editing && !isStatic);
+	useKeepInView(trayRef, editing && !isStatic, side);
 	const refreshing = useRefreshing(id);
 	const [showDismissed, setShowDismissed] = useState(false);
 	const arrivals = useArrivals(tray.items);
@@ -306,8 +306,9 @@ export const InboxTray = memo(function InboxTray({
 						)}
 					</span>
 					{isInbox && !editing && tray.entry?.result.kind === "search" && (
-						<span className="inbox-tray-total" title={`Matches for ${shape.inbox?.query.q}`}>
-							{tray.total} {tray.total === 1 ? "match" : "matches"}
+						<span className="inbox-tray-total" title={breakdown(tray)}>
+							{count > 0 ? "of " : ""}
+							{tray.total} {count > 0 ? "matching" : tray.total === 1 ? "match" : "matches"}
 						</span>
 					)}
 					<span className="inbox-tray-tools">
@@ -349,7 +350,13 @@ export const InboxTray = memo(function InboxTray({
 				</header>
 
 				{editing ? (
-					<InboxEditor doc={doc} id={id} shape={shape} onDone={() => inboxUI.edit(null)} />
+					<InboxEditor
+						doc={doc}
+						id={id}
+						shape={shape}
+						user={user}
+						onDone={() => inboxUI.edit(null)}
+					/>
 				) : (
 					<>
 						{shape.inbox && (
@@ -402,6 +409,21 @@ export const InboxTray = memo(function InboxTray({
 								))}
 							</ol>
 						)}
+						{tray.elsewhere.size > 0 && (
+							<p className="inbox-elsewhere">
+								{[...tray.elsewhere].map(([other, n]) => (
+									<button
+										key={other}
+										type="button"
+										className="inbox-link"
+										title="Items more than one inbox matches wait in the narrower search's tray"
+										onClick={() => inboxUI.expand(other)}
+									>
+										{n} more {n === 1 ? "waits" : "wait"} in {quotedTitle(doc, other)}
+									</button>
+								))}
+							</p>
+						)}
 						{tray.dismissed.size > 0 && !readOnly && (
 							<footer className="inbox-tray-foot">
 								<button
@@ -439,12 +461,34 @@ export const InboxTray = memo(function InboxTray({
 	);
 });
 
+/** What the tray's counts are made of: "6 match: 2 new, 3 on the board, 1 dismissed". */
+function breakdown(tray: Tray): string {
+	const parts = [`${tray.items.length} new`];
+	if (tray.placed > 0) parts.push(`${tray.placed} on the board`);
+	const dismissed = tray.dismissed.size;
+	if (dismissed > 0) parts.push(`${dismissed} dismissed`);
+	const elsewhere = [...tray.elsewhere.values()].reduce((sum, n) => sum + n, 0);
+	if (elsewhere > 0) parts.push(`${elsewhere} in another inbox`);
+	return `${tray.total} ${tray.total === 1 ? "matches" : "match"} the search: ${parts.join(", ")}`;
+}
+
+/** A section's title in quotes, for saying which inbox: “Docs”. */
+function quotedTitle(doc: Y.Doc, id: string): string {
+	const title = shapesMap(doc).get(id)?.get("title");
+	return typeof title === "string" && title ? `“${title}”` : "another inbox";
+}
+
 /**
  * While `active`, keep what `ref` holds on the visible canvas and out from
  * under its chrome, panning the board to bring it into view: an inbox's
  * editor opened on a section low on the screen, say, and again as it grows.
  */
-function useKeepInView(ref: RefObject<HTMLElement | null>, active: boolean) {
+function useKeepInView(
+	ref: RefObject<HTMLElement | null>,
+	active: boolean,
+	/** Which side of its section it's on: moving sides moves it without resizing it. */
+	side?: string,
+) {
 	const flow = useReactFlow();
 	useEffect(() => {
 		const el = ref.current;
@@ -480,7 +524,7 @@ function useKeepInView(ref: RefObject<HTMLElement | null>, active: boolean) {
 			cancelAnimationFrame(frame);
 			observer.disconnect();
 		};
-	}, [ref, active, flow]);
+	}, [ref, active, flow, side]);
 }
 
 /** Keys that arrived since the tray first showed results: they slide in, marked new. */

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
-import { dismissedKeys, inboxTray } from "../../shared/inbox.ts";
+import { dismissedKeys, inboxSections, inboxTray, trayClaims } from "../../shared/inbox.ts";
 import { cardRefs, type ShapeProps, shapesMap } from "../../shared/shapes.ts";
 import type { QueryError } from "../../shared/widgets.ts";
 import { type InboxEntry, inboxStore, useInbox } from "./store.ts";
@@ -55,13 +55,96 @@ export function useBoardRefs(doc: Y.Doc | null): Set<string> {
 }
 
 const EMPTY = new Set<string>();
+const NO_ELSEWHERE: ReadonlyMap<string, number> = new Map();
+
+/**
+ * Which inbox's tray each waiting item goes in (see `trayClaims`), for
+ * boards with overlapping inboxes, recomputed when any inbox's results, the
+ * cards on the board, or an inbox's search or dismissals change.
+ */
+const claimsStores = new WeakMap<
+	Y.Doc,
+	{ get(): ReadonlyMap<string, string>; subscribe(l: () => void): () => void }
+>();
+
+const NO_CLAIMS: ReadonlyMap<string, string> = new Map();
+
+function claimsStore(doc: Y.Doc) {
+	let store = claimsStores.get(doc);
+	if (store) return store;
+	const refs = refsStore(doc);
+	const shapes = shapesMap(doc);
+	const compute = (): ReadonlyMap<string, string> => {
+		const inboxes = inboxSections(doc);
+		if (inboxes.size < 2) return NO_CLAIMS;
+		const onBoard = refs.get();
+		const candidates = [];
+		for (const id of inboxes.keys()) {
+			const result = inboxStore.get(id)?.result;
+			if (result?.kind !== "search") continue;
+			const dismissed = dismissedKeys({ dismissed: shapes.get(id)?.get("dismissed") } as Pick<
+				ShapeProps,
+				"dismissed"
+			>);
+			const keys = inboxTray(result, onBoard, dismissed).map((card) => card.key);
+			candidates.push({ id, total: result.total, keys });
+		}
+		return candidates.length < 2 ? NO_CLAIMS : trayClaims(candidates);
+	};
+	let claims = compute();
+	let signature = JSON.stringify([...claims]);
+	const listeners = new Set<() => void>();
+	const update = () => {
+		const next = compute();
+		const nextSignature = JSON.stringify([...next]);
+		if (nextSignature === signature) return;
+		claims = next;
+		signature = nextSignature;
+		for (const listener of listeners) listener();
+	};
+	inboxStore.subscribeEvery(update);
+	refs.subscribe(update);
+	shapes.observeDeep((events) => {
+		const relevant = events.some((event) => {
+			if (event.target === shapes) return true;
+			// A section's search or its dismissals (a nested map) changed.
+			if (event.target.parent === shapes) {
+				const keys = (event as Y.YMapEvent<unknown>).changes.keys;
+				return keys.has("inbox") || keys.has("dismissed");
+			}
+			return event.target.parent?.parent === shapes;
+		});
+		if (relevant) update();
+	});
+	store = {
+		get: () => claims,
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+	};
+	claimsStores.set(doc, store);
+	return store;
+}
+
+function useClaims(doc: Y.Doc | null): ReadonlyMap<string, string> {
+	const store = useMemo(() => (doc ? claimsStore(doc) : null), [doc]);
+	return useSyncExternalStore(
+		(listener) => store?.subscribe(listener) ?? (() => {}),
+		() => store?.get() ?? NO_CLAIMS,
+	);
+}
 
 export interface Tray {
 	entry: InboxEntry | undefined;
 	/** New matches, waiting to be sorted. */
 	items: Card[];
+	/** Matches waiting in other inboxes' trays instead, by section id: how many. */
+	elsewhere: ReadonlyMap<string, number>;
 	/** Every match, for counts. */
 	total: number;
+	/** Matches already on the board. */
+	placed: number;
 	error: QueryError | null;
 	dismissed: Set<string>;
 	loading: boolean;
@@ -73,26 +156,55 @@ export function useTray(doc: Y.Doc | null, id: string, shape: ShapeProps): Tray 
 	useEffect(() => (isInbox ? inboxStore.watch(id) : undefined), [id, isInbox]);
 	const entry = useInbox(id);
 	const refs = useBoardRefs(doc);
+	const claims = useClaims(doc);
 	// Keyed on the keys, so a re-read shape with the same dismissals doesn't recompute.
 	const dismissedJson = JSON.stringify([...dismissedKeys(shape)].sort());
 	const dismissed = useMemo(() => new Set<string>(JSON.parse(dismissedJson)), [dismissedJson]);
 	return useMemo(() => {
 		const result = entry?.result;
+		const none = NO_ELSEWHERE;
 		if (!isInbox || !result) {
-			return { entry, items: [], total: 0, error: null, dismissed, loading: isInbox };
+			return {
+				entry,
+				items: [],
+				elsewhere: none,
+				total: 0,
+				placed: 0,
+				error: null,
+				dismissed,
+				loading: isInbox,
+			};
 		}
 		if (result.kind === "error") {
-			return { entry, items: [], total: 0, error: result, dismissed, loading: false };
+			return {
+				entry,
+				items: [],
+				elsewhere: none,
+				total: 0,
+				placed: 0,
+				error: result,
+				dismissed,
+				loading: false,
+			};
+		}
+		const items: Card[] = [];
+		const elsewhere = new Map<string, number>();
+		for (const card of inboxTray(result, refs, dismissed)) {
+			const owner = claims.get(card.key) ?? id;
+			if (owner === id) items.push(card);
+			else elsewhere.set(owner, (elsewhere.get(owner) ?? 0) + 1);
 		}
 		return {
 			entry,
-			items: inboxTray(result, refs, dismissed),
+			items,
+			elsewhere,
 			total: result.total,
+			placed: result.items.filter((card) => refs.has(card.key)).length,
 			error: null,
 			dismissed,
 			loading: false,
 		};
-	}, [entry, refs, dismissed, isInbox]);
+	}, [entry, refs, dismissed, isInbox, claims, id]);
 }
 
 // Per-viewer UI state for inboxes: whether a tray is folded away, and which

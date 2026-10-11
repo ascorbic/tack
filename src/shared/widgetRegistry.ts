@@ -146,6 +146,43 @@ export function listPresets(
 		});
 }
 
+/**
+ * Starting points: the section's name as a label first, when the repository
+ * has one by that name ("Docs" → `label:docs`), then the ready-made
+ * searches lists use, under the same names.
+ */
+export function inboxSuggestions(
+	repo: string,
+	sectionTitle = "",
+	labels: string[] = [],
+): { label: string; q: string }[] {
+	const presets = listPresets(repo, null, { personal: false }).map(({ label, q }) => ({
+		label,
+		q,
+	}));
+	const label = labelNamed(sectionTitle, labels);
+	if (!label) return presets;
+	const value = /[\s,]/.test(label) ? `"${label}"` : label;
+	const q = `repo:${repo} is:open label:${value}`;
+	// A ready-made search that's already it keeps its name and place: the
+	// labels arrive after the editor opens, and nothing should jump.
+	if (presets.some((preset) => preset.q === q)) return presets;
+	return [{ label: `Labelled ${label}`, q }, ...presets];
+}
+
+/** The repository's label a section's title names, if any: "Docs" is `docs`, "Bugs" is `bug`. */
+export function labelNamed(title: string, labels: string[]): string | null {
+	const want = title.trim().toLowerCase();
+	if (!want) return null;
+	const singular = want.replace(/s$/, "");
+	return (
+		labels.find((label) => label.toLowerCase() === want) ??
+		labels.find((label) => label.toLowerCase() === singular) ??
+		labels.find((label) => label.toLowerCase().replace(/s$/, "") === singular) ??
+		null
+	);
+}
+
 // --- The registry --------------------------------------------------------------
 
 export const WIDGETS: Record<string, WidgetDefinition<never>> = {

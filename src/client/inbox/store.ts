@@ -36,6 +36,8 @@ class InboxStore {
 	private listeners = new Map<string, Set<() => void>>();
 	private watched = new Map<string, number>();
 	private refreshing = new Set<string>();
+	/** Listeners to every inbox's results, for what overlapping inboxes share. */
+	private everyListeners = new Set<() => void>();
 
 	channel: InboxChannel = { send: () => {} };
 
@@ -109,8 +111,15 @@ class InboxStore {
 		for (const id of ids) this.emit(id);
 	}
 
+	/** Hear about any inbox's results. Returns the way to stop. */
+	subscribeEvery(listener: () => void): () => void {
+		this.everyListeners.add(listener);
+		return () => this.everyListeners.delete(listener);
+	}
+
 	private emit(id: string): void {
 		for (const listener of this.listeners.get(id) ?? []) listener();
+		for (const listener of this.everyListeners) listener();
 	}
 }
 
