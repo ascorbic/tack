@@ -13,19 +13,28 @@
 // - who someone is comes from the Worker's access check, never the client:
 //   signed-in people get their own login, name and avatar; guests get none
 //   (a guest's made-up name stays, without a login or picture);
-// - states are bounded in size, and malformed updates are dropped whole.
+// - states are bounded in size, a connection speaks for a few clients at
+//   most, and malformed updates are dropped whole.
 
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 
 /** Largest awareness state relayed, in bytes of JSON. */
 export const MAX_STATE_BYTES = 32 * 1024;
+/**
+ * Most client ids one connection may speak for. A page has one (its
+ * document's), so this only stops a connection inventing thousands of
+ * people to fill the board's memory.
+ */
+export const MAX_CLIENTS_PER_CONNECTION = 4;
 const MAX_NAME = 80;
 const MAX_COLOR = 32;
 
 /** Who's on a connection, as the Worker's access check said. */
 export interface AwarenessIdentity {
 	connection: string;
+	/** Client ids this connection already speaks for (default 0). */
+	speaksFor?: number;
 	person?: { login: string; name: string | null; avatarUrl: string };
 }
 
@@ -49,6 +58,7 @@ export function sanitizeAwareness(
 ): SanitizedAwareness {
 	const entries: { clientId: number; clock: number; state: string }[] = [];
 	let dropped = 0;
+	let speaksFor = identity.speaksFor ?? 0;
 	try {
 		const decoder = decoding.createDecoder(update);
 		const count = decoding.readVarUint(decoder);
@@ -61,11 +71,16 @@ export function sanitizeAwareness(
 				dropped++;
 				continue;
 			}
+			if (held === undefined && speaksFor >= MAX_CLIENTS_PER_CONNECTION) {
+				dropped++;
+				continue;
+			}
 			const state = cleanState(json, identity);
 			if (state === undefined) {
 				dropped++;
 				continue;
 			}
+			if (held === undefined) speaksFor++;
 			entries.push({ clientId, clock, state });
 		}
 	} catch {

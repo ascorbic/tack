@@ -236,6 +236,8 @@ export class Board extends YServer<Env> {
 	private backups: Backups | null = null;
 	/** Presence client ids, by the connection that speaks for them (see awareness.ts). */
 	private awarenessOwners = new Map<number, string>();
+	/** And the other way: the client ids each connection speaks for. */
+	private awarenessClients = new Map<string, Set<number>>();
 	/** Presence changed since the last batch went out, and when the next goes. */
 	private awarenessDirty = new Set<number>();
 	private awarenessTimer: ReturnType<typeof setTimeout> | undefined;
@@ -743,9 +745,11 @@ export class Board extends YServer<Env> {
 		if (leaving?.userId != null) this.visits?.touch(leaving.userId);
 		this.viewing.delete(connection.id);
 		this.commentBudget.delete(connection.id);
-		for (const [clientId, owner] of this.awarenessOwners) {
-			if (owner === connection.id) this.awarenessOwners.delete(clientId);
+		for (const clientId of this.awarenessClients.get(connection.id) ?? []) {
+			if (this.awarenessOwners.get(clientId) === connection.id)
+				this.awarenessOwners.delete(clientId);
 		}
+		this.awarenessClients.delete(connection.id);
 		this.widgets?.disconnect(connection.id);
 		this.facilitation?.closed(connection.id);
 		if (this.viewing.size === 0) this.stopHeartbeat();
@@ -802,12 +806,21 @@ export class Board extends YServer<Env> {
 		} catch {
 			return null;
 		}
+		const mine = this.awarenessClients.get(connection.id) ?? new Set<number>();
 		const result = sanitizeAwareness(
 			update,
-			{ connection: connection.id, ...(access.person ? { person: access.person } : {}) },
+			{
+				connection: connection.id,
+				speaksFor: mine.size,
+				...(access.person ? { person: access.person } : {}),
+			},
 			(clientId) => this.awarenessOwners.get(clientId),
 		);
-		for (const clientId of result.claimed) this.awarenessOwners.set(clientId, connection.id);
+		for (const clientId of result.claimed) {
+			this.awarenessOwners.set(clientId, connection.id);
+			mine.add(clientId);
+		}
+		if (mine.size > 0) this.awarenessClients.set(connection.id, mine);
 		if (result.dropped > 0) {
 			log.warn("board.awareness.refused", {
 				board: this.name,

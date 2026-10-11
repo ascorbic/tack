@@ -406,6 +406,19 @@ describe("presence", () => {
 			() => undefined,
 		);
 		expect(big).toMatchObject({ update: null, dropped: 1 });
+		// A page speaks for one client: a connection can't invent a crowd.
+		const crowd = sanitizeAwareness(
+			update({ 20: [1, {}], 21: [1, {}], 22: [1, {}] }),
+			{ connection: "c", speaksFor: 2 },
+			() => undefined,
+		);
+		expect(crowd).toMatchObject({ claimed: [20, 21], dropped: 1 });
+		const own = sanitizeAwareness(
+			update({ 20: [2, {}] }),
+			{ connection: "c", speaksFor: 4 },
+			() => "c",
+		);
+		expect(own.claimed).toEqual([20]);
 		expect(
 			sanitizeAwareness(new Uint8Array([5, 1]), { connection: "b" }, () => undefined),
 		).toMatchObject({
