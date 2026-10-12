@@ -18,7 +18,23 @@ A section is a frame with a title. Whatever's inside moves with it.
 
 Press <kbd>F</kbd>, then drag out a rectangle, or click to place one. A section drawn around shapes takes them in. One placed with a click starts empty: it goes in the free space where you clicked (smaller, if that's what fits), or the nearest free space, and never takes shapes from another section. Type its title straight away ("Name this section"); to rename it later, double-click the title, or select the section on its own and press <kbd>Enter</kbd>.
 
-Sections come in grey, red, orange, yellow, green, blue and purple, from the colour picker that shows when one is selected. The badge beside the title counts what's inside.
+Sections come in grey, red, orange, yellow, green, blue and purple: choose from the colour button at the start of its bar (below), or, with several sections selected, from the colours beside each one's title. The badge beside the title counts what's inside.
+
+## The section's bar
+
+Select a section on its own (as an editor) and one bar shows over its title, above everything on the board, in four groups:
+
+- **Colour**: its colour, and the others in a menu.
+- **Display**: **Cards**, **List** or **Mini cards** (see below), and a list's **Sort**.
+- **Facilitate**: [**Silent mode**](/facilitation/silent-mode/), [**Vote**](/facilitation/dot-voting/) and [**Make inbox**](/automation/inboxes/).
+- **Actions**: what it can become, such as **Make parent issue** and **Auto-stack**, then **Fit**, and AI's **Summarise** and **Draft a decision** when they're on.
+
+<Screenshot
+	name="section-bar"
+	alt="The Next section selected, with one bar over its title: its colour, the display switch, silent mode, vote and inbox, then Make parent issue and a … menu."
+/>
+
+With no room over the title, the bar goes under the section, and it's pinned to the edge of the view when the section fills it, so it's always on screen and never under another shape. What doesn't fit across a small screen, or across a section that's small on screen, is in the **…** menu at the bar's end. <kbd>Tab</kbd> from the selected section (or <kbd>F6</kbd>) goes to the bar; the arrow keys move along it, and <kbd>Esc</kbd> goes back to the section.
 
 ## What's inside
 
@@ -32,7 +48,7 @@ A shape belongs to the deepest section that contains its centre and is bigger th
 
 A section grows to hold what's in it. Drop, paste or add something that reaches over its edge (with its centre inside, so it belongs there), and the edge glides out to take it in, with a little room to spare. The same happens when a stack in it opens into its tray, or a card in it loads taller than it was placed. A section inside another one grows the one around it too. Undo takes back the drop and the growing together.
 
-Sections never shrink on their own, and never grow past a size you chose by hand: resize one smaller than what's in it and it stays that size. To snap a section to its contents, larger or smaller, select it on its own and choose **Fit** in the bar under it (<kbd>⌥</kbd> <kbd>F</kbd>), or double-click any of its grips. It fits snugly around what's in it, with room all round and for its title; an empty section fits to a small default size. It's one undo step.
+Sections never shrink on their own, and never grow past a size you chose by hand: resize one smaller than what's in it and it stays that size. To snap a section to its contents, larger or smaller, select it on its own and choose **Fit** in its bar (<kbd>⌥</kbd> <kbd>F</kbd>), or double-click any of its grips. It fits snugly around what's in it, with room all round and for its title; an empty section fits to a small default size. It's one undo step.
 
 Sections showing a list or mini cards already size themselves to what's in them, so they don't need either.
 
@@ -40,7 +56,7 @@ Sections showing a list or mini cards already size themselves to what's in them,
 
 ## Cards, a list or mini cards
 
-A section can show what's in it three ways. Select it on its own, and choose in its header (**Show contents as**):
+A section can show what's in it three ways. Select it on its own, and choose in its bar (**Show contents as**):
 
 - **Cards**: everything where it was placed, as usual.
 - **List**: a compact row for each thing, in order. Sections inside show as groups, with a header row.
@@ -65,12 +81,12 @@ Stamps and dots show on rows, and stickies in [silent mode](/facilitation/silent
 
 ## What a section can become
 
-Select a section on its own (as an editor) and the bar under it offers **Make parent issue** (<kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd>): one new issue, with everything in the section as its sub-issues. See [Built-in actions](/writing-back/actions/#parent-issue). With AI suggestions on, it also offers **Auto-stack** (<kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>G</kbd>): what's loose in it sorted into named stacks, inside it. See [Stacks](/boards/stacks/#a-whole-section).
+Select a section on its own (as an editor) and its bar offers **Make parent issue** (<kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd>): one new issue, with everything in the section as its sub-issues. See [Built-in actions](/writing-back/actions/#parent-issue). With AI suggestions on, it also offers **Auto-stack** (<kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>G</kbd>): what's loose in it sorted into named stacks, inside it. See [Stacks](/boards/stacks/#a-whole-section).
 
-Its header offers:
+Its bar also offers, under Facilitate:
 
-- **Make inbox**: "Collect new matches for a search in this section". See [Inbox frames](/automation/inboxes/).
-- **Silent mode**: "Everyone writes on their own: stickies stay face down until you reveal them". See [Silent mode](/facilitation/silent-mode/).
-- **Vote**: "Dot vote on what's in this section". See [Dot voting](/facilitation/dot-voting/).
+- **Silent mode**: everyone writes on their own, and stickies stay face down until you reveal them. See [Silent mode](/facilitation/silent-mode/).
+- **Vote**: a dot vote on what's in the section. See [Dot voting](/facilitation/dot-voting/).
+- **Make inbox**: collect new matches for a search in the section. See [Inbox frames](/automation/inboxes/).
 
 A [dependency map](/widgets/dependency-map/) can map the cards in a section, and a [rule](/automation/rules/) can add matching items to one.

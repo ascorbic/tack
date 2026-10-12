@@ -117,6 +117,23 @@ const SHOTS: Shot[] = [
 	{ name: "writes", title: "unpic 5.0 planning", url: "/play?scenario=push" },
 	{ name: "decisions", title: "Architecture decisions", url: "/play?scenario=decisions" },
 	{ name: "sections", title: "Roadmap", url: "/play?scenario=sections" },
+	{
+		name: "section-bar",
+		title: "Roadmap",
+		url: "/play?scenario=sections",
+		width: 1200,
+		height: 640,
+		prepare: async (page) => {
+			// Room over the sections for the bar, then one selected on its own.
+			await page.mouse.move(600, 400);
+			await page.mouse.wheel(0, -260);
+			await page.waitForTimeout(600);
+			await page
+				.locator(".section-title", { hasText: "Next" })
+				.click({ position: { x: 12, y: 8 } });
+			await page.waitForTimeout(900);
+		},
+	},
 	{ name: "lists", title: "Roadmap", url: "/play?scenario=lists" },
 	{ name: "connectors", title: "Dependencies", url: "/play?scenario=connectors" },
 	{ name: "stacks", title: "unpic 5.0 planning", url: "/play?scenario=stacks" },
