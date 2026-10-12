@@ -137,22 +137,26 @@ export function isStackMessage(message: { type?: unknown }): message is StackMes
 }
 
 /**
- * Why "Group these" didn't, in words. `withheld` is how many cards were left
+ * Why "Group these" didn’t, in words. `withheld` is how many cards were left
  * out because their titles can't be shared with everyone here: when there
- * are too few, that's likely why.
+ * are too few, that's likely why, and if that's all of the `asked`, it's
+ * certainly why.
  */
-export function groupFailure(reason: GroupFailure, withheld = 0): string {
+export function groupFailure(reason: GroupFailure, withheld = 0, asked?: number): string {
 	switch (reason) {
 		case "off":
 			return "AI suggestions are off on this Tack, so there’s nothing to ask: stack them up by hand";
 		case "too_few":
+			if (withheld > 0 && asked !== undefined && withheld >= asked) {
+				return "Tack can only group what everyone here can read, and none of these titles can be shared with everyone on this board";
+			}
 			if (withheld === 1) {
-				return "Too few to group: a card was left out, as its title can’t be shared with everyone on this board. Select at least three stickies (or cards) with something to read";
+				return "Too few to group: a card was left out, as its title can’t be shared with everyone on this board. Select at least three stickies, issues or pull requests with something to read";
 			}
 			if (withheld > 1) {
-				return `Too few to group: ${withheld} cards were left out, as their titles can’t be shared with everyone on this board. Select at least three stickies (or cards) with something to read`;
+				return `Too few to group: ${withheld} cards were left out, as their titles can’t be shared with everyone on this board. Select at least three stickies, issues or pull requests with something to read`;
 			}
-			return "Select at least three stickies (or cards) with something to read";
+			return "Select at least three stickies, issues or pull requests with something to read";
 		case "limited":
 			return "That’s a lot of asking: try again in a minute";
 		case "not_editor":

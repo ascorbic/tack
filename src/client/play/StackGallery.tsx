@@ -244,16 +244,22 @@ const NOTES = [
 	{ id: "f", text: "A logo?", color: "blue" },
 ];
 
-const CARDS = [notesCard, loaderCard].flatMap((card) =>
+const asInfo = (card: Card | undefined) =>
 	card && "title" in card
 		? [{ id: card.item, text: card.title, ref: card.item, state: card.state }]
-		: [],
-);
+		: [];
+
+const CARDS = [notesCard, loaderCard].flatMap(asInfo);
+
+/** Issues and pull requests selected on their own. */
+const ONLY_CARDS = [notesCard, loaderCard, versionsCard, srcsetCard].flatMap(asInfo);
 
 const PANELS: {
 	label: string;
 	preview: GroupAnswer | "thinking";
 	cards?: boolean;
+	/** Issues and pull requests alone, no stickies. */
+	onlyCards?: boolean;
 }[] = [
 	{ label: "Reading the stickies", preview: "thinking" },
 	{
@@ -282,6 +288,19 @@ const PANELS: {
 		cards: true,
 		preview: { ok: false, reason: "too_few", withheld: 2 },
 	},
+	{
+		label: "Issues and pull requests",
+		onlyCards: true,
+		preview: {
+			ok: true,
+			stacks: [{ name: "Thin release notes", ids: ["#701", "#712", "#688"] }],
+		},
+	},
+	{
+		label: "Nothing everyone can read",
+		onlyCards: true,
+		preview: { ok: false, reason: "too_few", withheld: 4 },
+	},
 	{ label: "The model failed", preview: { ok: false, reason: "failed" } },
 	{ label: "Rate limited", preview: { ok: false, reason: "limited" } },
 ];
@@ -293,7 +312,7 @@ export function GroupTheseGallery() {
 		<section>
 			<h2>Group these</h2>
 			<div className="gallery-grid actions-panels">
-				{PANELS.map(({ label, preview, cards }) => (
+				{PANELS.map(({ label, preview, cards, onlyCards }) => (
 					<figure key={label}>
 						<div
 							className="action-popover"
@@ -304,8 +323,8 @@ export function GroupTheseGallery() {
 						>
 							<GroupThese
 								doc={doc}
-								stickies={NOTES}
-								cards={CARDS}
+								stickies={onlyCards ? [] : NOTES}
+								cards={onlyCards ? ONLY_CARDS : CARDS}
 								initialCards={cards}
 								preview={preview}
 								onMade={() => {}}

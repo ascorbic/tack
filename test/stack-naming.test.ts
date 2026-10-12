@@ -122,7 +122,7 @@ class FakeAi implements StackAi {
 	}
 }
 
-function setup(ai: FakeAi | null = new FakeAi()) {
+function setup(ai: FakeAi | null = new FakeAi(), titles?: Record<string, string>) {
 	const doc = new Y.Doc();
 	let now = 1_000_000;
 	const logs: { event: string; context: Record<string, unknown> }[] = [];
@@ -134,11 +134,19 @@ function setup(ai: FakeAi | null = new FakeAi()) {
 		// Timers are the test's: it scans when it wants.
 		setTimer: () => 0,
 		clearTimer: () => {},
+		...(titles
+			? {
+					cardTitles: async (refs: readonly string[]) =>
+						new Map(refs.flatMap((ref) => (titles[ref] ? [[ref, titles[ref]] as const] : []))),
+				}
+			: {}),
 	});
 	const sticky = (id: string, text: string, extra: Record<string, unknown> = {}) =>
 		addShape(doc, id, { type: "sticky", text, x: 0, y: 0, z: nextZ(doc), ...extra });
+	const card = (id: string, ref: string) =>
+		addShape(doc, id, { type: "card", ref, x: 0, y: 0, z: nextZ(doc) });
 	const get = (id: string) => readShape(shapesMap(doc).get(id) as Y.Map<unknown>);
-	return { doc, namer, sticky, get, logs, advance: (ms: number) => (now += ms) };
+	return { doc, namer, sticky, card, get, logs, advance: (ms: number) => (now += ms) };
 }
 
 describe("naming stacks", () => {
@@ -476,6 +484,21 @@ describe("grouping", () => {
 			withheld: 2,
 		});
 		expect(ai.grouped).toHaveLength(0);
+	});
+
+	it("groups issues and pull requests on their own, by the titles that may be shared", async () => {
+		const ai = new FakeAi();
+		const { namer, card } = setup(ai, { "o/r#1": "One", "o/r#2": "Two", "o/r#3": "Three" });
+		card("a", "o/r#1");
+		card("b", "o/r#2");
+		card("c", "o/r#3");
+		card("secret", "o/private#9");
+		expect(await namer.group(["a", "b", "c", "secret"])).toMatchObject({
+			ok: true,
+			stacks: [{ ids: ["a", "b", "c"] }],
+			withheld: 1,
+		});
+		expect(ai.grouped.at(-1)?.map((note) => note.text)).toEqual(["One", "Two", "Three"]);
 	});
 
 	it("says why it can't", async () => {

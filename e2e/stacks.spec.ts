@@ -370,6 +370,37 @@ test("Group these leaves cards out unless asked to include them", async ({ page 
 	await expect(panel.getByText("1 card stays where it is.")).toBeVisible();
 });
 
+test("issues and pull requests on their own are grouped, with nothing to tick", async ({
+	page,
+}) => {
+	// The release stack's cards, laid out loose, and two more beside them.
+	await openStack(page, "Thin release notes");
+	await page.keyboard.press("Alt+KeyU");
+	await expect(stackNode(page, "Thin release notes")).toHaveCount(0);
+	await page.keyboard.press("Shift+Digit1");
+	await selectAll(page, [
+		cardNode(page, "Write release notes for the 5.0"),
+		cardNode(page, "Changelog entries for the new loader"),
+		cardNode(page, "Version notes skip breaking"),
+		cardNode(page, "Dev server lags"),
+		cardNode(page, "perf: cache srcset"),
+	]);
+	const bar = page.getByRole("toolbar", { name: "Stage changes" });
+	await expect(bar.getByRole("button", { name: "Group these into named stacks" })).toHaveCount(1);
+	await page.keyboard.press("Alt+Shift+KeyG");
+	const panel = page.getByRole("dialog", { name: "Group these into named stacks" });
+	await expect(panel.getByRole("textbox", { name: "Name of stack 1" })).toHaveValue(
+		"Thin release notes",
+	);
+	await expect(panel.getByRole("checkbox", { name: /Include cards/ })).toHaveCount(0);
+	await expect(page.locator(".react-flow__node.stack-proposed")).toHaveCount(3);
+	await expect(panel.getByText("2 cards stay where they are.")).toBeVisible();
+	await page.screenshot({ path: "/private/tmp/claude-501/group-cards/cards-only.png" });
+	const before = (await stacks(page)).length;
+	await panel.getByRole("button", { name: "Make the stack" }).click();
+	await expect.poll(async () => (await stacks(page)).length).toBe(before + 1);
+});
+
 test("with AI suggestions off, stacks are Untitled and there's no Group these", async ({
 	page,
 }) => {

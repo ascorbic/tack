@@ -11,8 +11,9 @@ import { SparkIcon } from "./StackNode.tsx";
 
 // "Group these" (#73): stacks the board's AI proposes for a selection of
 // stickies (and, if asked, the cards selected with them: "Include cards"),
-// previewed before anything's written. The board marks each
-// proposed stack's stickies in its colour while the panel's open
+// or of issues and pull requests on their own, previewed before anything's
+// written. The board marks each proposed stack's stickies in its colour
+// while the panel's open
 // (`stackStore.setProposal`); names can be changed (and are then a person's,
 // not a suggestion), stickies left out, stacks dropped, and the rest made in
 // one undo step. Nothing's sent to the model but the selected stickies'
@@ -53,7 +54,7 @@ export function GroupThese({
 	doc: Y.Doc;
 	/** The selected stickies, as they read now. */
 	stickies: readonly StickyInfo[];
-	/** Cards selected with them, which join in only when asked to. */
+	/** Cards selected with them, which join in when asked to, or alone are what's grouped. */
 	cards?: readonly CardInfo[];
 	sizeOf?: SizeOf;
 	/** The stacks made, and what went into them, in words ("5 stickies"). */
@@ -67,11 +68,18 @@ export function GroupThese({
 	const [answer, setAnswer] = useState<GroupAnswer | null>(null);
 	const [drafts, setDrafts] = useState<Draft[]>([]);
 	const [attempt, setAttempt] = useState(0);
-	// Cards stay out unless asked in: a theme's usually the stickies'.
-	const [withCards, setWithCards] = useState(initialCards);
+	// With stickies, cards stay out unless asked in (a theme's usually the
+	// stickies'), or they're needed to make three. On their own, the cards
+	// are what's grouped, and there's nothing to ask.
+	const [withCards, setWithCards] = useState(
+		() => initialCards || stickies.filter((s) => cleanText(s.text)).length < 3,
+	);
+	const onlyCards = stickies.length === 0;
+	const cardsIn = onlyCards || withCards;
+	const askAboutCards = cards.length > 0 && !onlyCards;
 	const items = useMemo<(StickyInfo | CardInfo)[]>(
-		() => (withCards ? [...stickies, ...cards] : [...stickies]),
-		[withCards, stickies, cards],
+		() => (cardsIn ? [...stickies, ...cards] : [...stickies]),
+		[cardsIn, stickies, cards],
 	);
 	// The same selection is the same request, however often it's re-read.
 	const idsKey = items.map((item) => item.id).join(",");
@@ -137,7 +145,7 @@ export function GroupThese({
 					title={title}
 					detail={`Reading ${countMembers(items.map((item) => (cardIds.has(item.id) ? "card" : "sticky")))} for themes…`}
 				/>
-				{cards.length > 0 && (
+				{askAboutCards && (
 					<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
 				)}
 				<div className="group-thinking" aria-hidden="true">
@@ -165,11 +173,11 @@ export function GroupThese({
 		return (
 			<div className="group-these">
 				<PopoverHead title={title} />
-				{cards.length > 0 && (
+				{askAboutCards && (
 					<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
 				)}
 				<Notice tone={answer.reason === "failed" ? "error" : "warn"}>
-					{groupFailure(answer.reason, answer.withheld)}
+					{groupFailure(answer.reason, answer.withheld, items.length)}
 				</Notice>
 				<footer className="action-foot">
 					<button type="button" className="action-secondary" onClick={onClose}>
@@ -205,7 +213,7 @@ export function GroupThese({
 						: `${proposal.length} ${proposal.length === 1 ? "stack" : "stacks"} of ${grouped}: change a name, or leave some out`
 				}
 			/>
-			{cards.length > 0 && (
+			{askAboutCards && (
 				<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
 			)}
 			<ol className="group-list">

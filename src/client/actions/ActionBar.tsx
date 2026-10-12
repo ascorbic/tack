@@ -339,11 +339,15 @@ export function ActionBar(props: ActionBarProps) {
 		) {
 			out.push({ id: "stackThese", label: "Stack these", icon: <StackIcon />, text: "Stack" });
 		}
-		// Stickies, and cards if they're asked to join in (the panel's choice).
+		// Stickies and cards, and nothing else (no rows in a list): with stickies,
+		// cards join in if asked to (the panel's choice); on their own, they're
+		// what's grouped. Whether a card's title may be shared is the server's to
+		// say, so here every card counts.
 		if (
 			ai === true &&
-			stickies.length >= 3 &&
-			selected.length === stickies.length + cardNodes.length
+			stickies.length + cardNodes.length >= 3 &&
+			selected.length === stickies.length + cardNodes.length &&
+			[...stickies, ...cardNodes].every((n) => n.data.display === undefined)
 		) {
 			const readable = stickies.filter(
 				(s) => !s.data.shape.silent && (s.data.shape.text ?? "").trim() !== "",
@@ -354,9 +358,11 @@ export function ActionBar(props: ActionBarProps) {
 				icon: <SparkIcon />,
 				text: "Group these",
 				unavailable:
-					readable.length < 3
-						? "Select at least three stickies with something written on them"
-						: undefined,
+					readable.length + cardNodes.length >= 3
+						? undefined
+						: cardNodes.length === 0
+							? "Select at least three stickies with something written on them"
+							: "Select at least three issues, pull requests or stickies with something written on them",
 			});
 		}
 		if (onlyStack) {
