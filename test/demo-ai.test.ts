@@ -8,7 +8,7 @@
 import { execFileSync } from "node:child_process";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
-import { AI_MODEL } from "../src/server/ai.ts";
+import { AI_FALLBACK_MODEL, AI_MODEL } from "../src/server/ai.ts";
 import { AI_CONTEXT_CHARS, AI_ITEM_CHARS, summaryMessages } from "../src/shared/ai.ts";
 import { GROUP_SYSTEM, NAME_SYSTEM, nameMessage } from "../src/shared/stackNaming.ts";
 import { FAKE_AI_SCRIPT, FakeAi } from "./fake-ai.ts";
@@ -163,6 +163,7 @@ describe("the demo's AI", () => {
 			leftOut: { faceDown: 0, private: 0 },
 		});
 		expect(started.ai.calls[0]?.input.messages).toEqual(summaryMessages(items));
+		expect(started.ai.calls[0]?.model).toBe(AI_FALLBACK_MODEL);
 	});
 
 	it("drafts a decision, about what was asked", async () => {
@@ -217,7 +218,7 @@ describe("the demo's AI", () => {
 			outcome: "answered",
 			status: 200,
 		});
-		expect(lines.at(-1)).toMatchObject({ task: "summary", items: 1, model: AI_MODEL });
+		expect(lines.at(-1)).toMatchObject({ task: "summary", items: 1, model: AI_FALLBACK_MODEL });
 		expect(typeof lines.at(-1)?.ms).toBe("number");
 		const all = started.logs.join("\n");
 		expect(all).not.toContain("Secret plans");

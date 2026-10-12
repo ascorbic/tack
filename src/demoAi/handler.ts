@@ -13,7 +13,7 @@ import {
 	DemoAiRequestSchema,
 } from "../shared/demoAi.ts";
 import { readGroups, readName } from "../shared/stackNaming.ts";
-import { AI_MODEL, hasAi } from "../server/ai.ts";
+import { AI_FALLBACK_MODEL, AI_MODEL, hasAi } from "../server/ai.ts";
 import { draft } from "../server/ai/draft.ts";
 import { log } from "../server/log.ts";
 import { stackAi } from "../server/stacks.ts";
@@ -26,7 +26,7 @@ import { type DailyLimits, type DemoBudget, dayOf, nextDay } from "./budget.ts";
 // The demo runs entirely in the browser, but for this: its stacks' names,
 // Auto-stack, summaries, decisions and widgets ask Workers AI here, with the
 // prompts, answer formats and checks a real board's server uses (#64, #73),
-// so what comes back is as good. The page sends only the text the task
+// so what comes back is as good (the models: `DEMO_MODELS`). The page sends only the text the task
 // reads (src/shared/demoAi.ts); everything else (the prompt, the model, how
 // many tokens) is decided here. Anything that fails, or is refused, is the
 // page's cue to use its stand-in instead (src/client/try/ai.ts).
@@ -57,6 +57,22 @@ export const DEMO_DAILY_DEFAULTS: DailyLimits = { total: 3000, visitor: 150 };
 
 /** How long the model gets: the page gives up a little after, and uses its stand-in. */
 const TIMEOUT_MS = { name: 10_000, group: 25_000, draft: 25_000 } as const;
+
+/**
+ * Which model answers each task. Names are Gemma 4's (`AI_MODEL`), as on a
+ * real board: a short answer it gives in about a second. The rest are
+ * GLM-4.7 Flash's (`AI_FALLBACK_MODEL`, the same request): with these larger
+ * schemas, Gemma 4 on Workers AI often runs on in whitespace to its token
+ * limit (half a minute, then no JSON) or proposes widgets that don't check
+ * out, where GLM answered 12 of 12 tries in 5 to 10 s (October 2026).
+ */
+export const DEMO_MODELS: Record<DemoAiRequest["task"], string> = {
+	name: AI_MODEL,
+	group: AI_FALLBACK_MODEL,
+	summary: AI_FALLBACK_MODEL,
+	decision: AI_FALLBACK_MODEL,
+	widget: AI_FALLBACK_MODEL,
+};
 
 export type Outcome =
 	| "answered"
@@ -99,13 +115,13 @@ export async function handleDemoAi(
 	const origin = request.headers.get("origin");
 	const site = request.headers.get("sec-fetch-site");
 	if (origin !== new URL(request.url).origin || (site !== null && site !== "same-origin")) {
-		return done("forbidden", refuse("forbidden"));
+		return done("forbidden", refuse("forbidden", { message: "Only the demo’s own page can ask." }));
 	}
 	if (!/^application\/json\b/i.test(request.headers.get("content-type") ?? "")) {
 		return done("invalid", refuse("invalid"));
 	}
 	const off = (env.DEMO_AI ?? "on").trim().toLowerCase() === "off";
-	if (off || !hasAi(env as unknown as Env)) return done("off", refuse("off"));
+	if (off || !hasAi(env as unknown as Env)) return done("off", refuse("off", OFF));
 
 	const declared = Number(request.headers.get("content-length") ?? 0);
 	if (declared > DEMO_AI_MAX_BODY) return done("invalid", refuse("invalid"));
@@ -125,7 +141,7 @@ export async function handleDemoAi(
 	// A visitor's rate, then the day's budget: each says when to try again.
 	const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
 	const limiter = env.DEMO_AI_LIMIT;
-	if (!limiter || !env.DemoBudget) return done("off", refuse("off"), context);
+	if (!limiter || !env.DemoBudget) return done("off", refuse("off", OFF), context);
 	const { success } = await limiter.limit({ key: ip });
 	if (!success) {
 		return done("rate_limited", refuse("rate_limited", { retryAt: now() + 60_000 }), {
@@ -155,7 +171,12 @@ export async function handleDemoAi(
 	}
 
 	const answered = await answer(env, input);
-	const extra = { ...context, model: AI_MODEL, attempts: answered.attempts, used: spent.used };
+	const extra = {
+		...context,
+		model: DEMO_MODELS[input.task],
+		attempts: answered.attempts,
+		used: spent.used,
+	};
 	const reply = answered.body;
 	if (isError(reply)) {
 		return done(
@@ -181,7 +202,7 @@ async function answer(
 ): Promise<{ body: Answered; attempts: number }> {
 	const worker = env as unknown as Env;
 	if (input.task === "name" || input.task === "group") {
-		const ai = stackAi(worker);
+		const ai = stackAi(worker, { name: DEMO_MODELS.name, group: DEMO_MODELS.group });
 		if (!ai) return { body: aiError("failed"), attempts: 0 };
 		try {
 			if (input.task === "name") {
@@ -215,6 +236,7 @@ async function answer(
 				: input.task === "decision"
 					? { task: "decision", items: input.items, leftOut, prompt: input.prompt || undefined }
 					: { task: "summary", items: input.items, leftOut },
+			{ model: DEMO_MODELS[input.task] },
 		),
 		TIMEOUT_MS.draft,
 	).catch(() => ({ response: aiError("failed"), attempts: 1 }));
@@ -270,6 +292,8 @@ function within<T>(promise: Promise<T>, ms: number): Promise<T> {
 		}),
 	]).finally(() => clearTimeout(timer));
 }
+
+const OFF = { message: "The demo’s AI is off here: the page’s stand-in answers." };
 
 const NO_STORE = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 
