@@ -81,3 +81,4 @@ A GitHub App made from `/setup` on localhost works for sign-in and installation 
 - [compatibility.ts](compatibility.ts) — compatibility date and flags, shared with the test runtime.
 - [wrangler.jsonc](wrangler.jsonc) — generated from `cloudflare.config.ts` (`pnpm run wrangler-config`) for the Deploy to Cloudflare button, which only reads Wrangler configuration. Nothing else uses it; don't edit it by hand.
 - [vite.config.ts](vite.config.ts) — everything else: Vite, Vitest, oxlint, and oxfmt in one file.
+- [site/](site/) — [tack.social](https://tack.social): the docs, the landing page and the `/try` demo (built from the app's own client). You don't need it to run your own Tack, and the Deploy button and `pnpm run deploy` leave it out.
