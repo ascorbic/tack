@@ -445,6 +445,17 @@
 	color: var(--ink);
 }
 
+/* Only what shows takes a click: the lock and the words when they fit,
+   never the empty width the words leave when they don't. */
+.topbar .try-note-pill {
+	pointer-events: none;
+}
+
+.try-note-lock,
+.try-note-text {
+	pointer-events: auto;
+}
+
 .topbar .try-note-pill:active .try-note-lock {
 	transform: scale(0.9);
 }
