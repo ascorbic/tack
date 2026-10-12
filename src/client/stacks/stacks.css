@@ -1,24 +1,27 @@
 /* ---------------------------------------------------------------------------
-   Stacks (#73): a neat stack of stickies with a count and a name, that opens
-   up as a sticky is held over it (like a folder on a phone's home screen)
-   and spreads into a tray when clicked.
+   Stacks (#73): a theme card, its name the headline and its first few
+   stickies and cards in a line each, that opens up as something is held
+   over it (like a folder on a phone's home screen) and spreads into a tray
+   when clicked.
    ------------------------------------------------------------------------ */
+
+/* The theme card ------------------------------------------------------------
+   Its name is the headline; its first few members are one-line excerpts.
+   Sizes here match STACK_CARD in src/shared/stacks.ts. */
 
 .stack {
 	position: relative;
-	width: 200px;
-	height: 240px;
+	width: 216px;
 }
 
-.stack-papers {
+/* What lifts, gulps and gathers: the card and the papers behind it. */
+.stack-lift {
 	position: relative;
-	width: 200px;
-	height: 200px;
-	transform-origin: 50% 55%;
+	transform-origin: 50% 40%;
 	transition: transform var(--t-settle) var(--ease-spring);
 }
 
-.stack[data-enter] .stack-papers {
+.stack[data-enter] .stack-lift {
 	animation: stack-gather calc(520ms * var(--motion)) var(--ease-spring) backwards;
 }
 
@@ -29,124 +32,162 @@
 	}
 }
 
-/* The papers under the top sticky: the next ones down, peeking out. */
-.stack-paper,
-.stack-top {
-	position: absolute;
-	left: 12px;
-	top: 10px;
-	width: 176px;
-	height: 176px;
+.stack-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 14px 14px 14px 16px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-rest);
+	transition:
+		box-shadow var(--t-base) var(--ease-out),
+		border-color var(--t-base) var(--ease-out);
 }
 
+/* Two papers peeking out behind it, in its members' colours: still a stack. */
 .stack-paper {
-	border-radius: 3px 3px 14px 3px;
-	background: var(--sticky, var(--sticky-yellow));
-	box-shadow: var(--sticky-shadow);
+	--paper: var(--sticky-yellow);
+	position: absolute;
+	inset: 0;
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--paper) 78%, var(--surface));
+	box-shadow:
+		0 0 0 1px rgb(0 0 0 / 6%),
+		var(--shadow-rest);
+	transform: translate(5px, 5px) rotate(1.4deg);
+	transform-origin: 30% 100%;
+	transition: transform var(--t-settle) var(--ease-spring);
+}
+
+.stack-paper-2 {
+	transform: translate(9px, 10px) rotate(2.8deg);
 	filter: brightness(0.96);
-	transform: rotate(var(--paper-tilt, 0deg))
-		translate(calc(var(--paper-i, 1) * 5px), calc(var(--paper-i, 1) * 6px));
-	transition: transform var(--t-settle) var(--ease-spring);
 }
 
-.stack-top .sticky {
-	transform: none;
-	transition: transform var(--t-settle) var(--ease-spring);
+.stack[data-count="1"] .stack-paper-2 {
+	display: none;
 }
 
-/* Lifts a little as the pointer comes near, fanning its papers out. */
+.stack-paper[data-paper="pink"] {
+	--paper: var(--sticky-pink);
+}
+.stack-paper[data-paper="blue"] {
+	--paper: var(--sticky-blue);
+}
+.stack-paper[data-paper="green"] {
+	--paper: var(--sticky-green);
+}
+.stack-paper[data-paper="purple"] {
+	--paper: var(--sticky-purple);
+}
+.stack-paper[data-paper="card"] {
+	--paper: var(--well);
+}
+
+/* A gentle lift as the pointer comes near, its papers fanning a little. */
+.react-flow__node:hover .stack:not([data-receiving]) .stack-lift {
+	transform: translateY(-2px);
+}
+
+.react-flow__node:hover .stack-card {
+	box-shadow: var(--shadow-hover);
+}
+
 .react-flow__node:hover .stack-paper {
-	transform: rotate(calc(var(--paper-tilt, 0deg) * 1.5))
-		translate(calc(var(--paper-i, 1) * 6px), calc(var(--paper-i, 1) * 7px));
+	transform: translate(6px, 7px) rotate(2deg);
+}
+
+.react-flow__node:hover .stack-paper-2 {
+	transform: translate(11px, 13px) rotate(3.8deg);
+}
+
+.stack[data-selected] .stack-card {
+	border-color: var(--accent);
+	box-shadow:
+		0 0 0 1px var(--accent),
+		var(--shadow-hover);
 }
 
 /* Something held over it: it opens up to take it in. */
-.stack[data-receiving] .stack-papers {
-	transform: scale(1.07);
+.stack[data-receiving] .stack-lift {
+	transform: scale(1.05);
+}
+
+.stack[data-receiving] .stack-card {
+	border-color: var(--accent);
+	box-shadow:
+		0 0 0 4px var(--accent-soft),
+		var(--shadow-lifted);
 }
 
 .stack[data-receiving] .stack-paper {
-	transform: rotate(calc(var(--paper-tilt, 0deg) * 3))
-		translate(calc(var(--paper-i, 1) * 9px), calc(var(--paper-i, 1) * 7px));
+	transform: translate(8px, 9px) rotate(3.5deg);
 }
 
-.stack[data-receiving] .stack-top .sticky {
-	box-shadow:
-		0 0 0 3px var(--accent-soft),
-		var(--sticky-shadow-lifted);
-	transform: translateY(-4px);
+.stack[data-receiving] .stack-paper-2 {
+	transform: translate(14px, 17px) rotate(6deg);
 }
 
 /* Something just went in: a gulp. */
-.stack[data-fed] .stack-papers {
+.stack[data-fed] .stack-lift {
 	animation: stack-gulp calc(460ms * var(--motion)) var(--ease-spring);
 }
 
 @keyframes stack-gulp {
 	30% {
-		transform: scale(0.94);
+		transform: scale(0.95);
 	}
 	65% {
-		transform: scale(1.04);
+		transform: scale(1.03);
 	}
 }
 
-.stack[data-selected] .stack-top .sticky {
-	outline: 2px solid var(--accent);
-	outline-offset: 4px;
+/* The headline: its name, and how many it holds. */
+.stack-head {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	min-height: 25px;
 }
 
 .stack-count {
-	position: absolute;
-	top: 0;
-	right: 2px;
-	display: grid;
-	place-items: center;
-	min-width: 26px;
-	height: 26px;
+	flex: none;
+	min-width: 24px;
+	height: 22px;
+	margin-top: 1px;
 	padding: 0 7px;
-	border: 2px solid var(--surface);
-	border-radius: 13px;
+	border-radius: 11px;
+	background: var(--well);
+	color: var(--ink-soft);
+	font: 650 12px/22px var(--font-ui);
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+	transition:
+		background var(--t-base) var(--ease-out),
+		color var(--t-base) var(--ease-out);
+}
+
+.stack[data-receiving] .stack-count,
+.stack[data-fed] .stack-count {
 	background: var(--accent);
 	color: var(--surface);
-	font: 680 13px/1 var(--font-ui);
-	font-variant-numeric: tabular-nums;
-	box-shadow: var(--shadow-hover);
-	/* Readable however far out the board is. */
-	transform: scale(min(var(--unzoom, 1), 3));
-	transform-origin: 70% 30%;
-	transition: transform var(--t-settle) var(--ease-spring);
-}
-
-.stack[data-receiving] .stack-count {
-	transform: scale(calc(min(var(--unzoom, 1), 3) * 1.18));
-}
-
-.stack-label {
-	display: flex;
-	justify-content: center;
-	height: 40px;
-	padding-top: 8px;
-}
-
-/* The name grows against the zoom, like a section's title. */
-.stack-label .stack-name-row {
-	transform: scale(min(var(--unzoom, 1), 3));
-	transform-origin: 50% 0;
-}
-
-/* Zoomed out, a long name is cut short rather than growing over its
-   neighbours: however big it's drawn, it's no wider than the stack and a bit. */
-.stack-label .stack-name {
-	max-width: min(240px, calc(260px / min(var(--unzoom, 1), 3)));
 }
 
 .stack-name-row {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	gap: 4px;
 	min-width: 0;
 	max-width: 100%;
+}
+
+.stack-name-row[data-headline] {
+	flex: 1;
+	align-items: flex-start;
 }
 
 .stack-name {
@@ -154,28 +195,35 @@
 	align-items: center;
 	gap: 5px;
 	min-width: 0;
-	max-width: 240px;
-	padding: 3px 8px;
+	max-width: 100%;
+	margin: -2px -5px;
+	padding: 2px 5px;
 	border: 0;
-	border-radius: 8px;
-	background: var(--surface);
+	border-radius: 7px;
+	background: transparent;
 	color: var(--ink);
-	font: 640 14px/18px var(--font-ui);
+	font: 640 15px/20px var(--font-ui);
+	text-align: left;
 	letter-spacing: -0.008em;
-	box-shadow: var(--shadow-rest);
 	cursor: inherit;
-	transition:
-		background var(--t-quick) var(--ease-out),
-		box-shadow var(--t-base) var(--ease-out);
+	transition: background var(--t-quick) var(--ease-out);
 }
 
-.stack-name:disabled {
-	cursor: inherit;
-	opacity: 1;
+button.stack-name {
+	cursor: text;
 }
 
-.stack-name:not(:disabled):hover {
-	box-shadow: var(--shadow-hover);
+button.stack-name:hover {
+	background: var(--hover);
+}
+
+.stack-name-row[data-headline] .stack-name {
+	align-items: flex-start;
+	font-family: var(--font-display);
+	font-size: 20px;
+	font-weight: 640;
+	line-height: 25px;
+	letter-spacing: -0.02em;
 }
 
 .stack-name-text {
@@ -185,7 +233,16 @@
 	white-space: nowrap;
 }
 
-/* A suggestion: marked, quietly, as one. */
+/* The headline wraps to three lines at most, rather than being cut short. */
+.stack-name-row[data-headline] .stack-name-text {
+	display: -webkit-box;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+}
+
+/* A suggestion: a quiet spark, and the name a shade softer. */
 .stack-name[data-state="suggested"] .stack-name-text {
 	color: var(--ink-soft);
 }
@@ -194,14 +251,25 @@
 	animation: stack-name-in calc(620ms * var(--motion)) var(--ease-spring);
 }
 
+/* After the last word, wherever the name wraps. */
 .stack-spark {
-	font-size: 12px;
-	line-height: 1;
+	display: inline-block;
+	margin-left: 5px;
+	color: var(--accent);
+	opacity: 0.75;
+	vertical-align: -1px;
+}
+
+.stack-name-row[data-headline] .stack-spark {
+	vertical-align: 1px;
+}
+
+.stack-spark svg {
+	fill: currentColor;
 }
 
 .stack-name[data-state="none"] .stack-name-text {
 	color: var(--muted);
-	font-weight: 560;
 }
 
 /* A name on its way: a shimmer, not a spinner. */
@@ -231,38 +299,263 @@
 
 .stack-pencil {
 	flex: none;
+	align-self: center;
 	fill: none;
 	stroke: var(--muted);
 	stroke-width: 1.5;
 	stroke-linejoin: round;
 }
 
-.stack-keep {
-	padding: 3px 8px;
+/* ✓ keeps a suggestion: small, and there when you're near. */
+.stack-accept {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	margin-top: 1px;
+	padding: 0;
 	border: 1px solid var(--line-strong);
-	border-radius: 8px;
+	border-radius: 11px;
 	background: var(--surface);
 	color: var(--ink-soft);
-	font: 600 12px/16px var(--font-ui);
 	cursor: pointer;
-	animation: stack-name-in var(--t-settle) var(--ease-spring);
+	opacity: 0;
+	transform: scale(0.8);
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring),
+		background var(--t-quick) var(--ease-out);
 }
 
-.stack-keep:hover {
-	background: var(--hover);
-	color: var(--ink);
+.stack-accept svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.react-flow__node:hover .stack-accept,
+.stack[data-selected] .stack-accept,
+.stack-tray .stack-accept,
+.stack-accept:focus-visible {
+	opacity: 1;
+	transform: none;
+}
+
+.stack-accept:hover {
+	border-color: var(--accent);
+	background: var(--accent-soft);
+	color: var(--accent);
 }
 
 .stack-name-input {
-	width: 220px;
-	height: 26px;
-	padding: 0 8px;
+	display: block;
+	width: 100%;
+	min-width: 0;
+	margin: -3px -6px;
+	padding: 2px 5px;
 	border: 2px solid var(--accent);
 	border-radius: 8px;
 	outline: none;
+	resize: none;
 	background: var(--surface);
 	color: var(--ink);
-	font: 640 14px/18px var(--font-ui);
+	font: 640 15px/20px var(--font-ui);
+	field-sizing: content;
+}
+
+.stack-name-input[data-headline] {
+	flex: 1;
+	font-family: var(--font-display);
+	font-size: 20px;
+	line-height: 25px;
+	letter-spacing: -0.02em;
+}
+
+/* Its first few members, a line each. */
+.stack-rows {
+	display: grid;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.stack-rows > li {
+	min-width: 0;
+	height: 22px;
+}
+
+.stack-row {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 0;
+	height: 22px;
+	color: var(--ink-soft);
+	font: 480 13px/22px var(--font-ui);
+}
+
+.stack-row-text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.stack-row-text[data-quiet] {
+	color: var(--muted);
+	font-style: italic;
+}
+
+.stack-row[data-hidden] .stack-row-text {
+	opacity: 0.7;
+}
+
+/* A sticky's colour, as a little square of paper. */
+.stack-dot {
+	--sticky: var(--sticky-yellow);
+	flex: none;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px 2px 4px 2px;
+	background: var(--sticky);
+	box-shadow: inset 0 0 0 1px rgb(0 0 0 / 12%);
+}
+
+/* A card's state, as its card shows it. */
+.stack-row[data-state="open"] {
+	--state: var(--open);
+}
+
+.stack-row[data-state="merged"],
+.stack-row[data-state="closed"] {
+	--state: var(--merged);
+}
+
+.stack-row[data-state="draft"] {
+	--state: var(--closed);
+}
+
+.stack-state {
+	display: grid;
+	flex: none;
+	place-items: center;
+	color: var(--state, var(--muted));
+}
+
+.stack-state svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.stack-ref {
+	flex: none;
+	color: var(--muted);
+	font: 520 12px/22px var(--font-mono);
+	letter-spacing: -0.03em;
+}
+
+.stack-row[data-kind="card"] .stack-row-text {
+	color: var(--ink);
+	font-weight: 540;
+}
+
+.stack-lock {
+	flex: none;
+	fill: none;
+	stroke: var(--muted);
+	stroke-width: 1.4;
+}
+
+.stack-row-skeleton {
+	width: 70%;
+	height: 10px;
+	border-radius: 5px;
+	background: var(--skeleton);
+}
+
+.stack-more {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding-left: 17px;
+	color: var(--muted);
+	font: 560 12px/22px var(--font-ui);
+}
+
+/* Something staged for GitHub on it (#24), as a mark on the board says. */
+.stack-staged {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--accent);
+	box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* Zoomed out: its name and count, big, over the same box (so it's the same
+   size whatever the zoom, and containment never changes with it). */
+.stack-far {
+	position: absolute;
+	inset: 0;
+	display: none;
+	flex-direction: column;
+	justify-content: center;
+	padding: 12px 16px;
+	border-radius: inherit;
+	background: var(--surface);
+}
+
+.stack[data-far] .stack-far {
+	display: flex;
+}
+
+/* Further out still, it grows a little against the zoom (as section titles
+   do), so its name stays a label you can read. */
+.stack[data-far] .stack-lift {
+	scale: clamp(1, calc(var(--unzoom, 1) * 0.5), 1.5);
+}
+
+.stack[data-far] .stack-head,
+.stack[data-far] .stack-rows {
+	visibility: hidden;
+}
+
+.stack-far-name {
+	display: -webkit-box;
+	overflow: hidden;
+	color: var(--ink);
+	padding-bottom: 0.08em;
+	font: 700 27px/1.12 var(--font-display);
+	letter-spacing: -0.03em;
+	overflow-wrap: break-word;
+	hyphens: auto;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+}
+
+.stack-far-name[data-state="none"] {
+	color: var(--muted);
+}
+
+.stack-far-count {
+	display: inline-block;
+	min-width: 1.3em;
+	padding: 0 0.3em;
+	border-radius: 0.65em;
+	background: var(--well);
+	color: var(--ink-soft);
+	font: 700 0.7em/1.3em var(--font-ui);
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+	vertical-align: 0.18em;
 }
 
 /* Open: the tray its stickies spread out on ------------------------------- */
@@ -298,15 +591,25 @@
 	padding: 0 12px 0 16px;
 }
 
-.stack-tray-head .stack-name {
-	box-shadow: none;
-	background: transparent;
-	font-size: 16px;
-	padding-left: 4px;
+.stack-tray-head .stack-name-row {
+	min-width: 0;
 }
 
-.stack-tray-head .stack-name:not(:disabled):hover {
-	background: var(--hover);
+.stack-tray-head .stack-name {
+	margin: 0;
+	padding: 3px 6px;
+	font-family: var(--font-display);
+	font-size: 18px;
+	line-height: 22px;
+	letter-spacing: -0.015em;
+}
+
+.stack-tray-head .stack-name-input {
+	width: 260px;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 18px;
+	line-height: 22px;
 }
 
 .stack-tray-count {
@@ -360,15 +663,28 @@
 	transform: none;
 }
 
-/* Dragging onto a sticky or stack ------------------------------------------- */
+/* Dragging onto a sticky, card or stack ------------------------------------- */
 
-/* A sticky held over another: the one underneath opens up, papers fanning
-   out behind it, to become a stack. */
-.react-flow__node.stack-target .sticky {
-	transform: scale(1.07) rotate(0deg);
+/* Something held over a sticky or card: it opens up, a paper fanning out
+   behind it, to become a stack. */
+.react-flow__node.stack-target .sticky,
+.react-flow__node.stack-target .card {
+	transform: scale(1.06) rotate(0deg);
 	box-shadow:
 		0 0 0 3px var(--accent-soft),
 		var(--sticky-shadow-lifted);
+}
+
+.react-flow__node.stack-target .card::before {
+	content: "";
+	position: absolute;
+	inset: -1px;
+	z-index: -1;
+	border-radius: inherit;
+	background: var(--well);
+	box-shadow: 0 0 0 1px var(--line);
+	transform: rotate(4deg) translate(8px, 6px);
+	animation: stack-paper-in var(--t-settle) var(--ease-spring);
 }
 
 .react-flow__node.stack-target .sticky::before {
@@ -392,7 +708,8 @@
 
 /* Held long enough: what's dragged shrinks a little, ready to drop in. */
 .react-flow__node.stack-joining .sticky,
-.react-flow__node.stack-joining .stack-papers {
+.react-flow__node.stack-joining .card,
+.react-flow__node.stack-joining .stack-lift {
 	transform: scale(0.88) rotate(-2deg);
 	opacity: 0.92;
 	transition: transform var(--t-base) var(--ease-spring);
@@ -435,7 +752,8 @@
 }
 
 /* On the board: each proposed stack's stickies ringed in its colour, numbered. */
-.react-flow__node.stack-proposed .sticky {
+.react-flow__node.stack-proposed .sticky,
+.react-flow__node.stack-proposed .card {
 	outline: 3px solid var(--proposal, var(--accent));
 	outline-offset: 5px;
 	transition: outline-color var(--t-base) var(--ease-out);
@@ -690,6 +1008,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.react-flow__node:hover .stack:not([data-receiving]) .stack-lift {
+		transform: none;
+	}
+
 	.react-flow__node.stack-proposed .sticky,
 	.react-flow__node.stack-proposed::after {
 		animation: none;
@@ -718,4 +1040,43 @@
 
 .gallery-stack-member {
 	position: absolute;
+}
+
+/* Group these: whether the cards selected with the stickies join in. */
+.group-include {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 2px 0 10px;
+	color: var(--ink);
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.group-include input {
+	width: 15px;
+	height: 15px;
+	margin: 0;
+	accent-color: var(--accent);
+}
+
+.group-include-count {
+	color: var(--muted);
+}
+
+/* A card among a proposed stack's chips: its number, in its state's colour. */
+.group-chip-ref {
+	flex: none;
+	color: var(--open);
+	font: 560 11px/1 var(--font-mono);
+	letter-spacing: -0.03em;
+}
+
+.group-chip[data-state="merged"] .group-chip-ref,
+.group-chip[data-state="closed"] .group-chip-ref {
+	color: var(--merged);
+}
+
+.group-chip[data-state="draft"] .group-chip-ref {
+	color: var(--closed);
 }

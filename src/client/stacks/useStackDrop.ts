@@ -6,12 +6,13 @@ import { nodeBox } from "../canvasStructure.ts";
 import { scaledDuration } from "../motion.ts";
 import type { StackLayout } from "./view.ts";
 
-// Dragging stickies onto a sticky or a stack (#73), as apps go into folders on
-// a phone: hold what you're dragging over one for a moment and it opens up to
-// take it in; let go and they're a stack (or join it). Moving on before it
-// opens is just moving. Only stickies (and stacks) can be stacked.
+// Dragging stickies and cards onto a sticky, card or stack (#73), as apps go
+// into folders on a phone: hold what you're dragging over one for a moment
+// and it opens up to take it in; let go and they're a stack (or join it).
+// Moving on before it opens is just moving. Only stickies, cards (issues and
+// pull requests) and stacks can be stacked.
 
-/** How long to hold over a sticky or stack before it opens to take what's dragged. */
+/** How long to hold over a sticky, card or stack before it opens to take what's dragged. */
 export const STACK_HOLD_MS = 350;
 
 export interface StackDropState {
@@ -87,7 +88,7 @@ export function useStackDrop({
 				const node = byId.get(id);
 				return (
 					node &&
-					(node.type === "sticky" || node.type === "stack") &&
+					(node.type === "sticky" || node.type === "card" || node.type === "stack") &&
 					node.data.display === undefined &&
 					!(node.type === "stack" && node.data.stack?.open)
 				);
@@ -104,7 +105,7 @@ export function useStackDrop({
 			let best: ShapeNode | null = null;
 			drawn.forEach((node) => {
 				if (node.hidden || dragged.has(node.id) || node.data.display !== undefined) return;
-				if (node.type !== "sticky" && node.type !== "stack") return;
+				if (node.type !== "sticky" && node.type !== "card" && node.type !== "stack") return;
 				const stack = node.type === "stack" ? node.id : (stacks.stackOf.get(node.id) ?? null);
 				if (ownStack && stack === ownStack) return;
 				if (!contains(nodeBox(node), at)) return;

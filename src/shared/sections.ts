@@ -53,8 +53,9 @@ export function boxOf(id: string, shape: ShapeProps, sizeOf?: SizeOf): Rect {
 	}
 	// Widgets are sized like sections: by their own w and h.
 	if (shape.type === "widget") return { x: shape.x, y: shape.y, ...widgetSize(shape) };
-	// Stacks are always a stack's size, whatever an open one draws (stacks.ts).
-	if (shape.type === "stack") return { x: shape.x, y: shape.y, ...STACK_SIZE };
+	// A stack is its theme card's size as measured (never an open one's tray:
+	// the board doesn't measure that), or one of its size would be (stacks.ts).
+	if (shape.type === "stack") return { x: shape.x, y: shape.y, ...(sizeOf?.(id) ?? STACK_SIZE) };
 	const size = sizeOf?.(id) ?? NOMINAL_SIZE[shape.type] ?? { w: 0, h: 0 };
 	return { x: shape.x, y: shape.y, w: size.w, h: size.h };
 }

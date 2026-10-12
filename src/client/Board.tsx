@@ -119,13 +119,13 @@ import { InboxLayer } from "./inbox/InboxTray.tsx";
 import { scaledDuration } from "./motion.ts";
 import { RulesButton, RulesPanel } from "./rules/RulesPanel.tsx";
 import { boardRepos } from "../shared/actions.ts";
-import { addShape, readShape, shapesMap, transactLocal } from "../shared/shapes.ts";
+import { type ShapeType, addShape, readShape, shapesMap, transactLocal } from "../shared/shapes.ts";
 import type * as Y from "yjs";
 import { isEditingShape } from "./useEditing.ts";
 import { spotNear } from "../shared/placement.ts";
 import { addSection, placeInSections, readShapes } from "../shared/structure.ts";
 import { leaveStack, stackUp, reorderInStack } from "../shared/stackEdits.ts";
-import { STACK_SIZE, STICKY, memberAt, nearestSlot, openLayout } from "../shared/stacks.ts";
+import { STACK_SIZE, STICKY, nearestSlot, openLayout } from "../shared/stacks.ts";
 import { contains } from "../shared/geometry.ts";
 import { stackStore, useStacks } from "./stacks/store.ts";
 import { PROPOSAL_COLORS } from "./stacks/GroupThese.tsx";
@@ -536,10 +536,23 @@ export function Board({
 			stackUI.open && stackAt.has(stackUI.open) && !display.slots.has(stackUI.open)
 				? stackUI.open
 				: null;
+		/** A stack's size as drawn closed: measured, or what one of its size would be. */
+		const closedSize = (id: string) => {
+			const size = measured.get(id);
+			return size ? { w: size.width, h: size.height } : STACK_SIZE;
+		};
 		const open = openId
 			? openLayout(
 					stackAt.get(openId) as { x: number; y: number },
 					stackLayout.members.get(openId) ?? [],
+					{
+						typeOf: (id) => shapesById.get(id)?.type,
+						sizeOf: (id) => {
+							const size = measured.get(id);
+							return size ? { w: size.width, h: size.height } : undefined;
+						},
+						size: closedSize(openId),
+					},
 				)
 			: null;
 		const { target, armed, dragged } = stackDrop.state;
@@ -636,8 +649,9 @@ export function Board({
 			}
 			if (list && slot) kind = "group";
 
-			// Stacks (#73): a sticky in one is drawn on its stack (hidden) or,
-			// while it's open here, in its place in the grid.
+			// Stacks (#73): a sticky or card in one is drawn as part of its stack
+			// (hidden, as big as the stack, so connectors to it end at the stack)
+			// or, while it's open here, in its place in the grid.
 			let hidden = false;
 			let draggable: boolean | undefined;
 			let stackView: StackView | undefined;
@@ -650,13 +664,14 @@ export function Board({
 					zIndex = drag ? zIndex : STACK_MEMBER_Z;
 					className = `${className ?? ""} stack-member`.trim();
 				} else if (memberOf === gathering) {
-					position = memberAt(at);
+					position = at;
 					zIndex = STACK_MEMBER_Z;
 					className = `${className ?? ""} stack-member stack-gathering`.trim();
 				} else {
 					hidden = true;
-					position = memberAt(at);
-					size = { width: STICKY, height: STICKY };
+					position = at;
+					const box = closedSize(memberOf);
+					size = { width: box.w, height: box.h };
 				}
 			}
 			if (base.data.shape.type === "stack") {
@@ -669,8 +684,9 @@ export function Board({
 						zIndex = STACK_TRAY_Z;
 						draggable = false;
 					} else {
-						width = STACK_SIZE.w;
-						height = STACK_SIZE.h;
+						// A theme card sizes to what it shows; React Flow measures it.
+						width = undefined;
+						height = undefined;
 					}
 				}
 				stackView = {
@@ -683,7 +699,11 @@ export function Board({
 					fed: fed?.id === base.id ? fed.n : 0,
 				};
 			}
-			if (target === base.id && armed && base.data.shape.type === "sticky") {
+			if (
+				target === base.id &&
+				armed &&
+				(base.data.shape.type === "sticky" || base.data.shape.type === "card")
+			) {
 				className = `${className ?? ""} stack-target`.trim();
 			}
 			if (armed && dragged.includes(base.id)) {
@@ -1087,12 +1107,15 @@ export function Board({
 			// Rows and lists are drawn at their slot's size: what's measured is
 			// each shape's free-form size, for when it's a card again.
 			const { slots, sections } = displayRef.current;
+			// An open stack's tray isn't its size either: that's the stack's, closed.
+			const openStack = stackStore.getSnapshot().open;
 			const sizes = changes.filter(
 				(change) =>
 					change.type === "dimensions" &&
 					change.dimensions &&
 					!slots.has(change.id) &&
-					!sections.has(change.id),
+					!sections.has(change.id) &&
+					change.id !== openStack,
 			);
 			if (sizes.length > 0) {
 				setMeasured((current) => {
@@ -1137,6 +1160,11 @@ export function Board({
 				const layout = openLayout(
 					{ x: Number(openShape.get("x")), y: Number(openShape.get("y")) },
 					members,
+					{
+						typeOf: (id) => shapesMap(doc).get(id)?.get("type") as ShapeType | undefined,
+						sizeOf: boxSize,
+						size: boxSize(openId),
+					},
 				);
 				const out = new Map<string, Position>();
 				const within: { id: string; index: number }[] = [];
@@ -1145,7 +1173,8 @@ export function Board({
 					if (stackLayout.stackOf.get(change.id) !== openId) continue;
 					const at = change.position ?? presence.lastDragPosition(change.id);
 					if (!at) continue;
-					const middle = { x: at.x + STICKY / 2, y: at.y + STICKY / 2 };
+					const cell = layout.cells.get(change.id) ?? { w: STICKY, h: STICKY };
+					const middle = { x: at.x + cell.w / 2, y: at.y + cell.h / 2 };
 					if (contains(layout.tray, middle)) {
 						within.push({ id: change.id, index: nearestSlot(layout, middle) });
 					} else {
@@ -1775,11 +1804,13 @@ export function Board({
 											setSheetShape(node.id);
 											return;
 										}
-										// Clicking a stack spreads it open, here (#73); its name
-										// just selects it, to rename.
+										// Clicking a stack spreads it open, here (#73); clicking
+										// its name renames it, in place.
 										if (
 											node.type === "stack" &&
-											!(event.target as Element | null)?.closest?.(".stack-label") &&
+											!(event.target as Element | null)?.closest?.(
+												"button.stack-name, .stack-accept, .stack-name-input",
+											) &&
 											tool === "select" &&
 											!event.shiftKey &&
 											!event.metaKey &&
