@@ -8,6 +8,7 @@ import { addWidget } from "../../shared/widgetRegistry.ts";
 import { cardStore } from "../cardStore.ts";
 import { LABELS, PLANNING_CARDS, fixture } from "./fixtures.ts";
 import { MILESTONE } from "./kindFixtures.ts";
+import type { SimulatedBoard } from "./simulator.ts";
 import { REPO, searchableCards } from "./widgets.ts";
 
 // The landing page's first screenshot (`?scenario=hero`, site/scripts/screenshots.ts):
@@ -15,7 +16,8 @@ import { REPO, searchableCards } from "./widgets.ts";
 // and CI, a stack drawn as its card with a ✨ suggested name, a live list and
 // a milestone over the fake repository, and stickies with who wrote them.
 // Everything that matters sits left of x 1060, as the landing page lets the
-// board run off its right edge and pins a sticky over the bottom left.
+// board run off its right edge and pins a sticky over the bottom left. Three
+// of the people who wrote them are here with you (`heroPeople`).
 
 const AUTHORS = {
 	priya: { name: "Priya Shah", color: "#b4467a" },
@@ -108,4 +110,18 @@ export function seedHero(doc: Y.Doc): void {
 		);
 		shapesMap(doc).get(milestone)?.set("h", 470);
 	});
+}
+
+/**
+ * A session in progress, held still for the screenshot: Kai at the stack,
+ * Priya reading the list, Tom agreeing on a sticky in cursor chat, and Jo
+ * off to the right at the milestone, so only in the top bar. Cursors point
+ * beside titles, never over them.
+ */
+export function heroPeople(board: SimulatedBoard): void {
+	const view = (x: number, y: number) => ({ x, y, width: 1280, height: 800 });
+	board.join(AUTHORS.kai).pose({ x: 520, y: 206 }, view(-40, -60));
+	board.join(AUTHORS.priya).pose({ x: 952, y: 414 }, view(300, -60));
+	board.join(AUTHORS.tom).pose({ x: 400, y: 432 }, view(-40, 0), "+1, docs first");
+	board.join(AUTHORS.jo).pose({ x: 1330, y: 300 }, view(700, -60));
 }

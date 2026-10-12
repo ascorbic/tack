@@ -31,7 +31,8 @@ import { seedRoadmap } from "./roadmap.ts";
 import { seedStacks } from "./stacks.ts";
 import { seedTracking, seedWidgets } from "./widgets.ts";
 import { seedCustom } from "./custom.ts";
-import { seedHero } from "./hero.ts";
+import { heroPeople, seedHero } from "./hero.ts";
+import type { SimulatedBoard } from "./simulator.ts";
 
 export interface Scenario {
 	name: string;
@@ -41,6 +42,8 @@ export interface Scenario {
 	facilitate?(facilitator: SimulatedFacilitator): void;
 	/** After seeding, with the pretend history server recording: a past to look back on. */
 	history?(history: SimulatedHistory): void;
+	/** Once the board's up: who's already here with you, and where. */
+	present?(board: SimulatedBoard): void;
 }
 
 // The people who wrote the seeded stickies.
@@ -663,8 +666,9 @@ export const SCENARIOS: Record<string, Scenario> = {
 	hero: {
 		name: "Landing page",
 		description:
-			"The landing page's first screenshot: live cards with CI, a stack with a ✨ suggested name, a live list, a milestone and stickies, on one screen at 1200 × 750.",
+			"The landing page's first screenshot: live cards with CI, a stack with a ✨ suggested name, a live list, a milestone and stickies, on one screen at 1200 × 750, with three people at work on it.",
 		seed: seedHero,
+		present: heroPeople,
 	},
 	empty: {
 		name: "Empty",

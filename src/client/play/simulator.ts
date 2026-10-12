@@ -300,6 +300,21 @@ export class RemotePerson {
 		removeShapes(this.doc, [id]);
 	}
 
+	/**
+	 * Hold still at a spot, looking at a part of the board, and saying
+	 * something if `chat` is given: a moment of a session, for a screenshot.
+	 */
+	pose(cursor: Position, view: View, chat: string | null = null): void {
+		this.cursor = cursor;
+		this.view = view;
+		this.awareness.setLocalState({
+			...this.awareness.getLocalState(),
+			cursor,
+			view,
+			chat: chat === null ? null : { text: chat, typing: false },
+		});
+	}
+
 	async moveTo(target: Position, ms = 700): Promise<void> {
 		await animate(this.cursor, target, ms, (p) => {
 			this.cursor = p;

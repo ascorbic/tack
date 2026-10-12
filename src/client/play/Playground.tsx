@@ -226,7 +226,19 @@ export default function Playground() {
 	const [penStats, setPenStats] = useState<string | null>(null);
 	useEffect(() => setPen("off"), [sim]);
 
-	useEffect(() => setPeople([]), [sim]);
+	useEffect(() => {
+		// Whoever the scenario has already here, e.g. the landing page's.
+		const scene = SCENARIOS[scenario] ?? SCENARIOS.planning;
+		if (!scene?.present) return setPeople([]);
+		scene.present(sim);
+		setPeople([...sim.people]);
+		return () => {
+			// Leaving makes a new list, so this one stays whole.
+			for (const person of sim.people) sim.leave(person);
+		};
+		// The scenario is read with the board it seeded.
+		// oxlint-disable-next-line react-hooks/exhaustive-deps
+	}, [sim]);
 
 	useEffect(() => {
 		document.documentElement.dataset.motion = motion;

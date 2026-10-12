@@ -364,7 +364,7 @@ test("you can see when someone's following you", async ({ page }) => {
 	await expect(page.getByLabel("People here").getByRole("status")).toHaveCount(0);
 });
 
-test("the landing page's board: cards, a stack, widgets and stickies on one screen", async ({
+test("the landing page's board: cards, a stack, widgets, stickies and people on one screen", async ({
 	page,
 }) => {
 	await openScenario(page, "hero");
@@ -381,4 +381,14 @@ test("the landing page's board: cards, a stack, widgets and stickies on one scre
 	// The namer keeps the suggestion: it was made from everything in the stack.
 	await page.waitForTimeout(1500);
 	await expect(stack).toContainText("Custom domain detection");
+	// Three of them are at work on screen, one in cursor chat; Jo's off at the milestone.
+	const people = page.getByLabel("People here");
+	for (const name of ["Priya Shah", "Kai Andersen", "Tom Okafor", "Jo Rivera"]) {
+		await expect(people.getByRole("button", { name: new RegExp(name) })).toBeVisible();
+	}
+	const cursors = page.locator(".cursor");
+	await expect(cursors.filter({ hasText: "Kai Andersen" })).toBeInViewport();
+	await expect(cursors.filter({ hasText: "Priya Shah" })).toBeInViewport();
+	await expect(cursors.filter({ hasText: "+1, docs first" })).toBeInViewport();
+	await expect(cursors.filter({ hasText: "Jo Rivera" })).not.toBeInViewport();
 });
