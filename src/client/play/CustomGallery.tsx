@@ -202,7 +202,7 @@ export function CustomGallery() {
 					<figure data-state="custom-editor-settings">
 						<CustomEditor
 							id="gallery-settings"
-							config={{ ...LABELS, data: '{ "repo": "acme/imagekit", }' }}
+							config={{ ...LABELS, data: '{ "repo": "acme/tack", }' }}
 							readOnly={false}
 							enabled
 							data={data}
