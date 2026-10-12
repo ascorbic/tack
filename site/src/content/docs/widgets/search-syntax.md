@@ -21,6 +21,10 @@ People who aren't signed in only see public results: Tack adds `is:public` for t
 
 As on GitHub, a search finds issues and pull requests unless it asks for discussions: `is:discussion` (or `type:discussion`) makes it a search of the repository's [discussions](/boards/cards/#discussions) instead, which understands `is:answered`, `is:unanswered`, `is:locked`, `category:"Q&A"`, labels, authors and the rest. Discussions are only searched for people who are signed in, as GitHub only searches them with an account.
 
+Only categories that take answers (Q&A, and others set up like it) have answered or unanswered discussions: `category:Ideas is:unanswered` finds nothing, on GitHub and in Tack.
+
+`sort:top` orders discussions by upvotes, the most first (`sort:top-asc` the fewest), as a list's **Top** does; GitHub's search understands it for discussions only, so for issues and pull requests **Top** means `sort:reactions`. GitHub's search index can lag behind the votes themselves, so Tack puts what comes back in order of the upvotes each discussion has now. A list's [Discussions mode](/widgets/list/#discussions) writes these for you.
+
 ## Rules
 
 [Rules](/automation/rules/) run when GitHub sends a webhook, checking the item in the webhook against the search without asking GitHub. So they understand a subset:
@@ -30,7 +34,7 @@ As on GitHub, a search finds issues and pull requests unless it asks for discuss
 | Words, matched against the title | `flaky`, `-wip`                                                                                                             |
 | Where                            | `repo:owner/name` (at least one is required), `org:`, `user:`, `owner:`                                                     |
 | Kind and state                   | `is:issue`, `is:pr`, `is:open`, `is:closed`, `is:merged`, `is:unmerged`, `is:draft`, `state:open`, `type:pr`, `draft:false` |
-| Discussions                      | `is:discussion`, `is:answered`, `is:unanswered`, `is:locked`, `category:Ideas`                                              |
+| Discussions                      | `is:discussion`, `is:answered`, `is:unanswered` (in categories that take answers), `is:locked`, `category:Ideas`            |
 | Labels                           | `label:bug`, `-label:wontfix`, `label:"good first issue"`, `label:bug,regression`                                           |
 | People                           | `author:octocat`, `assignee:octocat`, `no:assignee`                                                                         |
 | Missing labels                   | `no:label`                                                                                                                  |

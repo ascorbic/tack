@@ -23,7 +23,7 @@ A list shows the results of any GitHub search, kept live for everyone looking at
 		title: "Title (named after the search if empty)",
 		host: "Forge (only shown when the board has more than one)",
 		q: "Search",
-		sort: "Sort by: Updated, Created, Comments or Reactions",
+		sort: "Sort by: Updated, Created, Comments or Reactions; for discussions, Newest, Recently active, Top (most upvoted) or Most commented",
 		limit: "Show up to: 10, 30, 50 or 100",
 	}}
 />
@@ -32,9 +32,26 @@ The search is anything GitHub's issue search understands, such as `repo:owner/na
 
 The panel also says what refreshes it: "Live: refreshes when owner/name changes." for a search in one repository, or "Searches everywhere you can see: refreshes every few minutes." for one with no repository. See [when widgets refresh](/widgets/overview/#when-widgets-refresh).
 
+## Discussions
+
+The panel's switch at the top, **Issues & PRs** or **Discussions**, picks what the list shows. In **Discussions**, the panel writes the search for you:
+
+- **Repository**: the board's busiest one to start with, or any `owner/name`.
+- **Category**: the repository's own discussion categories, with their emoji, or **All categories**.
+- **Answered**: **All**, **Answered** or **Unanswered**. Only categories that take answers (Q&A, and others set up like it) have them, so for one that doesn't, the panel says so instead: "💡 Ideas doesn't take answers". With every category, unanswered means unanswered questions in the categories that take answers.
+- **State**: **Open**, **Closed** or **All**.
+- **Labels**: the discussions must have every label chosen. **Any label** adds one; each chip's × takes it away.
+- **Sort by**: **Newest**, **Recently active**, **Top** (the most upvoted first) or **Most commented**.
+
+Above them are ready-made discussion lists that fit the repository: **Unanswered questions**, **Top ideas** (when it has an Ideas category) or **Top discussions**, and **Recent announcements** (when it has an Announcements category).
+
+The search itself stays below, as **Search, as written**, with everything the controls wrote in it: `repo:owner/name is:discussion category:"Q&A" is:open is:unanswered`. Editing it moves the controls, and anything they can't show (words, authors, dates, a `-label:`) stays as written. A `sort:` in the search decides the order, as it does for issues.
+
+Each discussion's row shows its category's emoji, its number, **Answered** with a tick (or **Resolved**, **Outdated**, **Duplicate** once closed), a lock if it's locked, up to two labels, and on the right its upvotes and comments. A **Top** list puts the most upvoted first by the votes each discussion has now, and its rows glide to their new places when the order changes as votes come in. Upvotes don't send GitHub webhooks, so a Top list reads them again every few minutes, and as soon as a discussion on the board is seen to change.
+
 ## Using it
 
-Each row shows the item's state, title, repository and number, up to three labels and two assignees. Rows already on the board have a pin (click it to find the card); the rest link to GitHub. The header shows the search as chips; point at them (or Tab to them) to read the whole search, with **Copy** and, for GitHub, **Open on GitHub**. The footer counts the results, "30 of 112". A list that searches for words, or everywhere, and finds nothing says "Nothing matches this search" and offers to edit it, since waiting won't help.
+Each row shows the item's state, title, repository and number, up to three labels and two assignees (discussions show their own: see [above](#discussions)). Rows already on the board have a pin (click it to find the card); the rest link to GitHub. The header shows the search as chips; point at them (or Tab to them) to read the whole search, with **Copy** and, for GitHub, **Open on GitHub**. The footer counts the results, "30 of 112". A list that searches for words, or everywhere, and finds nothing says "Nothing matches this search" and offers to edit it, since waiting won't help.
 
 - **Drag a row out** onto the board to add a card for it, or **click it** (or Tab to it and press Enter) to add the card in free space beside the list. The list doesn't change. A row whose card is already on the board shows that card instead.
 - **A new list** asks "What should this list show?", with the [ready-made searches](/widgets/overview/#adding-a-widget) and **Write a search**.
