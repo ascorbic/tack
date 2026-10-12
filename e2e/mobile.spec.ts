@@ -701,6 +701,36 @@ test.describe("on a tablet", () => {
 		expect(Math.abs(moved.x - start.x)).toBeGreaterThan(40);
 	});
 
+	test("a section's bar fits across the tablet, words and all, with the rest in …", async ({
+		page,
+		browserName,
+	}) => {
+		await openScenario(page, "sections");
+		await page.addStyleTag({ content: ".play-panel { display: none !important; }" });
+		const { tap } = await fingers(page, browserName);
+		const title = page.locator(".section-title", { hasText: "Next" }).first();
+		const at = (await title.boundingBox())!;
+		await tap([at.x + 12, at.y + 8]);
+		const bar = page.getByRole("toolbar", { name: "Stage changes" });
+		await expect(bar).toBeVisible();
+		await page.waitForTimeout(400);
+		// One row of touch-sized buttons, wholly on screen.
+		const box = (await bar.boundingBox())!;
+		const view = page.viewportSize()!;
+		expect(box.height).toBeLessThan(64);
+		expect(box.x).toBeGreaterThanOrEqual(0);
+		expect(box.x + box.width).toBeLessThanOrEqual(view.width);
+		// Its main action keeps its word; what doesn't fit is in "…", with its word.
+		await expect(
+			bar.getByRole("button", { name: "Make a parent issue from this section" }),
+		).toHaveText("Make parent issue");
+		await bar.getByRole("button", { name: "More", exact: true }).click();
+		const menu = page.getByRole("menu", { name: "More for this section" });
+		await expect(menu.getByRole("menuitem", { name: "Draft a decision with AI" })).toHaveText(
+			"Decide",
+		);
+	});
+
 	test("a pencil draws a selection box", async ({ page, browserName }) => {
 		await openScenario(page, "brainstorm");
 		const { pencil } = await fingers(page, browserName);

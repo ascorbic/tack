@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import * as Y from "yjs";
 import { type AiError, type WidgetProposal, aiError } from "../../shared/ai.ts";
 import "../actions/actions.css";
-import { type Action, ActionButton } from "../actions/ActionBar.tsx";
+import type { Action } from "../actions/ActionBar.tsx";
 import { IssueIcon, ParentIcon } from "../actions/icons.tsx";
 import { type AskState, AskWidgetView } from "../ai/AskWidget.tsx";
 import { type DraftState, DraftPanelView, draftEdit } from "../ai/DraftPanel.tsx";
@@ -12,6 +12,7 @@ import { WidgetPreview } from "../ai/WidgetPreview.tsx";
 import "../ai/ai.css";
 import { ServicesContext } from "../actions/services.ts";
 import { ThemeToggle } from "../ThemeToggle.tsx";
+import { GalleryBar } from "./GalleryBar.tsx";
 import { playServices } from "./writes.ts";
 import { REPO, SimulatedWidgets } from "./widgets.ts";
 import "./aiGallery.css";
@@ -304,19 +305,11 @@ export default function AiGallery() {
 					<h2>In the action bar</h2>
 					<div className="gallery-grid ai-gallery-bars">
 						<figure>
-							<div className="selection-actions" role="toolbar" aria-label="Stickies selected">
-								{BAR.map((action) => (
-									<ActionButton key={action.id} action={action} pressed={false} onClick={noop} />
-								))}
-							</div>
+							<GalleryBar actions={BAR} label="Stickies selected" />
 							<figcaption>Stickies selected</figcaption>
 						</figure>
 						<figure>
-							<div className="selection-actions" role="toolbar" aria-label="Face-down stickies">
-								{FACE_DOWN_BAR.map((action) => (
-									<ActionButton key={action.id} action={action} pressed={false} onClick={noop} />
-								))}
-							</div>
+							<GalleryBar actions={FACE_DOWN_BAR} label="Face-down stickies" />
 							<figcaption>Face-down stickies</figcaption>
 						</figure>
 					</div>

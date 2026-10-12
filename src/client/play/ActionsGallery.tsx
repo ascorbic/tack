@@ -1,18 +1,19 @@
-import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import * as Y from "yjs";
 import { addShape } from "../../shared/shapes.ts";
 import type { SectionColor } from "../../shared/sections.ts";
 import { addConnector } from "../../shared/structure.ts";
-import { type Action, ActionButton } from "../actions/ActionBar.tsx";
+import type { Action } from "../actions/ActionBar.tsx";
 import { BacklinkPanel } from "../actions/BacklinkPanel.tsx";
 import { BlockedByAction } from "../actions/BlockedBy.tsx";
-import { type BarEntry, BarDivider, MoreMenu, SectionColour } from "../actions/SectionBar.tsx";
+import { SectionColour } from "../actions/BarParts.tsx";
 import { DraftDecisionIcon, SummariseIcon } from "../ai/icons.tsx";
 import { DisplaySwitch } from "../display/DisplaySwitch.tsx";
 import { DocContext } from "../DocContext.ts";
 import { DotsIcon, HushIcon } from "../facilitation/icons.tsx";
 import { TrayIcon } from "../inbox/icons.tsx";
-import { SparkIcon } from "../stacks/StackNode.tsx";
+import { SparkIcon, SpreadIcon, StackIcon } from "../stacks/StackNode.tsx";
+import { ActionItemIcon, CarryIcon } from "../actionItems/icons.tsx";
 import {
 	type ExpandSummary,
 	type RelatedState,
@@ -21,6 +22,7 @@ import {
 } from "../actions/ExpandRelated.tsx";
 import {
 	BacklinkIcon,
+	BlockedIcon,
 	CloseIssueIcon,
 	FitIcon,
 	IssueIcon,
@@ -49,6 +51,7 @@ import { ToastStore } from "../Toasts.tsx";
 import { History } from "../undo.ts";
 import { RELATED_CARDS, relatedFor } from "./related.ts";
 import { fakeMeta, playServices, WRITES_CARDS } from "./writes.ts";
+import { GalleryBar } from "./GalleryBar.tsx";
 import { GroupTheseGallery } from "./StackGallery.tsx";
 
 // Every state of the selection actions (#32, #33): the bars, each picker
@@ -72,6 +75,18 @@ const STICKIES = [
 	{ id: "s4", text: "", color: "blue" },
 ];
 
+const PARENT: Action = { id: "parentIssue", label: "Make a parent issue", icon: <ParentIcon /> };
+const STACK: Action = { id: "stackThese", label: "Stack these", icon: <StackIcon /> };
+const AUTO_STACK: Action = {
+	id: "groupThese",
+	label: "Auto-stack: sort these into named stacks",
+	icon: <SparkIcon />,
+};
+const AI_ACTIONS: Action[] = [
+	{ id: "summarise", label: "Summarise with AI", icon: <SummariseIcon /> },
+	{ id: "draftDecision", label: "Draft a decision with AI", icon: <DraftDecisionIcon /> },
+];
+
 const STICKY_ACTIONS: Action[] = [
 	{
 		id: "makeIssues",
@@ -79,16 +94,44 @@ const STICKY_ACTIONS: Action[] = [
 		icon: <IssueIcon />,
 		text: "Make 3 issues",
 	},
-	{ id: "parentIssue", label: "Make a parent issue", icon: <ParentIcon /> },
+	{
+		id: "toActions",
+		label: "Make action items",
+		icon: <ActionItemIcon />,
+		text: "Action items",
+	},
+	PARENT,
+	STACK,
+	AUTO_STACK,
+	...AI_ACTIONS,
 ];
 
-const CARD_ACTIONS: Action[] = [
+const TRIAGE: Action[] = [
 	{ id: "labels", label: "Labels", icon: <LabelIcon /> },
 	{ id: "milestone", label: "Milestone", icon: <MilestoneIcon /> },
 	{ id: "assign", label: "Assign", icon: <PersonIcon /> },
-	{ id: "closeReopen", label: "Close", icon: <CloseIssueIcon /> },
-	{ id: "backlink", label: "Comment with a link to this board", icon: <BacklinkIcon /> },
-	{ id: "parentIssue", label: "Make a parent issue", icon: <ParentIcon /> },
+];
+const CLOSE: Action = {
+	id: "closeReopen",
+	label: "Close",
+	icon: <CloseIssueIcon />,
+	text: "Close",
+};
+const BACKLINK: Action = {
+	id: "backlink",
+	label: "Comment with a link to this board",
+	icon: <BacklinkIcon />,
+};
+
+/** Six issues: their triage, what they can become, and AI. */
+const CARD_ACTIONS: Action[] = [
+	...TRIAGE,
+	STACK,
+	AUTO_STACK,
+	CLOSE,
+	BACKLINK,
+	PARENT,
+	...AI_ACTIONS,
 ];
 
 const BARS: {
@@ -96,7 +139,9 @@ const BARS: {
 	actions: Action[];
 	open?: string;
 	install?: boolean;
-	section?: "all" | "small";
+	section?: boolean;
+	/** A narrow window: as far across as the bar may go. */
+	limit?: number;
 }[] = [
 	{ label: "Stickies", actions: STICKY_ACTIONS },
 	{
@@ -112,27 +157,66 @@ const BARS: {
 		],
 	},
 	{
-		label: "A section on its own: its tools, then what it can become",
+		label: "A section on its own: its settings, facilitation, actions and AI",
 		actions: [],
-		section: "all",
+		section: true,
 	},
-	{ label: "A section small on screen: the rest in …", actions: [], section: "small" },
-	{ label: "Cards, labels open", actions: CARD_ACTIONS, open: "labels" },
+	{
+		label: "A section in a narrow window: what matters least in …",
+		actions: [],
+		section: true,
+		limit: 640,
+	},
+	{ label: "Six cards, labels open", actions: CARD_ACTIONS, open: "labels" },
+	{
+		label: "Six cards in a narrow window: what matters least in …",
+		actions: CARD_ACTIONS,
+		limit: 520,
+	},
 	{
 		label: "One card",
 		actions: [
+			...TRIAGE,
+			{ id: "expandRelated", label: "Expand related items", icon: <RelatedIcon /> },
+			CLOSE,
+			BACKLINK,
+		],
+	},
+	{
+		label: "Stickies and cards",
+		actions: [
+			PARENT,
+			STACK,
+			AUTO_STACK,
+			{ id: "blockedBy", label: "Blocked by: the arrow between these", icon: <BlockedIcon /> },
+			...AI_ACTIONS,
+		],
+	},
+	{
+		label: "A stack",
+		actions: [
 			{
-				id: "expandRelated",
-				label: "Expand related items",
-				icon: <RelatedIcon />,
-				text: "Related",
+				id: "parentIssue",
+				label: "Make a parent issue from this stack, what’s in it as sub-issues",
+				icon: <ParentIcon />,
 			},
-			...CARD_ACTIONS.slice(0, 5),
+			{ id: "unstack", label: "Unstack: lay what’s in it out where it is", icon: <SpreadIcon /> },
+		],
+	},
+	{
+		label: "Action items",
+		actions: [
+			{
+				id: "carryOver",
+				label: "Carry the open ones over to another board",
+				icon: <CarryIcon />,
+			},
+			...AI_ACTIONS,
 		],
 	},
 	{
 		label: "Cards without the app",
-		actions: CARD_ACTIONS.slice(0, 5).map((a) => ({
+		actions: [...TRIAGE, CLOSE, BACKLINK].map((a) => ({
 			...a,
 			unavailable: "Tack can’t write to these yet: install the app",
 		})),
@@ -140,103 +224,69 @@ const BARS: {
 	},
 ];
 
-function Bar({ actions, open, install }: { actions: Action[]; open?: string; install?: boolean }) {
-	return (
-		<div className="selection-actions" role="toolbar" aria-label="Stage changes">
-			{actions.map((action) => (
-				<ActionButton
-					key={action.id}
-					action={action}
-					pressed={open === action.id}
-					onClick={() => {}}
-				/>
-			))}
-			{install && (
-				<a className="selection-actions-install" href="#install">
-					Install the app
-				</a>
-			)}
-		</div>
-	);
-}
-
-const entry = (group: BarEntry["group"], action: BarEntry["action"]): BarEntry => ({
-	key: action.id,
-	group,
-	action,
-	pressed: false,
-	run: () => {},
-});
-
-const SECTION_ENTRIES: BarEntry[] = [
-	entry("facilitate", { id: "startSilent", label: "Silent mode", icon: <HushIcon size={16} /> }),
-	entry("facilitate", { id: "startVote", label: "Vote", icon: <DotsIcon size={16} /> }),
-	entry("facilitate", { id: "makeInbox", label: "Make inbox", icon: <TrayIcon size={16} /> }),
-	entry("actions", {
-		id: "parentIssue",
-		label: "Make a parent issue from this section",
-		icon: <ParentIcon />,
-		text: "Make parent issue",
-	}),
-	entry("actions", {
+/** A lone section's facilitation and actions, after its colour and display. */
+const SECTION_ACTIONS: (Omit<Action, "id"> & { id: string })[] = [
+	{
+		id: "startSilent",
+		label: "Silent mode",
+		tooltip: "Silent mode: everyone writes face down until the reveal",
+		icon: <HushIcon size={16} />,
+	},
+	{
+		id: "startVote",
+		label: "Vote",
+		tooltip: "Dot vote on what’s in it",
+		icon: <DotsIcon size={16} />,
+	},
+	{
+		id: "makeInbox",
+		label: "Make inbox",
+		tooltip: "Make inbox: collect new matches for a search here",
+		icon: <TrayIcon size={16} />,
+	},
+	{ id: "parentIssue", label: "Make a parent issue from this section", icon: <ParentIcon /> },
+	{
 		id: "groupThese",
 		label: "Auto-stack: sort this section into named stacks",
 		icon: <SparkIcon />,
-		text: "Auto-stack",
-	}),
-	entry("actions", {
-		id: "fitSection",
-		label: "Fit to contents",
-		icon: <FitIcon />,
-		text: "Fit",
-		quiet: true,
-	}),
-	entry("actions", { id: "summarise", label: "Summarise with AI", icon: <SummariseIcon /> }),
-	entry("actions", {
-		id: "draftDecision",
-		label: "Draft a decision with AI",
-		icon: <DraftDecisionIcon />,
-	}),
+	},
+	{ id: "fitSection", label: "Fit to contents", icon: <FitIcon /> },
+	...AI_ACTIONS,
 ];
 
 const sectionDoc = new Y.Doc();
 
-/** A lone section's bar, as the board draws it: all of it, or cut short with a … menu. */
-function SectionBarSample({ small }: { small: boolean }) {
-	const [color, setColor] = useState<SectionColor>(small ? "green" : "blue");
-	const more = useRef<HTMLButtonElement>(null);
-	const shown = small ? 4 : SECTION_ENTRIES.length;
-	const visible = SECTION_ENTRIES.slice(0, shown);
+/** A lone section's bar, as the board draws it: all of it, or in a narrow window with a … menu. */
+function SectionBarSample({ limit }: { limit?: number }) {
+	const narrow = limit !== undefined;
+	const [color, setColor] = useState<SectionColor>(narrow ? "green" : "blue");
 	return (
 		<DocContext value={sectionDoc}>
-			<div className="selection-actions" role="toolbar" aria-label="Stage changes" data-section>
-				<SectionColour color={color} onColor={setColor} />
-				<BarDivider />
-				<DisplaySwitch
-					id="gallery-section"
-					shape={{ type: "section", x: 0, y: 0, z: "a0", ...(small ? { display: "list" } : {}) }}
-				/>
-				{(["facilitate", "actions"] as const).map((group) => {
-					const entries = visible.filter((entry) => entry.group === group);
-					return entries.length === 0 ? null : (
-						<Fragment key={group}>
-							<BarDivider />
-							{entries.map((entry) => (
-								<ActionButton
-									key={entry.key}
-									action={entry.action}
-									pressed={false}
-									onClick={() => {}}
-								/>
-							))}
-						</Fragment>
-					);
-				})}
-				{shown < SECTION_ENTRIES.length && (
-					<MoreMenu entries={SECTION_ENTRIES.slice(shown)} buttonRef={more} />
-				)}
-			</div>
+			<GalleryBar
+				section
+				limit={limit}
+				actions={SECTION_ACTIONS}
+				leading={[
+					<SectionColour key="colour" color={color} onColor={setColor} />,
+					<DisplaySwitch
+						key="display"
+						id={narrow ? "gallery-section-narrow" : "gallery-section"}
+						shape={{ type: "section", x: 0, y: 0, z: "a0", ...(narrow ? { display: "list" } : {}) }}
+					/>,
+				]}
+			/>
 		</DocContext>
+	);
+}
+
+/** A narrow window's width, as a frame around its bar (or just the bar, given no limit). */
+function Narrow({ limit, children }: { limit?: number; children: ReactNode }) {
+	if (limit === undefined) return children;
+	// The bar's margins inside the canvas (placeBar), on both sides.
+	return (
+		<div className="actions-narrow" style={{ width: limit + 24 }}>
+			{children}
+		</div>
 	);
 }
 
@@ -416,11 +466,18 @@ export default function ActionsGallery() {
 					<div className="gallery-grid actions-bars">
 						{BARS.map((bar) => (
 							<figure key={bar.label}>
-								{bar.section ? (
-									<SectionBarSample small={bar.section === "small"} />
-								) : (
-									<Bar actions={bar.actions} open={bar.open} install={bar.install} />
-								)}
+								<Narrow limit={bar.limit}>
+									{bar.section ? (
+										<SectionBarSample limit={bar.limit} />
+									) : (
+										<GalleryBar
+											actions={bar.actions}
+											open={bar.open}
+											install={bar.install}
+											limit={bar.limit}
+										/>
+									)}
+								</Narrow>
 								<figcaption>{bar.label}</figcaption>
 							</figure>
 						))}

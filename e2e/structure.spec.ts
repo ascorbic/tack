@@ -335,14 +335,10 @@ test("Fit to contents snaps a section to what's in it, from the bar, a handle or
 	const zoom = (await box(now)).width / before.w;
 	await now.locator(".section-title").click();
 
-	// Small on screen, the section's bar has Fit in its "…" menu.
+	// Small on screen, the section's bar still has Fit: it's as wide as the window lets it be.
 	await page
 		.getByRole("toolbar", { name: "Stage changes" })
-		.getByRole("button", { name: "More", exact: true })
-		.click();
-	await page
-		.getByRole("menu", { name: "More for this section" })
-		.getByRole("menuitem", { name: "Fit to contents" })
+		.getByRole("button", { name: "Fit to contents" })
 		.click();
 	await expect.poll(async () => (await boxes(page, "Now")).section).not.toEqual(before);
 	const fitted = (await boxes(page, "Now")).section;

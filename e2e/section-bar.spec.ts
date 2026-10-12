@@ -146,29 +146,60 @@ test("a section taller than the view keeps its bar pinned on screen as the board
 	).toBe(true);
 });
 
-test("what doesn't fit over a small section goes in its … menu, and works from there", async ({
-	page,
-}) => {
+test("a small section's bar has every word, as wide as the window lets it be", async ({ page }) => {
 	await placeSection(page, { y: 540, w: 300 });
 	await selectSection(page);
 	const toolbar = bar(page);
-	await expect(toolbar.getByRole("button", { name: "Make inbox" })).toBeVisible();
-	await expect(toolbar.getByRole("button", { name: "Fit to contents" })).toHaveCount(0);
-	// One row.
+	// Wider than the section: the screen decides, not the selection.
+	for (const [name, word] of [
+		["Silent mode", "Silent"],
+		["Make inbox", "Inbox"],
+		["Make a parent issue from this section", "Make parent issue"],
+		["Fit to contents", "Fit"],
+		["Summarise with AI", "Summarise"],
+		["Draft a decision with AI", "Decide"],
+	] as const) {
+		await expect(toolbar.getByRole("button", { name })).toHaveText(word);
+	}
+	await expect(toolbar.getByRole("button", { name: "More", exact: true })).toHaveCount(0);
+	const section = (await page.locator(".section", { hasText: TITLE }).boundingBox())!;
+	expect((await toolbar.boundingBox())!.width).toBeGreaterThan(section.width);
+	await wholly(page, toolbar);
+});
+
+test("what doesn't fit across a narrow window goes in its … menu, with its word, and works from there", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 760, height: 800 });
+	await placeSection(page, { y: 540, w: 300 });
+	await selectSection(page);
+	const toolbar = bar(page);
+	// The main action and the settings stay; what matters least goes first.
+	await expect(toolbar.getByRole("button", { name: /^Colour/ })).toBeVisible();
+	await expect(
+		toolbar.getByRole("button", { name: "Make a parent issue from this section" }),
+	).toBeVisible();
+	await expect(toolbar.getByRole("button", { name: "Silent mode" })).toHaveText("Silent");
+	await expect(toolbar.getByRole("button", { name: "Draft a decision with AI" })).toHaveCount(0);
+	// One row, on screen.
 	expect((await toolbar.boundingBox())!.height).toBeLessThan(56);
+	await wholly(page, toolbar);
 
 	await toolbar.getByRole("button", { name: "More", exact: true }).click();
 	const menu = page.getByRole("menu", { name: "More for this section" });
-	await expect(menu.getByRole("menuitem", { name: "Fit to contents" })).toBeVisible();
+	await expect(menu.getByRole("menuitem", { name: "Draft a decision with AI" })).toHaveText(
+		"Decide",
+	);
 	await wholly(page, menu);
-	// From the keyboard: down to Summarise, which opens its panel from the bar.
+	// From the keyboard: Escape back to "…", down into it again, and Decide opens its panel.
 	await page.keyboard.press("Escape");
 	await expect(menu).toHaveCount(0);
 	await expect(toolbar.getByRole("button", { name: "More", exact: true })).toBeFocused();
 	await page.keyboard.press("ArrowDown");
 	await expect(menu).toBeVisible();
-	await menu.getByRole("menuitem", { name: "Fit to contents" }).click();
+	await menu.getByRole("menuitem", { name: "Draft a decision with AI" }).click();
 	await expect(menu).toHaveCount(0);
+	await expect(page.getByRole("dialog", { name: "Draft a decision with AI" })).toBeVisible();
 });
 
 test("the keyboard moves along the whole bar, and Escape goes back to the section", async ({

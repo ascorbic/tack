@@ -326,10 +326,11 @@ test("the bar is a toolbar the keyboard reaches from the selection", async ({ pa
 	await select(page, "Drop Node 18");
 	const shape = node(page, "Drop Node 18");
 	await shape.focus();
-	// Tab from the selected shape lands on the bar's first button.
+	// Tab from the selected shape lands on the bar's first button: its labels.
 	await page.keyboard.press("Tab");
 	const buttons = bar(page).locator(":scope > .selection-action");
 	await expect(buttons.first()).toBeFocused();
+	await expect(buttons.first()).toHaveAccessibleName("Labels");
 	// One tab stop; arrow keys move along it.
 	await expect(buttons.nth(1)).toHaveAttribute("tabindex", "-1");
 	await page.keyboard.press("ArrowRight");
@@ -339,7 +340,6 @@ test("the bar is a toolbar the keyboard reaches from the selection", async ({ pa
 	await page.keyboard.press("Home");
 	await expect(buttons.first()).toBeFocused();
 	// Opening a panel and closing it comes back to the button.
-	await page.keyboard.press("ArrowRight");
 	const labelsButton = bar(page).getByRole("button", { name: "Labels" });
 	await expect(labelsButton).toBeFocused();
 	await page.keyboard.press("Enter");
@@ -512,7 +512,7 @@ test("cards without the app can't be changed", async ({ page }) => {
 test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
-	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(7);
+	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(11);
 	// 27, and Auto-stack's nine (#73): one with cards included, two of cards
 	// alone, and a section with more than it reads at once.
 	await expect(page.locator(".action-popover")).toHaveCount(36);
@@ -558,6 +558,18 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await expect(related.getByText("Nothing’s linked to this issue yet")).toBeVisible();
 	await expect(related.getByText("Everything’s here and connected.")).toBeVisible();
 	await expect(related.getByText("rate limit is used up")).toBeVisible();
+	// Every action has its word; in a narrow window, what matters least is in "…", with its word.
+	const narrow = page.locator("figure", { hasText: "Six cards in a narrow window" });
+	await expect(narrow.getByRole("button", { name: "Make a parent issue" })).toHaveText(
+		"Make parent issue",
+	);
+	await expect(narrow.getByRole("button", { name: "Labels" })).toHaveText("");
+	await narrow.getByRole("button", { name: "More", exact: true }).click();
+	await expect(
+		page
+			.getByRole("menu", { name: "More for the selection" })
+			.getByRole("menuitem", { name: "Summarise with AI" }),
+	).toHaveText("Summarise");
 });
 
 test("a merged pull request can still be triaged, but not closed, and needs no app", async ({

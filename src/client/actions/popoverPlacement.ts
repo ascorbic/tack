@@ -284,6 +284,9 @@ export function panIntoView({
 /** Where the bar is: beside its selection, or pinned to an edge of the canvas. */
 export type BarSide = "below" | "above" | "top" | "bottom";
 
+/** Kept clear around the selection's bar: it's never wider than the canvas less this each side. */
+export const BAR_MARGIN = 12;
+
 export interface BarInput {
 	/** The selection, on the canvas. */
 	selection: Box;
@@ -324,7 +327,7 @@ export function placeBar({
 	below,
 	above,
 	prefer = "below",
-	margin = 12,
+	margin = BAR_MARGIN,
 	inset = 12,
 }: BarInput): BarPlacement {
 	const centre = (selection.left + selection.right) / 2 - size.width / 2;

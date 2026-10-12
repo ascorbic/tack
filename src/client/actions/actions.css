@@ -10,6 +10,9 @@
 .selection-actions {
 	position: relative;
 	display: flex;
+	/* As wide as what's in it: what doesn't fit across the canvas goes in its
+	   "…" menu (BarParts.tsx), so it never wraps or squeezes. */
+	width: max-content;
 	align-items: center;
 	gap: 2px;
 	padding: 4px;
@@ -151,9 +154,11 @@
 	display: none;
 }
 
-/* A section's bar ------------------------------------------------------------
-   A section on its own has one bar: Colour | Display | Facilitate | Actions,
-   with what doesn't fit in a "…" menu at its end (SectionBar.tsx). */
+/* Groups and "…" ----------------------------------------------------------
+   Every bar is in groups with a rule between them: a section's Colour |
+   Display | Facilitate | Actions | AI, cards' Triage | Actions | AI. Settings
+   are icons; actions an icon and a word, the main one in the accent colour.
+   What doesn't fit goes in a "…" menu at its end (barLayout.ts). */
 
 .bar-divider {
 	flex: none;
@@ -165,8 +170,8 @@
 	background: var(--line);
 }
 
-/* Its icon-only buttons say what they are when hovered, as the bar's do. */
-.selection-actions[data-section] .selection-action:not([data-text]) {
+/* Settings are icons, square, and say what they are when hovered. */
+.selection-action:not([data-text]) {
 	padding: 0 7px;
 }
 
@@ -1926,9 +1931,16 @@ button.issue-preview-body[aria-expanded="true"] {
 	gap: 10px;
 }
 
-/* A section's bar is wider: a row of its own. */
-.actions-gallery .actions-bars figure:has(.selection-actions[data-section]) {
-	grid-column: 1 / -1;
+/* Bars spell their actions out: a row each. */
+.actions-gallery .gallery-grid.actions-bars {
+	grid-template-columns: 1fr;
+}
+
+/* A narrow window: as wide as the bar may go, drawn as a dashed frame. */
+.actions-gallery .actions-narrow {
+	padding: 10px 12px;
+	border: 1.5px dashed var(--line);
+	border-radius: 14px;
 }
 
 .gallery-blocked {

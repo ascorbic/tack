@@ -1,13 +1,5 @@
 import { useStore, useStoreApi } from "@xyflow/react";
-import {
-	Fragment,
-	type ReactNode,
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 import {
 	type ChildInput,
@@ -49,7 +41,6 @@ import { useAi } from "../ai/service.ts";
 import { useReveal } from "../reveal.ts";
 import { countWords } from "../../shared/a11y.ts";
 import type { ShapeType } from "../../shared/shapes.ts";
-import { isApplePlatform, shortcutHint } from "../shortcuts.ts";
 import { unionRect } from "../snapping.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import type { History } from "../undo.ts";
@@ -87,7 +78,8 @@ import {
 } from "./pickers.tsx";
 import { Notice, Popover, PopoverHead } from "./Popover.tsx";
 import { SelectionBar } from "./SelectionBar.tsx";
-import { type BarEntry, BarDivider, MoreMenu, SectionColour, useOverflow } from "./SectionBar.tsx";
+import { BAR_MARGIN } from "./popoverPlacement.ts";
+import { type BarSource, BarItems, SectionColour, barEntries, useOverflow } from "./BarParts.tsx";
 import { DisplaySwitch } from "../display/DisplaySwitch.tsx";
 import { startSilent } from "../facilitation/Silent.tsx";
 import { useVoteOpen, voteUI } from "../facilitation/Votes.tsx";
@@ -134,19 +126,10 @@ import { useChangeList } from "../changes/store.ts";
 // triaged or given a backlink. Every action stages changes for the push
 // sheet; nothing is written until someone pushes.
 
-const apple = isApplePlatform();
-
 type Size = { width: number; height: number };
 
 /** React Flow lifts selected shapes by 1000; the bar and its panels go above that. */
 const TOOLBAR_Z = 3000;
-
-/**
- * The least a lone section's bar may be across before what doesn't fit goes in
- * its "…" menu, however small the section is on screen; it's never wider
- * than the canvas.
- */
-const SECTION_BAR_MIN = 560;
 
 interface ActionBarProps {
 	doc: Y.Doc;
@@ -168,9 +151,12 @@ export interface Action {
 	id: ActionCommand;
 	label: string;
 	icon: ReactNode;
-	/** Shown beside the icon: the main actions are spelled out. */
+	/**
+	 * Its word beside the icon, when it isn't the usual one (barLayout.ts's
+	 * `WORDS`): a count, or a state. Settings have none.
+	 */
 	text?: string;
-	/** Spelled out because the icon alone isn't obvious, not because it's the main action. */
+	/** Not the bar's main action: set as it's laid out (barLayout.ts). */
 	quiet?: boolean;
 	/** Why it can't be done, if it can't. */
 	unavailable?: string;
@@ -343,6 +329,7 @@ export function ActionBar(props: ActionBarProps) {
 				id: "toActions",
 				label: stickies.length === 1 ? "Make an action item" : "Make action items",
 				icon: <ActionItemIcon />,
+				text: stickies.length === 1 ? "Action item" : "Action items",
 			});
 		}
 		if (onlyActions) {
@@ -354,7 +341,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "carryOver",
 				label: "Carry the open ones over to another board",
 				icon: <CarryIcon />,
-				text: "Carry over",
 				unavailable: open.length === 0 ? "They’re all done" : undefined,
 			});
 		}
@@ -363,7 +349,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "parentIssue",
 				label: onlySection ? "Make a parent issue from this section" : "Make a parent issue",
 				icon: <ParentIcon />,
-				text: onlySection || clustered ? "Make parent issue" : undefined,
 				unavailable: onlySection ? undefined : faceDown,
 			});
 		}
@@ -373,7 +358,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "groupThese",
 				label: "Auto-stack: sort this section into named stacks",
 				icon: <SparkIcon />,
-				text: "Auto-stack",
 				unavailable:
 					sectionItems.length >= 3
 						? undefined
@@ -388,8 +372,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "fitSection",
 				label: "Fit to contents",
 				icon: <FitIcon />,
-				text: "Fit",
-				quiet: true,
 			});
 		}
 		// Stacks (#73): stickies and cards into one, a selection into themed ones
@@ -400,7 +382,7 @@ export function ActionBar(props: ActionBarProps) {
 			sections.length + others.length === 0 &&
 			[...stickies, ...cardNodes, ...stacks].every((n) => n.data.display === undefined)
 		) {
-			out.push({ id: "stackThese", label: "Stack these", icon: <StackIcon />, text: "Stack" });
+			out.push({ id: "stackThese", label: "Stack these", icon: <StackIcon /> });
 		}
 		// Stickies and cards, and nothing else (no rows in a list): with stickies,
 		// cards join in if asked to (the panel's choice); on their own, they're
@@ -419,7 +401,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "groupThese",
 				label: "Auto-stack: sort these into named stacks",
 				icon: <SparkIcon />,
-				text: "Auto-stack",
 				unavailable:
 					readable.length + cardNodes.length >= 3
 						? undefined
@@ -435,7 +416,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "parentIssue",
 				label: "Make a parent issue from this stack, what’s in it as sub-issues",
 				icon: <ParentIcon />,
-				text: "Make parent issue",
 				unavailable: members.some((id) => shapes.get(id)?.silent)
 					? "Face down until the reveal: reveal first to make issues"
 					: undefined,
@@ -444,8 +424,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "unstack",
 				label: "Unstack: lay what’s in it out where it is",
 				icon: <SpreadIcon />,
-				text: "Unstack",
-				quiet: true,
 			});
 		}
 		// Not a change to stage: it lays out what's already linked, so it's
@@ -461,7 +439,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "expandRelated",
 				label: "Expand related items",
 				icon: <RelatedIcon />,
-				text: "Related",
 			});
 		}
 		if (onlyCards && cards.length > 0) {
@@ -473,8 +450,6 @@ export function ActionBar(props: ActionBarProps) {
 			};
 			const anyOpen = closable.some((c) => c.card.state !== "closed");
 			const anyClosed = closable.some((c) => c.card.state === "closed");
-			// With room (one or two cards), the two least obvious say what they are.
-			const roomy = cardNodes.length <= 2;
 			const closeLabel =
 				anyOpen && !anyClosed ? "Close" : !anyOpen && anyClosed ? "Reopen" : "Close or reopen";
 			const triage: Action[] = [
@@ -485,15 +460,12 @@ export function ActionBar(props: ActionBarProps) {
 					id: "closeReopen",
 					label: closeLabel,
 					icon: <CloseIssueIcon />,
-					...(roomy
-						? { text: closeLabel === "Close or reopen" ? "Close…" : closeLabel, quiet: true }
-						: {}),
+					text: closeLabel === "Close or reopen" ? "Close…" : closeLabel,
 				},
 				{
 					id: "backlink",
 					label: "Comment with a link to this board",
 					icon: <BacklinkIcon />,
-					...(roomy ? { text: "Backlink", quiet: true } : {}),
 				},
 			];
 			const merged =
@@ -561,8 +533,6 @@ export function ActionBar(props: ActionBarProps) {
 				id: "blockedBy",
 				label: "Blocked by: the arrow between these",
 				icon: <BlockedIcon />,
-				text: "Blocked by",
-				quiet: true,
 			});
 		}
 		return out;
@@ -730,16 +700,15 @@ export function ActionBar(props: ActionBarProps) {
 		});
 	});
 
-	// A lone section's bar: its facilitation, then what it can become, as
-	// many as fit, and the rest in a "…" menu at the end.
+	// Every bar: its settings, then what it does, each with its word, in
+	// groups (barLayout.ts); as many as fit across the canvas, and the rest
+	// in a "…" menu at its end. A lone section's facilitation goes in too.
 	const more = useRef<HTMLButtonElement>(null);
 	const loneShape = lone?.data.shape;
-	const entries: BarEntry[] = [];
+	const sources: BarSource[] = [];
 	if (lone && loneShape) {
 		if (!loneShape.silent) {
-			entries.push({
-				key: "startSilent",
-				group: "facilitate",
+			sources.push({
 				action: {
 					id: "startSilent",
 					label: "Silent mode",
@@ -751,9 +720,7 @@ export function ActionBar(props: ActionBarProps) {
 			});
 		}
 		if (!voteOpen) {
-			entries.push({
-				key: "startVote",
-				group: "facilitate",
+			sources.push({
 				action: {
 					id: "startVote",
 					label: "Vote",
@@ -765,9 +732,7 @@ export function ActionBar(props: ActionBarProps) {
 			});
 		}
 		if (!loneShape.inbox) {
-			entries.push({
-				key: "makeInbox",
-				group: "facilitate",
+			sources.push({
 				action: {
 					id: "makeInbox",
 					label: "Make inbox",
@@ -778,33 +743,28 @@ export function ActionBar(props: ActionBarProps) {
 				run: () => inboxUI.edit(lone.id),
 			});
 		}
-		actions.forEach((action, i) =>
-			entries.push({
-				key: `${action.id}-${i}`,
-				group: "actions",
-				action,
-				pressed: open === action.id,
-				run: (event, from) => runAction(action, event, from),
-			}),
-		);
 	}
+	for (const action of actions) {
+		sources.push({
+			action,
+			pressed: open === action.id,
+			run: (event, from) => runAction(action, event, from),
+		});
+	}
+	const entries = barEntries(sources);
+	// As wide as the canvas allows, inside the margins placeBar keeps.
 	const paneWidth = useStore((s) => s.width);
-	const loneId = lone?.id;
-	const loneWidth = useStore((s) => {
-		const node = loneId ? s.nodeLookup.get(loneId) : undefined;
-		return node ? Math.round((node.width ?? node.measured.width ?? 0) * s.transform[2]) : 0;
-	});
-	const shown = useOverflow(
+	const hidden = useOverflow(
 		bar,
-		entries.map((entry) => entry.key),
+		entries,
 		[
 			...entries.map((e) => `${e.key}:${e.action.text ?? ""}:${e.action.unavailable ? 1 : 0}`),
 			loneShape?.display ?? "",
 			loneShape ? JSON.stringify(loneShape.sort ?? null) : "",
+			cards.length > 0 && targets.length === 0 ? "install" : "",
 		].join("|"),
-		lone ? Math.min(paneWidth - 24, Math.max(loneWidth, SECTION_BAR_MIN)) : null,
+		paneWidth > 0 ? paneWidth - 2 * BAR_MARGIN : null,
 	);
-
 	if (actions.length === 0 && !lone) return null;
 
 	/** The selected shape the bar is about, to go back to from the bar. */
@@ -1236,25 +1196,13 @@ export function ActionBar(props: ActionBarProps) {
 					if (at >= 0) setCurrent(at);
 				}}
 			>
-				{lone && loneShape ? (
-					<LoneSection
-						id={lone.id}
-						shape={loneShape}
-						doc={doc}
-						entries={entries}
-						shown={shown}
-						more={more}
-					/>
-				) : (
-					actions.map((action, i) => (
-						<ActionButton
-							key={`${action.id}-${i}`}
-							action={action}
-							pressed={open === action.id}
-							onClick={(event) => runAction(action, event)}
-						/>
-					))
-				)}
+				<BarItems
+					leading={lone && loneShape ? sectionSettings(lone.id, loneShape, doc) : []}
+					entries={entries}
+					hidden={hidden}
+					more={more}
+					menuLabel={lone ? "More for this section" : "More for the selection"}
+				/>
 				{allUnwritable && (
 					<a className="selection-actions-install" href={installUrl()}>
 						Install the app
@@ -1295,93 +1243,21 @@ function focusableActions(bar: HTMLElement | null): HTMLButtonElement[] {
 const SECTION_TITLE = 32;
 
 /**
- * A lone section's tools and actions in its bar: Colour | Display |
- * Facilitate | Actions, with what doesn't fit in a "…" menu at the end.
+ * A lone section's settings, leading its bar: Colour | Display, before its
+ * Facilitate, Actions and AI groups.
  */
-function LoneSection({
-	id,
-	shape,
-	doc,
-	entries,
-	shown,
-	more,
-}: {
-	id: string;
-	shape: ShapeNode["data"]["shape"];
-	doc: Y.Doc;
-	entries: BarEntry[];
-	shown: number;
-	more: React.RefObject<HTMLButtonElement | null>;
-}) {
+function sectionSettings(id: string, shape: ShapeNode["data"]["shape"], doc: Y.Doc): ReactNode[] {
 	const color = (SECTION_COLORS as readonly string[]).includes(shape.color ?? "")
 		? (shape.color as SectionColor)
 		: "grey";
-	const visible = entries.slice(0, shown);
-	const hidden = entries.slice(shown);
-	const groups = (["facilitate", "actions"] as const)
-		.map((group) => visible.filter((entry) => entry.group === group))
-		.filter((group) => group.length > 0);
-	return (
-		<>
-			<SectionColour color={color} onColor={(next) => updateShapes(doc, [id], { color: next })} />
-			<BarDivider />
-			<DisplaySwitch id={id} shape={shape} />
-			{groups.map((group) => (
-				<Fragment key={group[0]?.group}>
-					<BarDivider />
-					{group.map((entry) => (
-						<ActionButton
-							key={entry.key}
-							action={entry.action}
-							pressed={entry.pressed}
-							overflow={entry.key}
-							onClick={(event) => entry.run(event, null)}
-						/>
-					))}
-				</Fragment>
-			))}
-			{hidden.length > 0 && <MoreMenu entries={hidden} buttonRef={more} />}
-		</>
-	);
-}
-
-export function ActionButton({
-	action,
-	pressed,
-	tabStop = true,
-	overflow,
-	onClick,
-}: {
-	action: Omit<Action, "id"> & { id: string };
-	pressed: boolean;
-	/** Whether Tab lands here: one button in the bar is (a roving tab stop). */
-	tabStop?: boolean;
-	/** Its key, where it may go in the bar's "…" menu (SectionBar.tsx). */
-	overflow?: string;
-	onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-}) {
-	const hint = shortcutHint(action.id, apple);
-	return (
-		<button
-			type="button"
-			className="selection-action"
-			data-text={action.text ? true : undefined}
-			data-quiet={action.quiet || undefined}
-			aria-label={action.unavailable ? `${action.label}: ${action.unavailable}` : action.label}
-			aria-expanded={action.unavailable ? undefined : pressed}
-			aria-haspopup={action.unavailable ? undefined : "dialog"}
-			aria-disabled={action.unavailable ? true : undefined}
-			data-tooltip={action.unavailable ?? action.tooltip ?? action.label}
-			data-bar-item
-			data-overflow={overflow}
-			data-shortcut={action.unavailable ? "" : hint}
-			tabIndex={tabStop ? 0 : -1}
-			onClick={onClick}
-		>
-			{action.icon}
-			{action.text && <span>{action.text}</span>}
-		</button>
-	);
+	return [
+		<SectionColour
+			key="colour"
+			color={color}
+			onColor={(next) => updateShapes(doc, [id], { color: next })}
+		/>,
+		<DisplaySwitch key="display" id={id} shape={shape} />,
+	];
 }
 
 /**
