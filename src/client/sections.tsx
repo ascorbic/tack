@@ -23,6 +23,8 @@ import { addSection, fitSection, readShapes, resizeSection } from "../shared/str
 import { sectionSpot } from "../shared/placement.ts";
 import { sortOf } from "../shared/display.ts";
 import { DisplaySwitch, sortLabel } from "./display/DisplaySwitch.tsx";
+import { useZoomTier } from "./display/DisplayItem.tsx";
+import { EmptyList, useEmptyPresence } from "./display/EmptyList.tsx";
 import { type ShapeNode, focusWhenMounted, isFresh, takeFocus } from "./board.ts";
 import { scaledDuration } from "./motion.ts";
 import { DocContext, ReadOnlyContext, SectionContext, type SectionUI } from "./DocContext.ts";
@@ -31,6 +33,7 @@ import { VoteButton } from "./facilitation/Votes.tsx";
 import { TrayIcon } from "./inbox/icons.tsx";
 import { inboxUI, useTray } from "./inbox/useTray.ts";
 import { isOnUnselectedShape } from "./keys.ts";
+import { useDevice } from "./touch/device.ts";
 import "./sections.css";
 
 const HANDLES: ResizeHandle[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
@@ -41,7 +44,13 @@ const HANDLES: ResizeHandle[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
  * shapes it holds, lights up when something is about to land in it, and
  * gives a little "gulp" when something does.
  */
-export const SectionNode = memo(function SectionNode({ id, data, selected }: NodeProps<ShapeNode>) {
+export const SectionNode = memo(function SectionNode({
+	id,
+	data,
+	selected,
+	width,
+	height,
+}: NodeProps<ShapeNode>) {
 	const doc = useContext(DocContext);
 	const ui = useContext(SectionContext);
 	// View-only boards can't rename, recolour or resize sections.
@@ -88,6 +97,9 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 	const display = data.display;
 	const listed = display === "list" || display === "grid";
 	const sort = listed ? sortOf(shape) : null;
+	const empty = useEmptyPresence(listed && count === 0);
+	const tier = useZoomTier();
+	const phone = useDevice().phone;
 
 	if (display === "group") {
 		return (
@@ -115,10 +127,18 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 			data-display={display}
 			data-gliding={gliding || undefined}
 		>
-			{listed && count === 0 && (
-				<span className="section-list-empty" aria-hidden="true">
-					Drop cards or stickies here
-				</span>
+			{listed && empty.shown && width !== undefined && height !== undefined && (
+				<EmptyList
+					mode={display === "grid" ? "mini" : "list"}
+					width={width}
+					height={height}
+					prompt={typeof shape.prompt === "string" ? shape.prompt : undefined}
+					canDrop={!readOnly && !phone}
+					dropping={ui.holding?.section === id && !empty.leaving ? ui.holding.count : 0}
+					tier={tier}
+					leaving={empty.leaving}
+					entering={empty.entering}
+				/>
 			)}
 			{received > 0 && <span key={received} className="section-received" aria-hidden="true" />}
 			<div className="section-header">

@@ -276,3 +276,82 @@ test("a row dragged out of a list and held over a sticky makes a stack with it",
 		})
 		.toBe(true);
 });
+
+const section = (page: Page, title: string) =>
+	page.locator(".react-flow__node-section", {
+		has: page.locator(".section-title", { hasText: title }),
+	});
+
+/** A fresh board from the Roadmap template, at 100% around one of its lists, nothing selected. */
+async function roadmapAt(page: Page, title: string) {
+	await openScenario(page, "template-roadmap");
+	await page.locator(".section-title", { hasText: title }).click({ position: { x: 12, y: 8 } });
+	await page.keyboard.press("Shift+Digit2");
+	await page.keyboard.press("Shift+Digit0");
+	await page.keyboard.press("Escape");
+	await settleCanvas(page);
+}
+
+test("an empty list is a column to fill, lights up where a drop lands, and shrinks to its row", async ({
+	page,
+}) => {
+	await roadmapAt(page, "Now · in progress");
+	const now = section(page, "Now · in progress");
+	const empty = now.locator(".list-empty");
+	await expect(empty).toContainText("What’s being built now, open work first.");
+	await expect(empty).toContainText("Drop issues, pull requests or stickies, or paste a link");
+	await expect(empty.locator(".list-empty-slot")).toHaveCount(3);
+	// Its height in board units, as the layout gives it: room for three rows and a line.
+	const height = () =>
+		now.evaluate((node) => Number.parseFloat((node as HTMLElement).style.height));
+	expect(await height()).toBeGreaterThanOrEqual(160);
+	expect(await height()).toBeLessThanOrEqual(220);
+
+	// A sticky below it, dragged in by its middle onto the first placeholder.
+	await page.evaluate(() => {
+		const doc = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } }).tackPlayground
+			.doc;
+		const shapes = doc.getMap("shapes");
+		const Shape = shapes.constructor as unknown as new () => import("yjs").Map<unknown>;
+		doc.transact(() => {
+			const shape = new Shape();
+			shapes.set("offline", shape);
+			const props = { type: "sticky", x: 140, y: 740, z: "zz", parent: null, text: "Offline mode" };
+			for (const [key, value] of Object.entries(props)) shape.set(key, value);
+		});
+	});
+	const node = page.locator('.react-flow__node[data-id="offline"]');
+	await expect(node).toBeVisible();
+	await settleCanvas(page);
+	const from = await node.boundingBox();
+	const slot = await empty.locator(".list-empty-slot").first().boundingBox();
+	if (!from || !slot) throw new Error("no sticky or placeholder");
+	const grab = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+	const target = { x: slot.x + slot.width / 2, y: slot.y + slot.height / 2 };
+	await drag(page, grab, { x: target.x - grab.x, y: target.y - grab.y }, async () => {
+		// Held over: the placeholder it'll take makes room, and the words say so.
+		await expect(empty.locator(".list-empty-slot[data-held]")).toHaveCount(1);
+		await expect(empty).toContainText("Let go to add it");
+		expect(await height()).toBeGreaterThanOrEqual(160);
+	});
+	await settled(page);
+	await expect(empty).toHaveCount(0);
+	await expect(now.locator(".section-count")).toHaveText("1");
+	await expect.poll(height).toBe(52);
+	const all = await shapes(page);
+	const list = await idOf(page, "Now · in progress");
+	expect(all.offline?.parent).toBe(list);
+	// It joined where the sort puts it: the list is still sorted by state.
+	expect(all[list]?.sort).toEqual({ by: "state" });
+});
+
+test("a read-only board's empty list says what goes in it, without asking for a drop", async ({
+	page,
+}) => {
+	await roadmapAt(page, "Next · planned");
+	await page.getByLabel("View only").check();
+	const next = section(page, "Next · planned").locator(".list-empty");
+	await expect(next).toContainText("Planned, and roughly scoped.");
+	await expect(next).toContainText("Nothing here yet");
+	await expect(next).not.toContainText("Drop");
+});

@@ -26,6 +26,8 @@ export const EXPORT_CHROME = [
 	".replay-marks",
 	".history-restore-bar",
 	".display-preview",
+	// An empty list's words are for people at the board, not a picture of it.
+	".list-empty-note",
 	// An image still uploading draws as its blurred stand-in, without whose upload it is.
 	".image-progress",
 	".image-badge",

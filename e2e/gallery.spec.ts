@@ -612,6 +612,18 @@ test("every row and mini card state renders", async ({ page }) => {
 	await expect(switches.getByRole("button", { name: "By hand" })).toBeVisible();
 	await expect(switches.getByRole("button", { name: /State/ })).toBeVisible();
 	await expect(section("Popped out").locator(".display-preview .card")).toBeVisible();
+	// Empty: placeholders and what goes there; held over, the ones it'll take.
+	const empty = section("Empty");
+	await expect(empty.locator("figure")).toHaveCount(8);
+	await expect(empty.locator("figure[data-state=empty-list]")).toContainText("or paste a link");
+	await expect(empty.locator("figure[data-state=empty-read-only]")).toContainText(
+		"Nothing here yet",
+	);
+	await expect(empty.locator("figure[data-state=empty-dropping] [data-held]")).toHaveCount(1);
+	await expect(empty.locator("figure[data-state=empty-mini-dropping]")).toContainText(
+		"Let go to add both",
+	);
+	await expect(empty.locator("figure[data-state=empty-far] .list-empty-note")).toHaveCount(0);
 });
 
 test("every phone and tablet state renders", async ({ page }) => {

@@ -1271,15 +1271,27 @@ export function Board({
 		[dropKey, structure.dropTargets],
 	);
 
+	// The list things are held over, for an empty one to light up where they'll land.
+	const holdKey =
+		display.hover && dropTargets.has(display.hover.section)
+			? `${display.hover.section} ${display.hover.ids.length}`
+			: "";
+	const holding = useMemo(() => {
+		if (!holdKey) return null;
+		const [section = "", count] = holdKey.split(" ");
+		return { section, count: Number(count) };
+	}, [holdKey]);
+
 	const sectionUI = useMemo(
 		() => ({
 			dropTargets,
+			holding,
 			selectionSize: selected.size,
 			setResize: structure.setResize,
 			snapResize: snapping.snapResize,
 			sizeOf: boxSize,
 		}),
-		[dropTargets, selected.size, structure.setResize, snapping.snapResize, boxSize],
+		[dropTargets, holding, selected.size, structure.setResize, snapping.snapResize, boxSize],
 	);
 
 	const centre = useCallback(

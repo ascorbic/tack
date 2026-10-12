@@ -2,20 +2,27 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { type ReactNode, useMemo, useState } from "react";
 import * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
-import type { SectionDisplay } from "../../shared/display.ts";
+import { LIST, MINI, type SectionDisplay, emptyWell } from "../../shared/display.ts";
 import { placeDot, readVotes, startVote } from "../../shared/dotvotes.ts";
 import { stampCounts, stampsMap, toggleStamp } from "../../shared/facilitation.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { CardView } from "../CardView.tsx";
 import { cardStore } from "../cardStore.ts";
 import { DocContext } from "../DocContext.ts";
-import { DisplayItemView, DisplayMarksContext, type ItemProps } from "../display/DisplayItem.tsx";
+import {
+	DisplayItemView,
+	DisplayMarksContext,
+	type ItemProps,
+	type ZoomTier,
+} from "../display/DisplayItem.tsx";
 import { DisplaySwitch } from "../display/DisplaySwitch.tsx";
+import { EmptyList } from "../display/EmptyList.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
 import { BACKLOG } from "./displayScenarios.ts";
 import { KAI, PRIYA, TOM } from "./facilitationScenarios.ts";
 import { PLANNING_CARDS, PULL_GALLERY } from "./fixtures.ts";
 import "../display/display.css";
+import "../sections.css";
 
 // Every state of a row and a mini card (#72): each card state, CI, stamps
 // and dots, stickies (face down and hidden in silent mode too), the other
@@ -191,6 +198,105 @@ function SwitchFigure({ mode, sorted }: { mode: SectionDisplay; sorted?: boolean
 	);
 }
 
+interface EmptyCase {
+	label: string;
+	state: string;
+	mode: "list" | "mini";
+	color: string;
+	width: number;
+	prompt?: string;
+	canDrop?: boolean;
+	dropping?: number;
+	tier?: ZoomTier;
+}
+
+/** Every empty state: what an editor sees, a template's prompt, held over, read-only, zoomed out. */
+const EMPTIES: EmptyCase[] = [
+	{ label: "List", state: "empty-list", mode: "list", color: "blue", width: 420, canDrop: true },
+	{
+		label: "List, with a template’s prompt",
+		state: "empty-prompt",
+		mode: "list",
+		color: "green",
+		width: 420,
+		canDrop: true,
+		prompt: "What’s being built now, open work first.",
+	},
+	{
+		label: "Held over",
+		state: "empty-dropping",
+		mode: "list",
+		color: "green",
+		width: 420,
+		canDrop: true,
+		dropping: 1,
+	},
+	{ label: "Read-only", state: "empty-read-only", mode: "list", color: "purple", width: 420 },
+	{
+		label: "Mini cards",
+		state: "empty-mini",
+		mode: "mini",
+		color: "blue",
+		width: 600,
+		canDrop: true,
+		prompt: "What waits for the release after this one.",
+	},
+	{
+		label: "Mini cards, held over by two",
+		state: "empty-mini-dropping",
+		mode: "mini",
+		color: "yellow",
+		width: 600,
+		canDrop: true,
+		dropping: 2,
+	},
+	{
+		label: "Below 45%",
+		state: "empty-compact",
+		mode: "list",
+		color: "green",
+		width: 420,
+		canDrop: true,
+		prompt: "What’s being built now, open work first.",
+		tier: "compact",
+	},
+	{
+		label: "Below 20%",
+		state: "empty-far",
+		mode: "list",
+		color: "green",
+		width: 420,
+		canDrop: true,
+		tier: "far",
+	},
+];
+
+/** An empty section showing a list or grid, at the height the layout gives it. */
+function EmptyFigure({ mode, color, width, prompt, canDrop, dropping = 0, tier }: EmptyCase) {
+	const height = (mode === "mini" ? MINI.pad : LIST.pad) * 2 + emptyWell(mode);
+	return (
+		<div className="display-gallery-empty" data-tier={tier}>
+			<div
+				className="section"
+				data-color={color}
+				data-display={mode === "mini" ? "grid" : "list"}
+				data-drop-target={dropping > 0}
+				style={{ width, height }}
+			>
+				<EmptyList
+					mode={mode}
+					width={width}
+					height={height}
+					prompt={prompt}
+					canDrop={!!canDrop}
+					dropping={dropping}
+					tier={tier ?? "full"}
+				/>
+			</div>
+		</div>
+	);
+}
+
 export default function DisplayGallery() {
 	const [round, setRound] = useState(0);
 	useMemo(() => {
@@ -273,6 +379,21 @@ export default function DisplayGallery() {
 												))}
 											</div>
 										</div>
+									</Figure>
+								))}
+							</div>
+						</section>
+
+						<section>
+							<h2>Empty</h2>
+							<p className="gallery-note">
+								An empty list or grid: placeholders where its first rows go, and what goes in it.
+								Held over, the placeholders it’ll take make room.
+							</p>
+							<div className="display-gallery-empties">
+								{EMPTIES.map((e) => (
+									<Figure key={e.state} label={e.label} state={e.state}>
+										<EmptyFigure {...e} />
 									</Figure>
 								))}
 							</div>

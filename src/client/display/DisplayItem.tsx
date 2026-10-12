@@ -71,7 +71,10 @@ export function withDisplay(Node: ComponentType<NodeProps<ShapeNode>>) {
 	});
 }
 
-function useZoomTier(): "full" | "compact" | "far" {
+/** How much of a row there is to read at the board's zoom. */
+export type ZoomTier = "full" | "compact" | "far";
+
+export function useZoomTier(): ZoomTier {
 	const compact = useStore((state) => state.transform[2] < COMPACT_ZOOM);
 	const far = useStore((state) => state.transform[2] < FAR_ZOOM);
 	return far ? "far" : compact ? "compact" : "full";

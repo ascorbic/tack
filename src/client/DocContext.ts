@@ -31,10 +31,13 @@ export interface SectionUI {
 	/** Snap a resize in progress to other shapes, showing guides; null clears them. */
 	snapResize: (id: string, rect: Rect, handle: ResizeHandle | null) => Rect;
 	sizeOf: SizeOf;
+	/** A list or grid things are held over, about to join it, and how many. */
+	holding: { section: string; count: number } | null;
 }
 
 export const SectionContext = createContext<SectionUI>({
 	dropTargets: new Set(),
+	holding: null,
 	selectionSize: 0,
 	setResize: () => {},
 	snapResize: (_id, rect) => rect,

@@ -612,6 +612,7 @@ function Sections({
 						<SectionContext
 							value={{
 								dropTargets: new Set(SECTIONS.filter((s) => s.dropTarget).map((s) => s.label)),
+								holding: null,
 								selectionSize: 1,
 								setResize: () => {},
 								snapResize: (_id, rect) => rect,

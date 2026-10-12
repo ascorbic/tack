@@ -758,23 +758,215 @@
 	border-radius: 13px;
 }
 
-.section-list-empty {
+/* An empty list or grid (EmptyList.tsx): faint placeholder rows or mini cards
+   in the section's colour, where the first things will land, and a line
+   beneath on what goes here. Quiet enough never to compete with real rows. */
+.list-empty {
+	--slot-edge: color-mix(in srgb, var(--section-ink) 22%, transparent);
+	--slot-bit: color-mix(in srgb, var(--section-ink) 11%, transparent);
 	position: absolute;
-	inset: 8px;
-	display: grid;
-	place-items: center;
-	border: calc(1.5 * var(--px, 1px)) dashed color-mix(in srgb, var(--section-ink) 30%, transparent);
-	border-radius: 9px;
-	color: var(--section-ink);
-	font-size: 12.5px;
-	font-weight: 550;
-	opacity: 0.65;
+	inset: 0;
+	overflow: hidden;
+	border-radius: inherit;
 	pointer-events: none;
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		filter var(--t-base) var(--ease-out);
 }
 
-.section[data-drop-target="true"] .section-list-empty {
+.list-empty-slot {
+	position: absolute;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 12px;
+	border: max(1px, calc(1.25 * var(--px, 1px))) dashed var(--slot-edge);
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--section-ink) 2.5%, transparent);
+	/* Each a little fainter than the one before: the column fades out downwards. */
+	opacity: max(0.38, 1 - var(--i, 0) * 0.27);
+	transition:
+		opacity var(--t-base) var(--ease-out),
+		background var(--t-base) var(--ease-out),
+		border-color var(--t-base) var(--ease-out),
+		box-shadow var(--t-base) var(--ease-out),
+		scale var(--t-base) var(--ease-spring);
+}
+
+/* A row's state dot, then its title. */
+.list-empty-bit {
+	flex: none;
+	height: 7px;
+	border-radius: 4px;
+	background: var(--slot-bit);
+	transition: opacity var(--t-quick) var(--ease-out);
+}
+
+.list-empty-bit:first-child {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+}
+
+.list-empty-bit:nth-child(2) {
+	width: 52%;
+}
+
+.list-empty-slot:nth-child(3n + 2) .list-empty-bit:nth-child(2) {
+	width: 36%;
+}
+
+.list-empty-slot:nth-child(3n) .list-empty-bit:nth-child(2) {
+	width: 44%;
+}
+
+/* A mini card: its state along the top, a number, two lines of title. */
+.list-empty[data-mode="mini"] .list-empty-slot {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 7px;
+	padding: 12px 12px 0;
+	border-radius: 10px;
+	opacity: max(0.38, 1 - var(--i, 0) * 0.11);
+}
+
+.list-empty[data-mode="mini"] .list-empty-bit:first-child {
+	width: 32%;
+	height: 6px;
+	border-radius: 3px;
+}
+
+.list-empty[data-mode="mini"] .list-empty-bit:nth-child(2) {
+	width: 82%;
+	height: 8px;
+}
+
+.list-empty[data-mode="mini"] .list-empty-bit:nth-child(3) {
+	width: 56%;
+	height: 8px;
+}
+
+.list-empty[data-mode="mini"] .list-empty-slot:nth-child(2n) .list-empty-bit:nth-child(2) {
+	width: 68%;
+}
+
+/* Something held over it: the placeholders it'll take make room, solid and
+   bright, and the rest step back. */
+.list-empty-slot[data-held] {
 	opacity: 1;
 	border-style: solid;
+	border-color: color-mix(in srgb, var(--section-ink) 48%, transparent);
+	background: color-mix(in srgb, var(--surface) 72%, transparent);
+	box-shadow:
+		0 0 0 calc(3 * var(--px, 1px)) color-mix(in srgb, var(--section-ink) 10%, transparent),
+		inset 0 1px 3px color-mix(in srgb, var(--section-ink) 8%, transparent);
+	scale: 1.012;
+}
+
+.list-empty-slot[data-held] .list-empty-bit {
+	opacity: 0;
+}
+
+.list-empty[data-dropping] .list-empty-slot:not([data-held]) {
+	opacity: 0.3;
+}
+
+.list-empty-note {
+	position: absolute;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	padding: 0 16px;
+	color: var(--section-ink);
+	text-align: center;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.list-empty-title,
+.list-empty-hint {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.list-empty-title {
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: -0.005em;
+	line-height: 18px;
+}
+
+.list-empty-hint {
+	font-size: 12px;
+	font-weight: 450;
+	line-height: 17px;
+}
+
+.list-empty[data-dropping] .list-empty-title {
+	animation: list-empty-word var(--t-base) var(--ease-spring) backwards;
+}
+
+@keyframes list-empty-word {
+	from {
+		opacity: 0;
+		translate: 0 3px;
+	}
+}
+
+/* Zoomed out: one line, grown against the zoom to stay readable. */
+.list-empty[data-tier="compact"] .list-empty-title {
+	font-size: calc(13px * min(var(--unzoom, 1), 2.4));
+	line-height: 1.2;
+	font-weight: 650;
+}
+
+.list-empty[data-tier="compact"] .list-empty-bit {
+	display: none;
+}
+
+/* Dashes this small crowd together: a faint solid edge instead. */
+.list-empty[data-tier="compact"] .list-empty-slot:not([data-held]) {
+	border-style: solid;
+	border-color: color-mix(in srgb, var(--section-ink) 13%, transparent);
+}
+
+/* Further out: faint bars, no outlines (a dash becomes noise), no words. */
+.list-empty[data-tier="far"] .list-empty-slot {
+	border: none;
+	background: color-mix(in srgb, var(--section-ink) 7%, transparent);
+}
+
+.list-empty[data-tier="far"] .list-empty-bit {
+	display: none;
+}
+
+/* The last thing left: the placeholders settle back in, one after another. */
+.list-empty[data-entering] .list-empty-slot {
+	animation: list-empty-in var(--t-settle) var(--ease-settle) backwards;
+	animation-delay: calc(min(var(--i, 0), 8) * 40ms * var(--motion));
+}
+
+.list-empty[data-entering] .list-empty-note {
+	animation: list-empty-in var(--t-settle) var(--ease-settle) backwards;
+	animation-delay: calc(120ms * var(--motion));
+}
+
+@keyframes list-empty-in {
+	from {
+		opacity: 0;
+		translate: 0 -4px;
+	}
+}
+
+/* The first thing landed: it fades as the list shrinks to its rows. */
+.list-empty[data-leaving] {
+	opacity: 0;
+	filter: blur(1px);
 }
 
 .section-sorted {
@@ -1143,6 +1335,30 @@
 	display: flex;
 	gap: 8px;
 	margin-top: 8px;
+}
+
+.display-gallery-empties {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 24px 32px;
+}
+
+.display-gallery-empty {
+	max-width: 100%;
+	overflow: hidden;
+	padding: 6px;
+}
+
+/* Drawn at board size, then shrunk, as a board zoomed out would. */
+.display-gallery-empty[data-tier="compact"] {
+	--unzoom: 2.5;
+	zoom: 0.4;
+}
+
+.display-gallery-empty[data-tier="far"] {
+	--unzoom: 6;
+	zoom: 0.17;
 }
 
 .display-gallery-switch {
