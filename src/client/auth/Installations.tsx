@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { InstallationList, InstallationSummary } from "../../shared/auth.ts";
-import type { Loaded } from "./setupChecks.ts";
+import { type Loaded, installationState } from "./setupChecks.ts";
 
 type Load =
 	| { status: "loading" }
@@ -16,38 +16,6 @@ export async function fetchInstallations(): Promise<InstallationList> {
 	});
 	if (!response.ok) throw new Error(`${response.status}`);
 	return (await response.json()) as InstallationList;
-}
-
-/** How an installation is doing, in a few words, and how it should look. */
-export function installationState(installation: InstallationSummary): {
-	tone: "ok" | "warn" | "off";
-	label: string;
-	detail: string | null;
-} {
-	if (installation.suspended) {
-		return {
-			tone: "off",
-			label: "Suspended",
-			detail: "Nothing updates live, and Tack can’t push. Unsuspend it in the account’s settings.",
-		};
-	}
-	if (!installation.writable) {
-		return {
-			tone: "warn",
-			label: "Live, read-only",
-			detail:
-				"Tack can’t push here until the account accepts the permissions it asks for (review them in its settings).",
-		};
-	}
-	if (installation.discussions === false) {
-		return {
-			tone: "warn",
-			label: "Live · no Discussions",
-			detail:
-				"Discussions can’t be cards here until the account accepts the Discussions permission (review it in its settings).",
-		};
-	}
-	return { tone: "ok", label: "Live · Tack can push", detail: null };
 }
 
 /**

@@ -17,7 +17,7 @@ import {
 	isReady,
 	type SetupStep,
 } from "../src/client/auth/setupChecks.ts";
-import { installationState } from "../src/client/auth/Installations.tsx";
+import { installationState } from "../src/client/auth/setupChecks.ts";
 import { assessWebhooks, isLocalOrigin, webhookUrl } from "../src/server/github/webhookHealth.ts";
 
 const NOW = Date.parse("2026-10-11T10:00:00Z");

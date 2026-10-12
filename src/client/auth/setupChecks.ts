@@ -2,7 +2,12 @@
 // ready (its secret, the GitHub App, webhooks, installations, who can use
 // it) and how it stands, in words. Unit-tested in test/setup-checks.test.ts.
 
-import type { AccessSettings, InstallationList, WebhookHealth } from "../../shared/auth.ts";
+import type {
+	AccessSettings,
+	InstallationList,
+	InstallationSummary,
+	WebhookHealth,
+} from "../../shared/auth.ts";
 import { relativeTime } from "../boards/api.ts";
 
 /**
@@ -68,6 +73,38 @@ function webhooksStep(webhooks: Loaded<WebhookHealth>): SetupStep {
 		detail: label,
 		tone: tone === "ok" ? "done" : tone === "fail" ? "fail" : tone === "warn" ? "warn" : "waiting",
 	};
+}
+
+/** How an installation is doing, in a few words, and how it should look. */
+export function installationState(installation: InstallationSummary): {
+	tone: "ok" | "warn" | "off";
+	label: string;
+	detail: string | null;
+} {
+	if (installation.suspended) {
+		return {
+			tone: "off",
+			label: "Suspended",
+			detail: "Nothing updates live, and Tack can’t push. Unsuspend it in the account’s settings.",
+		};
+	}
+	if (!installation.writable) {
+		return {
+			tone: "warn",
+			label: "Live, read-only",
+			detail:
+				"Tack can’t push here until the account accepts the permissions it asks for (review them in its settings).",
+		};
+	}
+	if (installation.discussions === false) {
+		return {
+			tone: "warn",
+			label: "Live · no Discussions",
+			detail:
+				"Discussions can’t be cards here until the account accepts the Discussions permission (review it in its settings).",
+		};
+	}
+	return { tone: "ok", label: "Live · Tack can push", detail: null };
 }
 
 function repositoriesStep(installations: Loaded<InstallationList>): SetupStep {
