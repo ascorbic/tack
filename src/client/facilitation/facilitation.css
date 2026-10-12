@@ -891,40 +891,53 @@
 	pointer-events: none;
 }
 
-/* Dots in a shape's top-right corner. */
+/* Dots, in a row. */
 .vote-dots {
 	display: flex;
 	flex-wrap: wrap;
+	align-items: center;
 	justify-content: flex-end;
 	gap: 3px;
 	width: 120px;
-	translate: -100% -40%;
-	transform-origin: 100% 0;
-	scale: var(--unzoom, 1);
-	padding-right: 6px;
 	pointer-events: none;
 }
 
-/* A closed vote's result on a shape: its place, and how many votes. */
+/* On the board, dots and a closed vote's rank perch on the shape's top-right
+   corner: their bottom edge a little way in, so they're seen to belong to
+   it, and the rest above the shape, clear of a sticky's first line. Zoomed
+   out they grow up and to the left from there, never down over the text. */
+.vote-dots-anchor > :is(.vote-dots, .vote-rank) {
+	position: absolute;
+	right: -6px;
+	bottom: -7px;
+	transform-origin: 100% 100%;
+	scale: var(--unzoom, 1);
+}
+
+.vote-dots-anchor > .vote-dots {
+	width: max-content;
+	max-width: 120px;
+}
+
+/* A closed vote's result on a shape: a medal for its place, then its votes. */
 .vote-rank {
 	display: inline-flex;
 	align-items: center;
-	gap: 5px;
-	height: 26px;
-	padding: 0 9px 0 3px;
+	gap: 6px;
+	height: 24px;
+	padding: 0 8px 0 3px;
+	border: 1px solid var(--line-strong);
 	border-radius: 999px;
 	background: var(--surface);
-	border: 1px solid var(--line-strong);
 	box-shadow: var(--shadow-hover);
 	color: var(--ink);
-	font-size: 12px;
-	font-weight: 650;
+	font-size: 11px;
+	font-weight: 700;
 	font-variant-numeric: tabular-nums;
-	translate: calc(-100% - 6px) -50%;
-	transform-origin: 100% 50%;
-	scale: var(--unzoom, 1);
+	line-height: 1;
+	white-space: nowrap;
 	pointer-events: auto;
-	animation: rank-in calc(560ms * var(--motion)) var(--ease-spring) backwards;
+	animation: rank-in var(--t-settle) var(--ease-spring) backwards;
 }
 
 @keyframes rank-in {
@@ -934,40 +947,71 @@
 	}
 }
 
+/* The place, as a medal: "1st", its suffix smaller on the same baseline. */
 .vote-rank-place {
-	display: grid;
-	place-items: center;
-	min-width: 20px;
-	height: 20px;
-	padding: 0 5px;
+	display: inline-block;
+	height: 18px;
+	min-width: 18px;
+	padding: 0 6px 0 6px;
 	border-radius: 999px;
 	background: var(--chip);
 	color: var(--ink-soft);
-	font-size: 11.5px;
+	font-size: 11px;
 	font-weight: 750;
+	line-height: 18px;
+	letter-spacing: -0.01em;
+	text-align: center;
 }
 
-.vote-rank-total::after {
-	content: "";
-	display: inline-block;
-	width: 7px;
-	height: 7px;
-	margin-left: 4px;
-	border-radius: 50%;
-	background: var(--accent);
-	vertical-align: 1px;
+.vote-rank-suffix {
+	margin-left: 0.5px;
+	font-size: 8.5px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
 }
 
-.vote-rank[data-podium] .vote-rank-place {
+/* Gold for first: the accent, solid. Second and third in its tint. */
+.vote-rank[data-podium="1"] .vote-rank-place {
 	background: var(--accent);
 	color: var(--on-accent);
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%);
 }
 
-.vote-rank[data-podium="1"] {
-	border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-	box-shadow:
-		0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent),
-		var(--shadow-hover);
+.vote-rank[data-podium="2"] .vote-rank-place,
+.vote-rank[data-podium="3"] .vote-rank-place {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+/* Its votes: a dot each, or "12 ●" for more than fit. */
+.vote-rank-total {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	height: 18px;
+	color: var(--ink-soft);
+}
+
+.vote-rank-total[data-many] {
+	gap: 4px;
+}
+
+.vote-rank-dot {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--accent);
+	/* Dropped in one after another, as they were placed. */
+	animation: rank-dot-in var(--t-settle) var(--ease-spring) backwards;
+	animation-delay: calc((180ms + var(--i, 0) * 60ms) * var(--motion));
+}
+
+@keyframes rank-dot-in {
+	from {
+		opacity: 0;
+		scale: 0.2;
+	}
 }
 
 .vote-dot {
@@ -1022,6 +1066,7 @@ button.vote-dot:hover {
 	font-family: var(--font-mono);
 	font-size: 9.5px;
 	font-weight: 700;
+	line-height: 1;
 }
 
 /* While voting, shapes that take dots are outlined. */

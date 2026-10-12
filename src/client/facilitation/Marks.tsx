@@ -213,12 +213,25 @@ export interface Rank {
 	of: number;
 }
 
-const ORDINALS = ["1st", "2nd", "3rd"];
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st. */
+function ordinalSuffix(n: number): string {
+	const tens = n % 100;
+	if (tens >= 11 && tens <= 13) return "th";
+	return ["th", "st", "nd", "rd"][n % 10] ?? "th";
+}
 
-/** A closed vote's result on a shape: its rank, and how many votes it got. */
+/** Totals up to this many are drawn as that many dots; more, as a number. */
+const RANK_DOTS = 5;
+
+/**
+ * A closed vote's result on a shape, perched on its top-right corner: a
+ * medal for its place ("1st", the podium in the accent), then its votes as
+ * a row of dots ("● ●"), or "12 ●" for more than fit.
+ */
 export function VoteRank({ rank }: { rank: Rank }) {
-	const place = ORDINALS[rank.rank - 1] ?? `${rank.rank}th`;
-	const label = `${place} of ${rank.of}: ${rank.total} ${rank.total === 1 ? "vote" : "votes"}`;
+	const suffix = ordinalSuffix(rank.rank);
+	const label = `${rank.rank}${suffix} of ${rank.of}: ${rank.total} ${rank.total === 1 ? "vote" : "votes"}`;
+	const many = rank.total > RANK_DOTS;
 	return (
 		<div
 			className="vote-rank"
@@ -227,8 +240,16 @@ export function VoteRank({ rank }: { rank: Rank }) {
 			aria-label={label}
 			data-tooltip={label}
 		>
-			<span className="vote-rank-place">{rank.rank}</span>
-			<span className="vote-rank-total">{rank.total}</span>
+			<span className="vote-rank-place" aria-hidden="true">
+				{rank.rank}
+				<span className="vote-rank-suffix">{suffix}</span>
+			</span>
+			<span className="vote-rank-total" aria-hidden="true" data-many={many || undefined}>
+				{many && rank.total}
+				{Array.from({ length: many ? 1 : rank.total }, (_, i) => (
+					<span key={i} className="vote-rank-dot" style={{ "--i": i } as React.CSSProperties} />
+				))}
+			</span>
 		</div>
 	);
 }
