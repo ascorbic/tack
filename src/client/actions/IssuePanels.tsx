@@ -439,6 +439,9 @@ export function ParentIssuePanel({
 		(item) => !("card" in item.input) || item.input.card.kind === "issue",
 	);
 	const pulls = items.length - children.length;
+	const discussions = items.filter(
+		(item) => "card" in item.input && item.input.card.kind === "discussion",
+	).length;
 	const parented = children.filter((item) => item.parent);
 	const under = parented.filter((item) => item.parent?.same);
 	const elsewhere = parented.filter((item) => !item.parent?.same);
@@ -600,8 +603,8 @@ export function ParentIssuePanel({
 			</ol>
 			{pulls > 0 && (
 				<Notice icon={<PullIcon />}>
-					{pulls === 1 ? "A pull request is" : `${pulls} pull requests are`} left out: only issues
-					can be sub-issues.
+					{leftOutWords(items.length - children.length - discussions, discussions)} left out: only
+					issues can be sub-issues.
 				</Notice>
 			)}
 			<footer className="action-foot">
@@ -660,4 +663,16 @@ function ParentChoice({
 			</span>
 		</label>
 	);
+}
+
+/** "A pull request is", "2 discussions are", "A pull request and a discussion are". */
+function leftOutWords(pulls: number, discussions: number): string {
+	const many = pulls + discussions > 1;
+	const count = (n: number, one: string, several: string) =>
+		n === 1 ? `a ${one}` : `${n} ${several}`;
+	const words = [
+		...(pulls > 0 ? [count(pulls, "pull request", "pull requests")] : []),
+		...(discussions > 0 ? [count(discussions, "discussion", "discussions")] : []),
+	].join(" and ");
+	return `${words.charAt(0).toUpperCase()}${words.slice(1)} ${many ? "are" : "is"}`;
 }

@@ -171,7 +171,7 @@ export const ActionItemNode = memo(function ActionItemNode({
 			return;
 		}
 		if (!tick.can) return;
-		const result = stageActionState(doc, id, !done, stager);
+		const result = stageActionState(doc, id, !done, stager, loaded?.kind === "discussion");
 		if (result) {
 			toast(
 				`Staged ${result.state === "closed" ? "closing" : "reopening"} ${link?.label}: it’s ${result.state === "closed" ? "done" : "open"} once you push`,

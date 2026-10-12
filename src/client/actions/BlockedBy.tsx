@@ -18,6 +18,7 @@ import { undoToast } from "./toast.ts";
 const PROBLEMS: Record<NonNullable<BlockEnd["problem"]>, (end: BlockEnd) => string> = {
 	loose: () => "Connect both ends to issues first.",
 	pull: (end) => `${end.label} is a pull request: only issues can block or be blocked.`,
+	discussion: (end) => `${end.label} is a discussion: only issues can block or be blocked.`,
 	sticky: (end) => `Make “${end.label}” an issue first, then link it.`,
 	unsupported: () => "Only issues, and stickies being made into issues, can be linked.",
 	loading: () => "Loading…",

@@ -652,11 +652,34 @@ const CLOSE_CHOICES: { reason: CloseReason; label: string; detail: string; icon:
 	},
 ];
 
+/** Discussions' reasons, which GitHub words its own way (and maps to issues' here). */
+const DISCUSSION_CLOSE_CHOICES: typeof CLOSE_CHOICES = [
+	{
+		reason: "completed",
+		label: "Close as resolved",
+		detail: "Answered, settled or done",
+		icon: <CloseIssueIcon />,
+	},
+	{
+		reason: "not_planned",
+		label: "Close as outdated",
+		detail: "No longer relevant",
+		icon: <NotPlannedIcon />,
+	},
+	{
+		reason: "duplicate",
+		label: "Close as duplicate",
+		detail: "Duplicate of another discussion",
+		icon: <DuplicateIcon />,
+	},
+];
+
 /** Close (with a reason) or reopen, depending on what's selected. */
 export function StateMenu({
 	open,
 	closed,
 	pulls,
+	discussions = false,
 	onPick,
 }: {
 	/** How many selected items are open, and closed. */
@@ -664,6 +687,8 @@ export function StateMenu({
 	closed: number;
 	/** Whether everything open is a pull request, which close without a reason. */
 	pulls: boolean;
+	/** Whether everything open is a discussion, whose reasons are worded as discussions' are. */
+	discussions?: boolean;
 	onPick: (choice: StateChoice) => void;
 }) {
 	const choices: {
@@ -675,7 +700,8 @@ export function StateMenu({
 		tone: string;
 	}[] = [];
 	if (open > 0) {
-		for (const choice of pulls ? CLOSE_CHOICES.slice(0, 1) : CLOSE_CHOICES) {
+		const reasons = discussions ? DISCUSSION_CLOSE_CHOICES : CLOSE_CHOICES;
+		for (const choice of pulls ? reasons.slice(0, 1) : reasons) {
 			choices.push({
 				key: choice.reason,
 				label: pulls ? "Close" : choice.label,

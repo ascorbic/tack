@@ -16,6 +16,7 @@ import {
 	stickySource,
 	unstageChanges,
 } from "./changes.ts";
+import type { CardKind } from "./cards.ts";
 import { readConnector } from "./connectors.ts";
 import { readingOrder } from "./display.ts";
 import type { RepoMeta } from "./push.ts";
@@ -199,7 +200,7 @@ export function editStagedIssue(doc: Y.Doc, id: string, edit: IssueEdit): boolea
 
 /** Something to become a sub-issue: a card already on the forge, or a sticky. */
 export type ChildInput =
-	| { shape: string; card: { key: string; kind: "issue" | "pull" } }
+	| { shape: string; card: { key: string; kind: CardKind } }
 	| { shape: string; sticky: string };
 
 export interface ParentInput {
@@ -470,7 +471,10 @@ export function stageParentIssue(
 		for (const child of children) {
 			if ("card" in child) {
 				if (child.card.kind !== "issue") {
-					result.skipped.push({ shape: child.shape, reason: "pull" });
+					result.skipped.push({
+						shape: child.shape,
+						reason: child.card.kind === "pull" ? "pull" : "unsupported",
+					});
 					continue;
 				}
 				if (seen.has(child.card.key)) continue;
@@ -589,7 +593,7 @@ export interface BlockEnd {
 	/** How to show it: `#412`, or the sticky's first line. */
 	label: string;
 	/** Why it can't take part, when it can't. */
-	problem?: "loose" | "pull" | "sticky" | "unsupported" | "loading";
+	problem?: "loose" | "pull" | "discussion" | "sticky" | "unsupported" | "loading";
 	/** The card's key, for cards. */
 	key?: string;
 }
@@ -615,7 +619,7 @@ export function connectorBetween(doc: Y.Doc, a: string, b: string): string | nul
 export function blockEnds(
 	doc: Y.Doc,
 	connector: string,
-	kindOf: (key: string) => "issue" | "pull" | undefined,
+	kindOf: (key: string) => CardKind | undefined,
 ): { from: BlockEnd; to: BlockEnd; arrow: "end" | "both" | "none" } | null {
 	const shapes = shapesMap(doc);
 	const raw = shapes.get(connector);
@@ -628,7 +632,9 @@ export function blockEnds(
 		if (props.type === "card" && props.ref) {
 			const kind = kindOf(props.ref);
 			const label = props.ref.slice(props.ref.search(/[#!]\d+$/));
-			if (kind === "pull") return { shape: id, key: props.ref, label, problem: "pull" };
+			if (kind === "pull" || kind === "discussion") {
+				return { shape: id, key: props.ref, label, problem: kind };
+			}
 			if (kind === undefined) return { shape: id, key: props.ref, label, problem: "loading" };
 			return { shape: id, key: props.ref, label, target: { key: props.ref } };
 		}
@@ -696,6 +702,12 @@ export interface TriageTarget {
 	 * would change nothing (removing a label it doesn't have) are dropped.
 	 */
 	current?: readonly string[];
+	/**
+	 * It's a discussion (its card says so): labels and open or closed are
+	 * written to it as one, and assignees and milestones, which discussions
+	 * don't have, are left out.
+	 */
+	discussion?: boolean;
 }
 
 const sameStager = (a: Stager, b: Stager) =>
@@ -719,9 +731,17 @@ function mergeSets(
 	return { add: [...add], remove: [...remove] };
 }
 
-function triageOp(triage: Triage, target: Target): Operation {
+function triageOp(triage: Triage, target: Target, discussion = false): Operation {
+	const on = discussion ? { discussion: true } : {};
 	switch (triage.kind) {
 		case "item.labels":
+			return {
+				kind: triage.kind,
+				target,
+				...(triage.add?.length ? { add: triage.add } : {}),
+				...(triage.remove?.length ? { remove: triage.remove } : {}),
+				...on,
+			};
 		case "item.assignees":
 			return {
 				kind: triage.kind,
@@ -737,6 +757,7 @@ function triageOp(triage: Triage, target: Target): Operation {
 				target,
 				state: triage.state,
 				...(triage.state === "closed" && triage.reason ? { reason: triage.reason } : {}),
+				...on,
 			};
 	}
 }
@@ -767,12 +788,16 @@ export function stageTriage(
 	const batch = options.batch ?? new Batcher();
 	transactLocal(doc, () => {
 		const changes = changesMap(doc);
-		for (const { key, shape, current } of targets) {
+		for (const { key, shape, current, discussion } of targets) {
+			// Discussions have no assignees or milestones.
+			if (discussion && (triage.kind === "item.assignees" || triage.kind === "item.milestone")) {
+				continue;
+			}
 			const target: Target = { key };
 			const mine = existing.find(
 				(change) => "target" in change.op && sameTarget(change.op.target, target),
 			);
-			let op = triageOp(triage, target);
+			let op = triageOp(triage, target, discussion);
 			if (mine && (op.kind === "item.labels" || op.kind === "item.assignees")) {
 				const merged = mergeSets(mine.op as typeof op, op);
 				if (current) {
@@ -783,7 +808,7 @@ export function stageTriage(
 					unstageChanges(doc, [mine.id]);
 					continue;
 				}
-				op = triageOp({ kind: op.kind, ...merged }, target);
+				op = triageOp({ kind: op.kind, ...merged }, target, discussion);
 			} else if (op.kind === "item.labels" || op.kind === "item.assignees") {
 				if (!op.add?.length && !op.remove?.length) continue;
 			}
@@ -862,32 +887,43 @@ export function stageSetEdits(
 		shape?: string;
 		/** What the item has on the forge now (see `TriageTarget`). */
 		current?: readonly string[];
+		/** It's a discussion (see `TriageTarget`). */
+		discussion?: boolean;
 	}[],
 	stager: Stager,
 ): string[] {
 	const batch = new Batcher();
 	return transactLocal(doc, () =>
-		edits.flatMap(({ key, shape, current, add, remove }) =>
-			stageTriage(doc, [{ key, shape, current }], { kind, add, remove }, stager, { batch }),
+		edits.flatMap(({ key, shape, current, add, remove, discussion }) =>
+			stageTriage(doc, [{ key, shape, current, discussion }], { kind, add, remove }, stager, {
+				batch,
+			}),
 		),
 	);
 }
 
 // Backlinks ---------------------------------------------------------------------
 
-/** Stage a comment on each item. */
+/** Stage a comment on each item (`discussion` when its card says it's one). */
 export function stageComments(
 	doc: Y.Doc,
-	comments: { key: string; body: string; shape?: string }[],
+	comments: { key: string; body: string; shape?: string; discussion?: boolean }[],
 	stager: Stager,
 ): string[] {
 	const batch = new Batcher();
 	return transactLocal(doc, () =>
-		comments.map(({ key, body, shape }) =>
-			stageChange(doc, { kind: "item.comment", target: { key }, body }, stager, {
-				shapes: shape ? [shape] : undefined,
-				batch,
-			}),
+		comments.map(({ key, body, shape, discussion }) =>
+			stageChange(
+				doc,
+				{
+					kind: "item.comment",
+					target: { key },
+					body,
+					...(discussion ? { discussion: true } : {}),
+				},
+				stager,
+				{ shapes: shape ? [shape] : undefined, batch },
+			),
 		),
 	);
 }

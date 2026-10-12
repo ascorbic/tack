@@ -406,7 +406,13 @@ export function ActionBar(props: ActionBarProps) {
 		}
 		// Not a change to stage: it lays out what's already linked, so it's
 		// there whether or not Tack can write to the repository.
-		if (onlyCards && cardNodes.length === 1 && cards.length === 1) {
+		// Discussions aren't linked to anything GitHub can say.
+		if (
+			onlyCards &&
+			cardNodes.length === 1 &&
+			cards.length === 1 &&
+			cards[0]?.card.kind !== "discussion"
+		) {
 			out.push({
 				id: "expandRelated",
 				label: "Expand related items",
@@ -461,13 +467,23 @@ export function ActionBar(props: ActionBarProps) {
 				loaded && assignable.length === 0 && targets.every((c) => c.card.assignees.length === 0)
 					? `Nobody can be assigned in ${repos.length === 1 ? repoName(repos[0] ?? "") : "these repositories"}`
 					: undefined;
+			// Discussions have labels and close, but no milestones or assignees.
+			const discussions = cards.filter((c) => c.card.kind === "discussion").length;
+			const notForDiscussions = (id: ActionCommand) => id === "milestone" || id === "assign";
 			for (const action of triage) {
 				if (!supported(action.id)) continue;
+				if (discussions === cards.length && notForDiscussions(action.id)) continue;
 				out.push({
 					...action,
 					unavailable:
 						none ??
-						(action.id === "closeReopen" ? merged : action.id === "assign" ? nobody : undefined),
+						(discussions > 0 && notForDiscussions(action.id)
+							? `Discussions have no ${action.id === "assign" ? "assignees" : "milestones"}: select only issues and pull requests`
+							: action.id === "closeReopen"
+								? merged
+								: action.id === "assign"
+									? nobody
+									: undefined),
 				});
 			}
 			const issues = cards.filter((c) => c.card.kind === "issue");
@@ -790,7 +806,12 @@ export function ActionBar(props: ActionBarProps) {
 									const current = labels
 										? card?.labels.map((l) => l.name)
 										: card?.assignees.map((a) => a.login);
-									return { ...e, shape: byKey.get(e.key)?.shape, current };
+									return {
+										...e,
+										shape: byKey.get(e.key)?.shape,
+										current,
+										discussion: card?.kind === "discussion",
+									};
 								}),
 
 								stager,
@@ -843,6 +864,9 @@ export function ActionBar(props: ActionBarProps) {
 						open={openItems.length}
 						closed={closedItems.length}
 						pulls={openItems.length > 0 && openItems.every((t) => t.card.kind === "pull")}
+						discussions={
+							openItems.length > 0 && openItems.every((t) => t.card.kind === "discussion")
+						}
 						onPick={(choice) => {
 							const items = choice.state === "open" ? closedItems : openItems;
 							const reason =
@@ -851,7 +875,11 @@ export function ActionBar(props: ActionBarProps) {
 									: choice.reason;
 							stageTriage(
 								doc,
-								items.map((t) => ({ key: t.key, shape: t.shape })),
+								items.map((t) => ({
+									key: t.key,
+									shape: t.shape,
+									discussion: t.card.kind === "discussion",
+								})),
 								choice.state === "open"
 									? { kind: "item.state", state: "open" }
 									: { kind: "item.state", state: "closed", reason },
@@ -1496,7 +1524,10 @@ function BacklinkFor({
 					const section = parent ? byShape.get(parent)?.data.shape : undefined;
 					return section?.type === "section" ? section.title?.trim() || null : null;
 				};
-				const comments: { key: string; body: string; shape: string }[] = [];
+				const comments: { key: string; body: string; shape: string; discussion?: boolean }[] = [];
+				const discussions = new Set(
+					targets.filter((t) => t.card.kind === "discussion").map((t) => t.key),
+				);
 				for (const group of groups) {
 					// Only uploaded when one was asked for and drawn.
 					const snapshotUrl = group.snapshot ? await services.uploadSnapshot(group.snapshot) : null;
@@ -1508,7 +1539,12 @@ function BacklinkFor({
 							snapshotUrl,
 							note,
 						});
-						comments.push({ key: item.key, body, shape: item.shape });
+						comments.push({
+							key: item.key,
+							body,
+							shape: item.shape,
+							discussion: discussions.has(item.key),
+						});
 					}
 				}
 				stageComments(doc, comments, stagerFor(user));

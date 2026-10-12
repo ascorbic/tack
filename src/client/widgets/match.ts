@@ -104,7 +104,8 @@ export function stageDrop(doc: Y.Doc, plans: CardPlan[], stager: Stager): string
 						: edit.kind === "item.assignees"
 							? card.assignees.map((a) => a.login)
 							: undefined;
-				return stageTriage(doc, [{ key, shape, current }], edit, stager);
+				const discussion = card.kind === "discussion";
+				return stageTriage(doc, [{ key, shape, current, discussion }], edit, stager);
 			});
 		}),
 	);

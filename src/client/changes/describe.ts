@@ -1,5 +1,6 @@
 import {
 	type ChangeStatus,
+	DISCUSSION_CLOSE,
 	type Operation,
 	type OperationKind,
 	type PendingChange,
@@ -185,6 +186,11 @@ export function summarize(op: Operation, index: ChangeIndex = new Map()): string
 		case "item.comment":
 			return `Comment on ${target(op.target)}`;
 		case "item.state":
+			if (op.discussion) {
+				return op.state === "closed"
+					? `Close discussion ${target(op.target)} as ${DISCUSSION_CLOSE[op.reason ?? "completed"]}`
+					: `Reopen discussion ${target(op.target)}`;
+			}
 			return op.state === "closed"
 				? `Close ${target(op.target)}${op.reason ? ` ${CLOSE_REASON[op.reason] ?? ""}` : ""}`.trim()
 				: `Reopen ${target(op.target)}`;

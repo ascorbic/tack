@@ -421,6 +421,8 @@ export function stageActionState(
 	id: string,
 	done: boolean,
 	stager: Stager,
+	/** The item is a discussion (its card says so), closed as one. */
+	discussion = false,
 ): { change: string; state: "open" | "closed" } | null {
 	const shape = actionMap(doc, id);
 	const key = shape?.get("ref");
@@ -442,6 +444,7 @@ export function stageActionState(
 				target: { key },
 				state,
 				...(done ? { reason: "completed" as const } : {}),
+				...(discussion ? { discussion: true } : {}),
 			},
 			stager,
 			{ shapes: [id] },
