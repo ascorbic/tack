@@ -335,9 +335,12 @@ test("a sticky and a card stack together", async ({ page }) => {
 test("zoomed out, a stack is its name and count", async ({ page }) => {
 	const stack = page.locator(".stack", { hasText: "Big sites are slow" }).first();
 	await expect(stack).not.toHaveAttribute("data-far", "true");
+	// However far out the board opens, zoom out until it's far enough.
 	const out = page.getByRole("button", { name: "Zoom out" });
-	for (let i = 0; i < 4; i++) await out.click();
-	await expect(stack).toHaveAttribute("data-far", "true");
+	await expect(async () => {
+		await out.click();
+		await expect(stack).toHaveAttribute("data-far", "true", { timeout: 600 });
+	}).toPass({ timeout: 15_000 });
 	await expect(stack.locator(".stack-far-name")).toContainText("Big sites are slow");
 	await expect(stack.locator(".stack-far-count")).toHaveText("3");
 });
