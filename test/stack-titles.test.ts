@@ -14,7 +14,8 @@ import type { BoardInfo, Visibility } from "../src/shared/boards.ts";
 import type { Card, CardMessage, MissingCard } from "../src/shared/cards.ts";
 import { stackUp } from "../src/shared/stackEdits.ts";
 import type { StackMessage } from "../src/shared/stackNamer.ts";
-import { addShape } from "../src/shared/shapes.ts";
+import { addShape, readShape } from "../src/shared/shapes.ts";
+import { isUnnameable } from "../src/shared/stacks.ts";
 import { type BoardClient, connectBoard, eventually } from "./board-client.ts";
 import { FakeAi } from "./fake-ai.ts";
 import { FakeGitHub, type FakeUser } from "./fake-github.ts";
@@ -197,6 +198,32 @@ describe("names from cards", () => {
 			expect(lastNamed()).toContain(PUBLIC_TITLE);
 			expect(lastNamed()).not.toContain(SECRET_TITLE);
 		}
+	});
+
+	it("mark a stack with nothing everyone may read as unnameable, so nobody waits for a name", async () => {
+		const id = await board("instance");
+		const client = await open(id, alice);
+		sticky(client.doc, "e", "");
+		card(client.doc, "priv", PRIVATE_CARD);
+		stackUp(client.doc, "priv", ["e"], undefined, () => "stack");
+		await client.roundTrip();
+		await eventually(() => {
+			const entry = cardsOf(client).get(PRIVATE_CARD);
+			return entry !== undefined && !("missing" in entry);
+		});
+		const before = ai.calls.length;
+		await (await boardStub(mf, id)).nameStacks();
+		expect(ai.calls.length).toBe(before);
+		const stack = () => client.doc.getMap<Y.Map<unknown>>("shapes").get("stack");
+		await eventually(() => stack()?.get("unnameable") !== undefined);
+		expect(isUnnameable(readShape(stack()!), ["priv", "e"])).toBe(true);
+		// Words to read: the mark goes, and it's named from them alone.
+		client.doc.getMap<Y.Map<unknown>>("shapes").get("e")?.set("text", "Turnip importer");
+		await client.roundTrip();
+		await (await boardStub(mf, id)).nameStacks();
+		await eventually(() => stack()?.get("unnameable") === undefined);
+		expect(lastNamed()).toContain("Turnip importer");
+		expect(lastNamed()).not.toContain(SECRET_TITLE);
 	});
 
 	it("Group these sends only the titles that may be shared, and says how many weren't", async () => {

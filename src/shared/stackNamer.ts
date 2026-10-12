@@ -3,8 +3,10 @@ import type { ProposedStack } from "./stackEdits.ts";
 import { GROUP_LIMIT, type GroupNote, groupNotes, readGroups, readName } from "./stackNaming.ts";
 import {
 	cleanText,
+	membersHash,
 	nameState,
 	namingTexts,
+	readUnnameable,
 	stackHash,
 	stackMembers,
 	readSuggestion,
@@ -27,6 +29,12 @@ import type { ShapeProps } from "./shapes.ts";
 // they came from, so the same stickies never cost a second request. Requests
 // are rate limited per board, one at a time, and a request that failed
 // isn't tried again for the same text for a while.
+//
+// A stack with nothing it may read (only cards whose titles not everyone on
+// the board can read) can't be named, and it says so: it's marked
+// `unnameable`, with a hash of its members, so clients show it untitled,
+// for a person to name, rather than waiting for a name that isn't coming.
+// The mark goes as soon as there's something to read.
 
 /** The transaction origin for suggested names: the server's, never undoable. */
 export const STACK_ORIGIN = "stack-name";
@@ -218,7 +226,8 @@ export class StackNamer {
 							key === "text" ||
 							key === "silent" ||
 							key === "title" ||
-							key === "type",
+							key === "type" ||
+							key === "unnameable",
 					),
 			);
 			if (relevant) this.schedule();
@@ -298,36 +307,65 @@ export class StackNamer {
 		return refs;
 	}
 
-	/** What each stack would be named from now, for the stacks that want a name. */
+	/**
+	 * What each stack would be named from now, for the stacks that want a
+	 * name; and the stacks whose `unnameable` mark should change: made (for
+	 * their members) where there's nothing it may read but cards, and cleared
+	 * where there's something to read again, or no cards at all.
+	 */
 	private wanted(titles: ReadonlyMap<string, string>): {
-		stack: string;
-		texts: string[];
-		hash: string;
-	}[] {
+		names: { stack: string; texts: string[]; hash: string }[];
+		marks: { stack: string; hash: string | null }[];
+	} {
 		const shapes = this.shapes();
 		const members = stackMembers(shapes);
-		const out: { stack: string; texts: string[]; hash: string }[] = [];
+		const names: { stack: string; texts: string[]; hash: string }[] = [];
+		const marks: { stack: string; hash: string | null }[] = [];
 		for (const [id, shape] of shapes) {
 			if (shape.type !== "stack") continue;
-			const texts = namingTexts(shapes, members.get(id) ?? [], (ref) => titles.get(ref));
+			const ids = members.get(id) ?? [];
+			const texts = namingTexts(shapes, ids, (ref) => titles.get(ref));
 			const hash = texts.length > 0 ? stackHash(texts) : null;
+			// Cards and nothing else to read, none of them readable by everyone
+			// here: no name's coming. (Empty or face-down stickies alone never
+			// have anyone waiting.) A person's name needs no mark.
+			const mark =
+				hash === null &&
+				nameState(shape) !== "person" &&
+				ids.some((member) => shapes.get(member)?.type === "card")
+					? membersHash(ids)
+					: null;
+			if ((readUnnameable(shape.unnameable)?.hash ?? null) !== mark) {
+				marks.push({ stack: id, hash: mark });
+			}
 			if (hash === null) {
 				// Nothing left to read (the words went): the old suggestion no longer fits.
 				if (nameState(shape) === "suggested") this.write(id, null);
 				continue;
 			}
-			if (wantsSuggestion(shape, hash)) out.push({ stack: id, texts, hash });
+			if (wantsSuggestion(shape, hash)) names.push({ stack: id, texts, hash });
 		}
-		return out;
+		return { names, marks };
 	}
 
 	private async nameAll(): Promise<void> {
 		// Only cards make it wait (stickies are read as they are, at once).
 		const cards = this.stackedCards(this.shapes());
 		const titles = cards.length > 0 ? await this.titles(cards) : new Map<string, string>();
-		const wanted = this.wanted(titles);
-		if (wanted.length === 0) return;
+		const { names: wanted, marks } = this.wanted(titles);
 		let ai: StackAi | null = null;
+		// Marks first: they cost no request, and say nobody need wait. Clearing
+		// one always may; making one only while suggestions are on (while
+		// they're off, nobody's waiting for a name).
+		for (const { stack, hash } of marks) {
+			if (hash !== null) {
+				ai ??= await this.options.ai();
+				if (!ai) continue;
+				this.log("info", "stack.unnameable", { stack });
+			}
+			this.mark(stack, hash);
+		}
+		if (wanted.length === 0) return;
 		for (const { stack, texts, hash } of wanted) {
 			const cached = this.cache.get(hash);
 			if (cached) {
@@ -364,7 +402,7 @@ export class StackNamer {
 			}
 			this.cache.set(hash, name);
 			// Still wanted, for the same text? People may have named it, or moved on.
-			const still = this.wanted(titles).find((entry) => entry.stack === stack);
+			const still = this.wanted(titles).names.find((entry) => entry.stack === stack);
 			if (still?.hash !== hash) {
 				this.log("info", "stack.name.stale", { stack });
 				this.again = true;
@@ -390,6 +428,24 @@ export class StackNamer {
 		doc.transact(() => {
 			if (suggestion) shape.set("suggested", suggestion);
 			else if (shape.has("suggested")) shape.delete("suggested");
+		}, STACK_ORIGIN);
+	}
+
+	/** Mark a stack as having nothing to be named from, for these members (a hash), or with null, not. */
+	private mark(stack: string, hash: string | null): void {
+		const doc = this.options.doc;
+		const shape = shapesMap(doc).get(stack);
+		if (!shape || shape.get("type") !== "stack") return;
+		if (
+			hash === null
+				? !shape.has("unnameable")
+				: readUnnameable(shape.get("unnameable"))?.hash === hash
+		) {
+			return;
+		}
+		doc.transact(() => {
+			if (hash === null) shape.delete("unnameable");
+			else shape.set("unnameable", { hash });
 		}, STACK_ORIGIN);
 	}
 

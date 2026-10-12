@@ -232,6 +232,9 @@ const NOT_REFERENCES = new Set([
 	"source",
 	// A stack's suggested name and the hash of what it was made from.
 	"suggested",
+	// A stack the server couldn't name, and a hash of its members (which a
+	// copy's new ids won't match, so it's looked at again).
+	"unnameable",
 ]);
 
 /** Strings that are a template's shape ids (connector ends, parents, sections), pointed at their copies. */

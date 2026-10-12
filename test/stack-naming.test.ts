@@ -19,6 +19,8 @@ import {
 } from "../src/shared/stackNaming.ts";
 import {
 	cleanName,
+	isUnnameable,
+	membersHash,
 	nameState,
 	namingTexts,
 	stackHash,
@@ -313,6 +315,121 @@ describe("naming stacks", () => {
 		shapesMap(doc).get("b")?.set("text", " ");
 		await namer.scan();
 		expect(get("p").suggested).toBeUndefined();
+	});
+});
+
+describe("stacks it can't name", () => {
+	/** A namer whose shareable titles the test decides, with private cards to stack. */
+	function withCards(ai: FakeAi | null = new FakeAi()) {
+		const doc = new Y.Doc();
+		const shared = new Map<string, string>();
+		const namer = new StackNamer({
+			doc,
+			ai: () => ai,
+			cardTitles: async (refs) =>
+				new Map(refs.flatMap((ref) => (shared.has(ref) ? [[ref, shared.get(ref)!]] : []))),
+			setTimer: () => 0,
+			clearTimer: () => {},
+		});
+		const card = (id: string, n: number) =>
+			addShape(doc, id, {
+				type: "card",
+				ref: `github.com/tack/internal#${n}`,
+				x: 0,
+				y: 0,
+				z: nextZ(doc),
+			});
+		const get = (id: string) => readShape(shapesMap(doc).get(id) as Y.Map<unknown>);
+		return { doc, namer, shared, card, get };
+	}
+
+	it("marks a stack of cards nobody may name it from, for its members, without asking", async () => {
+		const ai = new FakeAi();
+		const { doc, namer, card, get } = withCards(ai);
+		card("a", 1);
+		card("b", 2);
+		stackUp(doc, "a", ["b"], undefined, () => "p");
+		await namer.scan();
+		expect(ai.named).toHaveLength(0);
+		expect(get("p").unnameable).toEqual({ hash: membersHash(["a", "b"]) });
+		expect(isUnnameable(get("p"), ["b", "a"])).toBe(true);
+		expect(nameState(get("p"))).toBe("none");
+		// Its members change: the mark's for those it had, until it looks again.
+		card("c", 3);
+		stackUp(doc, "p", ["c"]);
+		expect(isUnnameable(get("p"), ["a", "b", "c"])).toBe(false);
+		await namer.scan();
+		expect(get("p").unnameable).toEqual({ hash: membersHash(["a", "b", "c"]) });
+		expect(ai.named).toHaveLength(0);
+	});
+
+	it("clears the mark, and names it, once something readable arrives", async () => {
+		const ai = new FakeAi();
+		const { doc, namer, shared, card, get } = withCards(ai);
+		card("a", 1);
+		card("b", 2);
+		stackUp(doc, "a", ["b"], undefined, () => "p");
+		await namer.scan();
+		expect(get("p").unnameable).toBeDefined();
+
+		// A sticky with words dropped in.
+		addShape(doc, "s", { type: "sticky", text: "Launch week", x: 0, y: 0, z: nextZ(doc) });
+		stackUp(doc, "p", ["s"]);
+		await namer.scan();
+		expect(get("p").unnameable).toBeUndefined();
+		expect(get("p").suggested?.title).toBe("Docs gaps");
+		expect(ai.named).toEqual([["Launch week"]]);
+
+		// Its words go: unnameable again, and the old suggestion with them.
+		shapesMap(doc).get("s")?.set("text", "");
+		await namer.scan();
+		expect(get("p").suggested).toBeUndefined();
+		expect(get("p").unnameable).toEqual({ hash: membersHash(["a", "b", "s"]) });
+
+		// A card everyone can now read (the board's access changed): named from it.
+		shared.set("github.com/tack/internal#2", "Draft the launch post");
+		await namer.scan();
+		expect(get("p").unnameable).toBeUndefined();
+		expect(ai.named.at(-1)).toEqual(["Draft the launch post"]);
+		expect(nameState(get("p"))).toBe("suggested");
+	});
+
+	it("marks nothing while suggestions are off, for stickies alone, or once a person's named it", async () => {
+		const off = withCards(null);
+		off.card("a", 1);
+		off.card("b", 2);
+		stackUp(off.doc, "a", ["b"], undefined, () => "p");
+		await off.namer.scan();
+		expect(off.get("p").unnameable).toBeUndefined();
+
+		const { doc, namer, card, get } = withCards();
+		addShape(doc, "x", { type: "sticky", text: "", x: 0, y: 0, z: nextZ(doc) });
+		addShape(doc, "y", { type: "sticky", text: "", silent: "session", x: 0, y: 0, z: nextZ(doc) });
+		stackUp(doc, "x", ["y"], undefined, () => "q");
+		card("a", 1);
+		card("b", 2);
+		stackUp(doc, "a", ["b"], undefined, () => "p");
+		await namer.scan();
+		expect(get("q").unnameable).toBeUndefined();
+		expect(get("p").unnameable).toBeDefined();
+		setStackName(doc, "p", "Launch");
+		await namer.scan();
+		expect(get("p").unnameable).toBeUndefined();
+		// Their name taken away again: marked again.
+		setStackName(doc, "p", "");
+		await namer.scan();
+		expect(get("p").unnameable).toEqual({ hash: membersHash(["a", "b"]) });
+	});
+
+	it("writes its marks as the server, never undoably", async () => {
+		const { doc, namer, card } = withCards();
+		const origins: unknown[] = [];
+		card("a", 1);
+		card("b", 2);
+		stackUp(doc, "a", ["b"], undefined, () => "p");
+		doc.on("afterTransaction", (transaction: Y.Transaction) => origins.push(transaction.origin));
+		await namer.scan();
+		expect(origins).toEqual([STACK_ORIGIN]);
 	});
 });
 

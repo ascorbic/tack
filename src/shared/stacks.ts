@@ -1,5 +1,5 @@
 import type { Point, Rect } from "./geometry.ts";
-import type { ShapeType, StackSuggestion, ShapeProps } from "./shapes.ts";
+import type { ShapeType, StackSuggestion, StackUnnameable, ShapeProps } from "./shapes.ts";
 
 // Stacks (#73): stickies (and issues and pull requests) gathered into a
 // stack, as people do when theming a planning session, and named from what's
@@ -29,7 +29,9 @@ import type { ShapeType, StackSuggestion, ShapeProps } from "./shapes.ts";
 // the board can read (stacks' naming, src/shared/stackNamer.ts), with a hash
 // of that text, so it's made again only when the text changes. Silent mode's
 // face-down stickies have no text in the document, so they can't lend a
-// stack their words until they're revealed.
+// stack their words until they're revealed. A stack of cards whose titles
+// can't be shared has nothing to be named from: the server says so with
+// `unnameable` (and a hash of its members), so nobody waits for a name.
 //
 // On the board a stack is a theme card (client/stacks/StackNode.tsx): its
 // name as the headline with its count beside it, then its first few members
@@ -201,6 +203,35 @@ export function readSuggestion(value: unknown): StackSuggestion | null {
 	const { title, hash } = value as Partial<StackSuggestion>;
 	if (typeof title !== "string" || typeof hash !== "string" || !title.trim()) return null;
 	return { title, hash };
+}
+
+export function readUnnameable(value: unknown): StackUnnameable | null {
+	if (!value || typeof value !== "object") return null;
+	const { hash } = value as Partial<StackUnnameable>;
+	return typeof hash === "string" && hash ? { hash } : null;
+}
+
+/**
+ * A hash of which shapes are in a stack, whatever their order: what the
+ * server's `unnameable` mark was made for, so it's known to be current.
+ */
+export function membersHash(ids: readonly string[]): string {
+	return stackHash(ids);
+}
+
+/**
+ * Whether the server's said these members have nothing it may name the
+ * stack from (cards whose titles not everyone here can read, and no
+ * stickies with words): no suggestion's coming, so nobody should wait for
+ * one. A mark for other members (someone's added or taken one out since)
+ * doesn't count: the server looks again.
+ */
+export function isUnnameable(
+	shape: Pick<ShapeProps, "unnameable"> | undefined,
+	members: readonly string[],
+): boolean {
+	const mark = readUnnameable(shape?.unnameable);
+	return mark !== null && members.length > 0 && mark.hash === membersHash(members);
 }
 
 /**

@@ -95,6 +95,12 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              |                    | (`StackSuggestion`: title, and a hash of the   |
 // |              |                    | text it was made from), written only by the   |
 // |              |                    | server, so it never overwrites `title`        |
+// | unnameable   | stack               | the server found nothing in it everyone on    |
+// |              |                    | the board may read to name it from (only      |
+// |              |                    | cards whose titles can't be shared), so no    |
+// |              |                    | name's coming (`StackUnnameable`: a hash of   |
+// |              |                    | its members' ids, `membersHash`, when it      |
+// |              |                    | looked); written only by the server           |
 //
 // Beside `shapes`, the document has these root maps:
 //
@@ -184,6 +190,15 @@ export interface CarriedFrom {
 export interface StackSuggestion {
 	title: string;
 	/** A hash of the visible text it was made from (`stackHash`). */
+	hash: string;
+}
+
+/**
+ * A stack the server can't name (stacks.ts): nothing in it may be read by
+ * everyone on the board, so no suggestion's coming for these members.
+ */
+export interface StackUnnameable {
+	/** Its members when the server looked (`membersHash`): it holds only while they're the same. */
 	hash: string;
 }
 
@@ -277,6 +292,8 @@ export interface ShapeProps {
 	stack?: string | null;
 	/** Stacks: a name suggested from its stickies, written by the server. */
 	suggested?: StackSuggestion;
+	/** Stacks: nothing in it the server may name it from, written by the server. */
+	unnameable?: StackUnnameable;
 }
 
 /**
