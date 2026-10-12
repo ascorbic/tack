@@ -1030,9 +1030,12 @@
 }
 
 .display-modes {
+	--mode-w: 28px;
+	--mode-h: 24px;
+	--mode-pad: 3px;
 	position: relative;
 	display: inline-flex;
-	padding: 3px;
+	padding: var(--mode-pad);
 	border-radius: 11px;
 	background: var(--chrome-strong);
 	border: 1px solid var(--line);
@@ -1044,8 +1047,8 @@
 	z-index: 1;
 	display: grid;
 	place-items: center;
-	width: 28px;
-	height: 24px;
+	width: var(--mode-w);
+	height: var(--mode-h);
 	padding: 0;
 	border: 0;
 	border-radius: 8px;
@@ -1090,10 +1093,10 @@
 /* The thumb slides under whichever mode is on. */
 .display-mode-thumb {
 	position: absolute;
-	top: 3px;
-	left: 3px;
-	width: 28px;
-	height: 24px;
+	top: var(--mode-pad);
+	left: var(--mode-pad);
+	width: var(--mode-w);
+	height: var(--mode-h);
 	border-radius: 8px;
 	background: var(--accent-soft);
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
@@ -1101,11 +1104,11 @@
 }
 
 .display-mode-thumb[data-mode="list"] {
-	translate: 28px 0;
+	translate: var(--mode-w) 0;
 }
 
 .display-mode-thumb[data-mode="mini"] {
-	translate: 56px 0;
+	translate: calc(var(--mode-w) * 2) 0;
 }
 
 .display-mode::after {
@@ -1132,10 +1135,6 @@
 	opacity: 1;
 	transform: translate(-50%, 0);
 	transition-delay: calc(400ms * var(--motion));
-}
-
-.display-sort {
-	position: relative;
 }
 
 .display-sort-button {
@@ -1168,28 +1167,9 @@
 	stroke-linejoin: round;
 }
 
-.display-sort-menu {
-	position: fixed;
-	z-index: 4000;
-
-	display: grid;
+/* The sort's menu is one of the bar's (BarMenu.tsx, actions.css). */
+.bar-menu.display-sort-menu {
 	min-width: 230px;
-	padding: 5px;
-	border-radius: 13px;
-	border: 1px solid var(--line);
-	background: var(--chrome-strong);
-	backdrop-filter: blur(12px);
-	box-shadow: var(--shadow-lifted);
-	transform-origin: 16px 0;
-	animation: display-menu-in var(--t-base) var(--ease-spring);
-}
-
-@keyframes display-menu-in {
-	from {
-		opacity: 0;
-		scale: 0.94;
-		translate: 0 -4px;
-	}
 }
 
 .display-sort-option {

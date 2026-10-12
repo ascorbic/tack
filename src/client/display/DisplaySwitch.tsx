@@ -1,5 +1,4 @@
-import { useContext, useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useContext } from "react";
 import {
 	type ListSort,
 	type ListSortBy,
@@ -10,10 +9,11 @@ import {
 	sortOf,
 } from "../../shared/display.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
+import { MenuButton } from "../actions/BarMenu.tsx";
 import { DocContext } from "../DocContext.ts";
 import { transactLocal } from "../undo.ts";
 
-// The switch in a selected section's header between cards, a list and mini
+// The switch in a selected section's bar between cards, a list and mini
 // cards (#72), and a list's sort. Each change is one undo step.
 
 const MODES: { mode: SectionDisplay; label: string }[] = [
@@ -80,6 +80,7 @@ export function DisplaySwitch({ id, shape }: { id: string; shape: ShapeProps }) 
 						aria-label={option.label}
 						data-tooltip={option.label}
 						className="display-mode"
+						data-bar-item
 						onPointerDown={(event) => event.stopPropagation()}
 						onClick={(event) => {
 							event.stopPropagation();
@@ -99,34 +100,6 @@ export function DisplaySwitch({ id, shape }: { id: string; shape: ShapeProps }) 
 
 function SortMenu({ id, sort }: { id: string; sort: ListSort | null }) {
 	const doc = useContext(DocContext);
-	// Where the menu opens, on screen: it's drawn over everything on the
-	// board, rather than inside the section (which stacks beneath its rows).
-	const [open, setOpen] = useState<{ left: number; top: number } | null>(null);
-	const menu = useId();
-	const root = useRef<HTMLDivElement>(null);
-	const list = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		if (!open) return;
-		const onDown = (event: PointerEvent) => {
-			const target = event.target as Node;
-			if (!root.current?.contains(target) && !list.current?.contains(target)) setOpen(null);
-		};
-		// Panning or zooming moves the button away from the menu.
-		const onWheel = () => setOpen(null);
-		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
-			event.stopPropagation();
-			setOpen(null);
-		};
-		window.addEventListener("pointerdown", onDown, true);
-		window.addEventListener("keydown", onKey, true);
-		window.addEventListener("wheel", onWheel, { capture: true, passive: true });
-		return () => {
-			window.removeEventListener("pointerdown", onDown, true);
-			window.removeEventListener("keydown", onKey, true);
-			window.removeEventListener("wheel", onWheel, true);
-		};
-	}, [open]);
 	if (!doc) return null;
 	const choose = (by: ListSortBy | null) => {
 		transactLocal(doc, () => {
@@ -135,70 +108,55 @@ function SortMenu({ id, sort }: { id: string; sort: ListSort | null }) {
 			else setSort(doc, id, { by });
 		});
 	};
+	// Drawn in the selection's bar, over everything on the board, opening
+	// away from the edge of the view the bar is at (BarMenu.tsx).
 	return (
-		<div className="display-sort" ref={root}>
-			<button
-				type="button"
-				className="display-sort-button"
-				aria-haspopup="menu"
-				aria-expanded={open !== null}
-				aria-controls={menu}
-				onPointerDown={(event) => event.stopPropagation()}
-				onClick={(event) => {
-					event.stopPropagation();
-					const box = event.currentTarget.getBoundingClientRect();
-					setOpen((value) => (value ? null : { left: box.left, top: box.bottom + 6 }));
-				}}
-			>
-				<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-					<path d="M3.5 2v8M1.5 8l2 2 2-2M8.5 10V2M6.5 4l2-2 2 2" />
-				</svg>
-				{sortLabel(sort)}
-			</button>
-			{open &&
-				createPortal(
-					<div
-						ref={list}
-						className="display-sort-menu"
-						id={menu}
-						role="menu"
-						aria-label="Sort"
-						data-chrome
-						style={{ left: open.left, top: open.top }}
-					>
-						{SORTS.map((option) => {
-							const active = option.by === null ? sort === null : sort?.by === option.by;
-							return (
-								<button
-									key={option.label}
-									type="button"
-									role="menuitemradio"
-									aria-checked={active}
-									className="display-sort-option"
-									onPointerDown={(event) => event.stopPropagation()}
-									onClick={(event) => {
-										event.stopPropagation();
-										choose(option.by);
-										if (option.by === null || !active) setOpen(null);
-									}}
-								>
-									<span className="display-sort-check" aria-hidden="true">
-										{active ? "✓" : ""}
-									</span>
-									<span className="display-sort-name">{option.label}</span>
-									<span className="display-sort-hint">
-										{active && option.by !== null
-											? sort?.desc
-												? "Reversed: click to flip"
-												: "Click again to reverse"
-											: option.hint}
-									</span>
-								</button>
-							);
-						})}
-					</div>,
-					document.body,
-				)}
-		</div>
+		<MenuButton
+			label="Sort"
+			menuClassName="display-sort-menu"
+			button={{
+				className: "display-sort-button",
+				children: (
+					<>
+						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+							<path d="M3.5 2v8M1.5 8l2 2 2-2M8.5 10V2M6.5 4l2-2 2 2" />
+						</svg>
+						{sortLabel(sort)}
+					</>
+				),
+			}}
+		>
+			{(close) =>
+				SORTS.map((option) => {
+					const active = option.by === null ? sort === null : sort?.by === option.by;
+					return (
+						<button
+							key={option.label}
+							type="button"
+							role="menuitemradio"
+							aria-checked={active}
+							className="display-sort-option"
+							onClick={(event) => {
+								event.stopPropagation();
+								choose(option.by);
+								if (option.by === null || !active) close(event.detail === 0);
+							}}
+						>
+							<span className="display-sort-check" aria-hidden="true">
+								{active ? "✓" : ""}
+							</span>
+							<span className="display-sort-name">{option.label}</span>
+							<span className="display-sort-hint">
+								{active && option.by !== null
+									? sort?.desc
+										? "Reversed: click to flip"
+										: "Click again to reverse"
+									: option.hint}
+							</span>
+						</button>
+					);
+				})
+			}
+		</MenuButton>
 	);
 }
