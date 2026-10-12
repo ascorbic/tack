@@ -370,6 +370,18 @@
 	}
 }
 
+/* The title clips on a phone (touch.css), so the menu hangs from the top bar
+   itself, across the screen: fixed, it's placed against the bar, whose
+   backdrop filter makes it the containing block. */
+.app[data-phone] .try-picker-menu {
+	position: fixed;
+	top: 100%;
+	right: 8px;
+	left: 8px;
+	width: auto;
+	white-space: normal;
+}
+
 /* The demo note: bottom left, over the canvas, above the zoom controls ------- */
 
 .try-note {
