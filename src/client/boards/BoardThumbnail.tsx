@@ -323,6 +323,61 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 				</g>
 			);
 		}
+		case "row":
+		case "tile": {
+			// A list's row or a mini card: a dot in its card's state or its
+			// sticky's colour, and a line or two of title. An outlined one is a
+			// template's, showing what an empty list is for.
+			const outline = tone === "outline";
+			const sticky = tone.startsWith("sticky:") ? tone.slice(7) : null;
+			const dot = kind === "row" ? height * 0.34 : Math.min(height * 0.16, width * 0.12);
+			const line = kind === "row" ? height * 0.24 : height * 0.11;
+			const inset = kind === "row" ? height * 0.3 : width * 0.08;
+			const textX = kind === "row" ? x + inset + dot * 1.6 : x + inset;
+			return (
+				<g className="thumb-row" data-outline={outline || undefined}>
+					<rect
+						className="thumb-card"
+						x={x}
+						y={y}
+						width={width}
+						height={height}
+						rx={Math.min(width, height) * 0.16}
+						style={sticky ? { fill: `var(--sticky-${sticky}, var(--sticky-yellow))` } : undefined}
+					/>
+					{!outline && !sticky && (
+						<circle
+							cx={x + inset + dot / 2}
+							cy={kind === "row" ? y + height / 2 : y + height * 0.24}
+							r={dot / 2}
+							style={{ fill: CARD_STATE[tone] ?? "var(--line-strong)" }}
+						/>
+					)}
+					{kind === "row" ? (
+						<rect
+							className="thumb-line"
+							x={outline || sticky ? x + inset : textX}
+							y={y + (height - line) / 2}
+							width={width * (outline ? 0.46 : 0.58)}
+							height={line}
+							rx={line / 2}
+						/>
+					) : (
+						[0.5, 0.7].map((at, i) => (
+							<rect
+								key={at}
+								className="thumb-line"
+								x={textX}
+								y={y + height * at}
+								width={(width - inset * 2) * (i === 0 ? 0.9 : 0.55)}
+								height={line}
+								rx={line / 2}
+							/>
+						))
+					)}
+				</g>
+			);
+		}
 		case "action": {
 			// A row with a checkbox.
 			const box = height * 0.28;

@@ -609,6 +609,16 @@
 	fill: var(--line-strong);
 }
 
+/* A template's empty list: rows outlined, waiting to be filled. */
+.thumb-row[data-outline] .thumb-card {
+	fill: transparent;
+	stroke-dasharray: 3 2;
+}
+
+.thumb-row[data-outline] .thumb-line {
+	fill: var(--line);
+}
+
 .thumb-sticky {
 	stroke: rgb(0 0 0 / 7%);
 	stroke-width: 1;

@@ -12,10 +12,12 @@ import {
 	type ThumbnailKind,
 	type ThumbnailShape,
 } from "./boards.ts";
+import { type DisplayLayout, type SectionLayout, type Slot, layoutDisplays } from "./display.ts";
 import { LINK_CARD, linkHue, readPreview } from "./linkPreview.ts";
 import { imageSize } from "./images.ts";
+import { readStructure } from "./sections.ts";
 import { stackSize } from "./stacks.ts";
-import { shapesMap } from "./shapes.ts";
+import { type ShapeProps, shapesMap } from "./shapes.ts";
 
 /** Rendered sizes of shapes the document doesn't size, from styles.css. */
 const CARD = { width: 252, height: 128 };
@@ -70,6 +72,15 @@ function isMember(shape: Record<string, unknown>): boolean {
 	);
 }
 
+export interface SketchOptions {
+	/**
+	 * Draw an empty list or grid of mini cards at the size it was given, with
+	 * a few rows or cards outlined: a template's, which has nothing in it yet
+	 * but says what it's for. Otherwise it's drawn as the board shows it.
+	 */
+	outlineEmpty?: boolean;
+}
+
 /**
  * Sketch shapes given as plain properties (a document's, or a template's),
  * each with its `id` (for stacks, whose stickies say which stack they're in).
@@ -77,8 +88,10 @@ function isMember(shape: Record<string, unknown>): boolean {
 export function sketch(
 	shapes: Iterable<Record<string, unknown>>,
 	cardTone: (ref: string) => string = () => "",
+	{ outlineEmpty = false }: SketchOptions = {},
 ): Thumbnail | null {
 	const all = [...shapes];
+	const displays = displayLayout(all);
 	// A stack draws as one theme card, in its top sticky's colour (stacks.ts).
 	const stackTops = new Map<string, { z: string; color: string; count: number }>();
 	for (const shape of all) {
@@ -96,6 +109,19 @@ export function sketch(
 	const boxes: Box[] = [];
 	for (const shape of all) {
 		if (isMember(shape)) continue;
+		const id = typeof shape.id === "string" ? shape.id : "";
+		// Sections showing a list or mini cards, and what's in them, as the board lays them out.
+		const slot = displays?.slots.get(id);
+		if (slot) {
+			const box = slotBox(slot, shape, cardTone);
+			if (box) boxes.push(box);
+			continue;
+		}
+		const list = displays?.sections.get(id);
+		if (list) {
+			boxes.push(...displayBoxes(list, shape, outlineEmpty));
+			continue;
+		}
 		const box =
 			shape.type === "stack"
 				? stackBox(shape, stackTops.get(typeof shape.id === "string" ? shape.id : ""))
@@ -105,9 +131,9 @@ export function sketch(
 	if (boxes.length === 0) return null;
 
 	// Frames sit behind everything; otherwise keep the biggest shapes, which
-	// are the ones that read at thumbnail size.
+	// are the ones that read at thumbnail size (a list's rows last of all).
 	const kept = boxes
-		.sort((a, b) => b.width * b.height - a.width * a.height)
+		.sort((a, b) => rank(b) - rank(a) || b.width * b.height - a.width * a.height)
 		.slice(0, THUMBNAIL_MAX_SHAPES)
 		.sort((a, b) => Number(b.kind === "frame") - Number(a.kind === "frame"));
 
@@ -130,6 +156,106 @@ export function sketch(
 			box.tone,
 		]),
 	};
+}
+
+/** Frames first, then most shapes, then a list's rows and mini cards, which say least alone. */
+function rank(box: Box): number {
+	return box.kind === "frame" ? 2 : box.kind === "row" || box.kind === "tile" ? 0 : 1;
+}
+
+/** Where the board shows lists and grids of mini cards, if it has any. */
+function displayLayout(all: readonly Record<string, unknown>[]): DisplayLayout | null {
+	const shapes = new Map<string, ShapeProps>();
+	let any = false;
+	for (const shape of all) {
+		if (typeof shape.id !== "string" || typeof shape.type !== "string") continue;
+		if (!isFiniteNumber(shape.x) || !isFiniteNumber(shape.y)) continue;
+		shapes.set(shape.id, shape as unknown as ShapeProps);
+		if (shape.type === "section" && (shape.display === "list" || shape.display === "mini")) {
+			any = true;
+		}
+	}
+	return any ? layoutDisplays(shapes, readStructure(shapes)) : null;
+}
+
+/** A row of a list or a mini card, toned like what it shows; a section inside, as a frame. */
+function slotBox(
+	slot: Slot,
+	shape: Record<string, unknown>,
+	cardTone: (ref: string) => string,
+): Box | null {
+	const { x, y, w: width, h: height } = slot.rect;
+	if (slot.kind === "group") {
+		return { kind: "frame", x, y, width, height, tone: toneOf(shape.color) };
+	}
+	const kind = slot.kind === "mini" ? "tile" : "row";
+	const tone =
+		shape.type === "card" && typeof shape.ref === "string"
+			? cardTone(shape.ref)
+			: shape.type === "sticky"
+				? `sticky:${toneOf(shape.color) || "yellow"}`
+				: "";
+	return { kind, x, y, width, height, tone };
+}
+
+/** How big an empty list's outlined rows are drawn, for its width: bigger than life, to read in a sketch. */
+const OUTLINE = { pad: 0.05, row: 0.13, gap: 0.035, rows: 4, columns: 3, tile: 0.64 } as const;
+
+/**
+ * A section showing a list or mini cards: its frame, as tall as what's in
+ * it, or with `outline`, an empty one at its own size with a few rows or
+ * mini cards outlined in it.
+ */
+function displayBoxes(
+	list: SectionLayout,
+	shape: Record<string, unknown>,
+	outline: boolean,
+): Box[] {
+	const tone = toneOf(shape.color);
+	const own = explicitSize(shape);
+	if (!outline || list.order.length > 0 || !own) {
+		const { x, y, w: width, h: height } = list.box;
+		return [{ kind: "frame", x, y, width, height, tone }];
+	}
+	const { x, y, w: width } = list.box;
+	const frame: Box = { kind: "frame", x, y, width, height: own.height, tone };
+	const pad = width * OUTLINE.pad;
+	const gap = width * OUTLINE.gap;
+	const inner = width - pad * 2;
+	const fits = (size: number) =>
+		Math.max(1, Math.floor((own.height - pad * 2 + gap) / (size + gap)));
+	if (list.mode === "list") {
+		const height = width * OUTLINE.row;
+		return [
+			frame,
+			...Array.from({ length: Math.min(OUTLINE.rows, fits(height)) }, (_, i): Box => ({
+				kind: "row",
+				x: x + pad,
+				y: y + pad + i * (height + gap),
+				width: inner,
+				height,
+				tone: "outline",
+			})),
+		];
+	}
+	const tileW = (inner - gap * (OUTLINE.columns - 1)) / OUTLINE.columns;
+	const tileH = tileW * OUTLINE.tile;
+	const lines = Math.min(2, fits(tileH));
+	return [
+		frame,
+		...Array.from({ length: OUTLINE.columns * lines }, (_, i): Box => ({
+			kind: "tile",
+			x: x + pad + (i % OUTLINE.columns) * (tileW + gap),
+			y: y + pad + Math.floor(i / OUTLINE.columns) * (tileH + gap),
+			width: tileW,
+			height: tileH,
+			tone: "outline",
+		})),
+	];
+}
+
+function toneOf(color: unknown): string {
+	return typeof color === "string" ? color : "";
 }
 
 function shapeBox(props: Record<string, unknown>, cardTone: (ref: string) => string): Box | null {

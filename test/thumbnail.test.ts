@@ -1,5 +1,6 @@
-// Thumbnails' sketches of link cards: each a card tinted with its site's hue,
-// neutral for a page that couldn't be read, and taller with a picture.
+// Thumbnails' sketches of link cards (each a card tinted with its site's hue,
+// neutral for a page that couldn't be read, and taller with a picture), and
+// of sections shown as lists and mini cards.
 
 import { describe, expect, it } from "vite-plus/test";
 import { linkHue } from "../src/shared/linkPreview.ts";
@@ -49,5 +50,38 @@ describe("thumbnails of link cards", () => {
 			{ id: "b", type: "sticky", x: 10, y: 10, color: "pink", stack: "s" },
 		]);
 		expect(thumbnail?.shapes.map((shape) => shape[0])).toEqual(["stack"]);
+	});
+});
+
+describe("thumbnails of lists and mini cards", () => {
+	const shapes = (display: "list" | "mini") => [
+		{ id: "s", type: "section", x: 0, y: 0, w: 480, h: 900, color: "green", display },
+		{ id: "a", type: "card", x: 40, y: 600, ref: "github.com/ascorbic/unpic#1", parent: "s" },
+		{ id: "b", type: "sticky", x: 300, y: 600, color: "pink", text: "Docs", parent: "s" },
+	];
+
+	it("draw what's in a list as its rows, and the list as tall as they are", () => {
+		const thumbnail = sketch(shapes("list"), () => "open");
+		const kinds = thumbnail?.shapes.map((shape) => [shape[0], shape[5]]);
+		expect(kinds).toEqual([
+			["frame", "green"],
+			["row", "open"],
+			["row", "sticky:pink"],
+		]);
+		// Two rows, not the 900 it was given: wider than it's tall.
+		expect(thumbnail!.width).toBeGreaterThan(thumbnail!.height);
+	});
+
+	it("draw a grid of mini cards as tiles", () => {
+		const thumbnail = sketch(shapes("mini"));
+		expect(thumbnail?.shapes.map((shape) => shape[0])).toEqual(["frame", "tile", "tile"]);
+	});
+
+	it("outline an empty one at its own size only when asked, as a template's", () => {
+		const empty = [{ id: "s", type: "section", x: 0, y: 0, w: 480, h: 900, display: "list" }];
+		expect(sketch(empty)?.shapes.map((shape) => shape[0])).toEqual(["frame"]);
+		const outlined = sketch(empty, undefined, { outlineEmpty: true });
+		expect(outlined?.shapes.filter((shape) => shape[0] === "row")).toHaveLength(4);
+		expect(outlined!.height).toBeGreaterThan(outlined!.width);
 	});
 });

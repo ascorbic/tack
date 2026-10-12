@@ -43,8 +43,10 @@ export interface Thumbnail {
  * card's state, a frame's colour, how many lines a text block has, a
  * widget's kind, `done` for an action item that's ticked, a stack's top
  * sticky's colour, or a link card's site's hue (empty if its page couldn't
- * be read); images have none (the sketch never holds a picture). Clients
- * draw kinds they don't know as nothing.
+ * be read); images have none (the sketch never holds a picture). A row of a
+ * list or a mini card (`row`, `tile`) has its card's state, `sticky:{colour}`
+ * for a sticky, or `outline` for one a template's empty list sketches.
+ * Clients draw kinds they don't know as nothing.
  */
 export type ThumbnailShape = [
 	kind: ThumbnailKind,
@@ -64,7 +66,9 @@ export type ThumbnailKind =
 	| "action"
 	| "stack"
 	| "link"
-	| "image";
+	| "image"
+	| "row"
+	| "tile";
 
 export const THUMBNAIL_SIZE = 1000;
 /** Thumbnails keep the largest shapes, up to this many. */
