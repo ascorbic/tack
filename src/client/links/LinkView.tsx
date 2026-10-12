@@ -131,14 +131,7 @@ export function LinkView({
 			<div className="link-media skeleton-media" aria-hidden="true" />
 		) : hasImage && image.props ? (
 			<div className="link-media" data-loaded={image.loaded || undefined}>
-				<img
-					className="link-image"
-					{...image.props}
-					alt=""
-					draggable={false}
-					decoding="async"
-					loading="lazy"
-				/>
+				<img className="link-image" {...image.props} alt="" draggable={false} decoding="async" />
 			</div>
 		) : (
 			<div className="link-media link-tint" aria-hidden="true">
