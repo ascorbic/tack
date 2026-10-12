@@ -130,7 +130,10 @@ test("the tour can be skipped, and started again from the demo note", async ({ p
 	await settleCanvas(page);
 	await expect(coach(page)).toHaveCount(0);
 
-	await page.getByRole("button", { name: /This is a demo/ }).click();
+	// The note is a lock by the board's title, in the top bar, not on the board.
+	const note = page.getByRole("banner").getByRole("button", { name: /This is a demo/ });
+	await expect(note).toContainText("Only what the AI reads leaves your browser");
+	await note.click();
 	await expect(page.getByText("Everything but the AI happens in your browser")).toBeVisible();
 	await page.getByRole("button", { name: "Show me around again" }).click();
 	await expect(coach(page)).toContainText("Step 1 of 4");

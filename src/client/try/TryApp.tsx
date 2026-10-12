@@ -267,7 +267,15 @@ function TryBoard({
 	return (
 		<Board
 			name={`Try Tack · ${definition.name}`}
-			title={<ScenarioPicker scenario={scenario} onChoose={onScenario} />}
+			title={
+				<>
+					<ScenarioPicker scenario={scenario} onChoose={onScenario} />
+					<DemoNote
+						onTour={() => onGuide({ step: 0, status: "on" })}
+						touring={guide.status === "on"}
+					/>
+				</>
+			}
 			user={user}
 			doc={sim.doc}
 			awareness={sim.awareness}
@@ -284,7 +292,6 @@ function TryBoard({
 				</TryActions>
 			}
 		>
-			<DemoNote onTour={() => onGuide({ step: 0, status: "on" })} touring={guide.status === "on"} />
 			<Guide doc={sim.doc} scenario={definition} state={guide} onState={onGuide} />
 			{realAi && <AiHint store={hints} />}
 		</Board>

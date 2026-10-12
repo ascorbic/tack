@@ -1,7 +1,7 @@
 /* ---------------------------------------------------------------------------
    The public demo, tack.social/try (#75): what it adds around the board.
    The scenario picker in the title, Reset and the way to the real thing in
-   the top bar, the demo note in the corner, and the guide's coach marks.
+   the top bar, the demo note's lock by the title, and the guide's coach marks.
    Everything uses the app's tokens, so both themes and --motion apply.
    ------------------------------------------------------------------------ */
 
@@ -313,15 +313,11 @@
 }
 
 /* A phone: the board's name comes first. "Demo" sits above it rather than
-   beside it, the sync dot goes (the demo's always in step), and who's here
-   gives way before the name does, a whole avatar at a time. */
+   beside it, and who's here gives way before the name does, a whole avatar
+   at a time. */
 @media (max-width: 599px) {
 	.board-bar:has(.try-picker) .topbar-title {
 		flex-shrink: 1;
-	}
-
-	.board-bar:has(.try-picker) .topbar-title .status {
-		display: none;
 	}
 
 	/* Who's here takes what the name leaves, and never squeezes it. */
@@ -338,6 +334,17 @@
 		justify-content: flex-end;
 		height: 28px;
 		overflow: hidden;
+	}
+
+	/* And when not even one fits, none shows, rather than half of one. */
+	.board-bar:has(.try-picker) .topbar-people {
+		container-type: inline-size;
+	}
+
+	@container (max-width: 27px) {
+		.board-bar .people {
+			visibility: hidden;
+		}
 	}
 
 	.topbar .try-picker-button {
@@ -382,118 +389,147 @@
 	white-space: normal;
 }
 
-/* The demo note: bottom left, over the canvas, above the zoom controls ------- */
+/* The demo note: a lock beside the board's title ----------------------------- */
+
+/* It takes the sync dot's place: the demo is always in step with itself. */
+.board-bar:has(.try-note) .topbar-title .status {
+	display: none;
+}
 
 .try-note {
-	position: absolute;
-	left: 14px;
-	bottom: 176px;
-	z-index: 25;
+	position: relative;
 	display: flex;
-	flex-direction: column-reverse;
-	align-items: flex-start;
-	gap: 8px;
-	max-width: calc(100% - 28px);
-	pointer-events: none;
+	align-items: center;
+	/* Squeezed before the board's name is: the words go, then the name
+	   shrinks, and the lock always stays. (Weighted so far that the name's
+	   share is less than a layout unit, so it's never clipped by a hair.) */
+	flex: 0 100000 auto;
+	min-width: 37px;
+	margin-left: 2px;
 }
 
-.try-note > * {
-	pointer-events: auto;
+/* A quiet status, set apart from the title by a hairline. */
+.try-note::before {
+	content: "";
+	flex: none;
+	width: 1px;
+	height: 16px;
+	margin-right: 8px;
+	background: var(--line-strong);
 }
 
-.try-note-pill {
+.topbar .try-note-pill {
 	display: inline-flex;
 	align-items: center;
-	gap: 8px;
-	height: 32px;
-	padding: 0 12px 0 5px;
-	border: 1px solid var(--line);
+	gap: 7px;
+	min-width: 28px;
+	max-width: 100%;
+	height: 28px;
+	padding: 0 10px 0 4px;
+	border: 0;
 	border-radius: 999px;
-	background: var(--chrome-strong);
-	backdrop-filter: blur(12px) saturate(1.4);
-	box-shadow: var(--shadow-hover);
-	color: var(--ink-soft);
+	background: transparent;
+	color: var(--muted);
 	font: inherit;
 	font-size: 12.5px;
-	cursor: pointer;
-	animation: try-rise var(--t-settle) var(--ease-spring) calc(600ms * var(--motion)) backwards;
-	transition:
-		background var(--t-quick) var(--ease-out),
-		transform var(--t-quick) var(--ease-out);
+	font-weight: 500;
+	white-space: nowrap;
+	animation: try-rise var(--t-settle) var(--ease-spring) calc(400ms * var(--motion)) backwards;
+	transition: color var(--t-quick) var(--ease-out);
 }
 
-.try-note-pill:hover,
-.try-note-pill[aria-expanded="true"] {
-	background: var(--chrome-solid);
+/* No fill on hover: squeezed, the words leave the pill wider than its lock. */
+.topbar .try-note-pill:hover,
+.topbar .try-note-pill[aria-expanded="true"] {
+	background: transparent;
 	color: var(--ink);
 }
 
-.try-note-pill:active {
-	transform: scale(0.97);
-}
-
-.try-note-pill strong {
-	font-weight: 650;
-	color: var(--ink);
+.topbar .try-note-pill:active .try-note-lock {
+	transform: scale(0.9);
 }
 
 .try-note-lock {
 	display: grid;
+	flex: none;
 	place-items: center;
 	width: 22px;
 	height: 22px;
 	border-radius: 50%;
 	background: var(--open-bg);
 	color: var(--open);
+	transition:
+		box-shadow var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
 }
 
-.try-note-pill:hover .try-note-lock svg {
+.try-note-pill:is(:hover, [aria-expanded="true"]) .try-note-lock {
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--open) 18%, transparent);
+}
+
+.try-note-lock svg {
+	width: 11px;
+	height: 11px;
+}
+
+.try-note-pill:hover .try-note-lock svg,
+.try-note-pill[aria-expanded="true"] .try-note-lock svg {
 	animation: try-lock var(--t-settle) var(--ease-spring);
 }
 
-.try-note-short {
+/* The words, whole or not at all: an empty first item holds the line, and
+   when they don't fit beside it they wrap onto a second line nobody sees. */
+.try-note-words {
+	display: flex;
+	flex-wrap: wrap;
+	min-width: 0;
+	height: 28px;
+	overflow: hidden;
+	line-height: 28px;
+}
+
+.try-note-words::before {
+	content: "";
+	height: 28px;
+}
+
+/* Its tooltip hangs from the lock, under the hairline. */
+.topbar .try-note-pill[data-tooltip]::after {
+	left: 0;
+	transform: translateY(-4px);
+}
+
+.topbar .try-note-pill[data-tooltip]:is(:hover, :focus-visible)::after {
+	transform: none;
+}
+
+/* A phone has no room for the words, and they'd squeeze the menu beside
+   it: just the lock. */
+@media (max-width: 599px) {
+	.topbar .try-note-pill {
+		padding: 0 3px;
+	}
+
+	.try-note-words {
+		display: none;
+	}
+}
+
+.app[data-phone] .topbar .try-note-pill {
+	padding: 0 3px;
+}
+
+.app[data-phone] .try-note-words {
 	display: none;
 }
 
-@media (max-width: 640px) {
-	.try-note-text {
-		display: none;
-	}
-
-	.try-note-short {
-		display: inline;
-	}
-}
-
-/* A phone: down in the dock's row, between Show the whole board and +,
-   rather than over the middle of the board. */
-.app[data-phone] .try-note {
-	left: 72px;
-	bottom: calc(24px + env(safe-area-inset-bottom));
-	max-width: calc(100% - 158px);
-}
-
-.app[data-phone] .try-note-pill {
-	max-width: 100%;
-}
-
-/* Its panel still spans the screen, from the dock's left edge. */
-.app[data-phone] .try-note-panel {
-	width: calc(100vw - 32px);
-	margin-left: -56px;
-}
-
-.app[data-phone] .try-note-short {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
+/* Hanging from the lock, as the scenario picker's menu hangs from the title. */
 .try-note-panel {
-	position: relative;
-	width: min(340px, calc(100vw - 28px));
-	transform-origin: 20px 100%;
+	top: 100%;
+	left: 0;
+	width: min(340px, calc(100vw - 24px));
+	margin-top: 8px;
+	transform-origin: 24px 0;
 }
 
 .try-note-links {
@@ -503,7 +539,7 @@
 	margin: 12px 0 2px;
 }
 
-.try-note-link {
+.try-note .try-note-link {
 	display: inline-flex;
 	align-items: center;
 	height: 30px;
@@ -522,21 +558,21 @@
 		transform var(--t-quick) var(--ease-out);
 }
 
-.try-note-link:hover {
+.try-note .try-note-link:hover {
 	background: var(--surface-muted);
 }
 
-.try-note-link:active {
+.try-note .try-note-link:active {
 	transform: scale(0.96);
 }
 
-.try-note-link.try-note-primary {
+.try-note .try-note-link.try-note-primary {
 	border-color: var(--accent);
 	background: var(--accent);
 	color: var(--on-accent);
 }
 
-.try-note-link.try-note-primary:hover {
+.try-note .try-note-link.try-note-primary:hover {
 	background: var(--accent-hover);
 }
 
@@ -552,15 +588,50 @@
 	font-size: 12.5px;
 }
 
+/* A word under the lock when a link to the pretend forge stays put. */
 .try-forge-note {
-	margin: 0;
+	position: absolute;
+	top: 100%;
+	left: 0;
+	z-index: 40;
+	width: max-content;
+	max-width: min(300px, calc(100vw - 24px));
+	margin: 10px 0 0;
 	padding: 8px 12px;
 	border-radius: 10px;
 	background: var(--tooltip);
 	color: var(--on-tooltip);
 	font-size: 12.5px;
+	font-weight: 500;
+	white-space: normal;
 	box-shadow: var(--shadow-hover);
-	animation: try-rise var(--t-base) var(--ease-spring);
+	transform-origin: 20px 0;
+	animation: try-pop var(--t-base) var(--ease-spring);
+}
+
+/* A phone: the title clips (touch.css), so the panel and the word hang
+   from the top bar itself, across the screen, as the picker's menu does. */
+.app[data-phone] .try-note::before {
+	display: none;
+}
+
+.app[data-phone] .try-note {
+	min-width: 28px;
+}
+
+.app[data-phone] .topbar-title > .try-note {
+	overflow: visible;
+}
+
+.app[data-phone] :is(.try-note-panel, .try-forge-note) {
+	position: fixed;
+	top: 100%;
+	right: 8px;
+	left: 8px;
+	width: auto;
+	max-width: none;
+	white-space: normal;
+	transform-origin: 50% 0;
 }
 
 /* The guide: rings round what to use, a path for the drag, a coach card ------ */

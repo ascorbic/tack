@@ -240,12 +240,18 @@ function LockIcon() {
 	);
 }
 
+/** What the demo note says in full: its name, and its tooltip. */
+const NOTE = "This is a demo: nothing leaves your browser, except what you ask the AI to read";
+
 /**
  * "This is a demo: nothing leaves your browser, except what you ask the AI
- * to read", in the corner of the board,
- * opening to say how, with the ways on: the docs, running your own, the
- * tour again, and the theme. Links to the pretend forge stay on the board,
- * with a word about why.
+ * to read", as a lock beside the board's title where the sync dot would be
+ * (the demo is always in step with itself). Where there's room beside the
+ * name it says "Only what the AI reads leaves your browser"; where there
+ * isn't, it's just the lock, and the name keeps its room. It opens to say
+ * how, with the ways on: the docs, running your own, the tour again, and
+ * the theme. Links to the pretend forge stay on the board, with a word
+ * about why under the lock.
  */
 export function DemoNote({ onTour, touring }: { onTour: () => void; touring: boolean }) {
 	const [open, setOpen] = useState(false);
@@ -260,16 +266,16 @@ export function DemoNote({ onTour, touring }: { onTour: () => void; touring: boo
 				className="try-note-pill"
 				aria-expanded={open}
 				aria-controls={panelId}
+				aria-label={NOTE}
+				data-tooltip={NOTE}
 				onClick={() => setOpen((value) => !value)}
 			>
 				<span className="try-note-lock">
 					<LockIcon />
 				</span>
-				<span className="try-note-text">
-					<strong>This is a demo:</strong> nothing leaves your browser, except what you ask the AI
-					to read
+				<span className="try-note-words" aria-hidden="true">
+					<span className="try-note-text">Only what the AI reads leaves your browser</span>
 				</span>
-				<span className="try-note-short">Demo · in your browser, AI aside</span>
 			</button>
 			{open && (
 				<div id={panelId} className="try-popover try-note-panel">
