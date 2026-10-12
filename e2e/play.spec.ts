@@ -165,7 +165,9 @@ test("an empty board's guide lets a placing tool click through it", async ({ pag
 	await expect(guide).toBeVisible();
 	// It says how to find an issue, and that opens the card tool.
 	await guide.getByRole("button", { name: /Find an issue or PR/ }).click();
-	await expect(page.getByRole("combobox", { name: "Issue, pull request or discussion" })).toBeFocused();
+	await expect(
+		page.getByRole("combobox", { name: "Issue, pull request or discussion" }),
+	).toBeFocused();
 	await page.keyboard.press("Escape");
 
 	// The sticky tool, clicked right on the pinned notes in the middle.
