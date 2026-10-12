@@ -131,3 +131,21 @@ test("the gallery shows embed and signed-out states", async ({ page }) => {
 	await notice.getByRole("button", { name: "Dismiss" }).click();
 	await expect(notice).toBeHidden();
 });
+
+test("the share dialog shows the board's link as a QR code, and folds it away", async ({
+	page,
+}) => {
+	await publicBoard(page);
+	await page.getByRole("button", { name: /^Share/ }).click();
+	const dialog = page.getByRole("dialog");
+	const toggle = dialog.getByRole("button", { name: "Show a QR code for the link" });
+	await toggle.click();
+	const code = dialog.getByRole("img", { name: "QR code for this board's link" });
+	await expect(code).toBeVisible();
+	await expect(dialog.locator(".share-qr-link")).toContainText("/b/");
+	// Opening it keeps the footer's buttons in view.
+	await expect(dialog.getByRole("button", { name: "Hide the QR code" })).toBeInViewport();
+	await expect(dialog.getByRole("button", { name: "Copy link" })).toBeInViewport();
+	await dialog.getByRole("button", { name: "Hide the QR code" }).click();
+	await expect(code).toHaveCount(0);
+});

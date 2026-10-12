@@ -16,6 +16,7 @@ import { Avatar } from "../People.tsx";
 import type { ApiResult } from "./api.ts";
 import { VisibilityIcon } from "./icons.tsx";
 import { InviteField } from "./InviteField.tsx";
+import { QrCode } from "./QrCode.tsx";
 import { loginHash, notOnGitHub, quoted } from "./invites.ts";
 
 /** What sharing does, so the gallery can fake it. */
@@ -372,6 +373,7 @@ function ShareFoot({
 	onCopied: () => void;
 }) {
 	const [confirming, setConfirming] = useState(false);
+	const [qr, setQr] = useState(false);
 	const [leaving, setLeaving] = useState(false);
 	const stay = useRef<HTMLButtonElement>(null);
 	useEffect(() => {
@@ -419,6 +421,15 @@ function ShareFoot({
 
 	return (
 		<footer className="share-foot" data-send-link={sendLink || undefined}>
+			{qr && (
+				<figure className="share-qr" id="share-qr">
+					<QrCode value={link} label="QR code for this board's link" />
+					<figcaption>
+						<strong>Scan to open this board</strong>
+						<span className="share-qr-link mono">{link.replace(/^https?:\/\//, "")}</span>
+					</figcaption>
+				</figure>
+			)}
 			{sendLink ? (
 				<p className="share-hint" role="status">
 					Tack doesn’t email anyone. Copy the link and send it to them.
@@ -430,6 +441,23 @@ function ShareFoot({
 					</button>
 				)
 			)}
+			<button
+				type="button"
+				className="share-qr-button"
+				aria-label={qr ? "Hide the QR code" : "Show a QR code for the link"}
+				data-tooltip={qr ? "Hide QR code" : "QR code"}
+				aria-expanded={qr}
+				aria-controls="share-qr"
+				data-on={qr || undefined}
+				onClick={() => setQr((on) => !on)}
+			>
+				<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+					<rect x="2.5" y="2.5" width="4" height="4" rx="1" />
+					<rect x="9.5" y="2.5" width="4" height="4" rx="1" />
+					<rect x="2.5" y="9.5" width="4" height="4" rx="1" />
+					<path d="M9.5 9.5h1.5M13.5 9.5v1.5M9.5 12v1.5h1.5M12.5 13.5h1" />
+				</svg>
+			</button>
 			<CopyLink link={link} nudge={sendLink} onCopied={onCopied} />
 		</footer>
 	);

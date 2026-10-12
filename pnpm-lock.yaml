@@ -52,6 +52,9 @@ importers:
       satori:
         specifier: 0.32.0
         version: 0.32.0
+      uqr:
+        specifier: 0.1.3
+        version: 0.1.3
       valibot:
         specifier: ^1.5.0
         version: 1.5.0(typescript@7.0.2)
@@ -3324,6 +3327,9 @@ packages:
         optional: true
       uploadthing:
         optional: true
+
+  uqr@0.1.3:
+    resolution: {integrity: sha512-0rjE8iEJe4YmT9TOhwsZtqCMRLc5DXZUI2UEYUUg63ikBkqqE5EYWaI0etFe/5KUcmcYwLih2RND1kq+hrUJXA==}
 
   url-extras@0.1.0:
     resolution: {integrity: sha512-8tzwTeXFPuX/5PHuCDQE5Dd9Ts4rwoq2t9aIT+HS4iAVpmj5l4Ao7Q+BuuFjvWRqrLswBhQDk8O96ZicgCqQqw==}
@@ -6883,6 +6889,8 @@ snapshots:
       node-fetch-native: 1.6.7
       ofetch: 1.5.1
       ufo: 1.6.4
+
+  uqr@0.1.3: {}
 
   url-extras@0.1.0: {}
 
