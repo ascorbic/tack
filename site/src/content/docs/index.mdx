@@ -1,12 +1,12 @@
 ---
 title: Tack
-description: A self-hosted, GitHub-native whiteboard for open source planning. Cards are live issues and pull requests; nothing changes on GitHub until you push.
+description: Planning sessions for open source teams, on GitHub's own data. A shared whiteboard of live issues and pull requests, with what you decide pushed back to GitHub as one reviewed batch. Open source and self-hosted.
 template: splash
 editUrl: false
 lastUpdated: false
 hero:
   title: Plan on a board.<br /> <em>Push</em> to GitHub.
-  tagline: Tack is a freeform whiteboard where the cards are live GitHub issues and pull requests. Sketch, sort and decide together, then push what you decided to GitHub as one reviewed batch.
+  tagline: Tack is a whiteboard for open source planning sessions, on GitHub's own data. Sort live issues and pull requests together with stickies, stacks and dot votes, then push what you decided back to GitHub as one reviewed batch.
   actions:
     - text: Try it in your browser
       link: /try/
@@ -22,21 +22,24 @@ hero:
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components";
 import Features from "../../components/Features.astro";
+import Ownership from "../../components/Ownership.astro";
 
 <Features />
+
+<Ownership />
 
 ## Find your way around
 
 <CardGrid>
 	<LinkCard
 		title="What Tack is"
-		description="Boards, live cards, staged pushes, and the few rules Tack never breaks."
+		description="Live cards, staged pushes, who sees what, and the few rules Tack never breaks."
 		href="/start/introduction/"
 	/>
 	<LinkCard
-		title="Deploy it"
-		description="One Worker on your Cloudflare account and a GitHub App you own."
-		href="/self-hosting/deploy/"
+		title="Templates"
+		description="Planning sessions, retros, triage, release planning, roadmaps and incident reviews, ready to run."
+		href="/templates/"
 	/>
 	<LinkCard
 		title="Widgets reference"

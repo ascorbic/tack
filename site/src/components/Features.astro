@@ -1,39 +1,65 @@
 ---
-// The landing page's three reasons, each beside the board that shows it.
+// The landing page's reasons, each beside the board that shows it.
 import Screenshot from "./Screenshot.astro";
 
 const FEATURES = [
 	{
 		kicker: "Write back",
-		title: "Stage it, review it, push it",
-		body: "Turn stickies into issues, a section into a parent issue with sub-issues, a connector into blocked-by, a decision into an ADR pull request. Everything waits in one list until someone reviews it and pushes, as themselves or as the bot.",
+		title: "Decide on the board, then push it to GitHub",
+		body: "Stickies become issues, a section a parent issue with sub-issues, an arrow a blocked-by link, a decision an ADR pull request; labels, milestones and assignees too. It all waits in one list until someone reviews it and pushes, as themselves or as the app's bot.",
 		link: { href: "/writing-back/overview/", text: "How writing back works" },
 		shot: "push",
 		alt: "The push sheet: new issues with their bodies and labels, a pull request, how many watchers will be notified, and a choice of pushing as yourself or as Tack's bot.",
 		sticky: "yellow",
 	},
 	{
+		kicker: "Stacks and AI",
+		title: "From a wall of stickies to a few themes",
+		body: "Drop stickies, issues and pull requests on each other to stack them, and each stack is named from what's in it. Group these sorts a whole selection at once. The same model, on your own Cloudflare account, sets up a widget from a sentence, summarises a discussion and drafts a decision, and shows you everything before it goes on the board.",
+		link: { href: "/boards/stacks/", text: "Stacks" },
+		shot: "stacks",
+		alt: "A planning board: stickies about what to fix in unpic 5.0, and three stacks beside them, each a card with its name, how many it holds and its first few stickies and issues.",
+		sticky: "purple",
+	},
+	{
+		kicker: "Facilitation",
+		title: "Live, or across time zones",
+		body: "Start from a template for a planning session, a retro or triage, with each step ready to run. On a call, there's a shared timer, spotlight, silent writing and stamps. Off it, dot votes stay open for days, comments thread, “since you were here” catches people up, and a weekly digest goes out as a GitHub Discussion or by email.",
+		link: { href: "/facilitation/running-a-session/", text: "Running a session" },
+		shot: "retro",
+		alt: "A retro board with sections for what went well, what to improve and ideas, with stickies, stamps and cards.",
+		sticky: "green",
+	},
+	{
 		kicker: "Widgets and automation",
 		title: "Boards that keep themselves current",
-		body: "Live lists, a timeline, a release draft, a dependency map with its critical path, a review queue, milestone progress and a stale finder. Inbox sections collect new matches for a search, and rules place pull requests beside the issues they fix.",
+		body: "Live lists, a timeline, a release draft, a dependency map with its critical path, a review queue, milestone progress and a stale finder, or a widget of your own, sandboxed. Inbox sections collect new matches for a search, and rules place pull requests beside the issues they fix.",
 		link: { href: "/widgets/overview/", text: "The widgets" },
 		shot: "roadmap",
 		alt: "A timeline of issues opened over a month, a release draft sorted into features, fixes and docs, and a dependency map flagging a cycle and the critical path.",
 		sticky: "blue",
 	},
 	{
-		kicker: "Facilitation",
-		title: "Live, or across time zones",
-		body: "A shared timer, spotlight, stamps, emotes and high-fives for a live session. Silent mode, dot votes that stay open for days, threaded comments, “since you were here” and a history to replay for everyone who wasn't.",
-		link: { href: "/facilitation/running-a-session/", text: "Running a session" },
-		shot: "retro",
-		alt: "A retro board with sections for what went well, what to improve and ideas, with stickies, stamps and cards.",
-		sticky: "green",
+		kicker: "Phones and tablets",
+		title: "Join in from your phone",
+		body: "Tap anything on a board to read it, vote, stamp and comment, and add stickies from the +. On a tablet, edit with a finger or a pencil.",
+		link: { href: "/boards/phones-and-tablets/", text: "Phones and tablets" },
+		shot: "phone",
+		phone: true,
+		alt: "A phone showing a sticky from a dot vote in a sheet: its words big enough to read, two of your dots on it, one left, and stamps to add.",
+		sticky: "pink",
 	},
 ];
 ---
 
 <div class="tk-features">
+	<header class="tk-features-intro">
+		<h2>For teams who plan in the open</h2>
+		<p>
+			Maintainers and contributors planning releases, roadmaps, triage and retros, together on a
+			call or across time zones over a week. The board is where you think; GitHub is where it lands.
+		</p>
+	</header>
 	{
 		FEATURES.map((feature, index) => (
 			<section class="tk-feature" data-flip={index % 2 === 1 ? "" : undefined}>
@@ -48,7 +74,12 @@ const FEATURES = [
 						<span aria-hidden="true">→</span>
 					</a>
 				</div>
-				<Screenshot name={feature.shot} alt={feature.alt} class="tk-feature-shot" />
+				<Screenshot
+					name={feature.shot}
+					alt={feature.alt}
+					phone={feature.phone}
+					class="tk-feature-shot"
+				/>
 			</section>
 		))
 	}
@@ -59,6 +90,27 @@ const FEATURES = [
 		display: grid;
 		gap: clamp(3rem, 8vw, 6rem);
 		margin-block: clamp(4rem, 10vw, 7rem) 2rem;
+	}
+
+	.tk-features-intro {
+		max-width: 40rem;
+	}
+
+	.tk-features-intro h2 {
+		margin: 0 0 0.75rem;
+		font-size: clamp(1.8rem, 1.3rem + 2vw, 2.7rem);
+		line-height: 1.05;
+		letter-spacing: -0.03em;
+		color: var(--sl-color-white);
+		text-wrap: balance;
+	}
+
+	.tk-features-intro p {
+		margin: 0;
+		color: var(--tk-ink-soft);
+		font-size: clamp(1.05rem, 0.95rem + 0.6vw, 1.3rem);
+		line-height: 1.55;
+		text-wrap: pretty;
 	}
 
 	.tk-feature {
@@ -111,6 +163,16 @@ const FEATURES = [
 
 	.tk-feature-kicker[data-sticky="green"] {
 		background: var(--tk-sticky-green);
+	}
+
+	.tk-feature-kicker[data-sticky="purple"] {
+		background: var(--tk-sticky-purple);
+		transform: rotate(-1deg);
+	}
+
+	.tk-feature-kicker[data-sticky="pink"] {
+		background: var(--tk-sticky-pink);
+		transform: rotate(2deg);
 	}
 
 	.tk-feature h2 {

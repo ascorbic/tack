@@ -8,7 +8,7 @@ export default defineConfig({
 		starlight({
 			title: "Tack",
 			description:
-				"Tack is a self-hosted, GitHub-native whiteboard for open source planning: live issue and pull request cards on a freeform board, with changes to GitHub staged and pushed deliberately.",
+				"Tack is an open source, self-hosted whiteboard for planning sessions on GitHub's own data: live issue and pull request cards on a shared board, with what you decide pushed back to GitHub as one reviewed batch.",
 			favicon: "/favicon.svg",
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/ascorbic/tack" }],
 			editLink: { baseUrl: "https://github.com/ascorbic/tack/edit/main/site/" },

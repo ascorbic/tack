@@ -10,24 +10,26 @@ interface Props {
 	caption?: string;
 	/** Load it straight away: for the first screen of a page. */
 	eager?: boolean;
+	/** A phone's screen: shown narrow, with a phone's rounded corners. */
+	phone?: boolean;
 	class?: string;
 }
 
 const shots = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*.webp", {
 	eager: true,
 });
-const { name, alt, caption, eager = false, class: className } = Astro.props;
+const { name, alt, caption, eager = false, phone = false, class: className } = Astro.props;
 const light = shots[`../assets/screenshots/${name}-light.webp`]?.default;
 const dark = shots[`../assets/screenshots/${name}-dark.webp`]?.default;
 if (!light || !dark) {
 	throw new Error(`No screenshot called “${name}”: run \`pnpm --filter site screenshots\``);
 }
-const widths = [720, 1100, 1440, 2200];
-const sizes = "(min-width: 72rem) 45rem, 100vw";
+const widths = phone ? [360, 720, 1080] : [720, 1100, 1440, 2200];
+const sizes = phone ? "20rem" : "(min-width: 72rem) 45rem, 100vw";
 const loading = eager ? "eager" : "lazy";
 ---
 
-<figure class:list={["tk-shot-figure", className]}>
+<figure class:list={["tk-shot-figure", className]} data-phone={phone || undefined}>
 	<span class="tk-shot">
 		<Image
 			src={light}
@@ -54,6 +56,14 @@ const loading = eager ? "eager" : "lazy";
 <style>
 	.tk-shot-figure {
 		margin: 1.75rem 0;
+	}
+
+	.tk-shot-figure[data-phone] :global(.tk-shot) {
+		max-width: 20rem;
+		margin-inline: auto;
+		border-radius: 28px;
+		border-width: 6px;
+		border-color: #1b1b20;
 	}
 
 	.tk-shot-figure figcaption {
