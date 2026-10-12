@@ -158,9 +158,21 @@ test("a blocker outside the section goes onto the board from its popover", async
 	}, key(426));
 	const outside = map.locator(".depmap-node[data-outside]", { hasText: "#426" });
 	await expect(outside).toBeVisible();
+	// A short window: no room under #426 before the toolbar.
+	await page.setViewportSize({ width: 1280, height: 640 });
 	await outside.click();
 	const pop = map.getByRole("dialog", { name: "#426: dependencies" });
 	await expect(pop).toContainText("Blocked by");
+	// The board pans to show it whole, clear of the toolbar.
+	const add = pop.getByRole("button", { name: "Add to the board" });
+	await expect
+		.poll(() =>
+			add.evaluate((button) => {
+				const r = button.getBoundingClientRect();
+				return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === button;
+			}),
+		)
+		.toBe(true);
 	// What it waits on is named, not just numbered.
 	await expect(pop.locator(".depmap-pop-items li").first()).toContainText(/#\d+\s*\S+/);
 	await expect(pop.locator(".depmap-pop-item-title").first()).not.toBeEmpty();

@@ -7,6 +7,9 @@ import {
 	useState,
 } from "react";
 import { type Card, type MissingCard, isMissing } from "../../shared/cards.ts";
+import { chromeWithin } from "../actions/Popover.tsx";
+import { panIntoView } from "../actions/popoverPlacement.ts";
+import { requestPanBy } from "../panRequests.ts";
 import {
 	type DependencyGraph,
 	type DependencyLayout,
@@ -522,8 +525,41 @@ function Pop(
 	const on = props.onBoard?.(placed.key) ?? false;
 	const popW = 236;
 	const left = Math.min(placed.x + props.left, props.width - popW - 8);
+	// Opened low on the screen, it would run under the toolbar or off the
+	// foot: the board pans just enough to show it, as the inbox's editor does.
+	const pop = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const el = pop.current;
+		const canvas = el?.closest<HTMLElement>(".react-flow");
+		if (!el || !canvas) return;
+		// Measured once it's grown in: mid-animation it's still small.
+		const check = () => {
+			const screen = canvas.getBoundingClientRect();
+			const rect = el.getBoundingClientRect();
+			const bounds = {
+				left: screen.left,
+				top: screen.top,
+				right: screen.right,
+				bottom: screen.bottom,
+			};
+			const { dx, dy } = panIntoView({
+				rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+				bounds,
+				obstacles: chromeWithin(bounds, [el]),
+			});
+			requestPanBy(el, dx, dy);
+		};
+		const animated = el.getAnimations().length > 0;
+		if (!animated) {
+			check();
+			return;
+		}
+		el.addEventListener("animationend", check, { once: true });
+		return () => el.removeEventListener("animationend", check);
+	}, [placed.key]);
 	return (
 		<div
+			ref={pop}
 			className="depmap-pop nodrag nopan"
 			role="dialog"
 			aria-label={`${ref(placed.key)}: dependencies`}

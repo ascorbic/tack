@@ -121,6 +121,7 @@ import { History } from "./undo.ts";
 import { usePublishStatus } from "./useActivity.ts";
 import { InboxLayer } from "./inbox/InboxTray.tsx";
 import { scaledDuration } from "./motion.ts";
+import { usePanRequests } from "./panRequests.ts";
 import { RulesButton, RulesPanel } from "./rules/RulesPanel.tsx";
 import { boardRepos } from "../shared/actions.ts";
 import { type ShapeType, addShape, readShape, shapesMap, transactLocal } from "../shared/shapes.ts";
@@ -286,6 +287,7 @@ export function Board({
 	const readOnly = viewOnly || replay.state.open;
 	const shapeNodes = useShapeNodes(doc);
 	const flow = useReactFlow();
+	usePanRequests(flow);
 	// Stacks (#73): which stickies are in which, the one this person has open,
 	// and drags held over a sticky or stack to put what's dragged in it.
 	const stackUI = useStacks();
