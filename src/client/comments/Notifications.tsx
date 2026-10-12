@@ -190,6 +190,7 @@ export function NotificationsButton({
 						? `${unread} unread: mentions of you and replies in threads you’re in, on any board`
 						: "Mentions of you and replies in threads you’re in, on any board"
 				}
+				data-tooltip-align="end"
 				data-unread={unread > 0 || undefined}
 				onClick={() => {
 					setOpen((value) => !value);

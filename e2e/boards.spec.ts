@@ -384,3 +384,18 @@ test("someone deleting the sticky you're writing in says so, and it can be resto
 	await expect(sticky(page, "Shared note (still writing)")).toBeVisible();
 	await writer.context().close();
 });
+
+test("the boards page never scrolls sideways, even with a top bar tooltip near the edge", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await page.goto(`/auth/dev?login=e2e-no-scroll-${Date.now().toString(36)}&return_to=/`);
+	await expect(page.locator(".notifications-button")).toBeVisible();
+	const widths = () =>
+		page.evaluate(() => [
+			document.documentElement.scrollWidth,
+			document.documentElement.clientWidth,
+		]);
+	const [scroll, client] = await widths();
+	expect(scroll).toBe(client);
+});

@@ -727,6 +727,12 @@ button.primary:hover {
 	position: relative;
 }
 
+/* A tooltip near the edge, even unseen, never widens the page: the bar
+   clips sideways, and they still hang below it. */
+.topbar {
+	overflow-x: clip;
+}
+
 .topbar [data-tooltip]:not(.avatar)::after {
 	content: attr(data-tooltip);
 	/* Empty alt text: a tooltip isn't part of its button's name. */
