@@ -109,7 +109,7 @@ function seed(): { doc: Y.Doc; ids: Record<string, string>; vote: DotVote } {
 		x: 400,
 		y: 300,
 		author: PRIYA,
-		title: "Require Node 20 in imagekit 5.0",
+		title: "Require Node 20 in unpic 5.0",
 		text: "Node 18 is end-of-life in April. Keeping it costs a CI runner per job.",
 	});
 	castVote(doc, ids.decision, PRIYA, "agree");
