@@ -1,3 +1,4 @@
+import type { ListSort } from "./display.ts";
 import { DEFAULT_SECTIONS, DEFAULT_SKIP } from "./releaseDraft.ts";
 import type { DistributiveOmit, PreparedPlan } from "./prepared.ts";
 import type { RuleAction, RuleTrigger } from "./rules.ts";
@@ -14,10 +15,18 @@ import {
 } from "./templates.ts";
 
 // The templates every Tack comes with (#53). Each is a board laid out the
-// way the session it's for runs: sections to work in, short prompts in text
-// blocks, widgets and inboxes reading the repositories it's made with (see
-// the placeholders in templates.ts), rules, and facilitation prepared to
-// start from the Facilitate menu (prepared.ts).
+// way the session it's for runs: sections to work in (as cards, or as lists
+// and mini cards where what lands there is many and small), short prompts
+// in text blocks, widgets and inboxes reading the repositories it's made with
+// (see the placeholders in templates.ts), rules, and facilitation prepared to
+// start from the Facilitate menu (prepared.ts). Prompts name what to press
+// as the UI does ("Auto-stack", "Make parent issue").
+//
+// A template is a starting board, not a tour: each uses what its session
+// needs. What only GitHub has (Discussions) is marked `forge: "discussions"`
+// and placed at the end of a row or column, so a board on another forge
+// that leaves it out has no hole in it. Lists and mini cards grow downwards
+// as they fill, so nothing sits below them.
 //
 // Ids are `tack:{name}`, which saved templates' random ids can never be.
 // Shape ids here only need to be unique within a template: boards made from
@@ -66,10 +75,27 @@ class Layout {
 		return this.add(id, { type: "text", ...at, text, size, parent });
 	}
 
+	/**
+	 * A section showing its contents as a list (or mini cards): no prompt in
+	 * it, as a prompt would be a row; an empty one says what to drop there.
+	 */
+	list(
+		id: string,
+		box: { x: number; y: number; w: number; h: number },
+		title: string,
+		color: SectionColor,
+		{ mini = false, sort }: { mini?: boolean; sort?: ListSort } = {},
+	): string {
+		return this.section(id, box, title, color, {
+			display: mini ? "mini" : "list",
+			...(sort ? { sort } : {}),
+		});
+	}
+
 	/** A prompt inside a section, at its top left. */
 	prompt(section: string, text: string): string {
 		const box = this.shapes[section] as { x: number; y: number };
-		return this.text(`${section}:prompt`, { x: box.x + 24, y: box.y + 22 }, text, "s", section);
+		return this.text(`${section}:prompt`, { x: box.x + 24, y: box.y + 20 }, text, "m", section);
 	}
 
 	widget(
@@ -77,13 +103,19 @@ class Layout {
 		widget: string,
 		box: { x: number; y: number; w: number; h: number },
 		config: Record<string, unknown>,
-		parent: string | null = null,
+		extra: Record<string, unknown> = {},
 	): string {
-		return this.add(id, { type: "widget", widget, ...box, config, parent });
+		return this.add(id, { type: "widget", widget, ...box, config, parent: null, ...extra });
 	}
 
 	rule(id: string, trigger: RuleTrigger, action: RuleAction, name: string): void {
 		this.rules[id] = { trigger, action, name };
+	}
+
+	/** The board's title, and a line or two under it on what it's for. */
+	heading(title: string, lede: string): void {
+		this.text("title", { x: 0, y: -250 }, title, "xl");
+		this.text("lede", { x: 4, y: -160 }, lede, "m");
 	}
 
 	step(id: string, step: DistributiveOmit<PreparedPlan, "order">): void {
@@ -109,112 +141,80 @@ function search(q: string) {
 	return { kind: "search", host: HOST, q, sort: "created", order: "desc", limit: 50 } as const;
 }
 
+/** Only on forges with Discussions (templates.ts). */
+const DISCUSSIONS = { forge: "discussions" } as const;
+
+/** What a lede ends with: where the prepared steps are. */
+const READY = "Each step is ready to start from the Facilitate menu.";
+
 // --- Planning session --------------------------------------------------------------
 
 /**
- * Planning as the Astro project runs it in FigJam: everyone proposes on
- * stickies (signed, so it's clear whose is whose), proposals are clustered
- * into themes and discussed in comments, dot-voted, and the winners become
- * issues, with decisions recorded and written back as ADRs.
+ * Planning as the Astro project runs it in FigJam, with what Tack adds:
+ * everyone writes ideas on their own (silent mode), Auto-stack sorts them
+ * into named themes, everyone dot-votes, and winning stacks become parent
+ * issues with their stickies as sub-issues, beside decisions written back
+ * as records. The lists bring in what people already asked for.
  */
 function planning(): BuiltInTemplate {
 	const t = new Layout();
-	t.text("title", { x: 0, y: -300 }, "Planning session", "xl");
-	t.text("lede", { x: 4, y: -206 }, "Propose, cluster, discuss, vote, decide.", "m");
-
-	const howTo = t.section("how", { x: -600, y: 0, w: 540, h: 860 }, "How we’ll run it", "grey");
-	t.text(
-		"how:steps",
-		{ x: -576, y: 24 },
-		[
-			"1 · Propose · 10 min, on your own",
-			"One sticky per proposal in Proposals. Say what the",
-			"problem is and who has it. Your name is on it.",
-			"",
-			"2 · Cluster · 10 min, together",
-			"Drag related proposals into a theme, then rename",
-			"the theme to say what joins them.",
-			"",
-			"3 · Discuss · 15 min",
-			"Comment on a proposal (B) with questions.",
-			"Whoever proposed it answers in the thread.",
-			"",
-			"4 · Vote · 5 min",
-			"Five dots each, on proposals, not themes.",
-			"👍 on GitHub counts too.",
-			"",
-			"5 · Decide · 15 min",
-			"Turn the winners into issues (select, then ⌥I),",
-			"record what we decided (D), and write each",
-			"decision back as an ADR from its menu.",
-			"",
-			"Facilitator: everything’s ready to start",
-			"from the Facilitate menu, step by step.",
-		].join("\n"),
-		"s",
-		howTo,
+	t.heading(
+		"Planning session",
+		`Bring ideas, stack them into themes, vote, and turn the winners into issues.\n${READY}`,
 	);
 
-	const proposals = t.section("proposals", { x: 0, y: 0, w: 900, h: 860 }, "Proposals", "yellow");
+	const ideas = t.section("ideas", { x: 0, y: 0, w: 1200, h: 900 }, "Ideas", "yellow");
 	t.prompt(
-		proposals,
-		"One proposal per sticky: the problem, and who has it.\nKeep it short; the discussion happens in comments.",
+		ideas,
+		"One idea per sticky: the problem, and who has it.\nDrag in anything from the lists →",
 	);
-
-	const theme = (id: string, x: number, y: number, color: SectionColor) => {
-		const section = t.section(id, { x, y, w: 540, h: 400 }, "Theme: rename me", color);
-		t.prompt(
-			section,
-			"Drag related proposals here, then rename\nthe theme to say what joins them.",
-		);
-		return section;
-	};
-	theme("theme-a", 960, 0, "purple");
-	theme("theme-b", 1540, 0, "blue");
-	theme("theme-c", 960, 460, "green");
-	const parking = t.section("parking", { x: 1540, y: 460, w: 540, h: 400 }, "Parking lot", "grey");
-	t.prompt(parking, "Good ideas that aren’t for this cycle.\nThey’re still here next time.");
-
 	t.widget(
 		"wanted",
 		"list",
-		{ x: 2140, y: 0, w: 380, h: 860 },
+		{ x: 1260, y: 0, w: 420, h: 430 },
 		{
-			title: "Most wanted on GitHub",
+			title: "Most wanted issues",
 			host: HOST,
 			q: across("is:issue is:open"),
 			sort: "reactions",
 			limit: 30,
 		},
 	);
+	t.widget(
+		"discussions",
+		"list",
+		{ x: 1260, y: 470, w: 420, h: 430 },
+		{
+			title: "Top discussions",
+			host: HOST,
+			q: across("is:discussion is:open"),
+			sort: "top",
+			limit: 30,
+		},
+		DISCUSSIONS,
+	);
 
-	const decisions = t.section("decisions", { x: 0, y: 940, w: 900, h: 480 }, "Decisions", "purple");
-	t.prompt(
-		decisions,
-		"Record what we decided (D) and connect the proposals it settles.\nOnce it’s decided, write it back as an ADR from its menu.",
-	);
-	const next = t.section(
-		"next",
-		{ x: 960, y: 940, w: 1120, h: 480 },
-		"Next up: issues and actions",
-		"green",
-	);
+	const decisions = t.section("decisions", { x: 0, y: 980, w: 560, h: 440 }, "Decisions", "purple");
+	t.prompt(decisions, "Record what we decide (D), and connect\nwhat it settles. Then Write back.");
+	const next = t.section("next", { x: 620, y: 980, w: 580, h: 440 }, "Next steps", "green");
 	t.prompt(
 		next,
-		"Winners become issues: select them and press ⌥I.\nAnything else someone will do is an action item (A), with an owner and a due date.",
+		"A winning stack? Make parent issue.\nA sticky? Make issue (⌥I). Someone’s on it?\nAn action item (A). Then push from Changes.",
 	);
+	const parking = t.section("parking", { x: 1260, y: 980, w: 420, h: 440 }, "Parking lot", "grey");
+	t.prompt(parking, "Not this time.\nIt’s still here next time.");
 
-	t.step("propose", {
+	t.step("write", {
 		kind: "silent",
-		section: proposals,
+		section: ideas,
 		minutes: 10,
-		label: "Propose, on your own",
+		label: "Write ideas on your own",
 	});
-	t.step("cluster", { kind: "timer", minutes: 10, label: "Cluster into themes" });
-	t.step("discuss", { kind: "timer", minutes: 15, label: "Discuss in comments" });
+	t.step("stack", { kind: "timer", minutes: 10, label: "Reveal, then Auto-stack" });
+	t.step("discuss", { kind: "timer", minutes: 15, label: "Discuss the themes" });
 	t.step("vote", {
 		kind: "vote",
-		scope: null,
+		scope: ideas,
 		dots: 5,
 		hidden: true,
 		reactions: true,
@@ -222,47 +222,63 @@ function planning(): BuiltInTemplate {
 		minutes: 5,
 		label: "Dot vote: five each",
 	});
-	t.step("decide", { kind: "timer", minutes: 15, label: "Decide and write back" });
+	t.step("decide", { kind: "timer", minutes: 15, label: "Make issues of the winners" });
 
 	return {
 		id: "tack:planning",
 		title: "Planning session",
 		description:
-			"Everyone proposes, then cluster into themes, discuss in comments, dot-vote, and turn the winners into issues and ADRs.",
+			"Write ideas on your own, Auto-stack them into themes, dot-vote, and turn the winners into parent issues and decisions.",
 		featured: true,
-		repos: { min: 0, max: 6, hint: "Its list shows their most wanted issues" },
+		repos: { min: 0, max: 6, hint: "Its lists show their most wanted issues and discussions" },
 		content: t.content(),
 	};
 }
 
 // --- Retro ------------------------------------------------------------------------------
 
+/**
+ * Last time's actions first (carried over as the board's made), then one
+ * round of silent writing across all three columns (they're inside one
+ * section, which silent mode covers), a reveal, Auto-stack, a vote on what
+ * to fix, and new action items.
+ */
 function retro(): BuiltInTemplate {
 	const t = new Layout();
-	t.text("title", { x: 0, y: -240 }, "Retro", "xl");
-	t.text(
-		"lede",
-		{ x: 4, y: -146 },
-		"Look back together, then decide what to change.\nWrite on your own first, reveal, then vote on what to fix.",
-		"s",
+	t.heading("Retro", `Look back together, then decide what to change.\n${READY}`);
+
+	const back = t.section("back", { x: 0, y: 0, w: 1900, h: 860 }, "Looking back", "grey");
+	t.prompt(back, "Write on your own: stickies stay face down until the reveal.");
+	const column = (id: string, x: number, title: string, color: SectionColor, prompt: string) => {
+		const section = t.section(id, { x, y: 140, w: 580, h: 680 }, title, color, { parent: back });
+		t.prompt(section, prompt);
+		return section;
+	};
+	column(
+		"well",
+		40,
+		"Went well",
+		"green",
+		"What helped us? One thing per sticky.\nAgree? Stamp it (M).",
 	);
-	const well = t.section("well", { x: 0, y: 0, w: 580, h: 680 }, "Went well", "green");
-	t.prompt(well, "What helped us this time?\nOne thing per sticky.");
-	const improve = t.section("improve", { x: 640, y: 0, w: 580, h: 680 }, "To improve", "orange");
-	t.prompt(improve, "What got in our way?\nSay what happened, and what it cost us.");
-	const actions = t.section("actions", { x: 1280, y: 0, w: 580, h: 680 }, "Actions", "blue");
+	const improve = column(
+		"improve",
+		660,
+		"To improve",
+		"orange",
+		"What got in our way,\nand what did it cost us?",
+	);
+	column("try", 1280, "Ideas to try", "purple", "What could we try next time?");
+
+	const actions = t.section("actions", { x: 0, y: 940, w: 1900, h: 420 }, "Actions", "blue");
 	t.prompt(
 		actions,
-		"What will we change? One action item each (A),\nwith an owner and a due date. Open ones carry\nover to the next retro.",
+		"What will we change? One action item each (A), with an owner and a due date.\nOpen ones from last time land here: tick what’s done.",
 	);
 
-	t.step("well", { kind: "silent", section: well, minutes: 5, label: "Write: what went well" });
-	t.step("improve", {
-		kind: "silent",
-		section: improve,
-		minutes: 5,
-		label: "Write: what to improve",
-	});
+	t.step("last", { kind: "timer", minutes: 5, label: "Check last time’s actions" });
+	t.step("write", { kind: "silent", section: back, minutes: 8, label: "Write on your own" });
+	t.step("stack", { kind: "timer", minutes: 5, label: "Reveal, then Auto-stack" });
 	t.step("vote", {
 		kind: "vote",
 		scope: improve,
@@ -270,15 +286,15 @@ function retro(): BuiltInTemplate {
 		hidden: true,
 		title: "What should we fix first?",
 		minutes: 3,
-		label: "Dot vote on what to improve",
+		label: "Dot vote: what to fix first",
 	});
-	t.step("agree", { kind: "timer", minutes: 10, label: "Agree actions" });
+	t.step("agree", { kind: "timer", minutes: 10, label: "Agree actions, with owners" });
 
 	return {
 		id: "tack:retro",
 		title: "Retro",
 		description:
-			"Went well, to improve, actions. Silent writing and a dot vote are ready to start, and last retro’s open actions can come along.",
+			"Went well, to improve and ideas, written on your own and Auto-stacked, a vote on what to fix, and last retro’s open actions brought along.",
 		repos: null,
 		content: t.content(),
 	};
@@ -286,35 +302,52 @@ function retro(): BuiltInTemplate {
 
 // --- Triage -------------------------------------------------------------------------
 
+/**
+ * What's new waits in an inbox (and on GitHub, a list of questions nobody's
+ * answered), to sort into priorities: the urgent ones as cards, the rest as
+ * lists that grow as they fill. Rules place security issues and the pull
+ * requests that fix what's here.
+ */
 function triage(): BuiltInTemplate {
 	const t = new Layout();
-	t.text("title", { x: 0, y: -240 }, "Triage", "xl");
-	t.text(
-		"lede",
-		{ x: 4, y: -146 },
-		"Sort what’s new into a priority. Select cards to label them (⌥L),\nset a milestone (⌥M) or close them, then push it all at once.",
-		"s",
+	t.heading(
+		"Triage",
+		"Sort what’s new: label it (⌥L), set a milestone (⌥M) or close it (⌥C),\nthen push it all at once from Changes.",
 	);
-	t.section("incoming", { x: 0, y: 0, w: 640, h: 900 }, "Incoming", "grey", {
+	t.section("incoming", { x: 0, y: 0, w: 580, h: 420 }, "Incoming", "grey", {
 		inbox: { query: search(across("is:issue is:open no:label")) },
 	});
 	t.prompt(
 		"incoming",
-		"New issues without a label wait in the tray →\nDrag each into a priority, or dismiss it.",
+		"New issues without a label wait in its tray.\nDrag each into a priority, or dismiss it.",
 	);
-	const p0 = t.section("p0", { x: 700, y: 0, w: 560, h: 420 }, "P0 · Drop everything", "red");
+	// A list rather than a second inbox: its tray would need the room
+	// Incoming's has. Drag a question out into a priority, as a card.
+	t.widget(
+		"questions",
+		"list",
+		{ x: 0, y: 480, w: 580, h: 420 },
+		{
+			title: "Unanswered questions",
+			host: HOST,
+			q: across("is:discussion is:open is:unanswered"),
+			sort: "created",
+			limit: 30,
+		},
+		DISCUSSIONS,
+	);
+
+	const p0 = t.section("p0", { x: 640, y: 0, w: 580, h: 420 }, "P0 · Drop everything", "red");
 	t.prompt(p0, "Broken for many people, or a security hole.");
-	const p1 = t.section("p1", { x: 1320, y: 0, w: 560, h: 420 }, "P1 · This cycle", "orange");
+	const p1 = t.section("p1", { x: 1280, y: 0, w: 580, h: 420 }, "P1 · This cycle", "orange");
 	t.prompt(p1, "Important, and we’ll get to it soon.");
-	const p2 = t.section("p2", { x: 700, y: 480, w: 560, h: 420 }, "P2 · Backlog", "blue");
-	t.prompt(p2, "Worth doing, when there’s time.");
-	const info = t.section("info", { x: 1320, y: 480, w: 560, h: 420 }, "Needs more info", "yellow");
-	t.prompt(info, "Ask for a reproduction, then check back.");
+	t.list("info", { x: 640, y: 480, w: 580, h: 420 }, "Needs more info", "yellow");
+	t.list("p2", { x: 1280, y: 480, w: 580, h: 420 }, "P2 · Backlog", "blue");
 
 	t.widget(
 		"quiet",
 		"stale",
-		{ x: 1940, y: 0, w: 400, h: 900 },
+		{ x: 1920, y: 0, w: 400, h: 900 },
 		{
 			title: "Gone quiet",
 			host: HOST,
@@ -333,17 +366,17 @@ function triage(): BuiltInTemplate {
 	);
 	t.rule(
 		"pulls",
-		{ kind: "pull-links" },
+		{ kind: "pull-links", closesOnly: true },
 		{ kind: "beside-linked" },
-		"Pull requests join the issues they mention",
+		"Pull requests join the issues they fix",
 	);
-	t.step("triage", { kind: "timer", minutes: 25, label: "Triage" });
+	t.step("triage", { kind: "timer", minutes: 25, label: "Sort what’s new" });
 
 	return {
 		id: "tack:triage",
 		title: "Triage",
 		description:
-			"An inbox of unlabelled issues, sections per priority, and rules that place security issues and linked pull requests for you.",
+			"An inbox of new issues, unanswered questions, priorities to sort them into, and rules that place security issues and the pull requests that fix things.",
 		repos: { min: 1, max: 6, hint: "Repositories to triage" },
 		content: t.content(),
 	};
@@ -351,51 +384,54 @@ function triage(): BuiltInTemplate {
 
 // --- Release planning ------------------------------------------------------------------------
 
+/**
+ * What's in the release, as cards whose blockers are connected so the map
+ * finds the critical path; what's next, as mini cards; and the release's
+ * milestone, draft notes and review queue. The milestone widget flags what's
+ * gone quiet, so there's no stale finder.
+ */
 function release(): BuiltInTemplate {
 	const t = new Layout();
-	t.text("title", { x: 0, y: -240 }, "Release planning", "xl");
-	t.text(
-		"lede",
-		{ x: 4, y: -146 },
-		"What’s in, what’s next, and what could stop us.\nPick the release’s milestone on the milestone widget to start.",
-		"s",
+	t.heading(
+		"Release planning",
+		"What’s in, what’s next, and what could stop us.\nPick the release’s milestone on its widget to start.",
 	);
-	const now = t.section("now", { x: 0, y: 0, w: 900, h: 640 }, "Now · this release", "green");
+	const now = t.section("now", { x: 0, y: 0, w: 1000, h: 640 }, "Now · this release", "green");
 	t.prompt(
 		now,
-		"Committed for this release. Connect blockers (X)\nto see the critical path in the dependency map.",
+		"Committed for this release. Connect a blocker to what\nit blocks (X), then Blocked by (⌥B), and push.",
 	);
-	const next = t.section("next", { x: 0, y: 700, w: 900, h: 460 }, "Next", "blue");
-	t.prompt(next, "Ready to go once this ships.");
-
 	t.widget(
 		"deps",
 		"dependencies",
-		{ x: 960, y: 0, w: 700, h: 640 },
+		{ x: 1060, y: 0, w: 780, h: 640 },
 		{ title: "What blocks what", source: "section", host: HOST, q: "", section: now, limit: 20 },
 	);
 	t.widget(
-		"pulls",
-		"list",
-		{ x: 960, y: 700, w: 700, h: 460 },
+		"milestone",
+		"milestone",
+		{ x: 1900, y: 0, w: 420, h: 640 },
+		{ title: "", host: HOST, repo: "{{repo}}", milestone: "", staleDays: 14 },
+	);
+	t.list("next", { x: 0, y: 720, w: 1000, h: 440 }, "Next", "blue", { mini: true });
+	t.widget(
+		"review",
+		"review",
+		{ x: 1060, y: 720, w: 780, h: 580 },
 		{
-			title: "Open pull requests",
+			title: "Waiting for review",
 			host: HOST,
-			q: "repo:{{repo}} is:pr is:open",
-			sort: "updated",
+			scope: "repo",
+			team: "",
+			repo: "{{repo}}",
+			drafts: false,
 			limit: 30,
 		},
 	);
 	t.widget(
-		"milestone",
-		"milestone",
-		{ x: 1720, y: 0, w: 420, h: 520 },
-		{ title: "", host: HOST, repo: "{{repo}}", milestone: "", staleDays: 14 },
-	);
-	t.widget(
 		"draft",
 		"release",
-		{ x: 1720, y: 580, w: 420, h: 580 },
+		{ x: 1900, y: 720, w: 420, h: 580 },
 		{
 			title: "",
 			host: HOST,
@@ -407,16 +443,19 @@ function release(): BuiltInTemplate {
 	);
 	t.rule(
 		"pulls",
-		{ kind: "pull-links" },
+		{ kind: "pull-links", closesOnly: true },
 		{ kind: "beside-linked" },
-		"Pull requests join the issues they mention",
+		"Pull requests join the issues they fix",
 	);
+	t.step("risks", { kind: "timer", minutes: 10, label: "What’s at risk?" });
+	t.step("unblock", { kind: "timer", minutes: 10, label: "Unblock the critical path" });
+	t.step("move", { kind: "timer", minutes: 10, label: "Move the rest to Next" });
 
 	return {
 		id: "tack:release",
 		title: "Release planning",
 		description:
-			"Now and Next, with the release’s milestone, a draft of its notes, open pull requests and a map of what blocks what.",
+			"Now and Next, the release’s milestone and draft notes, what’s waiting for review, and a map of what blocks what.",
 		repos: { min: 1, max: 1, hint: "The repository you’re releasing" },
 		content: t.content(),
 	};
@@ -424,25 +463,21 @@ function release(): BuiltInTemplate {
 
 // --- Roadmap -----------------------------------------------------------------------------
 
+/**
+ * Now, Next and Later as lists, under what shipped lately and a map of what
+ * blocks Now. The vote on what moves up stays open for days, so everyone
+ * gets a say wherever they are.
+ */
 function roadmap(): BuiltInTemplate {
 	const t = new Layout();
-	t.text("title", { x: 0, y: -240 }, "Roadmap", "xl");
-	t.text(
-		"lede",
-		{ x: 4, y: -146 },
+	t.heading(
+		"Roadmap",
 		"Now, Next, Later: the further out, the less certain.\nMove things left as plans firm up.",
-		"s",
 	);
-	const now = t.section("now", { x: 0, y: 0, w: 580, h: 820 }, "Now", "green");
-	t.prompt(now, "Committed, and in progress.");
-	const next = t.section("next", { x: 640, y: 0, w: 580, h: 820 }, "Next", "blue");
-	t.prompt(next, "Planned, not started yet.");
-	const later = t.section("later", { x: 1280, y: 0, w: 580, h: 820 }, "Later", "purple");
-	t.prompt(later, "Worth doing; not planned yet.");
 	t.widget(
 		"shipped",
 		"timeline",
-		{ x: 0, y: 880, w: 1860, h: 320 },
+		{ x: 0, y: 0, w: 1020, h: 440 },
 		{
 			title: "Shipped lately",
 			host: HOST,
@@ -454,19 +489,37 @@ function roadmap(): BuiltInTemplate {
 			limit: 100,
 		},
 	);
+	const now = t.list("now", { x: 0, y: 520, w: 580, h: 640 }, "Now · in progress", "green", {
+		sort: { by: "state" },
+	});
+	t.widget(
+		"deps",
+		"dependencies",
+		{ x: 1080, y: 0, w: 780, h: 440 },
+		{ title: "What blocks Now", source: "section", host: HOST, q: "", section: now, limit: 20 },
+	);
+	t.list("next", { x: 640, y: 520, w: 580, h: 640 }, "Next · planned", "blue");
+	const later = t.list(
+		"later",
+		{ x: 1280, y: 520, w: 580, h: 640 },
+		"Later · worth doing",
+		"purple",
+	);
 	t.step("vote", {
 		kind: "vote",
 		scope: later,
 		dots: 3,
 		hidden: false,
 		title: "What should move into Next?",
-		label: "Vote on what moves into Next",
+		days: 3,
+		label: "Vote: what moves into Next?",
 	});
 
 	return {
 		id: "tack:roadmap",
 		title: "Roadmap",
-		description: "Now, Next and Later, with a timeline of what shipped lately.",
+		description:
+			"Now, Next and Later as lists, what shipped lately, a map of what blocks Now, and a vote over three days on what moves up.",
 		repos: { min: 0, max: 6, hint: "Its timeline shows what they shipped lately" },
 		content: t.content(),
 	};
@@ -474,21 +527,34 @@ function roadmap(): BuiltInTemplate {
 
 // --- Incident review ----------------------------------------------------------------------
 
+/**
+ * Blameless: what happened, in order (people's stickies, and GitHub's own
+ * record of the week), then impact, contributing causes written on your
+ * own, Auto-stacked and voted on, what went well, and what follows:
+ * decisions written back as records, and action items.
+ */
 function incident(): BuiltInTemplate {
 	const t = new Layout();
-	t.text("title", { x: 0, y: -240 }, "Incident review", "xl");
-	t.text(
-		"lede",
-		{ x: 4, y: -146 },
-		"Blameless: we’re here to understand the system, not to find someone at fault.",
-		"s",
+	t.heading(
+		"Incident review",
+		`Blameless: we’re here to understand the system, not to find someone at fault.\n${READY}`,
+	);
+	const happened = t.section(
+		"happened",
+		{ x: 0, y: 0, w: 1860, h: 320 },
+		"What happened, when",
+		"grey",
+	);
+	t.prompt(
+		happened,
+		"Stickies left to right, oldest first: when it started,\nwhen we noticed, what we tried, when it was fixed.",
 	);
 	t.widget(
 		"timeline",
 		"timeline",
-		{ x: 0, y: 0, w: 1860, h: 320 },
+		{ x: 0, y: 380, w: 1860, h: 300 },
 		{
-			title: "What happened, when",
+			title: "On GitHub that week",
 			host: HOST,
 			q: across(""),
 			event: "updated",
@@ -498,29 +564,34 @@ function incident(): BuiltInTemplate {
 			limit: 100,
 		},
 	);
-	const impact = t.section("impact", { x: 0, y: 380, w: 580, h: 540 }, "Impact", "red");
-	t.prompt(impact, "Who was affected, how badly, and for how long?");
+	t.section("impact", { x: 0, y: 800, w: 580, h: 520 }, "Impact", "red");
+	t.prompt("impact", "Who was affected, how badly,\nand for how long?");
 	const causes = t.section(
 		"causes",
-		{ x: 640, y: 380, w: 580, h: 540 },
+		{ x: 640, y: 800, w: 580, h: 520 },
 		"Contributing causes",
 		"orange",
 	);
 	t.prompt(causes, "Ask “why?” until you reach the system.\nMany causes, no culprits.");
-	const well = t.section("well", { x: 1280, y: 380, w: 580, h: 540 }, "What went well", "green");
-	t.prompt(well, "What limited the damage? Keep doing it.");
-	const actions = t.section("actions", { x: 0, y: 980, w: 1860, h: 400 }, "Actions", "blue");
+	t.section("well", { x: 1280, y: 800, w: 580, h: 520 }, "What went well", "green");
+	t.prompt("well", "What limited the damage?\nKeep doing it.");
+
+	t.section("decisions", { x: 0, y: 1400, w: 900, h: 420 }, "Decisions", "purple");
+	t.prompt("decisions", "What we’ll change for good (D).\nDecided? Write it back as a record.");
+	t.section("actions", { x: 960, y: 1400, w: 900, h: 420 }, "Actions", "blue");
 	t.prompt(
-		actions,
-		"Prevent, detect, mitigate: one action item each (A), with an owner and a due date.\nStage them as issues so they’re tracked where the work happens.",
+		"actions",
+		"Prevent, detect, mitigate: an action item each (A),\nwith an owner and a due date. Its Issue chip tracks it.",
 	);
 
+	t.step("walk", { kind: "timer", minutes: 10, label: "Walk through what happened" });
 	t.step("causes", {
 		kind: "silent",
 		section: causes,
 		minutes: 7,
-		label: "Write: contributing causes",
+		label: "Write causes on your own",
 	});
+	t.step("stack", { kind: "timer", minutes: 5, label: "Reveal, then Auto-stack" });
 	t.step("vote", {
 		kind: "vote",
 		scope: causes,
@@ -528,15 +599,15 @@ function incident(): BuiltInTemplate {
 		hidden: true,
 		title: "Which causes matter most?",
 		minutes: 3,
-		label: "Dot vote on causes",
+		label: "Dot vote: causes that matter",
 	});
-	t.step("agree", { kind: "timer", minutes: 15, label: "Agree actions" });
+	t.step("agree", { kind: "timer", minutes: 15, label: "Decide, and agree actions" });
 
 	return {
 		id: "tack:incident",
 		title: "Incident review",
 		description:
-			"A timeline of what happened, then impact, contributing causes, what went well and actions, run blameless.",
+			"What happened and when, then impact and causes, Auto-stacked and voted on, and the decisions and action items that follow. Run blameless.",
 		repos: { min: 0, max: 6, hint: "Where the incident’s issues and pull requests are" },
 		content: t.content(),
 	};

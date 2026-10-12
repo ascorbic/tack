@@ -31,7 +31,7 @@ import {
 	shapesMap,
 	transactLocal,
 } from "../src/shared/shapes.ts";
-import { updateWidgetConfig } from "../src/shared/widgetRegistry.ts";
+import { updateWidgetConfig, widgetQueries } from "../src/shared/widgetRegistry.ts";
 import type {
 	RelatedResult,
 	ReleaseResult,
@@ -201,8 +201,10 @@ describe("the M3 exit", () => {
 		// Alice sorts: #3 into P1, #4 needs more info, #1 dismissed (a dupe).
 		const box = (id: string) => shapes(client).get(id)!;
 		const into = (id: string) => ({ x: box(id).x + 40, y: box(id).y + 120 });
+		// Needs more info is a list, as tall as what's in it: dropped onto its empty well.
+		const onto = (id: string) => ({ x: box(id).x + 40, y: box(id).y - 20 });
 		const sorted3 = sortFromInbox(client.doc, incoming, key(3), into(p1));
-		const sorted4 = sortFromInbox(client.doc, incoming, key(4), into(info));
+		const sorted4 = sortFromInbox(client.doc, incoming, key(4), onto(info));
 		dismissFromInbox(client.doc, incoming, [key(1)], "alice");
 		await client.roundTrip();
 		expect(tray(client, incoming)).toEqual([]);
@@ -348,7 +350,7 @@ describe("the M3 exit", () => {
 		const milestone = widget(client, "milestone");
 		const draft = widget(client, "release");
 		const deps = widget(client, "dependencies");
-		const pullList = widget(client, "list");
+		const review = widget(client, "review");
 		expect(shapes(client).get(deps)?.config).toMatchObject({ source: "section", section: now });
 		expect(shapes(client).get(draft)?.config).toMatchObject({ repo: "acme/widgets" });
 		transactLocal(client.doc, () =>
@@ -366,7 +368,7 @@ describe("the M3 exit", () => {
 			});
 		transactLocal(client.doc, () => [31, 32, 33].forEach(place));
 		await client.roundTrip();
-		client.send({ type: "widget-watch", ids: [milestone, draft, deps, pullList] });
+		client.send({ type: "widget-watch", ids: [milestone, draft, deps, review] });
 
 		// The milestone: one of four done, and the ones still open.
 		const progressOf = (message: WidgetMessage) => {
@@ -456,7 +458,7 @@ describe("the M3 exit", () => {
 		expect(related(followed, 31)?.blocking).toEqual([key(32)]);
 
 		// Wednesday: a pull request for the registry is opened; the board's
-		// rule puts it beside its issue, and the open pull requests list has it.
+		// rule puts it beside its issue, and it waits in the review queue.
 		await world.at(start + 2 * DAY);
 		await world.open({
 			number: 40,
@@ -469,7 +471,11 @@ describe("the M3 exit", () => {
 		});
 		await eventually(() => cardsFor(client, 40).length === 1, 8000);
 		expect(cardsFor(client, 40)[0]![1].provenance?.via).toBe("rule");
-		await results(client, pullList, (m) => numbers(m.results.items as SearchResult).includes(40));
+		// (The fake's search can't tell reviews apart, so it's the queue's search that's checked.)
+		expect(widgetQueries(shapes(client).get(review)!)).toMatchObject({
+			pulls: { q: "repo:acme/widgets is:pr is:open -review:approved draft:false" },
+		});
+		await results(client, review, (m) => m.results.pulls?.kind === "search");
 
 		// Thursday: it's merged, and closes #31. The milestone moves on, the
 		// draft has it as a feature, and the map shows the plugin API's

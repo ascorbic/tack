@@ -3,7 +3,13 @@ import * as Y from "yjs";
 import type { Person } from "./auth.ts";
 import type { Thumbnail } from "./boards.ts";
 import { readVotes as readDotVotes } from "./dotvotes.ts";
-import { type PreparedPlan, preparedMap, readPrepared, readStep } from "./prepared.ts";
+import {
+	type PreparedPlan,
+	VOTE_DAYS_MAX,
+	preparedMap,
+	readPrepared,
+	readStep,
+} from "./prepared.ts";
 import { parseRepoKey } from "./refs.ts";
 import { type Rule, type RuleAction, type RuleTrigger, readRule, rulesMap } from "./rules.ts";
 import { parseSession } from "./silent.ts";
@@ -26,6 +32,13 @@ import { sketch } from "./thumbnail.ts";
 // A placeholder with no repository to fill it empties the setting it's in
 // (a widget's search, an inbox's query, a rule), which then reads as not set
 // up yet; in text and titles just the placeholder goes.
+//
+// Not every forge has everything a template might use: only GitHub has
+// Discussions. A shape or rule marked `forge: "discussions"` is left out of
+// boards whose first repository is on a forge without them (with no
+// repository, it's kept: the host is GitHub's then). What's inside a shape
+// left out goes with it, and so do the connectors, rules and prepared steps
+// about it. `forge` is the template's alone and never reaches a board.
 //
 // Built-in templates are in builtInTemplates.ts; templates saved from boards
 // are kept per instance by the `Directory` (`extractTemplate` makes one). A
@@ -50,6 +63,8 @@ export interface TemplateRule {
 	action: RuleAction;
 	name?: string;
 	enabled?: boolean;
+	/** Only on forges with Discussions (see above). */
+	forge?: "discussions";
 }
 
 export interface TemplateContent {
@@ -185,7 +200,8 @@ export function usesRepos(content: TemplateContent): boolean {
  * repository are taken out: inboxes without a query, rules without one.
  */
 export function fillTemplate(content: TemplateContent, repos: readonly string[]): TemplateContent {
-	const shapes = fillValue(content.shapes, repos) as TemplateContent["shapes"];
+	const forges = forgesFor(repos);
+	const shapes = fillValue(forShapes(content.shapes, forges), repos) as TemplateContent["shapes"];
 	for (const shape of Object.values(shapes)) {
 		const inbox = shape.inbox as { query?: { q?: unknown } } | undefined;
 		if (inbox && !(typeof inbox.query?.q === "string" && inbox.query.q.trim())) delete shape.inbox;
@@ -194,15 +210,77 @@ export function fillTemplate(content: TemplateContent, repos: readonly string[])
 	for (const [id, rule] of Object.entries(
 		(fillValue(content.rules ?? {}, repos) as Record<string, TemplateRule>) ?? {},
 	)) {
+		if (!forges(rule.forge)) continue;
 		if (rule.trigger.kind === "matches" && !rule.trigger.query.q.trim()) continue;
-		rules[id] = rule;
+		if (rule.action.kind === "section" && !shapes[rule.action.section]) continue;
+		const { forge: _forge, ...kept } = rule;
+		rules[id] = kept;
 	}
+	const prepared = Object.fromEntries(
+		Object.entries(content.prepared ?? {}).filter(([, step]) => {
+			const section =
+				step.kind === "silent" ? step.section : step.kind === "vote" ? step.scope : null;
+			return section === null || Boolean(shapes[section]);
+		}),
+	);
 	return {
 		version: TEMPLATE_VERSION,
 		shapes,
 		...(Object.keys(rules).length ? { rules } : {}),
-		...(content.prepared ? { prepared: fillValue(content.prepared, repos) as never } : {}),
+		...(Object.keys(prepared).length ? { prepared: fillValue(prepared, repos) as never } : {}),
 	};
+}
+
+/** Forges with Discussions, by `parseRepoKey`'s names. */
+const DISCUSSION_FORGES = new Set(["github", "fake"]);
+
+/**
+ * Whether something marked for `forge` belongs on a board about these
+ * repositories: by what the first one's forge can do, or GitHub's without one.
+ */
+function forgesFor(repos: readonly string[]): (forge: unknown) => boolean {
+	const first = repos.map(parseRepoKey).find((key) => key !== null);
+	const discussions = first ? DISCUSSION_FORGES.has(first.forge) : true;
+	return (forge) => forge !== "discussions" || discussions;
+}
+
+/**
+ * A template's shapes for these forges: those marked for others left out,
+ * with everything inside them and connectors to them; `forge` itself is
+ * the template's alone, so it's taken off the rest.
+ */
+function forShapes(
+	shapes: TemplateContent["shapes"],
+	forges: (forge: unknown) => boolean,
+): TemplateContent["shapes"] {
+	const out: TemplateContent["shapes"] = {};
+	const dropped = new Set(
+		Object.entries(shapes)
+			.filter(([, shape]) => !forges(shape.forge))
+			.map(([id]) => id),
+	);
+	// What's inside a dropped section, however deeply.
+	for (let grew = dropped.size > 0; grew;) {
+		grew = false;
+		for (const [id, shape] of Object.entries(shapes)) {
+			if (dropped.has(id) || typeof shape.parent !== "string" || !dropped.has(shape.parent)) {
+				continue;
+			}
+			dropped.add(id);
+			grew = true;
+		}
+	}
+	const endGone = (end: unknown) =>
+		typeof end === "object" &&
+		end !== null &&
+		dropped.has((end as { shape?: unknown }).shape as string);
+	for (const [id, shape] of Object.entries(shapes)) {
+		if (dropped.has(id)) continue;
+		if (shape.type === "connector" && (endGone(shape.from) || endGone(shape.to))) continue;
+		const { forge: _forge, ...kept } = shape;
+		out[id] = kept;
+	}
+	return out;
 }
 
 // --- Making a board from a template ---------------------------------------------------
@@ -230,6 +308,9 @@ const NOT_REFERENCES = new Set([
 	"host",
 	"q",
 	"source",
+	// A section's display mode and its list's sort (display.ts).
+	"display",
+	"by",
 	// A stack's suggested name and the hash of what it was made from.
 	"suggested",
 	// A stack the server couldn't name, and a hash of its members (which a
@@ -439,7 +520,11 @@ export function extractTemplate(
 	for (const vote of readDotVotes(doc)) {
 		if ((vote.scope && !kept.has(vote.scope)) || covered.has(`vote:${vote.scope}`)) continue;
 		covered.add(`vote:${vote.scope}`);
+		// A vote open for days is one again, for as many days.
+		const open = vote.endsAt ? Date.parse(vote.endsAt) - Date.parse(vote.startedAt) : 0;
+		const days = Math.round(open / 86_400_000);
 		prepared[`vote-${vote.id}`] = {
+			...(days >= 1 ? { days: Math.min(days, VOTE_DAYS_MAX) } : {}),
 			kind: "vote",
 			scope: vote.scope,
 			dots: vote.dots,
@@ -577,7 +662,11 @@ export function summarise(content: TemplateContent): TemplateSummary {
 
 /** A template's sketch, for its card. Placeholders show as they are: nothing's filled in yet. */
 export function templateThumbnail(content: TemplateContent): Thumbnail | null {
-	return sketch(Object.entries(content.shapes).map(([id, shape]) => ({ ...shape, id })));
+	return sketch(
+		Object.entries(content.shapes).map(([id, shape]) => ({ ...shape, id })),
+		undefined,
+		{ outlineEmpty: true },
+	);
 }
 
 /** Whether a board made from this content has a section to carry action items into. */

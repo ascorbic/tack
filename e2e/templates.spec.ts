@@ -100,15 +100,16 @@ test.describe("action items on the playground", () => {
 
 	test("a template's steps start from the Facilitate menu", async ({ page }) => {
 		await openScenario(page, "template-retro");
-		await expect(page.locator(".react-flow__minimap-node.minimap-section")).toHaveCount(3);
+		await expect(page.locator(".react-flow__minimap-node.minimap-section")).toHaveCount(5);
 		await page.getByRole("button", { name: /^Facilitate/ }).click();
 		const menu = page.getByRole("dialog", { name: "Facilitate" });
-		await expect(menu.getByRole("region", { name: "Ready to start" })).toContainText("0 of 4");
-		await menu.getByRole("button", { name: "Start: Write: what went well" }).click();
+		await expect(menu.getByRole("region", { name: "Ready to start" })).toContainText("0 of 5");
+		await menu.getByRole("button", { name: "Start: Write on your own" }).click();
+		// One round of silent writing, over all three columns.
 		await expect(page.locator(".section-silent")).toBeVisible();
 		await expect(page.locator(".timer")).toBeVisible();
 		await page.getByRole("button", { name: /^Facilitate/ }).click();
-		await expect(menu.getByRole("region", { name: "Ready to start" })).toContainText("1 of 4");
+		await expect(menu.getByRole("region", { name: "Ready to start" })).toContainText("1 of 5");
 	});
 
 	for (const scenario of ["planning", "triage", "release", "roadmap", "incident"]) {
@@ -139,7 +140,8 @@ test("every action item and template state renders", async ({ page }) => {
 	await expect(page.locator("figure[data-state=carried]")).toContainText("From Retro, September");
 	await expect(page.locator("figure[data-state=due-picker] .calendar-day")).not.toHaveCount(0);
 	await expect(page.locator("figure[data-state=carry] .action-option")).toHaveCount(3);
-	await expect(page.locator("figure[data-state=prepared-started]")).toContainText("2 of 4");
+	await expect(page.locator("figure[data-state=prepared-started]")).toContainText("2 of 5");
+	await expect(page.locator("figure[data-state=prepared-days]")).toContainText("Dot vote · 3 days");
 	await expect(page.locator("figure[data-state^=preview-] svg")).toHaveCount(6);
 	await expect(page.locator("figure[data-state=picker-loading] .template-skeleton")).toHaveCount(3);
 	await expect(page.locator("figure[data-state=picker-empty]")).toContainText("Nothing yet");
@@ -170,7 +172,7 @@ test.describe.serial("templates on real boards", () => {
 		await picker.getByRole("button", { name: "Create board" }).click();
 		await expect(page).toHaveURL(/\/b\/[a-z0-9]{10}\/retro-one/, { timeout: 15_000 });
 		retro = page.url();
-		await expect(page.locator(".react-flow__minimap-node.minimap-section")).toHaveCount(3, {
+		await expect(page.locator(".react-flow__minimap-node.minimap-section")).toHaveCount(5, {
 			timeout: 15_000,
 		});
 		await expect(page.getByRole("button", { name: /^Facilitate/ })).toHaveAttribute(
@@ -231,7 +233,7 @@ test.describe.serial("templates on real boards", () => {
 		await expect(tile).toHaveAttribute("aria-selected", "true");
 		await picker.getByRole("button", { name: "Create board" }).click();
 		await expect(page).toHaveURL(/\/our-retro/, { timeout: 15_000 });
-		await expect(page.locator(".react-flow__minimap-node.minimap-section")).toHaveCount(3, {
+		await expect(page.locator(".react-flow__minimap-node.minimap-section")).toHaveCount(5, {
 			timeout: 15_000,
 		});
 		// Just the structure: no action items came with it.

@@ -293,22 +293,21 @@ it("a retro runs fully async over three days, across three time zones", async ()
 
 	await lena.arrive(board, 1, "08:00");
 	expect((await lena.digest()).since).toBeNull();
+	const back = sectionId(lena.doc, "Looking back");
 	const well = sectionId(lena.doc, "Went well");
 	const improve = sectionId(lena.doc, "To improve");
 	const actions = sectionId(lena.doc, "Actions");
 	const steps = readPrepared(lena.doc);
-	expect(steps.map((step) => step.kind)).toEqual(["silent", "silent", "vote", "timer"]);
+	expect(steps.map((step) => step.kind)).toEqual(["timer", "silent", "timer", "vote", "timer"]);
 
-	// She starts silent writing in both sections from the Facilitate menu
-	// (without the timers: there's a whole day for it), and writes her own.
-	for (const section of [well, improve]) {
-		lena.client!.send({ type: "silent-start", section, by: lena.author });
-		const step = steps.find((s) => s.kind === "silent" && s.section === section)!;
-		markStarted(lena.doc, step.id, lena.author, world.iso());
-	}
-	await eventually(() =>
-		[well, improve].every((id) => parseSession(shapes(lena.doc).get(id)?.silent) !== null),
-	);
+	// She starts silent writing from the Facilitate menu (without its timer:
+	// there's a whole day for it), on the section the columns are in, so it
+	// covers both, and writes her own.
+	const silentStep = steps.find((s) => s.kind === "silent")!;
+	expect(silentStep).toMatchObject({ section: back });
+	lena.client!.send({ type: "silent-start", section: back, by: lena.author });
+	markStarted(lena.doc, silentStep.id, lena.author, world.iso());
+	await eventually(() => parseSession(shapes(lena.doc).get(back)?.silent) !== null);
 	const layout = shapes(lena.doc);
 	const box = (id: string) => layout.get(id)!;
 	const spot = (section: string, n: number) => ({
@@ -388,10 +387,8 @@ it("a retro runs fully async over three days, across three time zones", async ()
 	]);
 
 	// The reveal: every sticky turns over at once.
-	for (const section of [well, improve]) {
-		const session = parseSession(shapes(lena.doc).get(section)?.silent)!;
-		lena.client!.send({ type: "silent-reveal", session: session.id });
-	}
+	const session = parseSession(shapes(lena.doc).get(back)?.silent)!;
+	lena.client!.send({ type: "silent-reveal", session: session.id });
 	await eventually(
 		() => [...shapes(lena.doc).values()].filter((s) => s.type === "sticky" && s.text).length === 6,
 	);

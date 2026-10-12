@@ -8,9 +8,16 @@ import {
 } from "../src/shared/builtInTemplates.ts";
 import { addDecision, castVote } from "../src/shared/decisions.ts";
 import { dotVotesMap, startVote } from "../src/shared/dotvotes.ts";
-import { markStarted, nextStep, readPrepared } from "../src/shared/prepared.ts";
+import {
+	markStarted,
+	nextStep,
+	readPrepared,
+	readStep,
+	stepLength,
+	voteEndsAt,
+} from "../src/shared/prepared.ts";
 import { addRule, listRules, readRule, rulesMap } from "../src/shared/rules.ts";
-import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
+import { type ShapeProps, addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
 import { addSection, readShapes } from "../src/shared/structure.ts";
 import {
 	TEMPLATE_ORIGIN,
@@ -24,6 +31,7 @@ import {
 	summarise,
 	usesRepos,
 } from "../src/shared/templates.ts";
+import { textSize } from "../src/shared/thumbnail.ts";
 import { widgetQueries } from "../src/shared/widgetRegistry.ts";
 
 const BY = { name: "Priya Shah", color: "#b4467a", login: "priya" };
@@ -173,16 +181,25 @@ describe("making a board from a template", () => {
 	it("prepares facilitation to start, in order", () => {
 		const { doc, shapes } = make("tack:retro");
 		const steps = readPrepared(doc);
-		expect(steps.map((step) => step.kind)).toEqual(["silent", "silent", "vote", "timer"]);
-		const improve = [...shapes].find(([, shape]) => shape.title === "To improve")?.[0];
-		expect(steps[2]).toMatchObject({
+		expect(steps.map((step) => step.kind)).toEqual(["timer", "silent", "timer", "vote", "timer"]);
+		const section = (title: string) => [...shapes].find(([, shape]) => shape.title === title)?.[0];
+		// One round of silent writing covers all three columns, which are inside it.
+		expect(steps[1]).toMatchObject({
+			kind: "silent",
+			section: section("Looking back"),
+			minutes: 8,
+		});
+		for (const title of ["Went well", "To improve", "Ideas to try"]) {
+			expect(shapes.get(section(title) ?? "")?.parent).toBe(section("Looking back"));
+		}
+		expect(steps[3]).toMatchObject({
 			kind: "vote",
-			scope: improve,
+			scope: section("To improve"),
 			dots: 3,
 			hidden: true,
 			minutes: 3,
 		});
-		expect(steps[0]).toMatchObject({ minutes: 5 });
+		expect(steps[0]).toMatchObject({ minutes: 5, label: "Check last time’s actions" });
 		expect(nextStep(steps)?.id).toBe(steps[0]?.id);
 		markStarted(doc, steps[0]?.id ?? "", BY, "LATER");
 		const after = readPrepared(doc);
@@ -200,15 +217,20 @@ describe("making a board from a template", () => {
 		});
 		expect(byKind.get("release")?.config).toMatchObject({ repo: "emdash-cms/emdash" });
 		expect(byKind.get("dependencies")?.config).toMatchObject({ source: "section", section: now });
-		expect(byKind.get("list")?.config).toMatchObject({ q: "repo:emdash-cms/emdash is:pr is:open" });
+		expect(byKind.get("review")?.config).toMatchObject({
+			scope: "repo",
+			repo: "emdash-cms/emdash",
+		});
+		// Next is a grid of mini cards.
+		expect([...shapes.values()].find((shape) => shape.title === "Next")?.display).toBe("mini");
 	});
 
 	it("stacks shapes in the template's order, sections beneath what's in them", () => {
 		const { shapes } = make("tack:planning");
 		const sorted = [...shapes.values()].sort((a, b) => (a.z < b.z ? -1 : 1));
-		const proposals = sorted.findIndex((shape) => shape.title === "Proposals");
-		const prompt = sorted.findIndex((shape) => shape.text?.startsWith("One proposal per sticky"));
-		expect(proposals).toBeLessThan(prompt);
+		const ideas = sorted.findIndex((shape) => shape.title === "Ideas");
+		const prompt = sorted.findIndex((shape) => shape.text?.startsWith("One idea per sticky"));
+		expect(ideas).toBeLessThan(prompt);
 	});
 
 	it("never brings in a session's state", () => {
@@ -273,6 +295,193 @@ describe("making a board from a template", () => {
 			"tack:planning",
 		]);
 		expect(builtInInfo(builtInTemplate("tack:retro") as never).collectsActions).toBe(true);
+	});
+});
+
+describe("built-in templates on every forge", () => {
+	/** Repositories to make each with: none, and one on each forge. */
+	const CHOICES: { name: string; repos: string[]; discussions: boolean }[] = [
+		{ name: "no repository", repos: [], discussions: true },
+		{ name: "a GitHub repository", repos: ["github.com/emdash-cms/emdash"], discussions: true },
+		{
+			name: "two GitHub repositories",
+			repos: ["github.com/ascorbic/unpic", "github.com/ascorbic/cirrus"],
+			discussions: true,
+		},
+		{ name: "a GitLab project", repos: ["gitlab.com/ascorbic/cirrus"], discussions: false },
+		{ name: "a Codeberg repository", repos: ["codeberg.org/ascorbic/unpic"], discussions: false },
+		{ name: "a Tangled repository", repos: ["tangled.org/ascorbic.dev/tack"], discussions: false },
+	];
+
+	/** A shape's box on the board, roughly: text by its lines, a list by its stored size. */
+	const boxOf = (shape: ShapeProps) => {
+		const size =
+			shape.type === "text"
+				? textSize(shape as unknown as Record<string, unknown>)
+				: { width: shape.w ?? 0, height: shape.h ?? 0 };
+		// A section's title sits above its frame.
+		const top = shape.type === "section" ? shape.y - 40 : shape.y;
+		return { x: shape.x, y: top, right: shape.x + size.width, bottom: shape.y + size.height };
+	};
+	const overlap = (a: ReturnType<typeof boxOf>, b: ReturnType<typeof boxOf>) =>
+		a.x < b.right && b.x < a.right && a.y < b.bottom && b.y < a.bottom;
+
+	for (const template of BUILT_IN_TEMPLATES) {
+		for (const choice of CHOICES) {
+			if (template.repos && choice.repos.length < template.repos.min) continue;
+			it(`${template.title}, with ${choice.name}`, () => {
+				const doc = new Y.Doc();
+				const result = instantiateTemplate(doc, template.content, {
+					repos: choice.repos,
+					by: BY,
+					newId: counter(),
+				});
+				const shapes = readShapes(doc);
+				const json = JSON.stringify(doc.toJSON());
+				// Every placeholder filled, and nothing of the template's own left behind.
+				expect(json).not.toMatch(/\{\{/);
+				expect(json).not.toContain('"forge"');
+				// Discussions only where the forge has them.
+				if (!choice.discussions) expect(json).not.toContain("is:discussion");
+				// Everything in a section is in one that's there; rules and steps read.
+				for (const shape of shapes.values()) {
+					if (shape.parent) expect(shapes.get(shape.parent)?.type).toBe("section");
+				}
+				expect(listRules(doc)).toHaveLength(rulesMap(doc).size);
+				expect(readPrepared(doc)).toHaveLength(result.prepared);
+				expect(result.prepared).toBeGreaterThan(0);
+				// With repositories, every widget reads them.
+				for (const shape of shapes.values()) {
+					if (shape.type !== "widget" || choice.repos.length === 0) continue;
+					const config = shape.config as Record<string, unknown>;
+					if (typeof config.repo === "string") expect(config.repo).not.toBe("");
+					if (typeof config.q === "string" && config.source !== "section") {
+						expect(config.q).toMatch(/repo:/);
+					}
+				}
+
+				// Laid out tidily: nothing on top of anything else, ...
+				const top = [...shapes].filter(([, shape]) => !shape.parent && shape.type !== "connector");
+				for (const [i, [a, first]] of top.entries()) {
+					for (const [b, second] of top.slice(i + 1)) {
+						expect(overlap(boxOf(first), boxOf(second)), `${a} and ${b}`).toBe(false);
+					}
+				}
+				// ... and nothing below a list or mini cards, which grow downwards as they fill.
+				for (const [id, list] of top) {
+					if (list.type !== "section" || !list.display) continue;
+					const column = boxOf(list);
+					for (const [other, shape] of top) {
+						const box = boxOf(shape);
+						const below = box.y >= column.y && box.x < column.right && column.x < box.right;
+						if (other !== id) expect(below, `${other} below ${id}`).toBe(false);
+					}
+				}
+			});
+		}
+	}
+
+	it("leaves out what needs Discussions on forges without them", () => {
+		const lists = (shapes: Map<string, ShapeProps>) =>
+			[...shapes.values()]
+				.filter((shape) => shape.widget === "list")
+				.map((shape) => (shape.config as { title?: string }).title);
+		const github = make("tack:triage", ["github.com/emdash-cms/emdash"]);
+		const gitlab = make("tack:triage", ["gitlab.com/ascorbic/cirrus"]);
+		const questions = [...github.shapes.values()].find((shape) => shape.widget === "list");
+		expect(questions?.config).toMatchObject({
+			title: "Unanswered questions",
+			q: "repo:emdash-cms/emdash is:discussion is:open is:unanswered",
+		});
+		expect(lists(gitlab.shapes)).toEqual([]);
+		expect(gitlab.shapes.size).toBe(github.shapes.size - 1);
+		const incoming = [...gitlab.shapes.values()].find((shape) => shape.title === "Incoming");
+		expect(incoming?.inbox).toMatchObject({
+			query: { host: "gitlab.com", q: "repo:ascorbic/cirrus is:issue is:open no:label" },
+		});
+
+		expect(lists(make("tack:planning", ["github.com/ascorbic/unpic"]).shapes)).toEqual([
+			"Most wanted issues",
+			"Top discussions",
+		]);
+		expect(lists(make("tack:planning", ["codeberg.org/ascorbic/unpic"]).shapes)).toEqual([
+			"Most wanted issues",
+		]);
+		// Made without a repository, the host is GitHub's, so it stays, to set up.
+		expect(lists(make("tack:planning").shapes)).toHaveLength(2);
+	});
+
+	it("leaves out the rules, steps and connectors about what it leaves out", () => {
+		const content: TemplateContent = {
+			version: TEMPLATE_VERSION,
+			shapes: {
+				ask: { type: "section", x: 0, y: 0, z: "a0", title: "Questions", forge: "discussions" },
+				inner: { type: "section", x: 10, y: 10, z: "a1", title: "Inner", parent: "ask" },
+				note: { type: "sticky", x: 20, y: 20, z: "a2", parent: "inner" },
+				keep: { type: "sticky", x: 500, y: 0, z: "a3" },
+				line: {
+					type: "connector",
+					x: 0,
+					y: 0,
+					z: "a4",
+					from: { x: 0, y: 0, shape: "keep" },
+					to: { x: 0, y: 0, shape: "note" },
+				},
+			},
+			rules: {
+				into: {
+					trigger: { kind: "pull-links" },
+					action: { kind: "section", section: "inner" },
+				},
+				answered: {
+					trigger: { kind: "pull-links" },
+					action: { kind: "beside-linked" },
+					forge: "discussions",
+				},
+				pulls: { trigger: { kind: "pull-links" }, action: { kind: "beside-linked" } },
+			},
+			prepared: {
+				silent: { kind: "silent", section: "ask", label: "", order: 0 },
+				vote: { kind: "vote", scope: "inner", dots: 3, hidden: false, label: "", order: 1 },
+				timer: { kind: "timer", minutes: 5, label: "", order: 2 },
+			},
+		};
+		const gitlab = fillTemplate(content, ["gitlab.com/ascorbic/cirrus"]);
+		expect(Object.keys(gitlab.shapes)).toEqual(["keep"]);
+		expect(Object.keys(gitlab.rules ?? {})).toEqual(["pulls"]);
+		expect(Object.keys(gitlab.prepared ?? {})).toEqual(["timer"]);
+		const github = fillTemplate(content, ["github.com/ascorbic/cirrus"]);
+		expect(Object.keys(github.shapes)).toEqual(["ask", "inner", "note", "keep", "line"]);
+		expect(github.shapes.ask?.forge).toBeUndefined();
+		expect(Object.keys(github.rules ?? {})).toEqual(["into", "answered", "pulls"]);
+		expect(github.rules?.answered?.forge).toBeUndefined();
+	});
+
+	it("prepares a vote that stays open for days", () => {
+		const { doc, shapes } = make("tack:roadmap");
+		const [vote] = readPrepared(doc);
+		const later = [...shapes].find(([, shape]) => shape.title === "Later · worth doing")?.[0];
+		expect(vote).toMatchObject({ kind: "vote", scope: later, days: 3, dots: 3 });
+		expect(vote && "minutes" in vote ? vote.minutes : undefined).toBeUndefined();
+		expect(vote && stepLength(vote)).toBe("3 days");
+		expect(vote && voteEndsAt(vote, Date.parse("2026-10-12T09:00:00Z"))).toBe(
+			"2026-10-15T09:00:00.000Z",
+		);
+		expect(readStep("x", { kind: "vote", scope: null, dots: 3, days: 30 })).toMatchObject({
+			days: 7,
+		});
+		expect(readStep("x", { kind: "vote", scope: null, dots: 3, days: -1 })).not.toHaveProperty(
+			"days",
+		);
+	});
+
+	it("sketches empty lists and mini cards with a few outlined, as they'll fill", () => {
+		const roadmap = builtInInfo(builtInTemplate("tack:roadmap") as never).thumbnail;
+		const rows = roadmap?.shapes.filter((shape) => shape[0] === "row") ?? [];
+		expect(rows.length).toBeGreaterThanOrEqual(9);
+		expect(rows.every((shape) => shape[5] === "outline")).toBe(true);
+		const release = builtInInfo(builtInTemplate("tack:release") as never).thumbnail;
+		expect(release?.shapes.some((shape) => shape[0] === "tile")).toBe(true);
 	});
 });
 

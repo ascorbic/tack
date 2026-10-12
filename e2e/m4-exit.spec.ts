@@ -89,8 +89,8 @@ test("a retro, taking turns: silent writing, the reveal, votes, comments, action
 	await lena.page.waitForTimeout(800);
 	await settleCanvas(lena.page);
 
-	// Silent writing in To improve, from the Facilitate menu; Lena writes first.
-	await facilitate(lena.page, "Write: what to improve");
+	// Silent writing over all three columns, from the Facilitate menu; Lena writes first.
+	await facilitate(lena.page, "Write on your own");
 	await expect(lena.page.locator(".section-silent")).toBeVisible();
 	await writeSticky(lena.page, "To improve", "Too many meetings on Thursdays", 0);
 	await expect(lena.page.locator(".sticky[data-hidden]")).toContainText("Too many meetings");
@@ -114,7 +114,7 @@ test("a retro, taking turns: silent writing, the reveal, votes, comments, action
 	await expect(sticky(priya.page, "Too many meetings on Thursdays")).toBeVisible();
 
 	// The dot vote, from the menu; Priya votes on her own and Lena's.
-	await facilitate(lena.page, "Dot vote on what to improve");
+	await facilitate(lena.page, "Dot vote: what to fix first");
 	const bar = (page: Page) => page.getByRole("region", { name: "Vote on “To improve”" });
 	await expect(bar(priya.page)).toBeVisible();
 	await bar(priya.page).getByRole("button", { name: "Place dots" }).click();
@@ -206,6 +206,9 @@ test("a retro, taking turns: silent writing, the reveal, votes, comments, action
 	await expect(lena.page).toHaveURL(/\/next-retro-/, { timeout: 15_000 });
 	const carried = lena.page.locator(".action-item", { hasText: "Flaky CI" });
 	await expect(carried).toContainText(`From Retro ${run}`, { timeout: 15_000 });
+	// The board opened showing all of it, too far out for an item's chips: zoom to it.
+	await carried.locator(".action-item-text").click();
+	await lena.page.keyboard.press("Shift+Digit2");
 	await expect(carried.getByRole("button", { name: /owner/i })).toHaveText("Priya");
 
 	expect(lena.errors).toEqual([]);

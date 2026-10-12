@@ -442,7 +442,7 @@ function Details({
 	const missing = spec ? Math.max(0, spec.min - repos.length) : 0;
 	const summary = template?.summary;
 	const widgets = (summary?.widgetKinds ?? []).map((kind) => widgetDefinition(kind)?.title ?? kind);
-	// Sections by name, repeats counted ("Theme: rename me ×3").
+	// Sections by name, repeats counted ("Theme ×3").
 	const sections = [
 		...(summary?.sectionTitles ?? []).reduce(
 			(counts, name) => counts.set(name, (counts.get(name) ?? 0) + 1),

@@ -272,7 +272,11 @@ function useRunSheet() {
 		const by = { name: "Priya Shah", color: "#b4467a" };
 		if (first) markStarted(done, first.id, by, "2026-10-10T14:40:00Z");
 		if (second) markStarted(done, second.id, by, "2026-10-10T14:46:00Z");
-		return { doc, fresh, done, started: readPrepared(done) };
+		// A roadmap's one step: a vote that stays open for three days.
+		const days = new Y.Doc();
+		const roadmap = BUILT_IN_TEMPLATES.find((t) => t.id === "tack:roadmap");
+		if (roadmap) instantiateTemplate(days, roadmap.content, { by: { name: "Priya Shah" } });
+		return { doc, fresh, done, started: readPrepared(done), days, overDays: readPrepared(days) };
 	}, []);
 }
 
@@ -412,6 +416,17 @@ export default function TemplatesGallery() {
 							<PreparedSteps
 								doc={sheet.done}
 								steps={sheet.started}
+								user={{ name: "Ana Costa", color: "#3b4cca" }}
+								readOnly={false}
+								onStarted={noop}
+							/>
+						</div>
+					</Figure>
+					<Figure label="A vote over days" state="prepared-days">
+						<div className="facilitate-menu templates-gallery-menu">
+							<PreparedSteps
+								doc={sheet.days}
+								steps={sheet.overDays}
 								user={{ name: "Ana Costa", color: "#3b4cca" }}
 								readOnly={false}
 								onStarted={noop}
