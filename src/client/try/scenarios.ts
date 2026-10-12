@@ -223,29 +223,33 @@ function seedRetro(doc: Y.Doc): void {
 			x: columns[column]!.x + 30 + (i % 3) * 196 + jitter(i + column),
 			y: 64 + Math.floor(i / 3) * 250 + jitter(i + column + 2),
 		});
+		// Stamps grow against the zoom, leftwards from a sticky's corner: the
+		// stamped ones sit where, zoomed out on a phone, they spill onto a
+		// neighbour rather than off the board or over the stickies to stack.
 		const shipped = sticky(
 			doc,
 			"Stacks shipped and people love them",
 			"green",
-			at(0, 0),
+			at(0, 2),
 			PRIYA,
 			went,
 		);
+		sticky(doc, "The docs search finds things now", "green", at(0, 0), TOM, went);
 		sticky(doc, "Reviews came back within a day", "green", at(0, 1), KAI, went);
 		RETRO_CARDS.forEach((card, i) => addCard(doc, card.key, { x: 30 + i * 300, y: 330 }));
 
-		sticky(doc, "We rerun CI three times a day", "pink", at(1, 0), JO, improve);
-		sticky(doc, "Flaky e2e on the Windows runners", "pink", at(1, 1), TOM, improve);
+		sticky(doc, "We rerun CI three times a day", "pink", at(1, 1), JO, improve);
+		sticky(doc, "Flaky e2e on the Windows runners", "pink", at(1, 2), TOM, improve);
 		const reviewer = sticky(
 			doc,
 			"Too many pull requests wait on one reviewer",
 			"pink",
-			at(1, 2),
+			at(1, 4),
 			PRIYA,
 			improve,
 		);
-		sticky(doc, "Release notes written the night before", "pink", at(1, 3), KAI, improve);
-		sticky(doc, "Nobody knew who owned the embeds bug", "pink", at(1, 4), JO, improve);
+		sticky(doc, "Release notes written the night before", "pink", at(1, 0), KAI, improve);
+		sticky(doc, "Nobody knew who owned the embeds bug", "pink", at(1, 3), JO, improve);
 
 		sticky(doc, "Pair on reviews on Fridays", "yellow", at(2, 0), TOM, ideas);
 		sticky(doc, "A rota for release notes", "yellow", at(2, 1), PRIYA, ideas);
