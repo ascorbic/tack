@@ -4,7 +4,10 @@ import { exportBoard, importBoard, readBoardExport } from "../src/shared/boardEx
 import { layoutDisplays } from "../src/shared/display.ts";
 import {
 	applyGrouping,
+	applySectionGrouping,
 	leaveStack,
+	planSectionGrouping,
+	sectionLoose,
 	stackSelection,
 	stackUp,
 	planGrouping,
@@ -430,6 +433,103 @@ describe("grouping a selection", () => {
 		expect(nameState(get("g1"))).toBe("suggested");
 		expect(stackName(get("g2"))).toBe("Unreliable CI");
 		expect(get("e")?.stack ?? null).toBeNull();
+	});
+});
+
+describe("auto-stacking a section", () => {
+	function themed() {
+		const { doc, sticky, get, members } = board();
+		const section = addSection(doc, { x: 0, y: 0, w: 1000, h: 500 }, { title: "Themes" });
+		const inner = addSection(doc, { x: 700, y: 40, w: 260, h: 260 }, { title: "Inner" });
+		sticky("a", 40, 40, "Docs are hard to find");
+		sticky("b", 240, 40, "No loader example");
+		sticky("c", 440, 40, "CI is slow");
+		sticky("d", 40, 260, "Flaky e2e");
+		sticky("e", 240, 260, "Lone one");
+		sticky("f", 440, 260, "Getting started is hard");
+		sticky("g", 460, 280, "Release notes are thin");
+		sticky("nested", 740, 80, "In the inner section");
+		sticky("s1", 1200, 0, "Already");
+		sticky("s2", 1200, 0, "stacked");
+		placeInSections(doc, ["a", "b", "c", "d", "e", "f", "g", "nested", "s1", "s2"]);
+		stackUp(doc, "s1", ["s2"], undefined, () => "old");
+		commitMoves(doc, new Map([["old", { x: 400, y: 400 }]]));
+		return { doc, section, inner, get, members };
+	}
+
+	it("reads only the section's own loose stickies and cards, in reading order", () => {
+		const { doc, section, inner } = themed();
+		const shapes = readShapes(doc);
+		expect(shapes.get("old")?.parent).toBe(section);
+		expect(sectionLoose(shapes, section)).toEqual(["a", "b", "c", "d", "e", "f", "g"]);
+		expect(sectionLoose(shapes, inner)).toEqual(["nested"]);
+		expect(sectionLoose(shapes, "a")).toEqual([]);
+	});
+
+	it("lays the stacks out in a grid inside it, clear of what stays, and makes them in one go", () => {
+		const { doc, section, get, members } = themed();
+		const proposal = [
+			{ name: "Docs", ids: ["a", "b", "f"] },
+			{ name: "CI", ids: ["c", "d", "nested"] },
+			{ name: "Alone", ids: ["e"] },
+		];
+		const { stacks, grow } = planSectionGrouping(readShapes(doc), section, proposal);
+		// The nested section's sticky isn't this section's to stack.
+		expect(stacks.map((stack) => stack.ids)).toEqual([
+			["a", "b", "f"],
+			["c", "d"],
+		]);
+		const [first, second] = stacks;
+		expect(first?.at).toEqual({ x: 40, y: 40 });
+		// The next column along, in the same row.
+		expect(second?.at.y).toBe(first?.at.y);
+		expect(second?.at.x).toBeGreaterThan((first?.at.x ?? 0) + STACK_SIZE.w);
+		expect(grow.size).toBe(0);
+		let n = 0;
+		const made = applySectionGrouping(doc, section, proposal, undefined, () => `g${++n}`);
+		expect(made).toEqual(["g1", "g2"]);
+		expect(get("g1")?.parent).toBe(section);
+		expect(get("g2")?.parent).toBe(section);
+		expect(members("g1")).toEqual(["a", "b", "f"]);
+		// What's left stays loose, where it was.
+		expect(get("e")).toMatchObject({ x: 240, y: 260, parent: section });
+		expect(get("e")?.stack ?? null).toBeNull();
+		expect(get("g")).toMatchObject({ x: 460, y: 280 });
+	});
+
+	it("skips slots that aren't clear, and grows the section for stacks past its bottom", () => {
+		const { doc, sticky } = board();
+		const section = addSection(doc, { x: 0, y: 0, w: 600, h: 260 }, { title: "Small" });
+		const ids = ["a", "b", "c", "d", "e", "f", "g", "h"];
+		ids.forEach((id, i) => sticky(id, 30 + (i % 4) * 130, 30, `Note ${id}`));
+		sticky("stays", 290, 60, "Stays loose");
+		placeInSections(doc, [...ids, "stays"]);
+		const proposal = [
+			{ name: "One", ids: ["a", "b"] },
+			{ name: "Two", ids: ["c", "d"] },
+			{ name: "Three", ids: ["e", "f"] },
+			{ name: "Four", ids: ["g", "h"] },
+		];
+		const { stacks, grow } = planSectionGrouping(readShapes(doc), section, proposal);
+		expect(stacks).toHaveLength(4);
+		const stays = { x: 290, y: 60, w: 176, h: 176 };
+		for (const stack of stacks) {
+			const box = { ...stack.at, w: STACK_SIZE.w, h: STACK_SIZE.h };
+			const overlaps =
+				box.x < stays.x + stays.w &&
+				stays.x < box.x + box.w &&
+				box.y < stays.y + stays.h &&
+				stays.y < box.y + box.h;
+			expect(overlaps).toBe(false);
+		}
+		const grown = grow.get(section);
+		expect(grown?.h).toBeGreaterThan(260);
+		let n = 0;
+		const made = applySectionGrouping(doc, section, proposal, undefined, () => `g${++n}`);
+		const shapes = readShapes(doc);
+		expect(shapes.get(section)?.h).toBe(grown?.h);
+		for (const id of made) expect(shapes.get(id)?.parent).toBe(section);
+		expect(shapes.get("stays")?.parent).toBe(section);
 	});
 });
 

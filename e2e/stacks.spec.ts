@@ -15,6 +15,8 @@ interface Shape {
 	type: string;
 	text?: string;
 	title?: string;
+	parent?: string | null;
+	h?: number;
 	stack?: string | null;
 	suggested?: { title: string };
 	unnameable?: { hash: string };
@@ -401,6 +403,48 @@ test("issues and pull requests on their own are grouped, with nothing to tick", 
 	const before = (await stacks(page)).length;
 	await panel.getByRole("button", { name: "Make the stack" }).click();
 	await expect.poll(async () => (await stacks(page)).length).toBe(before + 1);
+});
+
+test("Auto-stack on a section stacks what's loose in it, inside it, in one undo step", async ({
+	page,
+}) => {
+	const all = await shapes(page);
+	const section = all.find((s) => s.type === "section" && s.title === "What should 5.0 fix?");
+	const before = all.filter((s) => s.type === "stack").length;
+	await page
+		.locator(".section-title", { hasText: "What should 5.0 fix?" })
+		.click({ position: { x: 12, y: 8 } });
+	const bar = page.getByRole("toolbar", { name: "Stage changes" });
+	await expect(
+		bar.getByRole("button", { name: "Auto-stack: sort this section into named stacks" }),
+	).toHaveCount(1);
+	await page.keyboard.press("Alt+Shift+KeyG");
+	const panel = page.getByRole("dialog", {
+		name: "Auto-stack: sort this section into named stacks",
+	});
+	await expect(panel.getByRole("textbox", { name: "Name of stack 1" })).toHaveValue(
+		"Hard-to-find docs",
+	);
+	// Its own loose stickies and cards: not what's already stacked.
+	await expect(panel.getByRole("checkbox")).toHaveCount(0);
+	await expect(page.locator(".react-flow__node.stack-proposed")).toHaveCount(10);
+	await expect(panel.getByText("3 items stay where they are.")).toBeVisible();
+	await expect(panel).toContainText("in “What should 5.0 fix?”");
+	await page.screenshot({ path: "/private/tmp/claude-501/group-cards/section-preview.png" });
+	await panel.getByRole("button", { name: "Make 3 stacks" }).click();
+	await expect(panel).toHaveCount(0);
+	await expect.poll(async () => (await stacks(page)).length).toBe(before + 3);
+	const made = (await stacks(page)).filter((s) => s.suggested && !s.title);
+	expect(made.filter((s) => s.parent === section?.id).length).toBeGreaterThanOrEqual(3);
+	await expect(sticky(page, "A logo?")).toBeVisible();
+	await expect(cardNode(page, "Dev server lags")).toBeVisible();
+	await page.screenshot({ path: "/private/tmp/claude-501/group-cards/section-made.png" });
+
+	await page.keyboard.press("ControlOrMeta+z");
+	await expect.poll(async () => (await stacks(page)).length).toBe(before);
+	await expect(sticky(page, "Provider docs are hard")).toBeVisible();
+	const after = (await shapes(page)).find((s) => s.id === section?.id);
+	expect(after?.h).toBe(section?.h);
 });
 
 test("with AI suggestions off, stacks are Untitled and there's no Auto-stack", async ({ page }) => {

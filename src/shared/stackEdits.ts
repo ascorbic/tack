@@ -6,19 +6,23 @@ import {
 	STACK_SIZE,
 	cleanName,
 	isStackable,
+	isStacked,
 	memberAt,
 	membersOf,
+	nameLines,
 	namingTexts,
 	nameState,
 	openLayout,
 	stackAtSticky,
 	stackHash,
 	stackOf,
+	stackSize,
 } from "./stacks.ts";
 import { readingOrder } from "./display.ts";
-import { spotNear } from "./placement.ts";
-import type { SizeOf } from "./sections.ts";
+import { PLACE_GAP, spotNear } from "./placement.ts";
+import { type SizeOf, boxOf } from "./sections.ts";
 import { type ShapeProps, addShape, nextZ, readShape, shapesMap, topZ } from "./shapes.ts";
+import { type Growth, growSections, planGrowth, writeBoxes } from "./growth.ts";
 import { commitMoves, readShapes, settleStacks } from "./structure.ts";
 
 // Edits to stacks (stacks.ts has what they are). Each is one transaction;
@@ -376,6 +380,163 @@ export function applyGrouping(
 			made.push(stack);
 		}
 		settleStacks(doc, thinned, sizeOf);
+	});
+	return made;
+}
+
+// --- Auto-stacking a section ---------------------------------------------------------------
+
+/**
+ * What Auto-stack reads in a section: its own loose stickies and cards, in
+ * reading order. Not what's already in a stack, and not what's in a section
+ * inside it.
+ */
+export function sectionLoose(shapes: ReadonlyMap<string, ShapeProps>, section: string): string[] {
+	if (shapes.get(section)?.type !== "section") return [];
+	const loose: { id: string; x: number; y: number }[] = [];
+	for (const [id, shape] of shapes) {
+		if (shape.parent !== section || !isStackable(shape.type) || isStacked(shapes, id)) continue;
+		loose.push({ id, x: shape.x, y: shape.y });
+	}
+	return readingOrder(loose);
+}
+
+export interface SectionPlan {
+	stacks: PlannedStack[];
+	/** The section, and any around it, grown to keep the stacks inside: their new boxes. */
+	grow: Growth;
+}
+
+/**
+ * Where Auto-stack's stacks go in a section: a tidy grid, in the proposal's
+ * order, starting where the first of what's being stacked was and as wide
+ * as that was (three stacks at least, if the section's that wide), each
+ * slot clear of whatever stays (what's left loose, other stacks, sections
+ * inside it, and anything else). A slot that isn't clear is skipped. Past
+ * the section's bottom, it grows to take them (`planGrowth`), and the
+ * sections around it with it.
+ */
+export function planSectionGrouping(
+	shapes: ReadonlyMap<string, ShapeProps>,
+	section: string,
+	proposal: readonly ProposedStack[],
+	sizeOf?: SizeOf,
+): SectionPlan {
+	const plan: SectionPlan = { stacks: [], grow: new Map() };
+	const frame = shapes.get(section);
+	if (frame?.type !== "section") return plan;
+	const loose = new Set(sectionLoose(shapes, section));
+	const used = new Set<string>();
+	const groups: ProposedStack[] = [];
+	for (const stack of proposal) {
+		const ids = stack.ids.filter((id) => {
+			if (used.has(id) || !loose.has(id) || shapes.get(id)?.silent !== undefined) return false;
+			used.add(id);
+			return true;
+		});
+		if (ids.length < 2) {
+			for (const id of ids) used.delete(id);
+			continue;
+		}
+		const name = cleanName(stack.name);
+		groups.push({ name, ids, ...(stack.named && name ? { named: true } : {}) });
+	}
+	if (groups.length === 0) return plan;
+
+	const box = boxOf(section, frame);
+	const grouped = groups.flatMap((group) => group.ids);
+	const boxes = grouped.map((id) => boxOf(id, shapes.get(id) as ShapeProps, sizeOf));
+	const left = Math.max(box.x + PLACE_GAP, Math.min(...boxes.map((b) => b.x)));
+	const top = Math.max(box.y + PLACE_GAP, Math.min(...boxes.map((b) => b.y)));
+	const column = STACK_SIZE.w + PLACE_GAP;
+	const inner = box.x + box.w - PLACE_GAP;
+	const right = Math.max(
+		left + STACK_SIZE.w,
+		Math.min(inner, Math.max(...boxes.map((b) => b.x + b.w), left + 3 * column - PLACE_GAP)),
+	);
+
+	// What stays: everything but what's being stacked, this section and those around it.
+	const around = new Set<string>();
+	for (let id: string | null | undefined = section; id; id = shapes.get(id)?.parent) {
+		if (around.has(id)) break;
+		around.add(id);
+	}
+	const taken = new Set(grouped);
+	const obstacles: Rect[] = [];
+	for (const [id, shape] of shapes) {
+		if (taken.has(id) || around.has(id) || shape.type === "connector") continue;
+		if (isStacked(shapes, id)) continue;
+		obstacles.push(boxOf(id, shape, sizeOf));
+	}
+	const clear = (rect: Rect) => {
+		const padded = {
+			x: rect.x - PLACE_GAP + 1,
+			y: rect.y - PLACE_GAP + 1,
+			w: rect.w + 2 * PLACE_GAP - 2,
+			h: rect.h + 2 * PLACE_GAP - 2,
+		};
+		return !obstacles.some((other) => intersects(padded, other));
+	};
+
+	let x = left;
+	let rowTop = top;
+	let rowHeight = 0;
+	const placed: Rect[] = [];
+	for (const group of groups) {
+		// At least what an unmeasured stack is assumed to take, as it will be until drawn.
+		const fits = stackSize(group.ids.length, nameLines(group.name));
+		const size = { w: fits.w, h: Math.max(fits.h, STACK_SIZE.h) };
+		for (;;) {
+			if (x + size.w > right && x > left) {
+				rowTop += rowHeight > 0 ? rowHeight + PLACE_GAP : PLACE_GAP;
+				x = left;
+				rowHeight = 0;
+			}
+			const rect = { x: Math.round(x), y: Math.round(rowTop), ...size };
+			x += column;
+			if (!clear(rect)) continue;
+			placed.push(rect);
+			obstacles.push(rect);
+			rowHeight = Math.max(rowHeight, size.h);
+			plan.stacks.push({ ...group, at: { x: rect.x, y: rect.y } });
+			break;
+		}
+	}
+
+	// Grow to keep them (growth.ts), as if they were there already, and the
+	// sections around it to keep it.
+	const withStacks = new Map(shapes);
+	const planned: [string, Rect][] = [];
+	placed.forEach((rect, i) => {
+		const id = `planned:${i}`;
+		withStacks.set(id, { type: "stack", x: rect.x, y: rect.y, z: "", parent: section });
+		planned.push([id, rect]);
+	});
+	plan.grow = planGrowth(withStacks, planned);
+	return plan;
+}
+
+/**
+ * Auto-stack a section: grow it as planned, then make the stacks inside
+ * it, as one transaction (call inside `transactLocal` for one undo step).
+ * What isn't in a stack stays where it is. Returns the new stacks' ids.
+ */
+export function applySectionGrouping(
+	doc: Y.Doc,
+	section: string,
+	proposal: readonly ProposedStack[],
+	sizeOf?: SizeOf,
+	newId?: () => string,
+): string[] {
+	let made: string[] = [];
+	doc.transact(() => {
+		const plan = planSectionGrouping(readShapes(doc), section, proposal, sizeOf);
+		// Grown for them first: a stack joins the section its centre lands in,
+		// so one planned past the bottom must find the section already there.
+		writeBoxes(doc, plan.grow);
+		made = applyGrouping(doc, plan.stacks, sizeOf, newId);
+		// And for them as they are (measured, where the board has).
+		growSections(doc, made, sizeOf);
 	});
 	return made;
 }

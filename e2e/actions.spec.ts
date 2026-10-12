@@ -463,8 +463,12 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
 	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
-	// 27, and Auto-stack's eight (#73): one with cards included, two of cards alone.
-	await expect(page.locator(".action-popover")).toHaveCount(35);
+	// 27, and Auto-stack's nine (#73): one with cards included, two of cards
+	// alone, and a section with more than it reads at once.
+	await expect(page.locator(".action-popover")).toHaveCount(36);
+	await expect(
+		page.getByRole("dialog", { name: "Auto-stack: A section with more than it reads at once" }),
+	).toContainText("Auto-stacking the first 60 of 84");
 	await expect(
 		page
 			.getByRole("dialog", { name: "Auto-stack: Cards included" })

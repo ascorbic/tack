@@ -1127,6 +1127,14 @@ button.stack-name:hover {
 	color: var(--muted);
 }
 
+/* Auto-stack on a section with more than it reads at once: which it's reading. */
+.group-first {
+	margin: 2px 0 10px;
+	color: var(--muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
 /* A card among a proposed stack's chips: its number, in its state's colour. */
 .group-chip-ref {
 	flex: none;

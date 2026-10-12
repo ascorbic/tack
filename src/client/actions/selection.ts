@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import type * as Y from "yjs";
 import type { Card, MissingCard } from "../../shared/cards.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
+import { shapesMap } from "../../shared/shapes.ts";
+import { sectionLoose } from "../../shared/stackEdits.ts";
+import { cleanText } from "../../shared/stacks.ts";
+import { readShapes } from "../../shared/structure.ts";
 import type { ShapeNode } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import type { CommandId } from "../shortcuts.ts";
@@ -67,6 +72,45 @@ export function useCards(keys: readonly string[]): Map<string, Entry> {
 		for (const key of joined ? joined.split("\n") : []) out.set(key, cardStore.get(key));
 		return out;
 	}, [joined, version]);
+}
+
+/** What Auto-stack would read in a section: its loose stickies with something on them, and cards. */
+export type SectionItem =
+	| { id: string; kind: "sticky"; text: string; color?: string }
+	| { id: string; kind: "card"; ref: string };
+
+/**
+ * A section's loose stickies (face up, with something written on them) and
+ * cards, in reading order, kept up to date as the board changes, for
+ * Auto-stack (#73): none for no section.
+ */
+export function useSectionItems(doc: Y.Doc, section: string | null): SectionItem[] {
+	const [key, setKey] = useState(() => (section ? sectionItems(doc, section) : "[]"));
+	useEffect(() => {
+		const read = () => setKey(section ? sectionItems(doc, section) : "[]");
+		read();
+		if (!section) return;
+		const shapes = shapesMap(doc);
+		shapes.observeDeep(read);
+		return () => shapes.unobserveDeep(read);
+	}, [doc, section]);
+	return useMemo(() => JSON.parse(key) as SectionItem[], [key]);
+}
+
+/** As JSON, so an unchanged section is an unchanged string. */
+function sectionItems(doc: Y.Doc, section: string): string {
+	const shapes = readShapes(doc);
+	const out: SectionItem[] = [];
+	for (const id of sectionLoose(shapes, section)) {
+		const shape = shapes.get(id);
+		if (shape?.type === "card" && typeof shape.ref === "string") {
+			out.push({ id, kind: "card", ref: shape.ref });
+		} else if (shape?.type === "sticky" && shape.silent === undefined) {
+			const text = shape.text ?? "";
+			if (cleanText(text)) out.push({ id, kind: "sticky", text, color: shape.color });
+		}
+	}
+	return JSON.stringify(out);
 }
 
 export function isCard(entry: Entry): entry is Card {

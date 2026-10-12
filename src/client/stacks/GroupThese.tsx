@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
-import { type ProposedStack, applyGrouping, planGrouping } from "../../shared/stackEdits.ts";
+import {
+	type ProposedStack,
+	applyGrouping,
+	applySectionGrouping,
+	planGrouping,
+} from "../../shared/stackEdits.ts";
+import { GROUP_LIMIT } from "../../shared/stackNaming.ts";
 import { cleanText, countMembers } from "../../shared/stacks.ts";
 import type { SizeOf } from "../../shared/sections.ts";
 import { readShapes } from "../../shared/structure.ts";
@@ -9,11 +15,14 @@ import { transactLocal } from "../undo.ts";
 import { type GroupAnswer, groupFailure, stackStore } from "./store.ts";
 import { SparkIcon } from "./StackNode.tsx";
 
-// Auto-stack (#73, `groupThese`): stacks the board's AI proposes for a selection of
-// stickies (and, if asked, the cards selected with them: "Include cards"),
-// or of issues and pull requests on their own, previewed before anything's
-// written. The board marks each proposed stack's stickies in its colour
-// while the panel's open
+// Auto-stack (#73, `groupThese`): stacks the board's AI proposes for a
+// selection of stickies (and, if asked, the cards selected with them:
+// "Include cards"), of issues and pull requests on their own, or of what's
+// loose in a section (`section`: its own stickies and cards, not what's
+// stacked or in a section inside it, the first GROUP_LIMIT of them), whose
+// stacks are laid out tidily inside it, growing it if they need the room.
+// It's all previewed before anything's written. The board marks each
+// proposed stack's stickies in its colour while the panel's open
 // (`stackStore.setProposal`); names can be changed (and are then a person's,
 // not a suggestion), stickies left out, stacks dropped, and the rest made in
 // one undo step. Nothing's sent to the model but the selected stickies'
@@ -50,6 +59,7 @@ export function GroupThese({
 	onClose,
 	preview,
 	initialCards = false,
+	section,
 }: {
 	doc: Y.Doc;
 	/** The selected stickies, as they read now. */
@@ -64,6 +74,11 @@ export function GroupThese({
 	preview?: GroupAnswer | "thinking";
 	/** For the gallery: Include cards already ticked. */
 	initialCards?: boolean;
+	/**
+	 * Auto-stacking a section: its title, and how many it has to read, of
+	 * which `stickies` and `cards` are the first GROUP_LIMIT. Cards are always in.
+	 */
+	section?: { id: string; title: string; total: number };
 }) {
 	const [answer, setAnswer] = useState<GroupAnswer | null>(null);
 	const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -75,15 +90,21 @@ export function GroupThese({
 		() => initialCards || stickies.filter((s) => cleanText(s.text)).length < 3,
 	);
 	const onlyCards = stickies.length === 0;
-	const cardsIn = onlyCards || withCards;
-	const askAboutCards = cards.length > 0 && !onlyCards;
+	const cardsIn = onlyCards || withCards || section !== undefined;
+	const askAboutCards = cards.length > 0 && !onlyCards && !section;
 	const items = useMemo<(StickyInfo | CardInfo)[]>(
 		() => (cardsIn ? [...stickies, ...cards] : [...stickies]),
 		[cardsIn, stickies, cards],
 	);
-	// The same selection is the same request, however often it's re-read.
-	const idsKey = items.map((item) => item.id).join(",");
-	const ids = useMemo(() => (idsKey ? idsKey.split(",") : []), [idsKey]);
+	// The same selection is the same request, however often it's re-read, and
+	// whatever order it reads in now (someone moving a sticky in a section).
+	const idsKey = items
+		.map((item) => item.id)
+		.sort()
+		.join(",");
+	// In the order they were first read: reading order, for a section.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- the same ids are the same request
+	const ids = useMemo(() => items.map((item) => item.id), [idsKey]);
 	const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
 	const cardIds = useMemo(() => new Set(cards.map((card) => card.id)), [cards]);
 
@@ -125,7 +146,9 @@ export function GroupThese({
 		const named = proposal.filter((draft) => draft.name.trim() || draft.named);
 		if (named.length === 0) return;
 		const made = transactLocal(doc, () =>
-			applyGrouping(doc, planGrouping(readShapes(doc), named, sizeOf), sizeOf),
+			section
+				? applySectionGrouping(doc, section.id, named, sizeOf)
+				: applyGrouping(doc, planGrouping(readShapes(doc), named, sizeOf), sizeOf),
 		);
 		stackStore.setProposal(null);
 		onMade(made, grouped);
@@ -137,14 +160,23 @@ export function GroupThese({
 			Auto-stack
 		</span>
 	);
+	const where = section ? ` in ${section.title ? `“${section.title}”` : "this section"}` : "";
+	// More than it asks about at once: say which.
+	const firstOf =
+		section && section.total > GROUP_LIMIT ? (
+			<p className="group-first">
+				Auto-stacking the first {GROUP_LIMIT} of {section.total}: the rest stay where they are.
+			</p>
+		) : null;
 
 	if (!answer) {
 		return (
 			<div className="group-these" aria-busy="true">
 				<PopoverHead
 					title={title}
-					detail={`Reading ${countMembers(items.map((item) => (cardIds.has(item.id) ? "card" : "sticky")))} for themes…`}
+					detail={`Reading ${countMembers(items.map((item) => (cardIds.has(item.id) ? "card" : "sticky")))}${where} for themes…`}
 				/>
+				{firstOf}
 				{askAboutCards && (
 					<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
 				)}
@@ -173,6 +205,7 @@ export function GroupThese({
 		return (
 			<div className="group-these">
 				<PopoverHead title={title} />
+				{firstOf}
 				{askAboutCards && (
 					<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
 				)}
@@ -210,9 +243,10 @@ export function GroupThese({
 				detail={
 					proposal.length === 0
 						? "No stacks left to make"
-						: `${proposal.length} ${proposal.length === 1 ? "stack" : "stacks"} of ${grouped}: change a name, or leave some out`
+						: `${proposal.length} ${proposal.length === 1 ? "stack" : "stacks"} of ${grouped}${where}: change a name, or leave some out`
 				}
 			/>
+			{firstOf}
 			{askAboutCards && (
 				<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
 			)}

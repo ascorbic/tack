@@ -260,6 +260,8 @@ const PANELS: {
 	cards?: boolean;
 	/** Issues and pull requests alone, no stickies. */
 	onlyCards?: boolean;
+	/** Auto-stacking a section, with this many loose in it. */
+	section?: number;
 }[] = [
 	{ label: "Reading the stickies", preview: "thinking" },
 	{
@@ -301,6 +303,18 @@ const PANELS: {
 		onlyCards: true,
 		preview: { ok: false, reason: "too_few", withheld: 4 },
 	},
+	{
+		label: "A section with more than it reads at once",
+		section: 84,
+		preview: {
+			ok: true,
+			stacks: [
+				{ name: "Hard-to-find docs", ids: ["a", "b", "c"] },
+				{ name: "Unreliable CI", ids: ["d", "e"] },
+				{ name: "Release notes", ids: ["#701", "#712"] },
+			],
+		},
+	},
 	{ label: "The model failed", preview: { ok: false, reason: "failed" } },
 	{ label: "Rate limited", preview: { ok: false, reason: "limited" } },
 ];
@@ -312,7 +326,7 @@ export function GroupTheseGallery() {
 		<section>
 			<h2>Auto-stack</h2>
 			<div className="gallery-grid actions-panels">
-				{PANELS.map(({ label, preview, cards, onlyCards }) => (
+				{PANELS.map(({ label, preview, cards, onlyCards, section }) => (
 					<figure key={label}>
 						<div
 							className="action-popover"
@@ -326,6 +340,11 @@ export function GroupTheseGallery() {
 								stickies={onlyCards ? [] : NOTES}
 								cards={onlyCards ? ONLY_CARDS : CARDS}
 								initialCards={cards}
+								section={
+									section
+										? { id: "section", title: "What should 5.0 fix?", total: section }
+										: undefined
+								}
 								preview={preview}
 								onMade={() => {}}
 								onClose={() => {}}

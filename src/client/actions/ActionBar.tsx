@@ -87,6 +87,7 @@ import {
 	reposOf,
 	repoName,
 	useCards,
+	useSectionItems,
 } from "./selection.ts";
 import {
 	type MetaState,
@@ -99,6 +100,7 @@ import {
 import { snapshotRegion as snapshotRegionFor } from "./snapshot.ts";
 import type { SizeOf } from "../../shared/sections.ts";
 import { spreadStack, stackSelection } from "../../shared/stackEdits.ts";
+import { GROUP_LIMIT } from "../../shared/stackNaming.ts";
 import { countMembers, membersOf, nameState, stackName } from "../../shared/stacks.ts";
 import { fitSection, readShapes } from "../../shared/structure.ts";
 import { GroupThese } from "../stacks/GroupThese.tsx";
@@ -187,12 +189,19 @@ export function ActionBar(props: ActionBarProps) {
 	/** Which button Tab lands on in the bar (a roving tab stop). */
 	const [current, setCurrent] = useState(0);
 
+	// A section on its own can be auto-stacked (#73): what's loose in it, and
+	// those cards' titles to show.
+	const autoSection =
+		selected.length === 1 && selected[0]?.data.shape.type === "section" ? selected[0].id : null;
+	const sectionItems = useSectionItems(doc, autoSection);
 	const keys = useMemo(
-		() =>
-			selected.flatMap((n) =>
+		() => [
+			...selected.flatMap((n) =>
 				n.data.shape.type === "card" && n.data.shape.ref ? [n.data.shape.ref] : [],
 			),
-		[selected],
+			...sectionItems.flatMap((item) => (item.kind === "card" ? [item.ref] : [])),
+		],
+		[selected, sectionItems],
 	);
 	const cardData = useCards(keys);
 	const kinds = useMemo(() => classify(selected, cardData), [selected, cardData]);
@@ -315,6 +324,19 @@ export function ActionBar(props: ActionBarProps) {
 				icon: <ParentIcon />,
 				text: onlySection || clustered ? "Make parent issue" : undefined,
 				unavailable: onlySection ? undefined : faceDown,
+			});
+		}
+		// A section on its own: its loose stickies and cards, all of them.
+		if (ai === true && autoSection) {
+			out.push({
+				id: "groupThese",
+				label: "Auto-stack: sort this section into named stacks",
+				icon: <SparkIcon />,
+				text: "Auto-stack",
+				unavailable:
+					sectionItems.length >= 3
+						? undefined
+						: "Auto-stack needs three or more stickies, issues or pull requests in this section that aren’t in a stack yet",
 			});
 		}
 		// A free-form section on its own fits to what's in it (lists and grids
@@ -503,6 +525,8 @@ export function ActionBar(props: ActionBarProps) {
 		repos,
 		metas,
 		ai,
+		autoSection,
+		sectionItems,
 	]);
 
 	/** Stickies to action items, in place: no panel, one undo step. */
@@ -859,7 +883,43 @@ export function ActionBar(props: ActionBarProps) {
 						onDone={close}
 					/>
 				) : null;
-			case "groupThese":
+			case "groupThese": {
+				if (autoSection) {
+					// The first GROUP_LIMIT, in reading order: the rest stay where they are.
+					const asked = sectionItems.slice(0, GROUP_LIMIT);
+					const title = sectionTitle(doc, autoSection);
+					return (
+						<GroupThese
+							doc={doc}
+							stickies={asked.flatMap((item) =>
+								item.kind === "sticky" ? [{ id: item.id, text: item.text, color: item.color }] : [],
+							)}
+							cards={asked.flatMap((item) => {
+								if (item.kind !== "card") return [];
+								const card = cardData.get(item.ref);
+								return [
+									{
+										id: item.id,
+										text: isCard(card) ? card.title : "",
+										ref: isCard(card) ? card.item : undefined,
+										state: isCard(card) ? card.state : undefined,
+									},
+								];
+							})}
+							section={{ id: autoSection, title, total: sectionItems.length }}
+							sizeOf={props.boxSize}
+							onClose={close}
+							onMade={(made, grouped) => {
+								setOpen(null);
+								store.getState().resetSelectedElements();
+								requestAnimationFrame(() => store.getState().addSelectedNodes(made));
+								toast(
+									`Made ${count(made.length, "stack")} of ${grouped} in ${title ? `“${title}”` : "the section"}`,
+								);
+							}}
+						/>
+					);
+				}
 				return (
 					<GroupThese
 						doc={doc}
@@ -887,6 +947,7 @@ export function ActionBar(props: ActionBarProps) {
 						}}
 					/>
 				);
+			}
 			case "carryOver": {
 				const items = openActionItems(
 					doc,

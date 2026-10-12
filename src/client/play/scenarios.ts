@@ -504,7 +504,7 @@ export const SCENARIOS: Record<string, Scenario> = {
 	stacks: {
 		name: "Stacks: theming a planning session",
 		description:
-			"Drag a sticky onto another and hold: they become a stack, named ✨ from what they say. Click a stack to spread it out (Esc gathers it), drag one out to take it back, or select a few stickies and Auto-stack them.",
+			"Drag a sticky onto another and hold: they become a stack, named ✨ from what they say. Click a stack to spread it out (Esc gathers it), drag one out to take it back, or select a few stickies (or the whole section) and Auto-stack them.",
 		seed: seedStacks,
 	},
 	lists: {
