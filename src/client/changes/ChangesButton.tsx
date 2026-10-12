@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { announce } from "../announce.tsx";
 import { useChangesUI } from "./context.ts";
-import { isInFlight, isPending } from "./describe.ts";
+import { changesForge, indexChanges, isInFlight, isPending } from "./describe.ts";
 import { OutboxIcon } from "./icons.tsx";
 import { useChangeList } from "./store.ts";
 
@@ -74,7 +74,7 @@ export function ChangesButton() {
 			data-open={ui.panelOpen || undefined}
 			data-pushing={pushing || undefined}
 			data-failed={failed || undefined}
-			data-tooltip="Changes staged for GitHub"
+			data-tooltip={`Changes staged for ${changesForge(changes, indexChanges(changes))}`}
 			data-tooltip-align="end"
 			onClick={() => ui.setPanelOpen(!ui.panelOpen)}
 		>

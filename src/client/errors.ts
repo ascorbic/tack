@@ -17,6 +17,13 @@ const IGNORED = [/^ResizeObserver loop/, /^Script error\.?$/];
 
 let sent = 0;
 const seen = new Set<string>();
+/** Off on pages with no Worker to report to: the public demo (#75). */
+let reporting = true;
+
+/** Never send reports from this page: errors still reach the console. */
+export function stopReporting(): void {
+	reporting = false;
+}
 
 interface Extra {
 	componentStack?: string;
@@ -25,6 +32,7 @@ interface Extra {
 }
 
 export function reportError(error: unknown, source: ErrorSource, extra: Extra = {}): void {
+	if (!reporting) return;
 	try {
 		const err = error instanceof Error ? error : null;
 		const message = err?.message ?? (typeof error === "string" ? error : safeString(error));

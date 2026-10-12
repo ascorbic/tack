@@ -50,7 +50,6 @@ const SYSTEM: Record<string, Actor> = {
 };
 
 export class SimulatedHistory implements HistorySource {
-	readonly store = new MemoryHistoryStore();
 	readonly log: HistoryLog;
 	mode: HistoryMode = "live";
 	/** The pretend server's clock: real time, unless a script is replaying the past. */
@@ -60,6 +59,8 @@ export class SimulatedHistory implements HistorySource {
 	constructor(
 		private readonly sim: Pick<SimulatedBoard, "doc" | "people">,
 		private readonly you: () => User,
+		/** What it's recorded already, e.g. kept in the browser by the public demo (#75). */
+		readonly store = new MemoryHistoryStore(),
 	) {
 		this.log = new HistoryLog({
 			doc: sim.doc,

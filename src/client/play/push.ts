@@ -84,6 +84,14 @@ const ERRORS = [
 let nextNumber = 520;
 
 /**
+ * Number what's created from now on after `n`: a board brought back from
+ * earlier (the public demo's, #75) may hold items numbered past 520 already.
+ */
+export function numberAfter(n: number): void {
+	nextNumber = Math.max(nextNumber, n + 1);
+}
+
+/**
  * Every playground repository's metadata, from the same fakes the
  * selection actions' pickers use (play/writes.ts), so the pretend push
  * server, the push sheet and the pickers agree. Repositories under

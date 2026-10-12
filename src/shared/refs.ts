@@ -111,13 +111,30 @@ export function forgeForHost(host: string): ForgeId | null {
 	return HOSTS.get(host.toLowerCase())?.forge ?? null;
 }
 
+/** Names a page gives forges' hosts in copy, over what the hosts are called (`nameForge`). */
+const NAMED = new Map<string, string>();
+
+/** Who copy names when nothing says which forge: GitHub, unless a page says otherwise. */
+let namedByDefault = DEFAULT_HOST;
+
+/**
+ * Call a forge's hosts something else in copy, for this page, and with
+ * `byDefault`, name it when nothing says which forge: the public demo's
+ * pretend forge is `the demo forge` (#75), and it's the only one there.
+ */
+export function nameForge(host: string, name: string, { byDefault = false } = {}): void {
+	NAMED.set(host.toLowerCase(), name);
+	if (byDefault) namedByDefault = host.toLowerCase();
+}
+
 /**
  * What to call a forge in copy, by its host: `GitHub`, `GitLab`, `the test
  * forge`, or a self-hosted instance's name or host. Mid-sentence; see
  * `sentenceCase`.
  */
 export function forgeName(host: string): string {
-	return HOSTS.get(host.toLowerCase())?.name ?? host.toLowerCase();
+	const lower = host.toLowerCase();
+	return NAMED.get(lower) ?? HOSTS.get(lower)?.name ?? lower;
 }
 
 /**
@@ -132,7 +149,7 @@ export function forgeNameOf(keys: Iterable<string>): string {
 		if (host) hosts.add(host);
 	}
 	const names = [...hosts].map(forgeName).sort();
-	if (names.length === 0) return forgeName(DEFAULT_HOST);
+	if (names.length === 0) return forgeName(namedByDefault);
 	if (names.length <= 2) return names.join(" and ");
 	return "their forges";
 }
