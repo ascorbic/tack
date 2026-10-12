@@ -105,6 +105,9 @@ interface CommandsOptions {
 	addCards?: (keys: string[], options: { at: Position }) => { added: string[] };
 }
 
+/** How much each step in or out zooms by: React Flow's own step. */
+const ZOOM_STEP = 1.2;
+
 /** Commands that change the document, which view-only boards ignore. */
 const WRITES =
 	/^(undo|redo|duplicate|delete|nudge|align|distribute|tidy|makeIssues|parentIssue|labels|milestone|assign|closeReopen|backlink|blockedBy|expandRelated|toActions|carryOver|stackThese|groupThese|unstack|fitSection|summarise|draftDecision)/;
@@ -123,6 +126,8 @@ export function useCanvasCommands(options: CommandsOptions) {
 	} | null>(null);
 	const lastPaste = useRef<{ key: string; count: number } | null>(null);
 	const lastDuplicate = useRef<{ sources: string[]; copies: string[] } | null>(null);
+	/** Where a step in or out is zooming to, until it gets there. */
+	const zoomGoal = useRef<{ zoom: number; until: number } | null>(null);
 
 	const { doc, history } = options;
 
@@ -527,11 +532,20 @@ export function useCanvasCommands(options: CommandsOptions) {
 					arrange((items) => clearOfOthers(tidy(items), items));
 					return true;
 				case "zoomIn":
-					void flow.zoomIn(zoomOptions);
+				case "zoomOut": {
+					// A step from where the last step is heading, so steps in
+					// quick succession (clicking Zoom out four times) add up,
+					// rather than each starting from partway through the last.
+					const { transform, minZoom, maxZoom } = store.getState();
+					const now = performance.now();
+					const goal = zoomGoal.current;
+					const from = goal && now < goal.until ? goal.zoom : transform[2];
+					const step = id === "zoomIn" ? ZOOM_STEP : 1 / ZOOM_STEP;
+					const zoom = Math.min(maxZoom, Math.max(minZoom, from * step));
+					zoomGoal.current = { zoom, until: now + zoomOptions.duration };
+					void flow.zoomTo(zoom, zoomOptions);
 					return true;
-				case "zoomOut":
-					void flow.zoomOut(zoomOptions);
-					return true;
+				}
 				case "zoomTo100":
 					void flow.zoomTo(1, zoomOptions);
 					return true;
