@@ -431,10 +431,7 @@ export function StackName({
 						start();
 					}}
 				>
-					<span className="stack-name-text">
-						{text}
-						{state === "suggested" && <SparkMark />}
-					</span>
+					<NameText text={text} suggested={state === "suggested"} />
 					{state === "none" && !waiting && <PencilIcon />}
 				</button>
 			) : (
@@ -443,10 +440,7 @@ export function StackName({
 					data-state={state}
 					data-waiting={(state === "none" && waiting) || undefined}
 				>
-					<span className="stack-name-text">
-						{text}
-						{state === "suggested" && <SparkMark />}
-					</span>
+					<NameText text={text} suggested={state === "suggested"} />
 				</span>
 			)}
 			{suggestion && editable && (
@@ -463,6 +457,21 @@ export function StackName({
 					<CheckIcon />
 				</button>
 			)}
+		</span>
+	);
+}
+
+/** A name, a suggestion's spark kept with its last word so it never wraps onto a line alone. */
+function NameText({ text, suggested }: { text: string; suggested: boolean }) {
+	if (!suggested) return <span className="stack-name-text">{text}</span>;
+	const cut = text.lastIndexOf(" ");
+	return (
+		<span className="stack-name-text">
+			{cut > 0 && text.slice(0, cut + 1)}
+			<span className="stack-name-last">
+				{text.slice(cut + 1)}
+				<SparkMark />
+			</span>
 		</span>
 	);
 }

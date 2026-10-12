@@ -336,6 +336,19 @@ button.stack-name:hover {
 	stroke-linejoin: round;
 }
 
+/* On the theme card it floats at the end of the name's line rather than
+   taking room from it, so a name wraps the same whether it shows or not. */
+.stack-name-row[data-headline] {
+	position: relative;
+}
+
+.stack-name-row[data-headline] .stack-accept {
+	position: absolute;
+	top: 1px;
+	right: 0;
+	box-shadow: -6px 0 8px 2px var(--surface);
+}
+
 .react-flow__node:hover .stack-accept,
 .stack[data-selected] .stack-accept,
 .stack-tray .stack-accept,
@@ -1030,6 +1043,11 @@ button.stack-name:hover {
 	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
+/* Room for the papers peeking out below, before the caption. */
+.gallery-grid.stacks .stack {
+	margin-bottom: 14px;
+}
+
 .gallery-stack-open {
 	grid-column: 1 / -1;
 }
@@ -1079,4 +1097,9 @@ button.stack-name:hover {
 
 .group-chip[data-state="draft"] .group-chip-ref {
 	color: var(--closed);
+}
+
+/* A suggestion's last word and its spark wrap together. */
+.stack-name-last {
+	white-space: nowrap;
 }
