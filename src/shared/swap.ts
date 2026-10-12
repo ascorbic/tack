@@ -154,7 +154,8 @@ function grow(
 export function makeRoomForCards(doc: Y.Doc, stickies: Iterable<string>, sizeOf?: SizeOf): number {
 	const list = [...stickies];
 	// A stack whose stickies are becoming cards spreads out where it is
-	// first (#73): cards don't stack, and they'd all land on one spot.
+	// first (#73), so the new issues land where people can see them, under
+	// their parent, rather than in a stack nobody opened.
 	const before = readShapes(doc);
 	const spreading = new Set(list.flatMap((id) => stackOf(before, id) ?? []));
 	for (const stack of spreading) spreadStack(doc, stack, sizeOf);
