@@ -250,6 +250,8 @@ interface BoardProps extends BoardSource {
 	 * open there next time (as long as something's still there to see).
 	 */
 	rememberView?: string;
+	/** Where the brand in the top bar goes, e.g. the docs site's home from the public demo. */
+	home?: { href: string; label: string };
 }
 
 export function Board({
@@ -271,6 +273,7 @@ export function Board({
 	historySource = null,
 	fitOnLoad = false,
 	rememberView,
+	home,
 }: BoardProps) {
 	// History (#47): while it's open the canvas shows the board as it was, view only.
 	const replay = useHistoryMode(liveDoc, historySource);
@@ -1625,6 +1628,7 @@ export function Board({
 					>
 						<SkipToBoard onSkip={() => canvas.current?.focus()} />
 						<TopBar
+							home={home}
 							title={
 								<>
 									{title ?? <span className="board-name">{name}</span>}

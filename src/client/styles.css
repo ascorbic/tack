@@ -464,6 +464,11 @@ textarea {
 	line-height: 1;
 }
 
+a.brand {
+	color: inherit;
+	text-decoration: none;
+}
+
 /* The mark: a sticky pinned with a tack. On hover the tack lifts and the
    note swings on it. */
 .brand-mark {

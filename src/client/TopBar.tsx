@@ -12,11 +12,14 @@ export function TopBar({
 	people,
 	tools,
 	actions,
+	home = { href: "/", label: "Tack: all boards" },
 }: {
 	title: ReactNode;
 	people: ReactNode;
 	tools: ReactNode;
 	actions: ReactNode;
+	/** Where the brand goes, and what it's called: the home page with every board. */
+	home?: { href: string; label: string };
 }) {
 	const [open, setOpen] = useState(false);
 	const toolsId = useId();
@@ -54,7 +57,7 @@ export function TopBar({
 
 	return (
 		<header className="topbar board-bar">
-			<a className="brand" href="/" aria-label="Tack: all boards">
+			<a className="brand" href={home.href} aria-label={home.label}>
 				<BrandMark />
 				<span className="brand-word">tack</span>
 			</a>
