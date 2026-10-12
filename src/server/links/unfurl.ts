@@ -2,6 +2,7 @@
 // both through `guardedFetch` (guard.ts). No Worker APIs here beyond `fetch`,
 // so the tests run it in Node with fakes.
 
+import { sniffImage as sniffRaster } from "../../shared/images.ts";
 import type { LinkPreview } from "../../shared/linkPreview.ts";
 import { cleanField, LINK_LIMITS } from "../../shared/linkPreview.ts";
 import { type GuardOptions, type Resolver, guardedFetch, readCapped } from "./guard.ts";
@@ -80,18 +81,15 @@ export type ImageType =
 /**
  * What an image really is, from its first bytes (never what the server
  * said: anything that isn't one of these isn't passed on, so nothing but an
- * image can come from the instance's origin this way).
+ * image can come from the instance's origin this way). Raster formats are
+ * read as board images' files are (`sniffImage` in shared/images.ts); icons
+ * and SVG, which boards never store, only here.
  */
 export function sniffImage(bytes: Uint8Array): ImageType | null {
+	const raster = sniffRaster(bytes);
+	if (raster) return raster;
 	const at = (offset: number, ...values: number[]) =>
 		values.every((value, i) => bytes[offset + i] === value);
-	const ascii = (offset: number, text: string) =>
-		at(offset, ...Array.from({ length: text.length }, (_, i) => text.charCodeAt(i)));
-	if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
-	if (at(0, 0xff, 0xd8, 0xff)) return "image/jpeg";
-	if (ascii(0, "GIF87a") || ascii(0, "GIF89a")) return "image/gif";
-	if (ascii(0, "RIFF") && ascii(8, "WEBP")) return "image/webp";
-	if (ascii(4, "ftyp") && (ascii(8, "avif") || ascii(8, "avis"))) return "image/avif";
 	if (at(0, 0, 0, 1, 0) || at(0, 0, 0, 2, 0)) return "image/x-icon";
 	const start = new TextDecoder().decode(bytes.subarray(0, 1024)).replace(/^﻿/, "").trimStart();
 	if (
