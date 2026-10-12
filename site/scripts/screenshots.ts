@@ -170,6 +170,9 @@ const SHOTS: Shot[] = [
 // browser is WebKit).
 const { defaultBrowserType: _browser, ...PHONE } = devices["iPhone 13"];
 
+/** Who you are on the board: a guest's name, as the app makes them up. */
+const YOU = JSON.stringify({ name: "Curious Otter", color: "#267bb2" });
+
 /** Hide the playground's own controls: the screenshots show the board as people see it. */
 const HIDE_PLAYGROUND = `
 	[aria-label="Playground controls"] { display: none !important; }
@@ -209,6 +212,8 @@ for (const shot of SHOTS) {
 			colorScheme: theme,
 			reducedMotion: "reduce",
 		});
+		// You're the same made-up guest in every shot, not a new random one.
+		await context.addInitScript((user) => localStorage.setItem("tack:user", user), YOU);
 		const page = await context.newPage();
 		await page.goto(new URL(shot.url, base).href);
 		await page.addStyleTag({ content: HIDE_PLAYGROUND });
