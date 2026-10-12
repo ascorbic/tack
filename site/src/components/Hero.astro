@@ -18,6 +18,9 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 		</p>
 		<h1 id="_top" data-page-title set:html={title} />
 		{tagline && <p class="tk-tagline" set:html={tagline} />}
+		<p id="tk-forges" class="tk-footnote">
+			<span aria-hidden="true">*</span> Or <a href="/self-hosting/forges/">GitLab, Codeberg or Tangled</a>.
+		</p>
 		{
 			actions.length > 0 && (
 				<div class="tk-actions">
@@ -30,9 +33,6 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 			)
 		}
 		<CopyPrompt class="tk-hero-prompt" />
-		<p id="tk-forges" class="tk-footnote">
-			<span aria-hidden="true">*</span> Or <a href="/self-hosting/forges/">GitLab, Codeberg or Tangled</a>.
-		</p>
 	</div>
 
 	<div class="tk-hero-board">
@@ -130,8 +130,9 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 		text-decoration: none;
 	}
 
+	/* Under the description it qualifies, before the ways in. */
 	.tk-footnote {
-		margin: -0.35rem 0 0;
+		margin: -0.5rem 0 0.25rem;
 		font-size: var(--sl-text-sm);
 		color: var(--tk-ink-soft);
 	}
