@@ -5,9 +5,9 @@
 // Editors only (what it drafts is for them to place), when AI is on for the
 // instance (`TACK_AI`, and the `AI` binding), within the board's budget
 // (src/server/ai/limits.ts). The board's object reads what the model may
-// (src/server/ai/board.ts); this asks the model and checks its answer:
-// a widget's config strictly against its kind's schema, asking again once if
-// it doesn't check out. Nothing here writes anything, to the board or the
+// (src/server/ai/board.ts); this asks the model and checks its answer
+// (src/server/ai/draft.ts): a widget's config strictly against its kind's
+// schema, asking again once if it doesn't check out. Nothing here writes anything, to the board or the
 // forge: answers go back to the person who asked, to preview and place.
 // Prompts, board content and answers are never logged.
 
@@ -17,28 +17,15 @@ import {
 	type AiError,
 	type AiErrorReason,
 	AiRequestSchema,
-	type ChatMessage,
-	type AiResponse,
-	DECISION_FORMAT,
-	SUMMARY_FORMAT,
 	aiError,
-	checkWidget,
-	decisionMessages,
-	readDecision,
-	readSummary,
-	retryMessages,
-	summaryMessages,
-	widgetFormat,
-	widgetMessages,
 } from "../../shared/ai.ts";
 import { BOARD_ID, canEdit } from "../../shared/boards.ts";
-import { draftDecision, proposeWidget, summarise } from "../../shared/fakeBoardAi.ts";
 import { json } from "../auth/http.ts";
 import { visitorFor } from "../boards/http.ts";
 import { log } from "../log.ts";
 import { boards, directory } from "../namespaces.ts";
 import { aiStatus } from "../ai.ts";
-import { type Answer, ask } from "./model.ts";
+import { type Drafted, draft } from "./draft.ts";
 
 /** Bodies bigger than this aren't read. */
 const MAX_BODY = 32_000;
@@ -105,36 +92,13 @@ export async function handleAi(request: Request, env: Env): Promise<Response | n
 
 	const started = Date.now();
 	const context = { board, task: input.task, model: status.model, login: user?.login };
-	let response: AiResponse;
-	let attempts = 1;
+	let drafted: Drafted;
 	if (prepared.task === "widget" && input.task === "widget") {
-		const messages = widgetMessages(input.prompt, prepared.context);
-		const format = widgetFormat();
-		const asking = (turns: ChatMessage[]): Promise<Answer> =>
-			fake
-				? Promise.resolve(made(proposeWidget(input.prompt, prepared.context)))
-				: ask(env, turns, format);
-		let answer = await asking(messages);
-		let check = answer.ok ? checkWidget(answer.value, { host: prepared.context.host }) : null;
-		// Asked again once, told what was wrong, when the answer didn't check out.
-		if (!check?.ok) {
-			attempts = 2;
-			const problems = check && !check.ok ? check.problems : ["That wasn't a JSON object."];
-			answer = await asking(
-				answer.ok || answer.text
-					? retryMessages(messages, answer.ok ? answer.text : (answer.text ?? ""), problems)
-					: messages,
-			);
-			check = answer.ok ? checkWidget(answer.value, { host: prepared.context.host }) : null;
-		}
-		response = check?.ok
-			? {
-					kind: "widget",
-					widget: check.widget,
-					config: check.config,
-					explanation: check.explanation,
-				}
-			: failure(answer.ok || answer.error === "unparseable" ? "unusable" : "failed", answer);
+		drafted = await draft(
+			env,
+			{ task: "widget", prompt: input.prompt, context: prepared.context },
+			{ fake },
+		);
 	} else if (prepared.task !== "widget") {
 		if (prepared.items.length === 0) {
 			log.info("ai.refused", { ...context, reason: "empty", leftOut: prepared.leftOut });
@@ -150,37 +114,18 @@ export async function handleAi(request: Request, env: Env): Promise<Response | n
 				{ status: AI_ERROR_STATUS.empty },
 			);
 		}
-		const summary = input.task === "summary";
-		const messages = summary
-			? summaryMessages(prepared.items)
-			: decisionMessages(prepared.items, input.task === "decision" ? input.prompt : undefined);
-		const about = input.task === "decision" ? input.prompt : undefined;
-		const asking = (): Promise<Answer> =>
-			fake
-				? Promise.resolve(
-						made(summary ? summarise(prepared.items) : draftDecision(prepared.items, about)),
-					)
-				: ask(env, messages, summary ? SUMMARY_FORMAT : DECISION_FORMAT);
-		let answer = await asking();
-		let read = answer.ok
-			? summary
-				? readSummary(answer.value)
-				: readDecision(answer.value)
-			: null;
-		if (!read && answer.ok) {
-			attempts = 2;
-			answer = await asking();
-			read = answer.ok ? (summary ? readSummary(answer.value) : readDecision(answer.value)) : null;
-		}
-		const extra = { read: prepared.items.length, leftOut: prepared.leftOut };
-		response = !read
-			? failure(answer.ok || answer.error === "unparseable" ? "unusable" : "failed", answer)
-			: summary
-				? { kind: "summary", ...(read as ReturnType<typeof readSummary> & object), ...extra }
-				: { kind: "decision", ...(read as ReturnType<typeof readDecision> & object), ...extra };
+		const { items, leftOut } = prepared;
+		drafted = await draft(
+			env,
+			input.task === "decision"
+				? { task: "decision", items, leftOut, prompt: input.prompt }
+				: { task: "summary", items, leftOut },
+			{ fake },
+		);
 	} else {
 		return refuse("invalid", { board });
 	}
+	const { response, attempts } = drafted;
 
 	const ms = Date.now() - started;
 	if (response.kind === "error") {
@@ -196,16 +141,6 @@ export async function handleAi(request: Request, env: Env): Promise<Response | n
 			: { read: response.read, leftOut: response.leftOut }),
 	});
 	return Response.json(response, { headers: { "cache-control": "no-store" } });
-}
-
-/** The stand-in's answer, as the model's would come back. */
-function made(value: unknown): Answer {
-	return { ok: true, value, text: JSON.stringify(value), ms: 0 };
-}
-
-function failure(reason: "unusable" | "failed", answer: Awaited<ReturnType<typeof ask>>): AiError {
-	if (!answer.ok && answer.cause) log.warn("ai.model.failed", { error: answer.cause });
-	return aiError(reason);
 }
 
 function refuse(
