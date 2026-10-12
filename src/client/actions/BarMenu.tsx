@@ -9,15 +9,15 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { BarAnchorContext } from "./Popover.tsx";
+import { BarAnchorContext, chromeWithin } from "./Popover.tsx";
 
 // A small menu that opens from a button in a bar: a section's colour, a
 // list's sort, and what didn't fit in the bar ("…"). It hangs from its
 // button on the side its bar's panels open (`BarAnchorContext`: away from
 // the edge of the view the bar is at), lined up with the button and kept on
-// screen. Inside the bar, it's above every shape and follows the board with
-// it. Arrow keys move through it, Escape goes back to its button, and a
-// click anywhere else closes it.
+// screen, clear of the chrome over the canvas. Inside the bar, it's above
+// every shape and follows the board with it. Arrow keys move through it,
+// Escape goes back to its button, and a click anywhere else closes it.
 
 const MENU_ITEM = "[role^='menuitem']:not([aria-disabled='true'])";
 
@@ -70,11 +70,22 @@ export function MenuButton({
 		if (!open || !el) return;
 		el.dataset.side = side;
 		el.dataset.align = "start";
-		const rect = el.getBoundingClientRect();
 		const margin = 8;
+		const rect = el.getBoundingClientRect();
 		if (rect.right > window.innerWidth - margin) el.dataset.align = "end";
-		if (side === "below" && rect.bottom > window.innerHeight - margin) el.dataset.side = "above";
-		if (side === "above" && rect.top < margin) el.dataset.side = "below";
+		// Off screen, or under the chrome over the canvas (the minimap, the
+		// tool dock): the other side of its button, if that's on screen.
+		const blocked = () => {
+			const r = el.getBoundingClientRect();
+			const off = r.top < margin || r.bottom > window.innerHeight - margin;
+			const box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+			return off || chromeWithin(box, [el]).length > 0;
+		};
+		if (blocked()) {
+			el.dataset.side = side === "below" ? "above" : "below";
+			const r = el.getBoundingClientRect();
+			if (r.top < margin || r.bottom > window.innerHeight - margin) el.dataset.side = side;
+		}
 	}, [open, side]);
 
 	useEffect(() => {
