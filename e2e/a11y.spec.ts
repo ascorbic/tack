@@ -131,6 +131,18 @@ for (const scheme of ["light", "dark"] as const) {
 			});
 		});
 
+		test("the public demo, its guide and its note", async ({ page }) => {
+			await page.goto("/play/try?scenario=retro");
+			await expect(page.locator(".react-flow__renderer")).toBeVisible();
+			await settleCanvas(page);
+			await expect(page.locator(".try-coach")).toBeVisible();
+			await page.getByRole("button", { name: /This is a demo/ }).click();
+			await page.getByRole("button", { name: /^Demo/ }).click();
+			await expect(page.getByRole("menu", { name: "Boards to try" })).toBeVisible();
+			await page.waitForTimeout(500);
+			await expectAccessible(page);
+		});
+
 		test("home page and a board, signed in", async ({ page }) => {
 			const login = `e2e-a11y-${scheme}-${run}`;
 			await page.goto(`/auth/dev?login=${login}&return_to=/`);
