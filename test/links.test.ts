@@ -11,7 +11,10 @@ import {
 	needsUnfurl,
 	readPreview,
 } from "../src/shared/links.ts";
-import { addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
+import { type ShapeProps, addShape, readShape, shapesMap } from "../src/shared/shapes.ts";
+import { collectItems } from "../src/shared/aiContext.ts";
+import { describeShape } from "../src/shared/a11y.ts";
+import { countMembers, namingTexts } from "../src/shared/stacks.ts";
 import { PreviewCache, type ResponseStore } from "../src/server/links/cache.ts";
 import {
 	type Resolver,
@@ -676,6 +679,30 @@ describe("link shapes", () => {
 				},
 			}),
 		).toEqual({ title: "Unpic", description: "Images", host: "Unpic" });
+	});
+
+	it("are read as text by AI and stack names, and named for screen readers", () => {
+		const link: ShapeProps = {
+			type: "link",
+			x: 0,
+			y: 0,
+			z: "a0",
+			url: "https://unpic.pics/",
+			preview: {
+				status: "ok",
+				title: "Unpic",
+				description: "Responsive images",
+				fetchedAt: "2026-10-12T10:00:00Z",
+			},
+		};
+		const shapes = new Map<string, ShapeProps>([["l", link]]);
+		expect(collectItems(shapes, ["l"], () => null).items).toEqual([
+			{ kind: "text", text: "Link: Unpic — Responsive images (unpic.pics)" },
+		]);
+		expect(namingTexts(shapes, ["l"])).toEqual(["Unpic: Responsive images"]);
+		expect(describeShape("l", link)).toBe("Unpic, unpic.pics");
+		expect(countMembers(["link", "link"])).toBe("2 links");
+		expect(countMembers(["link", "sticky"])).toBe("2 items");
 	});
 
 	it("name the images the proxy may fetch for them", () => {
