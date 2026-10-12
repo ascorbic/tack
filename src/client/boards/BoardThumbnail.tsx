@@ -175,6 +175,56 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 				</g>
 			);
 		}
+		case "link": {
+			// A link card: its site's tint where the picture is, the site's
+			// tile on it, then its title. Neutral for a page that couldn't be read.
+			const band = height * 0.43;
+			const rr = Math.min(r, band / 2);
+			const line = Math.max(1, (height - band) * 0.1);
+			const tile = Math.min(band * 0.5, width * 0.16);
+			const hue = Number(tone);
+			return (
+				<g
+					className="thumb-link"
+					data-unread={tone === "" || undefined}
+					style={
+						tone !== "" && Number.isFinite(hue)
+							? ({ "--thumb-link-hue": hue } as React.CSSProperties)
+							: undefined
+					}
+				>
+					<rect className="thumb-card" x={x} y={y} width={width} height={height} rx={r} />
+					<path
+						className="thumb-link-band"
+						d={`M${x} ${y + band}V${y + rr}a${rr} ${rr} 0 0 1 ${rr} ${-rr}h${width - rr * 2}a${rr} ${rr} 0 0 1 ${rr} ${rr}V${y + band}z`}
+					/>
+					<rect
+						className="thumb-link-tile"
+						x={x + width / 2 - tile / 2}
+						y={y + band / 2 - tile / 2}
+						width={tile}
+						height={tile}
+						rx={tile * 0.26}
+					/>
+					<rect
+						className="thumb-line"
+						x={x + width * 0.08}
+						y={y + band + (height - band) * 0.22}
+						width={width * 0.78}
+						height={line}
+						rx={line / 2}
+					/>
+					<rect
+						className="thumb-line"
+						x={x + width * 0.08}
+						y={y + band + (height - band) * 0.44}
+						width={width * 0.52}
+						height={line}
+						rx={line / 2}
+					/>
+				</g>
+			);
+		}
 		case "text": {
 			const lines = Math.max(1, Math.min(6, Number(tone) || 1));
 			const gap = height / lines;

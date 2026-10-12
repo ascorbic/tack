@@ -12,6 +12,7 @@ import {
 	type ThumbnailKind,
 	type ThumbnailShape,
 } from "./boards.ts";
+import { LINK_CARD, linkHue, readPreview } from "./linkPreview.ts";
 import { stackSize } from "./stacks.ts";
 import { shapesMap } from "./shapes.ts";
 
@@ -21,6 +22,8 @@ const ACTION = { width: 296, height: 104 };
 const WIDGET = { width: 360, height: 440 };
 const DECISION = { width: 320, height: 230 };
 const STICKY = 176;
+/** A link card without a picture: the band, and a line or two of title. */
+const LINK_BANDED = { width: LINK_CARD.w, height: 176 };
 const TEXT_SIZES: Record<string, number> = { s: 14, m: 20, l: 34, xl: 56 };
 const TEXT_MAX_WIDTH = 520;
 
@@ -58,9 +61,12 @@ function stackBox(
 	return { kind: "stack", x, y, width: size.w, height: size.h, tone: top?.color ?? "" };
 }
 
-/** A sticky or card that says it's in a stack. */
+/** A sticky, card or link card that says it's in a stack. */
 function isMember(shape: Record<string, unknown>): boolean {
-	return (shape.type === "sticky" || shape.type === "card") && typeof shape.stack === "string";
+	return (
+		(shape.type === "sticky" || shape.type === "card" || shape.type === "link") &&
+		typeof shape.stack === "string"
+	);
 }
 
 /**
@@ -162,6 +168,21 @@ function shapeBox(props: Record<string, unknown>, cardTone: (ref: string) => str
 			return { kind: "action", x, y, ...(sized ?? ACTION), tone: props.done ? "done" : "" };
 		case "decision":
 			return { kind: "card", x, y, ...(sized ?? DECISION), tone: "" };
+		case "link": {
+			// A link card's tone is its site's hue, for the tint where its
+			// picture is; empty for a page that couldn't be read, drawn neutral.
+			const preview = readPreview(props.preview);
+			const url = typeof props.url === "string" ? props.url : "";
+			const unread = preview?.status === "failed" || preview?.status === "blocked";
+			const size = preview?.image ? { width: LINK_CARD.w, height: LINK_CARD.h } : LINK_BANDED;
+			return {
+				kind: "link",
+				x,
+				y,
+				...(sized ?? size),
+				tone: url && !unread ? String(linkHue(url)) : "",
+			};
+		}
 		case "section":
 		case "frame":
 			return sized

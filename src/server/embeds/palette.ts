@@ -138,3 +138,54 @@ const DARK: Palette = {
 export function palette(theme: EmbedTheme): Palette {
 	return theme === "dark" ? DARK : LIGHT;
 }
+
+/** A link card's tint, as `links.css` mixes it from the site's hue. */
+export interface LinkTint {
+	/** Behind the band, and the small icon's tile. */
+	tint: string;
+	/** The two soft glows over it. */
+	deep: string;
+	/** The site's initial. */
+	ink: string;
+}
+
+/**
+ * The tint where a link card's picture would be: the site's hue, as
+ * `--link-tint`, `--link-tint-deep` and `--link-tint-ink` mix it, or the
+ * neutral well and chip for a page that couldn't be read. As hex, which
+ * every part of the renderer certainly reads.
+ */
+export function linkTint(hue: number | null, theme: EmbedTheme): LinkTint {
+	const dark = theme === "dark";
+	if (hue === null) {
+		return dark
+			? { tint: "#141518", deep: "#2b2e33", ink: "#a0a6ae" }
+			: { tint: "#efede7", deep: "#f1efea", ink: "#5a5f66" };
+	}
+	return dark
+		? { tint: hsl(hue, 26, 22), deep: hsl(hue + 38, 30, 17), ink: hsl(hue, 62, 82) }
+		: { tint: hsl(hue, 62, 93), deep: hsl(hue + 38, 70, 87), ink: hsl(hue, 48, 30) };
+}
+
+function hsl(hue: number, saturation: number, lightness: number): string {
+	const h = (((hue % 360) + 360) % 360) / 360;
+	const s = saturation / 100;
+	const l = lightness / 100;
+	const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+	const p = 2 * l - q;
+	const channel = (t: number) => {
+		const u = t < 0 ? t + 1 : t > 1 ? t - 1 : t;
+		const v =
+			u < 1 / 6
+				? p + (q - p) * 6 * u
+				: u < 1 / 2
+					? q
+					: u < 2 / 3
+						? p + (q - p) * (2 / 3 - u) * 6
+						: p;
+		return Math.round(v * 255)
+			.toString(16)
+			.padStart(2, "0");
+	};
+	return `#${channel(h + 1 / 3)}${channel(h)}${channel(h - 1 / 3)}`;
+}

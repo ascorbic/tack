@@ -640,6 +640,30 @@
 	opacity: 0.5;
 }
 
+/* A link card: its site's tint where the picture is (as links.css mixes it), and a tile on it. */
+.thumb-link {
+	--thumb-link-tint: hsl(var(--thumb-link-hue, 220) 62% 90%);
+}
+
+[data-theme="dark"] .thumb-link {
+	--thumb-link-tint: hsl(var(--thumb-link-hue, 220) 26% 24%);
+}
+
+.thumb-link[data-unread] {
+	--thumb-link-tint: var(--chip);
+}
+
+.thumb-link-band {
+	fill: var(--thumb-link-tint);
+}
+
+.thumb-link-tile {
+	fill: var(--surface);
+	stroke: var(--line-strong);
+	stroke-width: 1;
+	vector-effect: non-scaling-stroke;
+}
+
 .board-thumb-empty {
 	width: 56px;
 	height: 56px;

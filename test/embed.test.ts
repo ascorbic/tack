@@ -23,6 +23,7 @@ import {
 	parseEmbedQuery,
 	previewFrame,
 } from "../src/shared/embed.ts";
+import { linkHue } from "../src/shared/linkPreview.ts";
 import type { ShapeProps } from "../src/shared/shapes.ts";
 
 const PUBLIC_KEY = "github.com/ascorbic/cirrus#12";
@@ -102,6 +103,56 @@ function board(): Map<string, ShapeProps> {
 				label: "blocks",
 			} as ShapeProps,
 		],
+	]);
+}
+
+const READ_AT = "2026-10-01T00:00:00Z";
+
+/** Link cards in each state: read with a picture, couldn't be read, won't be, and not read yet. */
+function links(): Map<string, ShapeProps> {
+	return new Map<string, ShapeProps>([
+		[
+			"l1",
+			{
+				type: "link",
+				x: 0,
+				y: 0,
+				z: "a1",
+				url: "https://unpic.pics/img",
+				preview: {
+					status: "ok",
+					title: "Unpic: responsive images, the easy way 🖼️",
+					description: "A library for high-performance responsive images.",
+					siteName: "Unpic",
+					image: "https://unpic.pics/og.png",
+					icon: "https://unpic.pics/favicon.svg",
+					fetchedAt: READ_AT,
+				},
+			},
+		],
+		[
+			"l2",
+			{
+				type: "link",
+				x: 300,
+				y: 0,
+				z: "a2",
+				url: "https://github.com/ascorbic/cirrus/wiki",
+				preview: { status: "failed", fetchedAt: READ_AT },
+			},
+		],
+		[
+			"l3",
+			{
+				type: "link",
+				x: 600,
+				y: 0,
+				z: "a3",
+				url: "http://10.0.0.1/admin",
+				preview: { status: "blocked", fetchedAt: READ_AT },
+			},
+		],
+		["l4", { type: "link", x: 0, y: 400, z: "a4", url: "https://tack.social/" }],
 	]);
 }
 
@@ -322,6 +373,75 @@ describe("the scene", () => {
 		expect(byId(scene, "sm1")).toBeUndefined();
 	});
 
+	it("draws link cards from their previews, sized by what they say, never with their images", () => {
+		const scene = buildScene(links(), new Map(), { kind: "board" });
+		const read = byId(scene, "l1") as Extract<SceneItem, { kind: "link" }>;
+		expect(read).toMatchObject({
+			kind: "link",
+			title: "Unpic: responsive images, the easy way",
+			description: "A library for high-performance responsive images.",
+			site: "Unpic",
+			host: "unpic.pics",
+			initial: "U",
+			hue: linkHue("https://unpic.pics/img"),
+			note: null,
+			image: true,
+		});
+		expect(read.rect).toMatchObject({ x: 0, y: 0, w: 252 });
+		// The picture's address is never in the scene: nothing's fetched to draw it.
+		expect(JSON.stringify(scene)).not.toContain("og.png");
+		expect(JSON.stringify(scene)).not.toContain("favicon");
+
+		// Couldn't be read: its address, neutral, with a note.
+		expect(byId(scene, "l2")).toMatchObject({
+			title: "github.com/ascorbic/cirrus/wiki",
+			description: null,
+			site: "github.com",
+			host: null,
+			hue: null,
+			note: "No preview: the page couldn’t be read.",
+			image: false,
+		});
+		expect(byId(scene, "l3")).toMatchObject({
+			initial: null,
+			hue: null,
+			note: "Tack doesn’t read previews from this address.",
+		});
+		// Not read yet: its address on its site's tint.
+		expect(byId(scene, "l4")).toMatchObject({ title: "tack.social", hue: expect.any(Number) });
+		// A picture makes it taller, and so do more words.
+		const height = (id: string) => (byId(scene, id) as Extract<SceneItem, { kind: "link" }>).rect.h;
+		expect(height("l1")).toBeGreaterThan(height("l4"));
+		expect(height("l2")).toBeGreaterThan(height("l4"));
+		expect(height("l1")).toBeLessThanOrEqual(340);
+		expect(height("l4")).toBeGreaterThanOrEqual(140);
+	});
+
+	it("draws link cards in stacks and lists by their titles", () => {
+		const shapes = links();
+		shapes.set("st", { type: "stack", x: 900, y: 0, z: "b0", title: "Reading" });
+		for (const id of ["l1", "l4"]) shapes.set(id, { ...shapes.get(id)!, stack: "st" });
+		const stacked = byId(buildScene(shapes, new Map(), { kind: "board" }), "st");
+		expect(stacked).toMatchObject({
+			kind: "stack",
+			papers: ["card"],
+			rows: [
+				{ face: "link", title: "tack.social", initial: "T" },
+				{ face: "link", title: "Unpic: responsive images, the easy way", initial: "U" },
+			],
+		});
+
+		const listed = links();
+		listed.set("s", { type: "section", x: -40, y: -60, w: 1400, h: 700, z: "a", display: "list" });
+		for (const id of ["l1", "l2"]) listed.set(id, { ...listed.get(id)!, parent: "s" });
+		const scene = buildScene(listed, new Map(), { kind: "board" });
+		expect(byId(scene, "l1")).toMatchObject({
+			kind: "row",
+			text: "Unpic: responsive images, the easy way",
+			ref: "unpic.pics",
+		});
+	});
+
 	it("puts sections first and lines under shapes", () => {
 		const scene = buildScene(board(), cards(card(PUBLIC_KEY), placeholder), { kind: "board" });
 		const kinds = scene.items.map((item) => item.kind);
@@ -395,6 +515,7 @@ describe("link previews", () => {
 		expect(counts).toEqual({
 			cards: 2,
 			stickies: 2,
+			links: 0,
 			sections: 1,
 			decisions: 0,
 			repos: ["ascorbic/cirrus"],
@@ -403,6 +524,7 @@ describe("link previews", () => {
 			"A board with 2 cards, 2 stickies and 1 section from ascorbic/cirrus, on Tack.",
 		);
 		expect(describeBoard(countBoard(new Map(), new Map()))).toBe("An empty board, on Tack.");
+		expect(describeBoard(countBoard(links(), new Map()))).toBe("A board with 4 links, on Tack.");
 	});
 
 	it("fit the board above the title, at 1200 × 630", () => {
@@ -531,6 +653,29 @@ describe("drawing", () => {
 			OG_SIZE.height,
 		);
 		expect(preview).toMatch(/^<svg width="1200" height="630"/);
+	});
+
+	it("draws link cards in every state, in both themes, close up and zoomed out", async () => {
+		const shapes = links();
+		shapes.set("st", { type: "stack", x: 900, y: 0, z: "b0", title: "Reading" });
+		shapes.set("l5", { ...shapes.get("l1")!, z: "b1", stack: "st" });
+		shapes.set("l6", { ...shapes.get("l3")!, z: "b2", stack: "st" });
+		const scene = buildScene(shapes, new Map(), { kind: "board" });
+		expect(scene.items.filter((item) => item.kind === "link")).toHaveLength(4);
+		for (const theme of ["light", "dark"] as const) {
+			for (const width of [1200, 600, 240]) {
+				const size = imageSize(scene.frame, width);
+				const svg = await render(
+					drawScene(scene, { theme, ...size, badge: "Reading list" }),
+					size.width,
+					size.height,
+				);
+				expect(svg).toMatch(/^<svg width="\d+" height="\d+"/);
+				// Nothing's fetched: the only images are Satori's own inline SVGs.
+				expect(svg).not.toMatch(/href="https?:/);
+				expect(svg).not.toContain("unpic.pics");
+			}
+		}
 	});
 
 	it("draws an empty board, and a section that's gone, with a note", async () => {

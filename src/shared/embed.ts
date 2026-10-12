@@ -17,11 +17,15 @@
 // - Widgets are drawn as their frame and title, never their results (a
 //   signed-in viewer's widget can search private repositories).
 // - Staged changes, rules and history aren't drawn.
+// - Link cards are drawn from the preview in the document, which is board
+//   content like a sticky's text, but never with their images: the server
+//   fetches nothing to draw, so where a picture would be is the site's tint.
 
 import type { Card, CardState, MissingCard } from "./cards.ts";
 import { arrowHead, arrowTrim, readConnector, resolveEnds, routeConnector } from "./connectors.ts";
 import { layoutDisplays } from "./display.ts";
 import type { Point, Rect } from "./geometry.ts";
+import { LINK_CARD, linkHost, linkHue, linkLabel, readPreview } from "./linkPreview.ts";
 import { parseKey } from "./refs.ts";
 import { NOMINAL_SIZE, readStructure } from "./sections.ts";
 import type { ShapeProps } from "./shapes.ts";
@@ -265,6 +269,7 @@ export type SceneItem =
 			due: string | null;
 	  }
 	| { kind: "widget"; id: string; rect: Rect; label: string; title: string }
+	| SceneLink
 	| {
 			kind: "stack";
 			id: string;
@@ -300,19 +305,45 @@ export type SceneItem =
 			mode: "row" | "mini" | "group";
 			/** What it says: a card's title, a sticky's text, a group's name. */
 			text: string;
-			/** `repo#123` for cards. */
+			/** `repo#123` for cards, the host for link cards. */
 			ref: string | null;
 			/** A card's state, a sticky's colour, or a section's colour for groups. */
 			tone: string;
 			face: "card" | "sticky" | "private" | "hidden" | "group" | "other";
 	  };
 
+/**
+ * A link card (links.ts): what its preview says, with the picture drawn as
+ * the site's tint and initial.
+ */
+export interface SceneLink {
+	kind: "link";
+	id: string;
+	rect: Rect;
+	/** The page's title, or its address without the scheme. */
+	title: string;
+	description: string | null;
+	/** The site's name, or its host. */
+	site: string;
+	/** The host, under the title: only when `site` is a name rather than the host. */
+	host: string | null;
+	/** The site's initial for its tile, or null for a bare address (drawn as a globe). */
+	initial: string | null;
+	/** The site's hue for its tint, or null for a page that couldn't be read (drawn neutral). */
+	hue: number | null;
+	/** Couldn't be read, or won't be: a quiet line where the description would be. */
+	note: string | null;
+	/** The page has a preview image: the tint is as tall as the image would be. */
+	image: boolean;
+}
+
 /** One member of a stack, in a line. */
 export type StackRow =
 	| { face: "sticky"; tone: string; text: string }
 	/** Face down in silent mode: its colour, nothing else. */
 	| { face: "hidden"; tone: string }
-	| { face: "card"; card: SceneCard };
+	| { face: "card"; card: SceneCard }
+	| { face: "link"; title: string; initial: string | null; hue: number | null };
 
 export interface Scene {
 	/** The part of the board drawn, in board units. */
@@ -329,6 +360,7 @@ export interface Scene {
 export interface BoardCounts {
 	cards: number;
 	stickies: number;
+	links: number;
 	sections: number;
 	decisions: number;
 	/** Public repositories cards come from, busiest first. */
@@ -537,7 +569,14 @@ export function countBoard(
 	shapes: ReadonlyMap<string, ShapeProps>,
 	cards: ReadonlyMap<string, Entry>,
 ): BoardCounts {
-	const counts: BoardCounts = { cards: 0, stickies: 0, sections: 0, decisions: 0, repos: [] };
+	const counts: BoardCounts = {
+		cards: 0,
+		stickies: 0,
+		links: 0,
+		sections: 0,
+		decisions: 0,
+		repos: [],
+	};
 	const repos = new Map<string, number>();
 	for (const shape of shapes.values()) {
 		if (shape.type === "card") {
@@ -547,6 +586,7 @@ export function countBoard(
 				repos.set(entry.repo, (repos.get(entry.repo) ?? 0) + 1);
 			}
 		} else if (shape.type === "sticky") counts.stickies++;
+		else if (shape.type === "link") counts.links++;
 		else if (shape.type === "section") counts.sections++;
 		else if (shape.type === "decision") counts.decisions++;
 	}
@@ -564,6 +604,7 @@ export function describeBoard(counts: BoardCounts): string {
 	for (const part of [
 		n(counts.cards, "card", "cards"),
 		n(counts.stickies, "sticky", "stickies"),
+		n(counts.links, "link", "links"),
 		n(counts.decisions, "decision", "decisions"),
 		n(counts.sections, "section", "sections"),
 	]) {
@@ -605,6 +646,8 @@ function shapeBox(shape: ShapeProps, slot: Rect | undefined, list: Rect | undefi
 		}
 		case "connector":
 			return null;
+		case "link":
+			return { x: shape.x, y: shape.y, w: LINK_CARD.w, h: linkHeight(linkFace(shape)) };
 		default: {
 			const size = NOMINAL_SIZE[shape.type];
 			return size ? { x: shape.x, y: shape.y, w: size.w, h: size.h } : null;
@@ -642,6 +685,8 @@ function shapeItem(
 			};
 		case "card":
 			return { kind: "card", id, rect, card: sceneCard(shape.ref, cards) };
+		case "link":
+			return { kind: "link", id, rect, ...linkFace(shape) };
 		case "decision":
 			return {
 				kind: "decision",
@@ -702,6 +747,10 @@ function stackItem(
 	const rows = members.slice(0, excerptCount(members.length)).map((member): StackRow => {
 		const props = shapes.get(member);
 		if (props?.type === "card") return { face: "card", card: sceneCard(props.ref, cards) };
+		if (props?.type === "link") {
+			const { title, initial, hue } = linkFace(props);
+			return { face: "link", title, initial, hue };
+		}
 		const tone = STICKY_COLORS.has(props?.color ?? "") ? props!.color! : "yellow";
 		if (!props || faceDownSticky(props)) return { face: "hidden", tone };
 		return { face: "sticky", tone, text: clean(props.text ?? "") };
@@ -709,7 +758,7 @@ function stackItem(
 	const paper = (member: string | undefined) => {
 		const props = member ? shapes.get(member) : undefined;
 		if (!props) return null;
-		if (props.type === "card") return "card";
+		if (props.type === "card" || props.type === "link") return "card";
 		return STICKY_COLORS.has(props.color ?? "") ? props.color! : "yellow";
 	};
 	return {
@@ -759,6 +808,11 @@ function rowItem(
 		}
 		return { ...base, text: card.title, ref: card.ref, tone: card.state, face: "card" };
 	}
+	if (shape.type === "link") {
+		// Its title, with the host where a card's `repo#123` goes.
+		const host = typeof shape.url === "string" ? clean(linkHost(shape.url)) : "";
+		return { ...base, text: linkFace(shape).title, ref: host || null, tone: "", face: "other" };
+	}
 	if (shape.type === "sticky") {
 		const faceDown = faceDownSticky(shape);
 		return {
@@ -772,6 +826,58 @@ function rowItem(
 	const text =
 		shape.type === "decision" ? (shape.title ?? "") : shape.type === "widget" ? "" : shape.text;
 	return { ...base, text: clean(text ?? ""), ref: null, tone: "", face: "other" };
+}
+
+/** What a link card shows, worded as the board's `LinkView` words it. */
+function linkFace(shape: ShapeProps): Omit<SceneLink, "kind" | "id" | "rect"> {
+	const url = typeof shape.url === "string" ? shape.url : "";
+	const preview = readPreview(shape.preview);
+	const host = linkHost(url);
+	const unread = preview?.status === "failed" || preview?.status === "blocked";
+	const description = clean(preview?.description ?? "");
+	const named = clean(preview?.siteName ?? "");
+	return {
+		title: clean(preview?.title ?? "") || clean(linkLabel(url)) || clean(host),
+		description: description || null,
+		site: named || clean(host),
+		host: named ? clean(host) || null : null,
+		// A bare address has no name to take a letter from.
+		initial: /^[\d.:[\]]*$/.test(host)
+			? null
+			: (/[a-z0-9]/i.exec(host)?.[0]?.toUpperCase() ?? null),
+		hue: unread || !url ? null : linkHue(url),
+		note:
+			description || !unread
+				? null
+				: preview?.status === "blocked"
+					? "Tack doesn’t read previews from this address."
+					: "No preview: the page couldn’t be read.",
+		image: !!preview?.image,
+	};
+}
+
+/** The tint where a link card has no image: as tall as the board's `.link-media.link-tint`. */
+export const LINK_BAND = 72;
+
+/**
+ * A link card's height, from its words, since nothing's measured on the
+ * server: the picture (or the band), the site's row, the title (up to three
+ * lines), the description (three) or the note, and the host. Line lengths
+ * are guesses at the board's type in its 224px column, a little short, as
+ * words wrap before the edge.
+ */
+export function linkHeight(
+	face: Pick<SceneLink, "title" | "description" | "note" | "host" | "image">,
+): number {
+	const lines = (value: string, perLine: number, max: number) =>
+		Math.min(max, Math.max(1, Math.ceil(value.length / perLine)));
+	const media = face.image ? Math.round(LINK_CARD.w / 1.91) : LINK_BAND;
+	let body = 10 + 20 + 6 + lines(face.title, 28, 3) * 14 * 1.35;
+	if (face.description) body += 4 + lines(face.description, 34, 3) * 12.5 * 1.42;
+	else if (face.note) body += 4 + lines(face.note, 40, 2) * 12 * 1.4;
+	if (face.host) body += 9 + 11 * 1.3;
+	// The picture's rule, the body's padding below, and the card's border.
+	return Math.ceil(media + 1 + body + 13 + 2);
 }
 
 /**

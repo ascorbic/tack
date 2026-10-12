@@ -7,9 +7,16 @@
 // soft bars instead, as the board itself does, which also keeps Satori from
 // laying out thousands of glyphs nobody could read.
 
-import type { EmbedTheme, Scene, SceneCard, SceneItem } from "../../shared/embed.ts";
+import {
+	type EmbedTheme,
+	LINK_BAND,
+	type Scene,
+	type SceneCard,
+	type SceneItem,
+	type SceneLink,
+} from "../../shared/embed.ts";
 import type { Rect } from "../../shared/geometry.ts";
-import { type Palette, palette } from "./palette.ts";
+import { type LinkTint, linkTint, type Palette, palette } from "./palette.ts";
 
 type Style = Record<string, string | number>;
 export interface El {
@@ -61,6 +68,7 @@ function text(style: Style, value: string, lines?: number): El {
 
 interface Ctx {
 	p: Palette;
+	theme: EmbedTheme;
 	frame: Rect;
 	/** Pixels per board unit. */
 	s: number;
@@ -80,7 +88,7 @@ export interface DrawOptions {
 export function drawScene(scene: Scene, options: DrawOptions): El {
 	const p = palette(options.theme);
 	const s = options.width / scene.frame.w;
-	const ctx: Ctx = { p, frame: scene.frame, s, k: (n) => round(n * s) };
+	const ctx: Ctx = { p, theme: options.theme, frame: scene.frame, s, k: (n) => round(n * s) };
 	const children: Child[] = [dots(ctx, options.width, options.height)].filter(
 		(child): child is El => child !== null,
 	);
@@ -200,6 +208,8 @@ function drawItem(item: Exclude<SceneItem, { kind: "connector" }>, ctx: Ctx): El
 			return row(item, ctx);
 		case "stack":
 			return stack(item, ctx);
+		case "link":
+			return link(item, ctx);
 	}
 }
 
@@ -885,6 +895,26 @@ function stack(item: Extract<SceneItem, { kind: "stack" }>, ctx: Ctx): El[] {
 				value,
 				1,
 			);
+		if (member.face === "link") {
+			// Its site's initial on its tint, where a sticky's colour goes.
+			const tint = linkTint(member.hue, ctx.theme);
+			return box(
+				line,
+				box(
+					{
+						width: k(13),
+						height: k(13),
+						flexShrink: 0,
+						alignItems: "center",
+						justifyContent: "center",
+						borderRadius: k(3),
+						background: tint.tint,
+					},
+					legible(8, ctx) ? siteMark(member.initial, tint, k(8), k(10)) : null,
+				),
+				words(member.title, { color: p.ink, fontWeight: 600 }),
+			);
+		}
 		if (member.face === "card") {
 			const data = member.card;
 			if (data.status !== "ok") {
@@ -938,6 +968,187 @@ function stack(item: Extract<SceneItem, { kind: "stack" }>, ctx: Ctx): El[] {
 				),
 		),
 	];
+}
+
+/**
+ * A link card, as the board's `LinkView` draws it: the picture, then the
+ * site, the title, the description (or a note, for a page that couldn't be
+ * read) and the host. The picture is never fetched here, so it's the site's
+ * tint with its initial on a tile, as the board shows a page without one;
+ * as tall as the picture would be, so the card keeps its shape. Too small to
+ * read, the tint and a few bars.
+ */
+function link(item: SceneLink, ctx: Ctx): El {
+	const { p, k } = ctx;
+	const tint = linkTint(item.hue, ctx.theme);
+	const radius = k(12);
+	const edge = Math.max(1, k(1));
+	const tall = item.image ? (item.rect.w - 2) / 1.91 : LINK_BAND;
+	const tileSize = 40;
+	const tile = box(
+		{
+			width: k(tileSize),
+			height: k(tileSize),
+			alignItems: "center",
+			justifyContent: "center",
+			background: p.surface,
+			borderRadius: k(11),
+			transform: "rotate(-3deg)",
+			...(ctx.s > 0.3
+				? {
+						boxShadow: `0 0 0 ${edge}px ${p.line}, 0 ${k(1)}px ${k(2)}px rgba(23,25,28,0.06), 0 ${k(6)}px ${k(14)}px -${k(6)}px rgba(23,25,28,0.22)`,
+					}
+				: {}),
+		},
+		legible(19, ctx) ? siteMark(item.initial, tint, k(19), k(24)) : null,
+	);
+	const media = box(
+		{
+			flexShrink: 0,
+			height: Math.max(1, k(tall)),
+			alignItems: "center",
+			justifyContent: "center",
+			backgroundColor: tint.tint,
+			backgroundImage: `radial-gradient(circle at 18% 0%, ${tint.deep}, ${transparent(tint.deep)} 62%), radial-gradient(circle at 92% 110%, ${tint.deep}, ${transparent(tint.deep)} 55%)`,
+			borderBottom: `${edge}px solid ${p.line}`,
+		},
+		tile,
+	);
+	const card = surface(item.rect, ctx, { padding: 0, borderRadius: radius, overflow: "hidden" });
+	if (!legible(14, ctx)) {
+		return box(
+			card,
+			media,
+			box({ flexGrow: 1, padding: `${k(12)}px ${k(14)}px` }, bars(ctx, 14, 3, p.lineStrong)),
+		);
+	}
+	const site = box(
+		{ alignItems: "center", minHeight: k(20) },
+		box(
+			{
+				width: k(16),
+				height: k(16),
+				flexShrink: 0,
+				alignItems: "center",
+				justifyContent: "center",
+				borderRadius: k(4),
+				background: tint.tint,
+			},
+			siteMark(item.initial, tint, k(10), k(12)),
+		),
+		text(
+			{
+				marginLeft: k(7),
+				fontSize: k(11.5),
+				fontWeight: 600,
+				color: p.muted,
+				whiteSpace: "nowrap",
+				textOverflow: "ellipsis",
+				flexShrink: 1,
+			},
+			item.site,
+			1,
+		),
+	);
+	return box(
+		card,
+		media,
+		box(
+			{ flexDirection: "column", padding: `${k(10)}px ${k(14)}px ${k(13)}px`, minWidth: 0 },
+			site,
+			text(
+				{
+					marginTop: k(6),
+					fontSize: k(14),
+					lineHeight: 1.35,
+					fontWeight: 600,
+					color: p.ink,
+					letterSpacing: k(-0.08),
+					width: "100%",
+				},
+				item.title,
+				3,
+			),
+			item.description
+				? text(
+						{
+							marginTop: k(4),
+							fontSize: k(12.5),
+							lineHeight: 1.42,
+							color: p.inkSoft,
+							width: "100%",
+						},
+						item.description,
+						3,
+					)
+				: item.note
+					? text(
+							{ marginTop: k(4), fontSize: k(12), lineHeight: 1.4, color: p.muted, width: "100%" },
+							item.note,
+							2,
+						)
+					: null,
+			item.host &&
+				text(
+					{
+						marginTop: k(9),
+						fontSize: k(11),
+						color: p.muted,
+						letterSpacing: k(-0.1),
+						whiteSpace: "nowrap",
+						textOverflow: "ellipsis",
+					},
+					item.host,
+					1,
+				),
+		),
+	);
+}
+
+/** A site's initial in its tint's ink, or a globe for a bare address. */
+function siteMark(initial: string | null, tint: LinkTint, size: number, globe: number): El {
+	if (initial) {
+		return text(
+			{
+				fontSize: size,
+				lineHeight: 1,
+				fontWeight: 600,
+				color: tint.ink,
+				letterSpacing: size * -0.02,
+			},
+			initial,
+			1,
+		);
+	}
+	return {
+		type: "svg",
+		props: {
+			width: globe,
+			height: globe,
+			viewBox: "0 0 16 16",
+			children: [
+				{
+					type: "circle",
+					props: { cx: 8, cy: 8, r: 6.25, fill: "none", stroke: tint.ink, strokeWidth: 1.4 },
+				},
+				{
+					type: "path",
+					props: {
+						d: "M1.75 8h12.5M8 1.75c-3.2 3.4-3.2 9.1 0 12.5M8 1.75c3.2 3.4 3.2 9.1 0 12.5",
+						fill: "none",
+						stroke: tint.ink,
+						strokeWidth: 1.4,
+					},
+				},
+			],
+		},
+	};
+}
+
+/** A hex colour, fully transparent: gradients fade to it rather than to black. */
+function transparent(hex: string): string {
+	const n = Number.parseInt(hex.slice(1, 7), 16);
+	return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},0)`;
 }
 
 function row(item: Extract<SceneItem, { kind: "row" }>, ctx: Ctx): El {
