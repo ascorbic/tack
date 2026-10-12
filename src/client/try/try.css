@@ -312,6 +312,64 @@
 	}
 }
 
+/* A phone: the board's name comes first. "Demo" sits above it rather than
+   beside it, the sync dot goes (the demo's always in step), and who's here
+   gives way before the name does, a whole avatar at a time. */
+@media (max-width: 599px) {
+	.board-bar:has(.try-picker) .topbar-title {
+		flex-shrink: 1;
+	}
+
+	.board-bar:has(.try-picker) .topbar-title .status {
+		display: none;
+	}
+
+	/* Who's here takes what the name leaves, and never squeezes it. */
+	.board-bar:has(.try-picker) .topbar-people {
+		flex: 1 0 0;
+		justify-content: flex-end;
+		min-width: 0;
+		margin-left: 0;
+	}
+
+	/* Avatars that don't fit wrap onto a row nobody sees. */
+	.board-bar:has(.try-picker) .people {
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		height: 28px;
+		overflow: hidden;
+	}
+
+	.topbar .try-picker-button {
+		display: grid;
+		grid-template-columns: minmax(0, auto) auto;
+		align-content: center;
+		column-gap: 5px;
+		row-gap: 2px;
+		padding: 0 7px 0 6px;
+		text-align: left;
+	}
+
+	.try-picker-kicker {
+		grid-area: 1 / 1;
+		padding: 0;
+		background: none;
+		font-size: 9px;
+		letter-spacing: 0.1em;
+		line-height: 10px;
+	}
+
+	.try-picker-name {
+		grid-area: 2 / 1;
+		line-height: 18px;
+	}
+
+	.try-picker-button svg {
+		grid-area: 1 / 2 / 3 / 3;
+		align-self: center;
+	}
+}
+
 /* The demo note: bottom left, over the canvas, above the zoom controls ------- */
 
 .try-note {
