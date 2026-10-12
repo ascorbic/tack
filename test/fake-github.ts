@@ -1962,14 +1962,21 @@ export class FakeGitHub {
 					const item = this.items.get(`${repo.id}#${number}`);
 					fields[alias!] = item ? this.gqlItem(repo, item) : null;
 				}
-				for (const [, alias, number] of query.matchAll(/(d\d+): discussion\(number: (\d+)\)/g)) {
+				for (const [, alias, number, selection] of query.matchAll(
+					/(d\d+): discussion\(number: (\d+)\) \{([^}]*)\}/g,
+				)) {
 					if (!this.discussionsAllowed(auth)) {
 						errors.push(this.notAccessible(["repo", alias!]));
 						fields[alias!] = null;
 						continue;
 					}
 					const d = this.discussion(repo.id, Number(number));
-					fields[alias!] = d ? this.gqlDiscussion(repo, d) : null;
+					// As GitHub does: no `__typename` unless the query asks for one.
+					fields[alias!] = d
+						? selection?.includes("__typename")
+							? this.gqlDiscussion(repo, d)
+							: { ...this.gqlDiscussion(repo, d), __typename: undefined }
+						: null;
 				}
 				data.repo = fields;
 			}

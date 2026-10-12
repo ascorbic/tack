@@ -333,7 +333,7 @@ export async function fetchItemsGraphQL(
 			const aliases = byNumber
 				.map((r) => {
 					const n = Number(r.item.slice(1));
-					return `i${n}: issueOrPullRequest(number: ${n}) { ${ITEM} }\nd${n}: discussion(number: ${n}) { ...TackDiscussion }`;
+					return `i${n}: issueOrPullRequest(number: ${n}) { ${ITEM} }\nd${n}: discussion(number: ${n}) { __typename ...TackDiscussion }`;
 				})
 				.join("\n");
 			// The repository's node id survives renames; its name may not.
