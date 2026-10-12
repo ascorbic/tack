@@ -3696,16 +3696,64 @@ a.card-title {
 	stroke-linejoin: round;
 }
 
+/*
+ * The name tag shrinks with the board below 100% (--label-scale, down to a
+ * floor that still reads), and further out folds to initials while the
+ * cursor rests (see cursorLabel in Cursors.tsx). Initials and name share one
+ * grid cell: the name's column eases between 0fr and 1fr, so the tag grows
+ * out of the initials and folds back into them as they cross-fade.
+ */
 .cursor-name {
+	--s: var(--label-scale, 1);
+	display: grid;
 	margin: 13px 0 0 -3px;
-	padding: 3px 8px;
-	border-radius: 4px 10px 10px 10px;
+	padding: calc(3px * var(--s)) calc(8px * var(--s));
+	border-radius: 4px calc(10px * var(--s)) calc(10px * var(--s)) calc(10px * var(--s));
 	background: var(--cursor);
 	color: #fff;
-	font-size: 11.5px;
+	font-size: calc(11.5px * var(--s));
 	font-weight: 600;
+	line-height: 1.35;
 	white-space: nowrap;
 	box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
+	transition: padding var(--t-base) var(--ease-out);
+}
+
+.cursor-name > * {
+	grid-area: 1 / 1;
+}
+
+.cursor-name-initials {
+	letter-spacing: 0.03em;
+	opacity: 0;
+	transition: opacity var(--t-quick) var(--ease-out);
+}
+
+.cursor-name-full {
+	display: grid;
+	grid-template-columns: 1fr;
+	transition:
+		grid-template-columns var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.cursor-name-full > span {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.cursor[data-compact="true"] .cursor-name {
+	padding: calc(2px * var(--s)) calc(5px * var(--s));
+}
+
+.cursor[data-compact="true"] .cursor-name-initials {
+	opacity: 1;
+	transition-delay: calc(60ms * var(--motion));
+}
+
+.cursor[data-compact="true"] .cursor-name-full {
+	grid-template-columns: 0fr;
+	opacity: 0;
 }
 
 /*

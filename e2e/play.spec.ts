@@ -130,6 +130,30 @@ test("a person joins and their cursor appears", async ({ page }) => {
 	await expect(avatars).toHaveCount(1);
 });
 
+test("zoomed far out, a resting cursor's name folds to initials", async ({ page }) => {
+	await openScenario(page, "planning");
+	await page.getByRole("button", { name: "Someone joins" }).click();
+	const cursor = page.locator(".cursor");
+	const name = cursor.locator(".cursor-name");
+	await expect(cursor).toHaveAttribute("data-compact", "false");
+
+	const zoom = page.getByRole("button", { name: /^Zoom: / });
+	const percent = async () => Number((await zoom.getAttribute("aria-label"))?.match(/\d+/)?.[0]);
+	for (let i = 0; i < 12 && (await percent()) > 40; i++) {
+		await page.getByRole("button", { name: "Zoom out" }).click();
+	}
+	// Smaller, but still a name while they wander; initials once they stop.
+	await expect(name).toHaveCSS("font-size", "9.2px");
+	await expect(cursor).toHaveAttribute("data-compact", "true", { timeout: 15_000 });
+	await expect(name.locator(".cursor-name-initials")).toHaveCSS("opacity", "1");
+	await expect(name.locator(".cursor-name-full")).toHaveCSS("opacity", "0");
+
+	await zoom.click();
+	await page.getByRole("menuitem", { name: "Zoom to 100%" }).click();
+	await expect(cursor).toHaveAttribute("data-compact", "false");
+	await expect(name).toHaveCSS("font-size", "11.5px");
+});
+
 test("an empty board's guide lets a placing tool click through it", async ({ page }) => {
 	await openScenario(page, "empty");
 	const guide = page.locator(".empty-board");

@@ -40,6 +40,29 @@ export interface PresenceState {
 	colorSince?: number;
 }
 
+/** Below this zoom, a cursor's name tag at rest folds to its initials. */
+export const COMPACT_CURSOR_ZOOM = 0.5;
+
+/** The smallest a cursor's name tag gets as the board zooms out, of its size at 100%. */
+export const MIN_CURSOR_LABEL_SCALE = 0.8;
+
+/** How long a folded name tag stays open after its cursor last moved. */
+export const CURSOR_MOVING_MS = 1400;
+
+/**
+ * How a cursor's name tag shows at a zoom. Cursors keep their size on
+ * screen, so zoomed out a full name would cover the shapes it points at:
+ * below 100% the tag shrinks with the board, down to a floor that still
+ * reads, and further out it folds to initials while the cursor rests. It
+ * opens again while they move, which is when you look to see whose it is.
+ */
+export function cursorLabel(zoom: number, moving: boolean): { scale: number; compact: boolean } {
+	return {
+		scale: Math.min(1, Math.max(MIN_CURSOR_LABEL_SCALE, zoom)),
+		compact: zoom < COMPACT_CURSOR_ZOOM && !moving,
+	};
+}
+
 export interface RemoteDrag extends Position {
 	user?: User;
 }

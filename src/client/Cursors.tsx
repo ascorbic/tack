@@ -1,9 +1,10 @@
 import { useStore } from "@xyflow/react";
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { Status } from "./activity.ts";
 import { CHAT_FADE_MS, type Chat } from "./chat.ts";
 import { ChatBubble } from "./CursorChat.tsx";
-import type { RemotePresence, User } from "./presence.ts";
+import { initials } from "./People.tsx";
+import { CURSOR_MOVING_MS, type RemotePresence, type User, cursorLabel } from "./presence.ts";
 import { useLinger } from "./useLinger.ts";
 
 /**
@@ -40,6 +41,22 @@ export function Cursors({ people }: { people: RemotePresence[] }) {
 	);
 }
 
+/** Whether a position changed in the last `ms`. Appearing isn't moving. */
+function useMoving(x: number, y: number, ms = CURSOR_MOVING_MS): boolean {
+	const [moving, setMoving] = useState(false);
+	const first = useRef(true);
+	useEffect(() => {
+		if (first.current) {
+			first.current = false;
+			return;
+		}
+		setMoving(true);
+		const timer = window.setTimeout(() => setMoving(false), ms);
+		return () => clearTimeout(timer);
+	}, [x, y, ms]);
+	return moving;
+}
+
 const Cursor = memo(function Cursor({
 	x,
 	y,
@@ -53,21 +70,33 @@ const Cursor = memo(function Cursor({
 	chat: Chat | null;
 	status: Status;
 }) {
+	const moving = useMoving(x, y);
 	return (
-		<CursorView {...view} style={{ transform: `translate(${x}px, ${y}px) scale(${1 / zoom})` }} />
+		<CursorView
+			{...view}
+			{...cursorLabel(zoom, moving)}
+			style={{ transform: `translate(${x}px, ${y}px) scale(${1 / zoom})` }}
+		/>
 	);
 });
 
-/** A cursor with its name tag, or a chat bubble while they're talking. */
+/**
+ * A cursor with its name tag, or a chat bubble while they're talking. The tag
+ * is drawn at `scale`, and as initials when `compact` (see `cursorLabel`).
+ */
 export function CursorView({
 	user,
 	chat,
 	status = "active",
+	scale = 1,
+	compact = false,
 	style,
 }: {
 	user: User;
 	chat: Chat | null;
 	status?: Status;
+	scale?: number;
+	compact?: boolean;
 	style?: React.CSSProperties;
 }) {
 	const bubble = useLinger(chat, CHAT_FADE_MS);
@@ -75,7 +104,8 @@ export function CursorView({
 		<div
 			className="cursor"
 			data-status={status}
-			style={{ ...style, "--cursor": user.color } as React.CSSProperties}
+			data-compact={compact}
+			style={{ ...style, "--cursor": user.color, "--label-scale": scale } as React.CSSProperties}
 		>
 			<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
 				<path d="M2 2l12 6-5 1.5L7 15z" />
@@ -84,8 +114,13 @@ export function CursorView({
 				<ChatBubble name={user.name} chat={bubble.value} leaving={bubble.leaving} />
 			) : (
 				<span className="cursor-name">
-					{user.name}
-					{status !== "active" && <span className="cursor-status"> · {status}</span>}
+					<span className="cursor-name-initials">{initials(user.name)}</span>
+					<span className="cursor-name-full">
+						<span>
+							{user.name}
+							{status !== "active" && <span className="cursor-status"> · {status}</span>}
+						</span>
+					</span>
 				</span>
 			)}
 		</div>

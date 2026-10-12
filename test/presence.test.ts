@@ -1,7 +1,31 @@
 import { describe, expect, it } from "vite-plus/test";
 import { IDLE_AFTER_MS, activityStatus, statusLabel } from "../src/client/activity.ts";
 import { CHAT_MAX_LENGTH, cleanChat, opensChat } from "../src/client/chat.ts";
+import {
+	COMPACT_CURSOR_ZOOM,
+	MIN_CURSOR_LABEL_SCALE,
+	cursorLabel,
+} from "../src/client/presence.ts";
 import { sameView, viewOf, viewportFor } from "../src/client/viewport.ts";
+
+describe("cursorLabel", () => {
+	it("leaves name tags alone at 100% and closer", () => {
+		expect(cursorLabel(1, false)).toEqual({ scale: 1, compact: false });
+		expect(cursorLabel(2.5, false)).toEqual({ scale: 1, compact: false });
+	});
+
+	it("shrinks them with the board below 100%, down to a floor", () => {
+		expect(cursorLabel(0.9, false)).toEqual({ scale: 0.9, compact: false });
+		expect(cursorLabel(0.6, false).scale).toBe(MIN_CURSOR_LABEL_SCALE);
+		expect(cursorLabel(0.1, false).scale).toBe(MIN_CURSOR_LABEL_SCALE);
+	});
+
+	it("folds a resting cursor's tag to initials far out, and opens it while it moves", () => {
+		expect(cursorLabel(COMPACT_CURSOR_ZOOM, false).compact).toBe(false);
+		expect(cursorLabel(0.3, false).compact).toBe(true);
+		expect(cursorLabel(0.3, true).compact).toBe(false);
+	});
+});
 
 describe("viewOf and viewportFor", () => {
 	it("round-trips a view for a window of the same size", () => {
