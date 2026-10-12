@@ -76,19 +76,21 @@ class Layout {
 	}
 
 	/**
-	 * A section showing its contents as a list (or mini cards): no prompt in
-	 * it, as a prompt would be a row; an empty one says what to drop there.
+	 * A section showing its contents as a list (or mini cards). A prompt in
+	 * it would be a row, so its prompt is the section's own `prompt`, which
+	 * its empty state says (with where to drop things) until something's in it.
 	 */
 	list(
 		id: string,
 		box: { x: number; y: number; w: number; h: number },
 		title: string,
 		color: SectionColor,
-		{ mini = false, sort }: { mini?: boolean; sort?: ListSort } = {},
+		{ mini = false, sort, prompt }: { mini?: boolean; sort?: ListSort; prompt?: string } = {},
 	): string {
 		return this.section(id, box, title, color, {
 			display: mini ? "mini" : "list",
 			...(sort ? { sort } : {}),
+			...(prompt ? { prompt } : {}),
 		});
 	}
 
@@ -341,8 +343,12 @@ function triage(): BuiltInTemplate {
 	t.prompt(p0, "Broken for many people, or a security hole.");
 	const p1 = t.section("p1", { x: 1280, y: 0, w: 580, h: 420 }, "P1 · This cycle", "orange");
 	t.prompt(p1, "Important, and we’ll get to it soon.");
-	t.list("info", { x: 640, y: 480, w: 580, h: 420 }, "Needs more info", "yellow");
-	t.list("p2", { x: 1280, y: 480, w: 580, h: 420 }, "P2 · Backlog", "blue");
+	t.list("info", { x: 640, y: 480, w: 580, h: 420 }, "Needs more info", "yellow", {
+		prompt: "Waiting on the reporter: steps, a version, a log.",
+	});
+	t.list("p2", { x: 1280, y: 480, w: 580, h: 420 }, "P2 · Backlog", "blue", {
+		prompt: "Worth doing, when there’s time.",
+	});
 
 	t.widget(
 		"quiet",
@@ -413,7 +419,10 @@ function release(): BuiltInTemplate {
 		{ x: 1900, y: 0, w: 420, h: 640 },
 		{ title: "", host: HOST, repo: "{{repo}}", milestone: "", staleDays: 14 },
 	);
-	t.list("next", { x: 0, y: 720, w: 1000, h: 440 }, "Next", "blue", { mini: true });
+	t.list("next", { x: 0, y: 720, w: 1000, h: 440 }, "Next", "blue", {
+		mini: true,
+		prompt: "What waits for the release after this one.",
+	});
 	t.widget(
 		"review",
 		"review",
@@ -491,6 +500,7 @@ function roadmap(): BuiltInTemplate {
 	);
 	const now = t.list("now", { x: 0, y: 520, w: 580, h: 640 }, "Now · in progress", "green", {
 		sort: { by: "state" },
+		prompt: "What’s being built now, open work first.",
 	});
 	t.widget(
 		"deps",
@@ -498,12 +508,15 @@ function roadmap(): BuiltInTemplate {
 		{ x: 1080, y: 0, w: 780, h: 440 },
 		{ title: "What blocks Now", source: "section", host: HOST, q: "", section: now, limit: 20 },
 	);
-	t.list("next", { x: 640, y: 520, w: 580, h: 640 }, "Next · planned", "blue");
+	t.list("next", { x: 640, y: 520, w: 580, h: 640 }, "Next · planned", "blue", {
+		prompt: "Planned, and roughly scoped.",
+	});
 	const later = t.list(
 		"later",
 		{ x: 1280, y: 520, w: 580, h: 640 },
 		"Later · worth doing",
 		"purple",
+		{ prompt: "Ideas worth keeping. Vote on what moves up." },
 	);
 	t.step("vote", {
 		kind: "vote",

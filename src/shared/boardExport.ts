@@ -132,7 +132,7 @@ const KEEP: Record<ShapeType, readonly string[]> = {
 	card: ["ref", "stack"],
 	sticky: ["text", "color", "font", "author", "stack"],
 	text: ["text", "color", "font", "size"],
-	section: ["title", "color", "w", "h", "display", "sort", "inbox"],
+	section: ["title", "color", "w", "h", "display", "sort", "prompt", "inbox"],
 	connector: ["from", "to", "label", "route", "arrow", "dash", "color"],
 	decision: [
 		"title",
@@ -374,6 +374,7 @@ const ShapeSchema = v.variant("type", [
 		sort: v.optional(
 			v.object({ by: v.picklist(["state", "number", "title"]), desc: v.optional(v.boolean()) }),
 		),
+		prompt: v.optional(text(400)),
 		inbox: v.optional(v.object({ query: Query })),
 	}),
 	v.object({

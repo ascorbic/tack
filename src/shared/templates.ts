@@ -150,7 +150,7 @@ export type TemplateError =
 const PLACEHOLDER = /\{\{\s*(repos|repo\d*|host)\s*\}\}/g;
 
 /** Keys whose strings are words for people, where a missing repository just drops out. */
-const PROSE = new Set(["text", "title", "label", "description", "name"]);
+const PROSE = new Set(["text", "title", "label", "description", "name", "prompt"]);
 
 /** Keys that are never filled in: items' keys are exactly what they say. */
 const LITERAL = new Set(["ref", "type", "id", "widget"]);

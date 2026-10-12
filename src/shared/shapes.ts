@@ -78,6 +78,8 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              |                    | cards, as placed (display.ts)                 |
 // | sort         | section            | a list's sort (`ListSort`: `by` state, number |
 // |              |                    | or title, and `desc`); absent means by hand   |
+// | prompt       | section            | what an empty list or grid says goes in it,   |
+// |              |                    | in place of the usual words; a template's     |
 // | order        | all but connectors | its place in its section's manual order, a    |
 // |              |                    | fractional index; absent sorts after those    |
 // |              |                    | with one, in reading order. x and y stay the  |
@@ -298,6 +300,8 @@ export interface ShapeProps {
 	display?: SectionDisplay;
 	/** Sections: how a list or grid is sorted. Absent means by hand. */
 	sort?: ListSort;
+	/** Sections: what an empty list or grid says goes in it (a template's). */
+	prompt?: string;
 	/** Its place in its section's manual order (a fractional index). */
 	order?: string;
 	/** Action items: who'll do it. */
