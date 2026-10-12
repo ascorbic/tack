@@ -17,7 +17,8 @@ export type CardFor = (key: string) => { card: Card } | "hidden" | null;
 
 /**
  * The items in `ids` (sections bring everything in them), in reading order:
- * text from stickies, text blocks, decisions and action items, and cards'
+ * text from stickies, text blocks, decisions and action items, images' alt
+ * text (never the pictures), and cards'
  * titles and state. Face-down stickies have no text on the board (silent
  * mode keeps it on the server until the reveal), and cards `cardFor` hides
  * are left out entirely: both are counted, never read.
@@ -125,6 +126,11 @@ function itemOf(shape: ShapeProps, cardFor: CardFor, leftOut: AiLeftOut): AiItem
 				kind: "text",
 				text: `Link: ${title}${description ? ` — ${description}` : ""} (${host})`,
 			};
+		}
+		case "image": {
+			// Its alt text, never the picture: an image without any says nothing.
+			const text = shape.alt?.trim();
+			return text ? { kind: "image", text: `Image: ${text}` } : null;
 		}
 		case "card": {
 			if (!shape.ref) return null;

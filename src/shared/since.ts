@@ -298,6 +298,7 @@ const NOUNS: Record<string, [string, string]> = {
 	action: ["action item", "action items"],
 	stack: ["stack", "stacks"],
 	link: ["link card", "link cards"],
+	image: ["image", "images"],
 };
 
 export function noun(type: string, count: number): string {

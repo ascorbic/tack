@@ -1037,18 +1037,23 @@ const NOUNS: Record<string, [string, string]> = {
 	connector: ["connector", "connectors"],
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
+	action: ["action item", "action items"],
 	stack: ["stack", "stacks"],
 	link: ["link card", "link cards"],
+	image: ["image", "images"],
 };
 
 const MOVE_KEYS = new Set(["x", "y", "parent", "z"]);
 const SIZE_KEYS = new Set(["w", "h"]);
-const TEXT_KEYS = new Set(["text", "title", "label"]);
-const STYLE_KEYS = new Set(["color", "font", "size", "route", "arrow", "dash"]);
+const TEXT_KEYS = new Set(["text", "title", "label", "alt"]);
+const STYLE_KEYS = new Set(["color", "font", "size", "route", "arrow", "dash", "caption"]);
+/** An image's file arriving (images.ts). */
+const UPLOAD_KEYS = new Set(["image", "upload", "preview"]);
 
 /** What kind of edit a change was, by which properties changed. */
 export function editKind(keys: readonly string[] | undefined): string {
 	if (!keys || keys.length === 0 || keys.includes("*")) return "changed";
+	if (keys.every((key) => UPLOAD_KEYS.has(key))) return "uploaded";
 	const kinds = new Set(
 		keys.map((key) =>
 			MOVE_KEYS.has(key)
@@ -1089,6 +1094,7 @@ const OTHER_WORDS: Record<string, string> = {
 
 const VERB_ORDER = [
 	"added",
+	"uploaded",
 	"removed",
 	"edited",
 	"moved",

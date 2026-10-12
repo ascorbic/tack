@@ -162,6 +162,7 @@ const AI_READS = new Set<ShapeType>([
 	"decision",
 	"action",
 	"link",
+	"image",
 ]);
 
 const KIND: Partial<Record<ActionCommand, OperationKind>> = {

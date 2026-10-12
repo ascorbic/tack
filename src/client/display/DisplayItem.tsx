@@ -27,6 +27,8 @@ import { StampRow, VoteDots, stampShape } from "../facilitation/Marks.tsx";
 import { facilitation, useSilentTexts } from "../facilitation/store.ts";
 import { initials } from "../People.tsx";
 import { useEditing } from "../useEditing.ts";
+import { isImageHash } from "../../shared/images.ts";
+import { useImageSrc } from "../images/service.ts";
 import { useLinked } from "../widgets/store.ts";
 import "./display.css";
 
@@ -114,6 +116,8 @@ export function DisplayItemView(props: ItemProps) {
 			return <StickyItem {...props} />;
 		case "link":
 			return <LinkItem {...props} />;
+		case "image":
+			return <ImageItem {...props} />;
 		default:
 			return <PlainItem {...props} />;
 	}
@@ -430,6 +434,32 @@ const LinkItem = memo(function LinkItem({ id, shape, kind, selected, tier, enter
 			</span>
 			<span className={kind === "mini" ? "display-mini-title" : "display-title"}>{title}</span>
 			{tier === "full" && kind === "row" && <span className="display-chip">{host}</span>}
+			<DisplayMarks id={id} compact={kind === "mini"} />
+		</article>
+	);
+});
+
+/** An image: a thumbnail and its alt text in a row; the picture itself in a mini card. */
+const ImageItem = memo(function ImageItem({ id, shape, kind, selected, tier, enter }: ItemProps) {
+	const src = useImageSrc(isImageHash(shape.image) ? shape.image : undefined);
+	const title = shape.alt?.trim() || "Image";
+	const picture = src && tier !== "far" && (
+		<img className="display-image-file" src={src} alt="" draggable={false} decoding="async" />
+	);
+	return (
+		<article
+			className={`display-item display-${kind === "mini" ? "mini" : "row"} display-image`}
+			data-kind={kind}
+			data-tier={tier}
+			data-type="image"
+			data-selected={selected}
+			data-enter={enter || undefined}
+			aria-label={title}
+		>
+			<span className="display-image-thumb" aria-hidden="true">
+				{picture}
+			</span>
+			<span className={kind === "mini" ? "display-mini-title" : "display-title"}>{title}</span>
 			<DisplayMarks id={id} compact={kind === "mini"} />
 		</article>
 	);

@@ -168,7 +168,7 @@ export function aiError(reason: AiErrorReason, extra: Partial<AiError> = {}): Ai
 
 /** One thing on the board, as the model reads it. */
 export interface AiItem {
-	kind: "sticky" | "text" | "card" | "decision" | "action" | "section";
+	kind: "sticky" | "text" | "card" | "decision" | "action" | "section" | "image";
 	text: string;
 	/** The section it's in, by title. */
 	section?: string;

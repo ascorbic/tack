@@ -21,6 +21,7 @@ import {
 } from "./fixtures.ts";
 import { playAi } from "./ai.ts";
 import { playLinks } from "./links.ts";
+import { playImages } from "./images.tsx";
 import { RELATED_CARDS, playRelated } from "./related.ts";
 
 // Writing back (M2) in the playground: a board to try the selection actions
@@ -93,6 +94,8 @@ export function playServices(): WriteServices {
 		ai: playAi,
 		// Link cards' previews, canned and drawn in the browser: nothing's fetched.
 		links: playLinks,
+		// Image files stay in this page's memory.
+		images: playImages,
 		// The card tool's search, over the playground's own cards.
 		async searchItems(host, q) {
 			await new Promise((resolve) => setTimeout(resolve, 300));

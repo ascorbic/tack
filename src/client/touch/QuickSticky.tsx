@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { STICKY_COLORS, type StickyColor } from "../board.ts";
+import { IMAGE_ACCEPT } from "../images/prepare.ts";
 
 const COLOR_NAMES: Record<StickyColor, string> = {
 	yellow: "Yellow",
@@ -11,7 +12,7 @@ const COLOR_NAMES: Record<StickyColor, string> = {
 
 /**
  * Writing a sticky on a phone (#67): a sheet of paper to type on, its
- * colour, and Add. It stays open for the next one, as ideas come in runs:
+ * colour, and Add, or a photo from the camera or library instead. It stays open for the next one, as ideas come in runs:
  * each added sticky flies off the pad onto the board, and the pad's ready
  * again.
  */
@@ -19,12 +20,15 @@ export function QuickSticky({
 	color,
 	onColor,
 	onAdd,
+	onPhotos,
 	autoFocus = true,
 }: {
 	color: StickyColor;
 	onColor: (color: StickyColor) => void;
 	/** Add a sticky with this text. */
 	onAdd: (text: string) => void;
+	/** Add photos (from the camera or the library) instead. */
+	onPhotos?: (files: File[]) => void;
 	/** Straight to typing (not in the gallery). */
 	autoFocus?: boolean;
 }) {
@@ -102,6 +106,27 @@ export function QuickSticky({
 						/>
 					))}
 				</div>
+				{onPhotos && (
+					<label className="quick-photo">
+						<input
+							type="file"
+							accept={IMAGE_ACCEPT}
+							multiple
+							className="quick-photo-input"
+							onChange={(event) => {
+								const files = [...(event.currentTarget.files ?? [])];
+								event.currentTarget.value = "";
+								if (files.length > 0) onPhotos(files);
+							}}
+						/>
+						<svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
+							<rect x="3" y="4" width="14" height="12" rx="2.6" />
+							<path d="m3.4 13.6 3.7-3.7a1.4 1.4 0 0 1 2 0l2.4 2.4m-.9-1 1.4-1.4a1.4 1.4 0 0 1 2 0l2.6 2.6" />
+							<circle cx="12.8" cy="7.9" r="1.3" />
+						</svg>
+						Photo
+					</label>
+				)}
 				<button type="submit" className="quick-add" disabled={!text.trim()}>
 					Add
 				</button>

@@ -40,7 +40,7 @@ const REPO = /^[a-z\d][\w.-]*(\/[a-z\d_][\w.-]*)+$/i;
 const line = (max: number) => v.pipe(v.string(), v.minLength(1), v.maxLength(max));
 
 const ItemSchema = v.strictObject({
-	kind: v.picklist(["sticky", "text", "card", "decision", "action", "section"]),
+	kind: v.picklist(["sticky", "text", "card", "decision", "action", "section", "image"]),
 	text: line(AI_ITEM_CHARS),
 	section: v.optional(v.pipe(v.string(), v.maxLength(DEMO_SECTION_CHARS))),
 	by: v.optional(v.pipe(v.string(), v.maxLength(DEMO_BY_CHARS))),

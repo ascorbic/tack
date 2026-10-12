@@ -408,3 +408,16 @@
 	font-size: 11.5px;
 	line-height: 1.35;
 }
+
+/* The playground's gallery of image states (/play/cards). */
+.gallery-images figure {
+	display: grid;
+	justify-items: start;
+	gap: 40px;
+}
+
+.gallery-image {
+	position: relative;
+	width: 220px;
+	height: 150px;
+}

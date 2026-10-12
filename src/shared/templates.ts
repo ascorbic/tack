@@ -367,7 +367,7 @@ export interface Extracted {
 /**
  * A board as a template: its structure (sections, text, widgets, the
  * connectors between what's kept) and rules, and with `keepContent`
- * everything on it, without any session's state. Dot votes and silent
+ * everything on it but its images, without any session's state. Dot votes and silent
  * sections become prepared steps, ready to start again. The repositories
  * its widgets, inboxes and rules read become placeholders, defaulting to
  * those repositories (`parameterise`).
@@ -381,6 +381,10 @@ export function extractTemplate(
 	for (const [id, map] of shapesMap(doc)) {
 		const type = map.get("type");
 		if (typeof type !== "string" || type === "connector") continue;
+		// Images stay out, even with the content: a template is JSON in the
+		// instance's index, and an image's file is kept beside its own board
+		// (images.ts), so every board made from it would show them missing.
+		if (type === "image") continue;
 		if (!keepContent && !STRUCTURE.has(type)) continue;
 		kept.add(id);
 	}

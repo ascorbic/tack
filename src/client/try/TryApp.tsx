@@ -16,6 +16,7 @@ import { type RemotePerson, SimulatedBoard } from "../play/simulator.ts";
 import { SimulatedStacks } from "../play/stacks.ts";
 import { SimulatedWidgets } from "../play/widgets.ts";
 import { playServices } from "../play/writes.ts";
+import { demoImages } from "./images.ts";
 import { widgetStore } from "../widgets/store.ts";
 import { AiHint } from "./AiHint.tsx";
 import { DemoAi, demoAiEndpoint, wantsRealAi } from "./ai.ts";
@@ -194,6 +195,8 @@ function TryBoard({
 	const [world] = useState(() => makeWorld(scenario, kept, () => userRef.current));
 	const [services] = useState(() => ({
 		...playServices(),
+		// Pictures stay in this browser, beside the board it keeps.
+		images: demoImages(),
 		boardId: `try:${scenario}`,
 		boardUrl: () => location.href,
 		boardTitle: () => definition.name,
@@ -259,6 +262,8 @@ function TryBoard({
 	const reset = useCallback(() => {
 		forgotten.current = true;
 		forget(scenario);
+		// Files no kept board needs any more go too.
+		void demoImages().sweep();
 		onReset();
 	}, [scenario, onReset]);
 

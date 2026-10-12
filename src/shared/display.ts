@@ -191,6 +191,7 @@ export function titleOf(shape: ShapeProps, card?: SortableCard): string {
 		return shape.text ?? "";
 	}
 	if (shape.type === "stack") return stackName(shape) ?? "";
+	if (shape.type === "image") return shape.alt ?? "";
 	return shape.title ?? "";
 }
 

@@ -491,6 +491,9 @@ export function ResizeGrip({
 			data-handle={handle}
 			aria-hidden="true"
 			onPointerDown={onPointerDown}
+			// The click that ends a resize isn't a click on the shape: with
+			// Shift held (a free resize), it would take it out of the selection.
+			onClick={(event) => event.stopPropagation()}
 			onDoubleClick={
 				onDoubleClick &&
 				((event) => {

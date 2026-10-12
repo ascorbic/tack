@@ -34,6 +34,7 @@ import {
 } from "./ci.ts";
 import { DecisionGallery } from "./DecisionGallery.tsx";
 import { StackGallery } from "./StackGallery.tsx";
+import { ImageGallery } from "./images.tsx";
 import {
 	ACCESS_GALLERY,
 	DISCUSSION_GALLERY,
@@ -722,6 +723,8 @@ function Sections({
 			</section>
 
 			<StackGallery />
+
+			<ImageGallery />
 
 			<DecisionGallery />
 

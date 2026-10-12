@@ -2261,6 +2261,7 @@ export function Board({
 											}}
 											stickyColor={stickyColor}
 											onStickyColor={setStickyColor}
+											onPhotos={(files) => boardImages.add(files)}
 										/>
 									</PanelBoundary>
 								)}

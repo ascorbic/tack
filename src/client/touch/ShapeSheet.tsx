@@ -1,5 +1,9 @@
 import { type CSSProperties, useContext, useEffect, useMemo, useState } from "react";
 import type * as Y from "yjs";
+import { imageSize, imageState } from "../../shared/images.ts";
+import { ImageView } from "../images/ImageNode.tsx";
+import { useUpload } from "../images/insert.ts";
+import { useImageSrc } from "../images/service.ts";
 import { type VoteChoice, castVote, statusOf, tally } from "../../shared/decisions.ts";
 import { type DotVote, ballotOf, dotsLeft, voteFor } from "../../shared/dotvotes.ts";
 import { STAMPS, type StampEmoji } from "../../shared/facilitation.ts";
@@ -42,6 +46,7 @@ const TYPE_NAMES: Record<string, string> = {
 	widget: "Widget",
 	action: "Action item",
 	stack: "Stack",
+	image: "Image",
 };
 
 export interface ShapeSheetProps {
@@ -195,6 +200,8 @@ function ShapeFace({
 					/>
 				</div>
 			);
+		case "image":
+			return <ImageFace node={node} />;
 		case "widget": {
 			const config = shape.config as { title?: unknown } | undefined;
 			const title = typeof config?.title === "string" ? config.title : "";
@@ -212,6 +219,27 @@ function ShapeFace({
 				</div>
 			);
 	}
+}
+
+/** An image, as big as the sheet allows, and its alt text to read. */
+function ImageFace({ node }: { node: ShapeNode }) {
+	const shape = node.data.shape;
+	const src = useImageSrc(shape.image);
+	const upload = useUpload(node.id);
+	const { w, h } = imageSize(shape);
+	return (
+		<div className="phone-sheet-image">
+			<div className="phone-sheet-image-frame" style={{ aspectRatio: `${w} / ${h}` }}>
+				<ImageView
+					shape={shape}
+					state={imageState(shape, Date.now())}
+					src={upload?.local ?? src}
+					progress={upload && !upload.done ? upload.progress : null}
+				/>
+			</div>
+			{shape.alt?.trim() && <p className="phone-sheet-meta">{shape.alt}</p>}
+		</div>
+	);
 }
 
 /** A stack (#73): its stickies and cards, top first, each to read. */

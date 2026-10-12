@@ -1188,3 +1188,43 @@
 .staged-count[data-status="failed"] {
 	background: var(--fail);
 }
+
+/* Images: a thumbnail in a row; in a mini card, the picture with its alt
+   text over the foot of it. */
+.display-image-thumb {
+	flex: none;
+	width: 16px;
+	height: 16px;
+	overflow: hidden;
+	border-radius: 4px;
+	background: var(--chip);
+}
+
+.display-image-file {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	user-select: none;
+}
+
+.display-mini.display-image {
+	position: relative;
+	justify-content: flex-end;
+	padding: 0;
+}
+
+.display-mini.display-image .display-image-thumb {
+	position: absolute;
+	inset: 0;
+	width: auto;
+	height: auto;
+	border-radius: inherit;
+}
+
+.display-mini.display-image .display-mini-title {
+	position: relative;
+	padding: 18px 10px 8px;
+	background: linear-gradient(transparent, rgb(0 0 0 / 55%));
+	color: #fff;
+}

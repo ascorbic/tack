@@ -33,6 +33,7 @@ import { seedStacks } from "./stacks.ts";
 import { seedTracking, seedWidgets } from "./widgets.ts";
 import { seedCustom } from "./custom.ts";
 import { heroPeople, seedHero } from "./hero.ts";
+import { seedImages } from "./images.tsx";
 import type { SimulatedBoard } from "./simulator.ts";
 
 export interface Scenario {
@@ -682,6 +683,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 			"The landing page's first screenshot: live cards with CI, a stack with a ✨ suggested name, a live list, a milestone and stickies, on one screen at 1200 × 750, with three people at work on it.",
 		seed: seedHero,
 		present: heroPeople,
+	},
+	images: {
+		name: "Images: a moodboard",
+		description:
+			"Tack’s mark with its caption, a pasted chart, one image someone’s uploading, one whose upload was abandoned and one whose file is gone. Paste, drop or pick your own (⇧⌘K): they stay in this page.",
+		seed: seedImages,
 	},
 	empty: {
 		name: "Empty",

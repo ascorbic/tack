@@ -45,6 +45,7 @@ export function PhoneBoard({
 	stickyColor,
 	onStickyColor,
 	onAdded,
+	onPhotos,
 }: {
 	doc: Y.Doc;
 	nodes: readonly ShapeNode[];
@@ -63,6 +64,8 @@ export function PhoneBoard({
 	onStickyColor: (color: StickyColor) => void;
 	/** A sticky was added from the pad. */
 	onAdded?: (id: string) => void;
+	/** Photos chosen from the pad: they go in the middle of the view. */
+	onPhotos?: (files: File[]) => void;
 }) {
 	const flow = useReactFlow();
 	const [writing, setWriting] = useState(false);
@@ -208,7 +211,21 @@ export function PhoneBoard({
 					<span className="phone-sheet-kind">New sticky</span>
 				</span>
 			),
-			body: <QuickSticky color={stickyColor} onColor={onStickyColor} onAdd={addFromPad} />,
+			body: (
+				<QuickSticky
+					color={stickyColor}
+					onColor={onStickyColor}
+					onAdd={addFromPad}
+					onPhotos={
+						onPhotos &&
+						((files) => {
+							// Off the pad, to watch them arrive.
+							setWriting(false);
+							onPhotos(files);
+						})
+					}
+				/>
+			),
 		};
 	} else if (thread) {
 		const back = node && thread.anchor.shape === node.id;

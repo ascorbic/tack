@@ -1261,3 +1261,59 @@
 .phone-sheet-thread-view .comment-thread-head .comment-icon-button[aria-label="Close"] {
 	display: none;
 }
+
+/* An image in its sheet: as big as the sheet allows, never taller than half the screen. */
+.phone-sheet-image-frame {
+	position: relative;
+	max-width: 100%;
+	max-height: 50vh;
+	margin: 0 auto;
+}
+
+.phone-sheet-image .phone-sheet-meta {
+	margin-top: 10px;
+}
+
+/* A photo instead of a sticky: the camera or the library, as the phone offers. */
+.quick-photo {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 46px;
+	margin-left: auto;
+	padding: 0 16px;
+	border: 1px solid var(--line-strong);
+	border-radius: 23px;
+	background: var(--surface);
+	color: var(--ink);
+	font-size: 15px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: transform var(--t-quick) var(--ease-out);
+}
+
+.quick-photo:active {
+	transform: scale(0.94);
+}
+
+.quick-photo:focus-within {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.quick-photo svg {
+	fill: none;
+	stroke: currentcolor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.quick-photo-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+	pointer-events: none;
+}
