@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="color-scheme" content="light dark" />
+		<title>Try Tack in your browser</title>
+		<meta
+			name="description"
+			content="A Tack board to play with, entirely in your browser: stack stickies, turn them into issues, push them to a pretend forge, dot-vote and replay history. Nothing leaves your browser."
+		/>
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<!-- The theme before the app loads, so dark mode never flashes white
+		     (the same choice useTheme.ts makes, from the same stored preference). -->
+		<script>
+			try {
+				var p = localStorage.getItem("tack:theme");
+				var dark =
+					p === "dark" || (p !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+				document.documentElement.dataset.theme = dark ? "dark" : "light";
+			} catch (e) {}
+		</script>
+		<style>
+			html {
+				background: #f4f3ef;
+			}
+			html[data-theme="dark"] {
+				background: #141518;
+				color-scheme: dark;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="./main.tsx"></script>
+	</body>
+</html>

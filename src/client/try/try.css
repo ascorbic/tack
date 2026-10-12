@@ -1,0 +1,956 @@
+/* ---------------------------------------------------------------------------
+   The public demo, tack.social/try (#75): what it adds around the board.
+   The scenario picker in the title, Reset and the way to the real thing in
+   the top bar, the demo note in the corner, and the guide's coach marks.
+   Everything uses the app's tokens, so both themes and --motion apply.
+   ------------------------------------------------------------------------ */
+
+/* The scenario picker: the board's title, as a menu --------------------------- */
+
+.try-picker {
+	position: relative;
+	min-width: 0;
+}
+
+.topbar .try-picker-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	max-width: 100%;
+	min-width: 0;
+	padding: 0 10px 0 6px;
+	border-color: transparent;
+	background: transparent;
+	color: var(--ink-soft);
+}
+
+.topbar .try-picker-button:hover,
+.topbar .try-picker-button[aria-expanded="true"] {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.try-picker-kicker {
+	flex: none;
+	padding: 3px 7px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--guide) 12%, transparent);
+	color: color-mix(in srgb, var(--guide) 60%, var(--ink));
+	font-size: 10.5px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.try-picker-name {
+	overflow: hidden;
+	font-family: var(--font-display);
+	font-size: 15px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.try-picker-button svg {
+	flex: none;
+	color: var(--muted);
+	transition: rotate var(--t-base) var(--ease-spring);
+}
+
+.try-picker-button[aria-expanded="true"] svg {
+	rotate: 180deg;
+}
+
+.try-picker-menu {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	z-index: 40;
+	margin-top: 8px;
+	width: min(330px, calc(100vw - 24px));
+	padding: 6px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--chrome-solid);
+	box-shadow: var(--shadow-lifted);
+	transform-origin: 24px 0;
+	animation: try-pop var(--t-base) var(--ease-spring);
+}
+
+.try-picker-heading,
+.try-picker-foot {
+	margin: 0;
+	padding: 6px 10px 4px;
+	color: var(--muted);
+	font-size: 11.5px;
+}
+
+.try-picker-heading {
+	font-weight: 650;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.try-picker-foot {
+	padding: 8px 10px 4px;
+	border-top: 1px solid var(--line);
+	margin-top: 4px;
+}
+
+.topbar .try-picker-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	width: 100%;
+	height: auto;
+	padding: 9px 10px;
+	border: 0;
+	border-radius: 10px;
+	background: transparent;
+	text-align: left;
+	color: var(--ink);
+}
+
+.topbar .try-picker-item:hover,
+.topbar .try-picker-item:focus-visible {
+	background: var(--hover);
+}
+
+.topbar .try-picker-item[aria-checked="true"] {
+	background: var(--accent-soft);
+}
+
+.topbar .try-picker-item:active {
+	transform: scale(0.98);
+}
+
+/* A little sticky for each board, tilted as if just put down. */
+.try-picker-swatch {
+	flex: none;
+	width: 26px;
+	height: 26px;
+	margin-top: 1px;
+	border-radius: 3px;
+	box-shadow: var(--sticky-shadow);
+	rotate: -4deg;
+	transition: rotate var(--t-settle) var(--ease-spring);
+}
+
+.try-picker-item:hover .try-picker-swatch,
+.try-picker-item[aria-checked="true"] .try-picker-swatch {
+	rotate: 3deg;
+}
+
+.try-swatch-planning {
+	background: var(--sticky-blue);
+}
+
+.try-swatch-retro {
+	background: var(--sticky-green);
+}
+
+.try-swatch-triage {
+	background: var(--sticky-purple);
+}
+
+.try-picker-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.try-picker-item-name {
+	font-family: var(--font-display);
+	font-size: 14.5px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.try-picker-blurb {
+	color: var(--muted);
+	font-size: 12.5px;
+	font-weight: 450;
+	line-height: 1.35;
+}
+
+/* Reset, and the way to the real thing ------------------------------------- */
+
+.try-reset {
+	position: relative;
+	flex: none;
+}
+
+.topbar .try-reset-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.try-reset-button svg {
+	transition: rotate var(--t-settle) var(--ease-spring);
+}
+
+.try-reset-button:hover svg,
+.try-reset-button[aria-expanded="true"] svg {
+	rotate: -200deg;
+}
+
+.try-popover {
+	position: absolute;
+	z-index: 40;
+	width: min(300px, calc(100vw - 24px));
+	padding: 14px 16px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--chrome-solid);
+	box-shadow: var(--shadow-lifted);
+	color: var(--ink);
+	text-align: left;
+	animation: try-pop var(--t-base) var(--ease-spring);
+}
+
+.try-reset-confirm {
+	top: 100%;
+	right: 0;
+	margin-top: 8px;
+	transform-origin: calc(100% - 30px) 0;
+}
+
+.try-popover-title {
+	margin: 0 0 6px;
+	font-family: var(--font-display);
+	font-size: 15px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.try-popover-text {
+	margin: 0 0 10px;
+	color: var(--ink-soft);
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.try-popover-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.topbar .try-danger {
+	border-color: var(--danger);
+	background: var(--danger);
+	color: var(--on-accent);
+}
+
+.topbar .try-danger:hover {
+	border-color: color-mix(in srgb, var(--danger) 86%, var(--ink));
+	background: color-mix(in srgb, var(--danger) 86%, var(--ink));
+}
+
+.try-cta {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: 6px;
+	height: 34px;
+	padding: 0 12px 0 13px;
+	border: 1px solid var(--accent);
+	border-radius: 9px;
+	background: var(--accent);
+	color: var(--on-accent);
+	box-shadow:
+		0 1px 2px color-mix(in srgb, var(--accent) 30%, transparent),
+		inset 0 1px 0 rgb(255 255 255 / 18%);
+	font-size: 13px;
+	font-weight: 600;
+	text-decoration: none;
+	white-space: nowrap;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.try-cta:hover {
+	border-color: var(--accent-hover);
+	background: var(--accent-hover);
+}
+
+.try-cta:active {
+	transform: scale(0.96);
+}
+
+.try-cta svg {
+	transition: translate var(--t-base) var(--ease-spring);
+}
+
+.try-cta:hover svg {
+	translate: 2px 0;
+}
+
+.try-cta-short {
+	display: none;
+}
+
+@media (max-width: 900px) {
+	.try-label,
+	.try-cta-long {
+		display: none;
+	}
+
+	.try-cta-short {
+		display: inline;
+	}
+}
+
+@media (max-width: 520px) {
+	.try-cta {
+		display: none;
+	}
+}
+
+/* The demo note: bottom left, over the canvas, above the zoom controls ------- */
+
+.try-note {
+	position: absolute;
+	left: 14px;
+	bottom: 176px;
+	z-index: 25;
+	display: flex;
+	flex-direction: column-reverse;
+	align-items: flex-start;
+	gap: 8px;
+	max-width: calc(100% - 28px);
+	pointer-events: none;
+}
+
+.try-note > * {
+	pointer-events: auto;
+}
+
+.try-note-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	height: 32px;
+	padding: 0 12px 0 5px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--chrome-strong);
+	backdrop-filter: blur(12px) saturate(1.4);
+	box-shadow: var(--shadow-hover);
+	color: var(--ink-soft);
+	font: inherit;
+	font-size: 12.5px;
+	cursor: pointer;
+	animation: try-rise var(--t-settle) var(--ease-spring) calc(600ms * var(--motion)) backwards;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.try-note-pill:hover,
+.try-note-pill[aria-expanded="true"] {
+	background: var(--chrome-solid);
+	color: var(--ink);
+}
+
+.try-note-pill:active {
+	transform: scale(0.97);
+}
+
+.try-note-pill strong {
+	font-weight: 650;
+	color: var(--ink);
+}
+
+.try-note-lock {
+	display: grid;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: var(--open-bg);
+	color: var(--open);
+}
+
+.try-note-pill:hover .try-note-lock svg {
+	animation: try-lock var(--t-settle) var(--ease-spring);
+}
+
+.try-note-short {
+	display: none;
+}
+
+@media (max-width: 640px) {
+	.try-note-text {
+		display: none;
+	}
+
+	.try-note-short {
+		display: inline;
+	}
+}
+
+.try-note-panel {
+	position: relative;
+	width: min(340px, calc(100vw - 28px));
+	transform-origin: 20px 100%;
+}
+
+.try-note-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 12px 0 2px;
+}
+
+.try-note-link {
+	display: inline-flex;
+	align-items: center;
+	height: 30px;
+	padding: 0 11px;
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 12.5px;
+	font-weight: 550;
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.try-note-link:hover {
+	background: var(--surface-muted);
+}
+
+.try-note-link:active {
+	transform: scale(0.96);
+}
+
+.try-note-link.try-note-primary {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.try-note-link.try-note-primary:hover {
+	background: var(--accent-hover);
+}
+
+.try-note-theme {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 12px;
+	padding-top: 10px;
+	border-top: 1px solid var(--line);
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.try-forge-note {
+	margin: 0;
+	padding: 8px 12px;
+	border-radius: 10px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 12.5px;
+	box-shadow: var(--shadow-hover);
+	animation: try-rise var(--t-base) var(--ease-spring);
+}
+
+/* The guide: rings round what to use, a path for the drag, a coach card ------ */
+
+/* The guide steps back while the demo's own menus are open. */
+.try-guide > * {
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.try-guide[data-covered] > * {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.try-ring {
+	position: fixed;
+	z-index: 45;
+	border: 2px solid var(--guide);
+	border-radius: 14px;
+	box-shadow:
+		0 0 0 4px color-mix(in srgb, var(--guide) 18%, transparent),
+		0 0 24px color-mix(in srgb, var(--guide) 30%, transparent);
+	pointer-events: none;
+	animation:
+		try-ring-in var(--t-settle) var(--ease-spring) backwards,
+		try-breathe calc(2200ms * var(--motion)) ease-in-out var(--t-settle) infinite;
+}
+
+.try-ring[data-second] {
+	border-style: dashed;
+	animation-delay: calc(120ms * var(--motion)), var(--t-settle);
+}
+
+.try-path {
+	position: fixed;
+	inset: 0;
+	z-index: 44;
+	width: 100vw;
+	height: 100vh;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.try-path path {
+	fill: none;
+	stroke: var(--guide);
+	stroke-width: 2.5;
+	stroke-linecap: round;
+	stroke-dasharray: 2 9;
+	animation: try-march calc(900ms * var(--motion)) linear infinite;
+}
+
+.try-path circle {
+	fill: var(--guide);
+	animation: try-land calc(1800ms * var(--motion)) var(--ease-out) infinite;
+	transform-box: fill-box;
+	transform-origin: center;
+}
+
+.try-coach {
+	position: fixed;
+	z-index: 50;
+	width: min(320px, calc(100vw - 24px));
+	padding: 14px 16px 12px;
+	border: 1px solid var(--line);
+	border-radius: 16px;
+	background: var(--chrome-solid);
+	box-shadow:
+		var(--shadow-lifted),
+		0 0 0 1px color-mix(in srgb, var(--guide) 14%, transparent);
+	color: var(--ink);
+	animation: try-pop var(--t-settle) var(--ease-spring);
+	transition:
+		left var(--t-base) var(--ease-out),
+		top var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+/* A notch pointing at what the card's about. */
+.try-coach[data-side]::before {
+	content: "";
+	position: absolute;
+	left: calc(var(--arrow, 50%) - 7px);
+	width: 14px;
+	height: 14px;
+	border: 1px solid var(--line);
+	background: var(--chrome-solid);
+	rotate: 45deg;
+}
+
+.try-coach[data-side="below"]::before {
+	top: -8px;
+	border-right: 0;
+	border-bottom: 0;
+	border-top-left-radius: 3px;
+}
+
+.try-coach[data-side="above"]::before {
+	bottom: -8px;
+	border-top: 0;
+	border-left: 0;
+	border-bottom-right-radius: 3px;
+}
+
+/* Nothing to point at, or a phone: above the tool dock, in the middle. */
+.try-coach[data-docked] {
+	left: 50%;
+	bottom: 92px;
+	translate: -50% 0;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.try-coach-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+.try-coach-count {
+	color: var(--muted);
+	font-size: 11.5px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.try-coach-dots {
+	display: flex;
+	gap: 4px;
+}
+
+.try-coach-dots > span {
+	width: 6px;
+	height: 6px;
+	border-radius: 3px;
+	background: var(--line-strong);
+	transition:
+		width var(--t-settle) var(--ease-spring),
+		background var(--t-base) var(--ease-out);
+}
+
+.try-coach-dots > span[data-now] {
+	width: 16px;
+	background: color-mix(in srgb, var(--guide) 45%, var(--line-strong));
+}
+
+.try-coach-dots > span[data-done] {
+	background: var(--guide);
+}
+
+.try-coach-title {
+	margin: 0 0 6px;
+	font-family: var(--font-display);
+	font-size: 17px;
+	font-weight: 650;
+	letter-spacing: -0.015em;
+	line-height: 1.25;
+	text-wrap: balance;
+}
+
+.try-coach-welcome {
+	color: color-mix(in srgb, var(--guide) 75%, var(--ink));
+}
+
+.try-coach-body {
+	margin: 0;
+	color: var(--ink-soft);
+	font-size: 13.5px;
+	line-height: 1.5;
+	text-wrap: pretty;
+}
+
+.try-coach-body q {
+	font-family: var(--font-hand);
+	font-size: 0.97em;
+	color: var(--ink);
+}
+
+.try-coach-body b {
+	font-weight: 650;
+	color: var(--ink);
+}
+
+.try-coach-foot {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.try-coach-quiet,
+.try-coach-next {
+	height: 30px;
+	padding: 0 10px;
+	border-radius: 8px;
+	font: inherit;
+	font-size: 12.5px;
+	font-weight: 550;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.try-coach-quiet {
+	margin-left: -8px;
+	border: 0;
+	background: transparent;
+	color: var(--muted);
+}
+
+.try-coach-quiet:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.try-coach-next {
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	color: var(--ink);
+}
+
+.try-coach-next:hover {
+	background: var(--surface-muted);
+}
+
+.try-coach-quiet:active,
+.try-coach-next:active {
+	transform: scale(0.96);
+}
+
+/* Done: the card turns over to a tick, then the next step comes. */
+.try-coach[data-cheer] {
+	animation: try-cheer var(--t-settle) var(--ease-spring);
+}
+
+.try-coach-cheer {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 4px 0 6px;
+}
+
+.try-coach-cheer .try-coach-title {
+	margin: 0;
+}
+
+.try-coach-check {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	background: var(--pass);
+	color: var(--on-status);
+	animation: try-check-in var(--t-settle) var(--ease-spring);
+}
+
+.try-coach-check path {
+	stroke-dasharray: 20;
+	stroke-dashoffset: 20;
+	animation: try-tick var(--t-base) var(--ease-out) calc(120ms * var(--motion)) forwards;
+}
+
+@media (max-width: 640px) {
+	.try-coach {
+		left: 12px;
+		right: 12px;
+		bottom: 84px;
+		width: auto;
+		translate: none;
+	}
+
+	.try-coach[data-docked] {
+		left: 12px;
+		translate: none;
+	}
+}
+
+/* The last word ------------------------------------------------------------- */
+
+.try-finale {
+	left: 50%;
+	top: 50%;
+	width: min(400px, calc(100vw - 24px));
+	padding: 26px 24px 20px;
+	translate: -50% -50%;
+	text-align: center;
+	transition: none;
+}
+
+.try-finale .try-coach-title {
+	font-size: 26px;
+	letter-spacing: -0.03em;
+}
+
+.try-finale .try-coach-body {
+	margin: 0 auto;
+	max-width: 34ch;
+}
+
+.try-finale-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin-top: 18px;
+}
+
+.try-finale-primary,
+.try-finale-secondary {
+	display: inline-flex;
+	align-items: center;
+	height: 36px;
+	padding: 0 14px;
+	border-radius: 10px;
+	font-size: 13.5px;
+	font-weight: 600;
+	text-decoration: none;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.try-finale-primary {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.try-finale-primary:hover {
+	background: var(--accent-hover);
+}
+
+.try-finale-secondary {
+	border: 1px solid var(--line-strong);
+	color: var(--ink);
+}
+
+.try-finale-secondary:hover {
+	background: var(--hover);
+}
+
+.try-finale-primary:active,
+.try-finale-secondary:active {
+	transform: scale(0.96);
+}
+
+.try-finale .try-coach-quiet {
+	margin: 0;
+}
+
+/* Ten sticky-coloured flecks, thrown out from behind the title. */
+.try-finale-burst {
+	position: absolute;
+	left: 50%;
+	top: 40px;
+	pointer-events: none;
+}
+
+.try-finale-burst > span {
+	--angle: calc(var(--i) * 36deg - 90deg);
+	position: absolute;
+	width: 9px;
+	height: 9px;
+	border-radius: 2px;
+	background: var(--sticky-yellow);
+	opacity: 0;
+	animation: try-fleck calc(900ms * var(--motion)) var(--ease-out) calc(80ms * var(--motion))
+		forwards;
+}
+
+.try-finale-burst > span:nth-child(5n + 1) {
+	background: var(--sticky-pink);
+}
+
+.try-finale-burst > span:nth-child(5n + 2) {
+	background: var(--sticky-blue);
+}
+
+.try-finale-burst > span:nth-child(5n + 3) {
+	background: var(--sticky-green);
+}
+
+.try-finale-burst > span:nth-child(5n + 4) {
+	background: var(--sticky-purple);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.try-finale-burst {
+		display: none;
+	}
+}
+
+/* Motion ---------------------------------------------------------------------- */
+
+@keyframes try-pop {
+	from {
+		opacity: 0;
+		scale: 0.94;
+	}
+}
+
+@keyframes try-rise {
+	from {
+		opacity: 0;
+		translate: 0 8px;
+	}
+}
+
+@keyframes try-cheer {
+	40% {
+		scale: 1.03;
+	}
+}
+
+@keyframes try-ring-in {
+	from {
+		opacity: 0;
+		scale: 1.12;
+	}
+}
+
+@keyframes try-breathe {
+	50% {
+		box-shadow:
+			0 0 0 7px color-mix(in srgb, var(--guide) 10%, transparent),
+			0 0 30px color-mix(in srgb, var(--guide) 34%, transparent);
+	}
+}
+
+@keyframes try-march {
+	to {
+		stroke-dashoffset: -22;
+	}
+}
+
+@keyframes try-land {
+	0%,
+	40% {
+		scale: 1;
+		opacity: 1;
+	}
+	70% {
+		scale: 2.4;
+		opacity: 0;
+	}
+	100% {
+		scale: 1;
+		opacity: 0;
+	}
+}
+
+@keyframes try-check-in {
+	from {
+		scale: 0.3;
+	}
+}
+
+@keyframes try-tick {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+@keyframes try-lock {
+	30% {
+		rotate: -12deg;
+	}
+	60% {
+		rotate: 8deg;
+	}
+}
+
+@keyframes try-fleck {
+	0% {
+		opacity: 1;
+		transform: rotate(var(--angle)) translateX(0) rotate(0deg);
+	}
+	100% {
+		opacity: 0;
+		transform: rotate(var(--angle)) translateX(120px) rotate(200deg);
+	}
+}

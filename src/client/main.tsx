@@ -41,6 +41,8 @@ const routes: Record<string, ComponentType> = {
 				"/play/templates": lazy(() => import("./play/TemplatesGallery.tsx")),
 				"/play/digests": lazy(() => import("./play/DigestsGallery.tsx")),
 				"/play/crash": lazy(() => import("./play/Crash.tsx")),
+				// The public demo (tack.social/try, #75), as it's published.
+				"/play/try": lazy(() => import("./try/DevRoute.tsx")),
 			}
 		: {}),
 };

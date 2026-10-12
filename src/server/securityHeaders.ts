@@ -114,6 +114,48 @@ export function headersFile(hashes: InlineHashes): string {
 	return lines.join("\n");
 }
 
+/**
+ * The public demo's policy (tack.social/try, #75): the app's, but it may
+ * connect to nothing beyond its own files (exported images inline its fonts),
+ * shows no images from elsewhere, and posts no forms. Nothing a visitor does
+ * there can leave the browser.
+ */
+export function tryCsp(hashes: InlineHashes): string {
+	const directives: Record<string, string[]> = {
+		"default-src": ["'self'"],
+		"script-src": ["'self'", ...hashes.scripts.map((hash) => `'${hash}'`)],
+		"style-src": ["'self'", "'unsafe-inline'"],
+		"img-src": ["'self'", "data:", "blob:"],
+		"font-src": ["'self'", "data:"],
+		"connect-src": ["'self'"],
+		"worker-src": ["'self'", "blob:"],
+		"object-src": ["'none'"],
+		"base-uri": ["'self'"],
+		"form-action": ["'none'"],
+		"frame-ancestors": ["'none'"],
+	};
+	return Object.entries(directives)
+		.map(([name, values]) => `${name} ${values.join(" ")}`)
+		.join("; ");
+}
+
+/**
+ * The demo's rules for the docs site's `_headers` file, under /try/: its
+ * policy and the common headers, and a year's caching for its hashed assets.
+ */
+export function tryHeadersFile(hashes: InlineHashes): string {
+	const lines = [
+		"# The demo at /try/: written by its build (vite.config.ts, src/server/securityHeaders.ts).",
+		"/try/*",
+		`  Content-Security-Policy: ${tryCsp(hashes)}`,
+		...Object.entries(COMMON_HEADERS).map(([name, value]) => `  ${title(name)}: ${value}`),
+		"/try/assets/*",
+		"  Cache-Control: public, max-age=31536000, immutable",
+		"",
+	];
+	return lines.join("\n");
+}
+
 function title(name: string): string {
 	return name.replace(
 		/(^|-)([a-z])/g,
