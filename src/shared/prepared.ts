@@ -35,6 +35,8 @@ export type PreparedStep = { id: string; label: string; order: number } & (
 			reactions?: boolean;
 			title?: string;
 			minutes?: number;
+			/** Open for this many days, then it closes by itself: a vote for people across time zones. */
+			days?: number;
 	  }
 ) & {
 		/** When someone started it, ISO 8601. */
@@ -51,6 +53,9 @@ export type PreparedPlan = DistributiveOmit<PreparedStep, "id" | "startedAt" | "
 
 /** Longest a step's label may be. */
 const LABEL_MAX = 80;
+
+/** The longest a prepared vote stays open, in days, as the Facilitate menu offers. */
+export const VOTE_DAYS_MAX = 7;
 
 export function preparedMap(doc: Y.Doc): Y.Map<unknown> {
 	return doc.getMap("prepared");
@@ -104,12 +109,31 @@ export function readStep(id: string, value: unknown): PreparedStep | null {
 				...(raw.reactions ? { reactions: true } : {}),
 				...(typeof raw.title === "string" && raw.title ? { title: raw.title.slice(0, 120) } : {}),
 				...(minutes ? { minutes } : {}),
+				...(daysOf(raw.days) ? { days: daysOf(raw.days) } : {}),
 				...started,
 			};
 		}
 		default:
 			return null;
 	}
+}
+
+function daysOf(value: unknown): number | undefined {
+	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined;
+	return Math.min(VOTE_DAYS_MAX, Math.max(1, Math.round(value)));
+}
+
+/** When a vote started now from a step closes by itself, if it does. */
+export function voteEndsAt(step: PreparedStep, now: number): string | undefined {
+	return step.kind === "vote" && step.days
+		? new Date(now + step.days * 86_400_000).toISOString()
+		: undefined;
+}
+
+/** How long a step runs, in words: "5 min", "3 days". */
+export function stepLength(step: PreparedStep): string | null {
+	if (step.kind === "vote" && step.days) return step.days === 1 ? "1 day" : `${step.days} days`;
+	return "minutes" in step && step.minutes ? `${step.minutes} min` : null;
 }
 
 function isAuthor(value: unknown): value is Author {
@@ -174,7 +198,8 @@ export function writePrepared(doc: Y.Doc, steps: readonly PreparedStep[]): void 
 /** A step in words, for the menu: "Silent writing in “Went well”, 5 min". */
 export function describeStep(step: PreparedStep, sectionTitle: (id: string) => string): string {
 	if (step.label) return step.label;
-	const timer = "minutes" in step && step.minutes ? `, ${step.minutes} min` : "";
+	const length = stepLength(step);
+	const timer = length ? `, ${length}` : "";
 	switch (step.kind) {
 		case "timer":
 			return `${step.minutes} minute timer`;

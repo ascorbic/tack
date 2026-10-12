@@ -6,6 +6,8 @@ import {
 	markStarted,
 	nextStep,
 	readPrepared,
+	stepLength,
+	voteEndsAt,
 } from "../../shared/prepared.ts";
 import type { Author } from "../../shared/shapes.ts";
 import { shapesMap } from "../../shared/shapes.ts";
@@ -34,7 +36,8 @@ export function startStep(doc: Y.Doc, step: PreparedStep, by: Author): void {
 		case "silent":
 			startSilent(step.section, by);
 			break;
-		case "vote":
+		case "vote": {
+			const endsAt = voteEndsAt(step, clock.now());
 			transactLocal(doc, () =>
 				startVote(doc, {
 					scope: step.scope,
@@ -42,11 +45,13 @@ export function startStep(doc: Y.Doc, step: PreparedStep, by: Author): void {
 					hidden: step.hidden,
 					reactions: step.reactions ?? false,
 					...(step.title ? { title: step.title } : {}),
+					...(endsAt ? { endsAt } : {}),
 					by,
 					...(facilitation.you.you ? { starter: facilitation.you.you.author } : {}),
 				}),
 			);
 			break;
+		}
 		case "timer":
 			break;
 	}
@@ -100,7 +105,7 @@ export function PreparedSteps({
 					const Icon = ICONS[step.kind];
 					const started = Boolean(step.startedAt);
 					const isNext = step.id === next?.id;
-					const minutes = "minutes" in step && step.minutes ? `${step.minutes} min` : null;
+					const minutes = stepLength(step);
 					return (
 						<li
 							key={step.id}
