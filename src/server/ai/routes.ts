@@ -24,7 +24,7 @@ import { json } from "../auth/http.ts";
 import { visitorFor } from "../boards/http.ts";
 import { log } from "../log.ts";
 import { boards, directory } from "../namespaces.ts";
-import { aiStatus } from "../ai.ts";
+import { TASK_MODELS, aiStatus } from "../ai.ts";
 import { type Drafted, draft } from "./draft.ts";
 
 /** Bodies bigger than this aren't read. */
@@ -91,13 +91,14 @@ export async function handleAi(request: Request, env: Env): Promise<Response | n
 	}
 
 	const started = Date.now();
-	const context = { board, task: input.task, model: status.model, login: user?.login };
+	const model = fake ? undefined : TASK_MODELS[input.task];
+	const context = { board, task: input.task, model: model ?? status.model, login: user?.login };
 	let drafted: Drafted;
 	if (prepared.task === "widget" && input.task === "widget") {
 		drafted = await draft(
 			env,
 			{ task: "widget", prompt: input.prompt, context: prepared.context },
-			{ fake },
+			{ fake, model },
 		);
 	} else if (prepared.task !== "widget") {
 		if (prepared.items.length === 0) {
@@ -120,7 +121,7 @@ export async function handleAi(request: Request, env: Env): Promise<Response | n
 			input.task === "decision"
 				? { task: "decision", items, leftOut, prompt: input.prompt }
 				: { task: "summary", items, leftOut },
-			{ fake },
+			{ fake, model },
 		);
 	} else {
 		return refuse("invalid", { board });

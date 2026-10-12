@@ -19,7 +19,7 @@ import {
 } from "../shared/stackNaming.ts";
 import { stackMembers } from "../shared/stacks.ts";
 import { readShapes } from "../shared/structure.ts";
-import { aiStatus, askModel } from "./ai.ts";
+import { TASK_MODELS, aiStatus, askModel } from "./ai.ts";
 import type { ConnectionAccess } from "./board.ts";
 import { log } from "./log.ts";
 
@@ -135,7 +135,7 @@ export class Stacks {
 	}
 
 	private ai(): StackAi | null {
-		return stackAi(this.options.env);
+		return stackAi(this.options.env, { name: TASK_MODELS.name, group: TASK_MODELS.group });
 	}
 
 	/** A new connection: whether suggestions are on. */

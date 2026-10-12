@@ -13,7 +13,7 @@ import {
 	DemoAiRequestSchema,
 } from "../shared/demoAi.ts";
 import { readGroups, readName } from "../shared/stackNaming.ts";
-import { AI_FALLBACK_MODEL, AI_MODEL, hasAi } from "../server/ai.ts";
+import { TASK_MODELS, hasAi } from "../server/ai.ts";
 import { draft } from "../server/ai/draft.ts";
 import { log } from "../server/log.ts";
 import { stackAi } from "../server/stacks.ts";
@@ -58,21 +58,8 @@ export const DEMO_DAILY_DEFAULTS: DailyLimits = { total: 3000, visitor: 150 };
 /** How long the model gets: the page gives up a little after, and uses its stand-in. */
 const TIMEOUT_MS = { name: 10_000, group: 25_000, draft: 25_000 } as const;
 
-/**
- * Which model answers each task. Names are Gemma 4's (`AI_MODEL`), as on a
- * real board: a short answer it gives in about a second. The rest are
- * GLM-4.7 Flash's (`AI_FALLBACK_MODEL`, the same request): with these larger
- * schemas, Gemma 4 on Workers AI often runs on in whitespace to its token
- * limit (half a minute, then no JSON) or proposes widgets that don't check
- * out, where GLM answered 12 of 12 tries in 5 to 10 s (October 2026).
- */
-export const DEMO_MODELS: Record<DemoAiRequest["task"], string> = {
-	name: AI_MODEL,
-	group: AI_FALLBACK_MODEL,
-	summary: AI_FALLBACK_MODEL,
-	decision: AI_FALLBACK_MODEL,
-	widget: AI_FALLBACK_MODEL,
-};
+/** Which model answers each task: as on a real board (`TASK_MODELS`, src/server/ai.ts). */
+export const DEMO_MODELS: Record<DemoAiRequest["task"], string> = TASK_MODELS;
 
 export type Outcome =
 	| "answered"

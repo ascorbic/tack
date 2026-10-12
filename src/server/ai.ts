@@ -21,6 +21,22 @@ import type { AiStatus } from "../shared/auth.ts";
 export const AI_MODEL = "@cf/google/gemma-4-26b-a4b-it";
 export const AI_FALLBACK_MODEL = "@cf/zai-org/glm-4.7-flash";
 
+/**
+ * Which model answers each task. Stacks' names are Gemma 4's (`AI_MODEL`): a
+ * short answer it gives in about a second. The rest are GLM-4.7 Flash's
+ * (`AI_FALLBACK_MODEL`, the same request): with these larger schemas, Gemma 4
+ * on Workers AI often runs on in whitespace to its token limit (half a
+ * minute, then no JSON) or proposes widgets that don't check out, where GLM
+ * answered 12 of 12 tries in 5 to 10 s (October 2026).
+ */
+export const TASK_MODELS = {
+	name: AI_MODEL,
+	group: AI_FALLBACK_MODEL,
+	summary: AI_FALLBACK_MODEL,
+	decision: AI_FALLBACK_MODEL,
+	widget: AI_FALLBACK_MODEL,
+} as const;
+
 interface AiRunner {
 	run(model: string, input: Record<string, unknown>): Promise<unknown>;
 }
