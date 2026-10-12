@@ -31,13 +31,13 @@ export const BACKLOG: Card[] = [
 	}),
 	fixture({
 		item: "#433",
-		title: "Support fit=cover in the Contentful provider",
+		title: "Support fit=cover in the Brightloom provider",
 		labels: [LABELS.enhancement, LABELS.provider],
 	}),
 	fixture({
 		item: "#436",
 		kind: "pull",
-		title: "Contentful: map fit modes",
+		title: "Brightloom: map fit modes",
 		labels: [LABELS.provider],
 		pull: pullDetails({ checks: makeChecks({ passed: 3, pending: 5 }) }),
 	}),
@@ -58,7 +58,7 @@ export const BACKLOG: Card[] = [
 	}),
 	fixture({
 		item: "#447",
-		title: "Shopify provider drops the crop parameter",
+		title: "Tidewell provider drops the crop parameter",
 		labels: [LABELS.bug, LABELS.provider],
 	}),
 	fixture({

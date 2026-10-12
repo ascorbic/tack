@@ -130,7 +130,7 @@ export const WIDGET_CARDS: Card[] = [
 	}),
 	fixture({
 		item: "#416",
-		title: "Contentful provider double-encodes spaces",
+		title: "Brightloom provider double-encodes spaces",
 		labels: [LABELS.bug, LABELS.provider],
 		comments: 2,
 		updatedAt: T(4.5),
@@ -139,7 +139,7 @@ export const WIDGET_CARDS: Card[] = [
 		item: "#415",
 		state: "closed",
 		stateReason: "completed",
-		title: "Shopify provider ignores crop",
+		title: "Tidewell provider ignores crop",
 		labels: [LABELS.bug, LABELS.provider],
 		comments: 9,
 		updatedAt: T(5),
@@ -169,7 +169,7 @@ export const WIDGET_CARDS: Card[] = [
 	}),
 	fixture({
 		item: "#410",
-		title: "Sanity provider: respect hotspot",
+		title: "Quillbox provider: respect hotspot",
 		labels: [LABELS.provider],
 		updatedAt: T(8),
 	}),

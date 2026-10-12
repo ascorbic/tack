@@ -20,7 +20,7 @@ const AUTHOR = { name: "Priya Shah", color: "#b4467a" };
 function untriaged(): Card[] {
 	return [
 		fixture({ item: "#501", title: "Width is ignored when `fill` is set", comments: 2 }),
-		fixture({ item: "#502", title: "Contentful provider drops focal point", comments: 0 }),
+		fixture({ item: "#502", title: "Brightloom provider drops focal point", comments: 0 }),
 		fixture({ item: "#503", title: "Add an example for emdash", comments: 4 }),
 		fixture({ item: "#504", title: "srcset has duplicate entries at 3x", comments: 1 }),
 		fixture({ item: "#505", title: "Support `quality` per breakpoint", comments: 7 }),

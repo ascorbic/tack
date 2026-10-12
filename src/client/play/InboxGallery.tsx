@@ -43,7 +43,7 @@ const noop = () => {};
 
 const NEW = [
 	fixture({ item: "#611", title: "Width is ignored when `fill` is set", comments: 2 }),
-	fixture({ item: "#612", title: "Contentful provider drops focal point" }),
+	fixture({ item: "#612", title: "Brightloom provider drops focal point" }),
 	fixture({ item: "#613", title: "Add an example for emdash", comments: 4 }),
 ];
 const LATER = fixture({ item: "#614", title: "srcset has duplicate entries at 3x" });

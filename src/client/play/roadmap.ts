@@ -113,7 +113,7 @@ export const RELEASE_PULLS: Card[] = [
 		2,
 	),
 	merged(444, "Explain the default breakpoints", [LABELS.docs], PEOPLE.jo, 3.5),
-	merged(443, "Fix double-encoded spaces in Contentful URLs", [LABELS.bug], PEOPLE.priya, 4.2),
+	merged(443, "Fix double-encoded spaces in Brightloom URLs", [LABELS.bug], PEOPLE.priya, 4.2),
 	merged(442, "Serve AVIF to Safari 16.4 and later", [LABELS.enhancement], PEOPLE.tom, 6.4),
 	merged(441, "Portside: pass quality=auto through", [LABELS.bug], PEOPLE.kai, 8),
 	merged(440, "Tidy the provider test fixtures", [], PEOPLE_MORE.lee, 9.5),

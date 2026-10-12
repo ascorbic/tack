@@ -136,7 +136,7 @@ export function facilitateSilent(f: SimulatedFacilitator): void {
 	if (!session) return;
 	const hidden: [typeof PRIYA | typeof KAI | typeof TOM, string][] = [
 		[PRIYA, "Flaky tests make me rerun CI three times a day"],
-		[PRIYA, "Nobody owns the Shopify provider"],
+		[PRIYA, "Nobody owns the Tidewell provider"],
 		[KAI, "The release checklist lives in someone’s head"],
 		[KAI, "Hard to find which issues are good first issues"],
 		[KAI, "Benchmarks drift and nobody notices"],

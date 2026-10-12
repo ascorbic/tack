@@ -24,7 +24,7 @@ const MORE_LABELS = {
 	performance: { name: "performance", color: "f9d0c4" },
 	blocked: { name: "status: blocked", color: "b60205" },
 	large: { name: "size: L", color: "c5def5" },
-	vue: { name: "vue", color: "41b883" },
+	components: { name: "components", color: "41b883" },
 };
 
 const you = { login: VIEWER_REVIEWER, avatarUrl: "", state: "requested" as const };
@@ -240,7 +240,7 @@ export function staleCards(now: number): Card[] {
 			comments: 3,
 		}),
 		item(336, "The image component doesn't forward refs", 31, {
-			labels: [MORE_LABELS.vue],
+			labels: [MORE_LABELS.components],
 			author: PEOPLE.kai,
 		}),
 	];
