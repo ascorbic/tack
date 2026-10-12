@@ -251,6 +251,40 @@ export class MemoryHistoryStore implements HistoryStore {
 	transact(fn: () => void): void {
 		fn();
 	}
+
+	/** Everything it holds, as plain data, e.g. to keep in the browser (the public demo, #75). */
+	dump(): HistoryDump {
+		return {
+			steps: [...this.rows.values()].map(({ meta, update }) => ({
+				meta,
+				update: update && toBase64(update),
+			})),
+			frames: [...this.frames].map(([step, state]) => ({ step, state: toBase64(state) })),
+			actors: [...this.people.values()],
+			meta: Object.fromEntries(this.values),
+		};
+	}
+
+	/** A store holding what `dump` gave. */
+	static from(dump: HistoryDump): MemoryHistoryStore {
+		const store = new MemoryHistoryStore();
+		for (const { meta, update } of dump.steps) {
+			store.rows.set(meta.id, { meta, update: update === null ? null : fromBase64(update) });
+			store.nextId = Math.max(store.nextId, meta.id + 1);
+		}
+		for (const { step, state } of dump.frames) store.frames.set(step, fromBase64(state));
+		for (const actor of dump.actors) store.people.set(actor.key, actor);
+		for (const [key, value] of Object.entries(dump.meta)) store.values.set(key, value);
+		return store;
+	}
+}
+
+/** A `MemoryHistoryStore` as plain data, its updates and keyframes in base64. */
+export interface HistoryDump {
+	steps: { meta: StepMeta; update: string | null }[];
+	frames: { step: number; state: string }[];
+	actors: Actor[];
+	meta: Record<string, string>;
 }
 
 // --- Recording ----------------------------------------------------------------

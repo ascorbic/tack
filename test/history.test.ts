@@ -435,3 +435,45 @@ describe("reading history", () => {
 		).toBe(true);
 	});
 });
+
+describe("keeping a memory store as plain data", () => {
+	it("dumps to JSON and comes back as a store that carries on recording", () => {
+		const { doc, store, history, as, clock } = setup();
+		as("ana", () => sticky(doc, "s1", 10, 20, "Hello"));
+		clock.now += 1000;
+		as("ben", () => sticky(doc, "s2", 300, 20, "Hi"));
+		history.flush();
+		const before = history.timeline();
+		const saved = Y.encodeStateAsUpdate(doc);
+		const dump = JSON.parse(JSON.stringify(store.dump()));
+		history.stop();
+
+		// A refresh later: the board from what was kept, and its history.
+		const again = new Y.Doc();
+		Y.applyUpdate(again, saved);
+		const restored = MemoryHistoryStore.from(dump);
+		const log = new HistoryLog({
+			doc: again,
+			store: restored,
+			now: () => clock.now,
+			attribute: (origin) => {
+				const person = typeof origin === "string" ? PEOPLE[origin] : undefined;
+				return person ? { key: person.key, actor: person } : { key: "sys:server" };
+			},
+			limits: { compactEvery: Number.POSITIVE_INFINITY },
+		});
+		log.start();
+		logs.push(log);
+		expect(log.timeline()).toEqual(before);
+		const last = before.steps.at(-1)!.id;
+		expect(shapesMap(log.docAt(last)).toJSON()).toEqual(json(again));
+
+		clock.now += 1000;
+		again.transact(() => shapesMap(again).get("s1")?.set("text", "Hello again"), "ana");
+		log.flush();
+		const steps = log.timeline().steps;
+		expect(steps).toHaveLength(before.steps.length + 1);
+		expect(steps.at(-1)!.id).toBeGreaterThan(last);
+		expect(steps.at(-1)!.changes[0]).toMatchObject({ id: "s1", op: "edit", keys: ["text"] });
+	});
+});
