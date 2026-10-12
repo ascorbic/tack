@@ -1,5 +1,8 @@
 ---
-// The landing page's reasons, each beside the board that shows it.
+// The landing page's reasons, each beside the board that shows it: live
+// (LiveDemo, the demo playing a loop of the feature) where it can be, a
+// screenshot for the phone.
+import LiveDemo from "./LiveDemo.astro";
 import Screenshot from "./Screenshot.astro";
 
 const FEATURES = [
@@ -9,6 +12,7 @@ const FEATURES = [
 		body: "Stickies become issues, a section a parent issue with sub-issues, an arrow a blocked-by link, a decision an ADR pull request; labels, milestones and assignees too. It all waits in one list until someone reviews it and pushes, as themselves or as the app's bot.",
 		link: { href: "/writing-back/overview/", text: "How writing back works" },
 		shot: "push",
+		live: { feature: "push" as const, title: "stickies made issues and pushed" },
 		alt: "The push sheet: new issues with their bodies and labels, a pull request, how many watchers will be notified, and a choice of pushing as yourself or as Tack's bot.",
 		sticky: "yellow",
 	},
@@ -18,6 +22,7 @@ const FEATURES = [
 		body: "Select a whole wall of stickies, issues and pull requests, and Auto-stack sorts them into themes for you, each stack named from what's in it. Or drag one sticky onto another to stack them yourself, like apps in a folder on your phone. The AI runs on your own Cloudflare account, and every suggestion is yours to keep, rename or undo.",
 		link: { href: "/boards/stacks/", text: "Stacks" },
 		shot: "stacks",
+		live: { feature: "stacks" as const, title: "stickies stacked and grouped into named themes" },
 		alt: "A planning board: stickies about what to fix in unpic 5.0, and three stacks beside them, each a card with its name, how many it holds and its first few stickies and issues.",
 		sticky: "purple",
 	},
@@ -27,6 +32,7 @@ const FEATURES = [
 		body: "Start from a template for a planning session, a retro or triage, with each step ready to run. On a call, there's a shared timer, spotlight, silent writing and stamps. Off it, dot votes stay open for days, comments thread, “since you were here” catches people up, and a weekly digest goes out as a GitHub Discussion or by email.",
 		link: { href: "/facilitation/running-a-session/", text: "Running a session" },
 		shot: "retro",
+		live: { feature: "facilitation" as const, title: "a retro's timer, dot vote and stamps" },
 		alt: "A retro board with sections for what went well, what to improve and ideas, with stickies, stamps and cards.",
 		sticky: "green",
 	},
@@ -36,6 +42,7 @@ const FEATURES = [
 		body: "Live lists, a timeline, a release draft, a dependency map with its critical path, a review queue, milestone progress and a stale finder, or a widget of your own, sandboxed. Inbox sections collect new matches for a search, and rules place pull requests beside the issues they fix.",
 		link: { href: "/widgets/overview/", text: "The widgets" },
 		shot: "roadmap",
+		live: { feature: "widgets" as const, title: "a live list, a milestone and an inbox keeping up" },
 		alt: "A timeline of issues opened over a month, a release draft sorted into features, fixes and docs, and a dependency map flagging a cycle and the critical path.",
 		sticky: "blue",
 	},
@@ -74,12 +81,22 @@ const FEATURES = [
 						<span aria-hidden="true">→</span>
 					</a>
 				</div>
-				<Screenshot
-					name={feature.shot}
-					alt={feature.alt}
-					phone={feature.phone}
-					class="tk-feature-shot"
-				/>
+				{feature.live ? (
+					<LiveDemo
+						feature={feature.live.feature}
+						title={feature.live.title}
+						shot={feature.shot}
+						alt={feature.alt}
+						class="tk-feature-shot"
+					/>
+				) : (
+					<Screenshot
+						name={feature.shot}
+						alt={feature.alt}
+						phone={feature.phone}
+						class="tk-feature-shot"
+					/>
+				)}
 			</section>
 		))
 	}

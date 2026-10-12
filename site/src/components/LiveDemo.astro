@@ -1,0 +1,299 @@
+---
+// A feature on the landing page, live: the demo itself (/try/embed/, built
+// with the demo, src/client/try/embed/), playing a short loop of the
+// feature, which anyone can take over. Until it's near the screen it's the
+// feature's screenshot, the same size, so nothing moves when the board fades
+// in over it, and nothing of the demo loads at all; without JavaScript the
+// screenshot is all there is. On a touch screen it waits to be asked
+// ("Watch it live"), and the page scrolls over it until someone asks to try
+// it, so a board never catches a thumb scrolling past.
+import { Image } from "astro:assets";
+
+interface Props {
+	/** Which loop: stacks, push, facilitation or widgets. */
+	feature: "stacks" | "push" | "facilitation" | "widgets";
+	/** The screenshot shown until it's live (and instead, without JavaScript). */
+	shot: string;
+	alt: string;
+	/** What the live board shows, for the frame's title. */
+	title: string;
+	class?: string;
+}
+
+const shots = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*.webp", {
+	eager: true,
+});
+const { feature, shot, alt, title, class: className } = Astro.props;
+const light = shots[`../assets/screenshots/${shot}-light.webp`]?.default;
+const dark = shots[`../assets/screenshots/${shot}-dark.webp`]?.default;
+if (!light || !dark) {
+	throw new Error(`No screenshot called “${shot}”: run \`pnpm --filter site screenshots\``);
+}
+const widths = [720, 1100, 1440, 2200];
+const sizes = "(min-width: 72rem) 45rem, 100vw";
+---
+
+<figure class:list={["tk-live", className]} data-feature={feature} data-title={title}>
+	<div class="tk-shot tk-live-frame" data-state="poster">
+		<div class="tk-live-poster">
+			<Image
+				src={light}
+				{alt}
+				{widths}
+				{sizes}
+				loading="lazy"
+				class="dark:sl-hidden"
+				format="webp"
+			/>
+			<Image
+				src={dark}
+				{alt}
+				{widths}
+				{sizes}
+				loading="lazy"
+				class="light:sl-hidden"
+				format="webp"
+			/>
+		</div>
+		<button type="button" class="tk-live-watch" hidden>
+			<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+				<path d="M3 1.8v8.4L10 6z" fill="currentColor"></path>
+			</svg>
+			Watch it live
+		</button>
+		<button type="button" class="tk-live-try" hidden>Try it yourself</button>
+	</div>
+</figure>
+
+<script>
+	// One script for every live demo on the page (Astro bundles it once).
+	// The embed's half, and the messages, are src/client/try/embed/bridge.ts.
+	const WIDTH = 960;
+	const HEIGHT = 600;
+	/** Made this far before it scrolls into view, so it's ready when it gets there. */
+	const NEAR = "400px 0px";
+	const touch = matchMedia("(pointer: coarse)");
+
+	type FromEmbed =
+		| { tack: "embed"; type: "ready" }
+		| { tack: "embed"; type: "yours" }
+		| { tack: "embed"; type: "scroll"; dx: number; dy: number };
+
+	const theme = () =>
+		document.documentElement.dataset.theme === "light" ? "light" : "dark";
+
+	function live(figure: HTMLElement) {
+		const frame = figure.querySelector<HTMLElement>(".tk-live-frame");
+		const poster = figure.querySelector<HTMLElement>(".tk-live-poster");
+		const watch = figure.querySelector<HTMLButtonElement>(".tk-live-watch");
+		const tryIt = figure.querySelector<HTMLButtonElement>(".tk-live-try");
+		if (!frame || !poster || !watch || !tryIt) return;
+		let iframe: HTMLIFrameElement | null = null;
+		let onScreen = false;
+
+		const send = (message: object) =>
+			iframe?.contentWindow?.postMessage({ tack: "embed", ...message }, location.origin);
+
+		const fit = () => {
+			if (iframe) iframe.style.transform = `scale(${frame.clientWidth / WIDTH})`;
+		};
+
+		const make = () => {
+			if (iframe) return;
+			iframe = document.createElement("iframe");
+			iframe.className = "tk-live-board";
+			iframe.title = `Live demo: ${figure.dataset.title ?? "Tack"}`;
+			iframe.width = String(WIDTH);
+			iframe.height = String(HEIGHT);
+			iframe.loading = "lazy";
+			iframe.src = `/try/embed/?feature=${figure.dataset.feature}&theme=${theme()}`;
+			// On a touch screen the page scrolls over it until someone asks to try it.
+			if (touch.matches) iframe.style.pointerEvents = "none";
+			frame.append(iframe);
+			fit();
+			new ResizeObserver(fit).observe(frame);
+		};
+
+		window.addEventListener("message", (event: MessageEvent<FromEmbed>) => {
+			if (!iframe || event.source !== iframe.contentWindow) return;
+			if (event.origin !== location.origin || event.data?.tack !== "embed") return;
+			const message = event.data;
+			if (message.type === "ready") {
+				frame.dataset.state = "live";
+				poster.setAttribute("aria-hidden", "true");
+				send({ type: "visible", visible: onScreen });
+				if (touch.matches) tryIt.hidden = false;
+			} else if (message.type === "yours") {
+				frame.dataset.state = "yours";
+				tryIt.hidden = true;
+				if (iframe) iframe.style.pointerEvents = "";
+			} else if (message.type === "scroll") {
+				window.scrollBy({ left: message.dx, top: message.dy, behavior: "instant" });
+			}
+		});
+
+		// Only plays while it's on screen.
+		new IntersectionObserver(
+			(entries) => {
+				onScreen = entries.some((entry) => entry.isIntersecting);
+				send({ type: "visible", visible: onScreen });
+			},
+			{ threshold: 0.2 },
+		).observe(frame);
+
+		if (touch.matches) {
+			watch.hidden = false;
+			watch.addEventListener("click", () => {
+				watch.hidden = true;
+				frame.dataset.state = "loading";
+				make();
+			});
+			tryIt.addEventListener("click", () => {
+				tryIt.hidden = true;
+				if (iframe) iframe.style.pointerEvents = "";
+				send({ type: "takeover" });
+				iframe?.focus();
+			});
+			return;
+		}
+		const near = new IntersectionObserver(
+			(entries) => {
+				if (!entries.some((entry) => entry.isIntersecting)) return;
+				near.disconnect();
+				make();
+			},
+			{ rootMargin: NEAR },
+		);
+		near.observe(frame);
+	}
+
+	// After the page has loaded and gone quiet: the page first, then the boards.
+	const start = () => {
+		for (const figure of document.querySelectorAll<HTMLElement>(".tk-live")) live(figure);
+	};
+	const idle = () =>
+		"requestIdleCallback" in window
+			? requestIdleCallback(start, { timeout: 2500 })
+			: setTimeout(start, 600);
+	if (document.readyState === "complete") idle();
+	else addEventListener("load", idle, { once: true });
+
+	// The page's theme, as it changes: every board follows, crossfading.
+	new MutationObserver(() => {
+		for (const iframe of document.querySelectorAll<HTMLIFrameElement>(".tk-live-board")) {
+			iframe.contentWindow?.postMessage(
+				{ tack: "embed", type: "theme", theme: theme() },
+				location.origin,
+			);
+		}
+	}).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>
+
+<style>
+	.tk-live {
+		margin: 0;
+	}
+
+	.tk-live-frame {
+		position: relative;
+		margin: 0;
+		aspect-ratio: 16 / 10;
+	}
+
+	.tk-live-poster {
+		transition: opacity 600ms cubic-bezier(0.2, 0.7, 0.2, 1);
+	}
+
+	/* The board, drawn at its own size and scaled to fit (LiveDemo's script). */
+	.tk-live-frame :global(.tk-live-board) {
+		position: absolute;
+		top: 0;
+		left: 0;
+		/* Its own size, scaled: never the page's rule for embeds' width. */
+		width: 960px;
+		max-width: none;
+		height: 600px;
+		max-height: none;
+		border: 0;
+		transform-origin: 0 0;
+		opacity: 0;
+		transition: opacity 600ms cubic-bezier(0.2, 0.7, 0.2, 1);
+	}
+
+	.tk-live-frame:is([data-state="live"], [data-state="yours"]) :global(.tk-live-board) {
+		opacity: 1;
+	}
+
+	.tk-live-frame:is([data-state="live"], [data-state="yours"]) .tk-live-poster {
+		opacity: 0;
+	}
+
+	.tk-live-frame:focus-within {
+		outline: 2px solid var(--sl-color-text-accent);
+		outline-offset: 3px;
+	}
+
+	.tk-live-watch,
+	.tk-live-try {
+		position: absolute;
+		left: 50%;
+		bottom: 0.9rem;
+		z-index: 1;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		padding: 0.5rem 0.95rem;
+		border: 1px solid var(--tk-line-strong);
+		border-radius: 999px;
+		background: var(--sl-color-bg);
+		box-shadow: var(--tk-shadow-lifted);
+		color: var(--sl-color-white);
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		cursor: pointer;
+		transform: translateX(-50%);
+		transition: transform 160ms ease-out;
+	}
+
+	.tk-live-try {
+		left: auto;
+		right: 0.75rem;
+		bottom: 0.75rem;
+		transform: none;
+	}
+
+	.tk-live-watch:active {
+		transform: translateX(-50%) scale(0.97);
+	}
+
+	.tk-live-try:active {
+		transform: scale(0.97);
+	}
+
+	.tk-live-watch[hidden],
+	.tk-live-try[hidden] {
+		display: none;
+	}
+
+	.tk-live-frame[data-state="loading"] .tk-live-poster {
+		animation: tk-live-wait 1.4s ease-in-out infinite alternate;
+	}
+
+	@keyframes tk-live-wait {
+		to {
+			opacity: 0.6;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tk-live-poster,
+		.tk-live-frame :global(.tk-live-board) {
+			transition: none;
+		}
+
+		.tk-live-frame[data-state="loading"] .tk-live-poster {
+			animation: none;
+		}
+	}
+</style>
