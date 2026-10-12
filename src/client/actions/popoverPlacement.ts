@@ -269,7 +269,8 @@ export function panIntoView({
 // --- The selection's bar -------------------------------------------------------
 //
 // The action bar goes under its selection, or over it when there's no room
-// below, and always wholly on the visible canvas: below its top edge and the
+// below (a section's bar the other way round: over its title first), and
+// always wholly on the visible canvas: below its top edge and the
 // chrome hanging from it (a vote's bar, the timer), above the tool dock, and
 // in from the sides. When neither side of the selection is on screen (a
 // section as tall as the view, or taller), it's pinned just inside the
@@ -296,6 +297,8 @@ export interface BarInput {
 	below: number;
 	/** Between the selection's top and the bar, over what's drawn above it. */
 	above: number;
+	/** Which side of the selection to try first: under it, unless said. */
+	prefer?: "below" | "above";
 	/** Kept clear around the bar. */
 	margin?: number;
 	/** How far inside the selection's top edge a bar pinned within it sits. */
@@ -320,6 +323,7 @@ export function placeBar({
 	obstacles,
 	below,
 	above,
+	prefer = "below",
 	margin = 12,
 	inset = 12,
 }: BarInput): BarPlacement {
@@ -350,8 +354,13 @@ export function placeBar({
 
 	const under = selection.bottom + below;
 	const over = selection.top - above - size.height;
-	if (fits(under)) return place("below", under);
-	if (fits(over)) return place("above", over);
+	const sides = [
+		["below", under],
+		["above", over],
+	] as const;
+	for (const [side, top] of prefer === "above" ? [...sides].reverse() : sides) {
+		if (fits(top)) return place(side, top);
+	}
 	// Wholly below the view, or above it: pinned to that edge.
 	if (over > hi) return place("bottom", hi);
 	if (under < lo) return place("top", lo);

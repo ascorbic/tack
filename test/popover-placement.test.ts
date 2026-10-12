@@ -229,6 +229,25 @@ describe("placeBar", () => {
 		expect(place(box(400, 450, 300, 200))).toEqual({ side: "above", left: 345, top: 308 });
 	});
 
+	it("goes over a section's title first, and under it when there's no room above", () => {
+		const section = (selection: Box) =>
+			placeBar({
+				selection,
+				size,
+				bounds: canvas,
+				obstacles: chrome,
+				below: 14,
+				above: 42,
+				prefer: "above",
+			});
+		expect(section(box(400, 300, 300, 200))).toEqual({ side: "above", left: 345, top: 216 });
+		// Its title at the top of the view: under it.
+		expect(section(box(400, 40, 300, 200))).toEqual({ side: "below", left: 345, top: 254 });
+		// Taller than the view: pinned, as any selection is.
+		expect(section(box(100, -400, 800, 2000))).toEqual({ side: "top", left: 295, top: 12 });
+		expect(section(box(30, 48, 940, 590)).side).toBe("top");
+	});
+
 	it("pins just inside a selection that fills the view, under its title and tools", () => {
 		// A section fitted to the view: no room above it or below it.
 		expect(place(box(30, 48, 940, 590))).toEqual({ side: "top", left: 295, top: 60 });

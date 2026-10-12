@@ -16,7 +16,7 @@ import { type BarAnchor, BarAnchorContext, chromeWithin } from "./Popover.tsx";
 import { type BarSide, type Box, panelSide, placeBar } from "./popoverPlacement.ts";
 
 // Where the selection's action bar sits (placeBar in popoverPlacement.ts):
-// under the selection, or over it, always wholly on the visible canvas and
+// under the selection, or over it (a section's: over its title first), always wholly on the visible canvas and
 // clear of the chrome over it, pinned to the edge of the view when the
 // selection fills it. Drawn by React Flow's NodeToolbar (above every shape,
 // following the board), at a position of our own. Its panels open away from
@@ -106,6 +106,7 @@ export function SelectionBar({
 	visible,
 	below,
 	above,
+	prefer = "below",
 	zIndex,
 	bar,
 	children,
@@ -116,6 +117,8 @@ export function SelectionBar({
 	below: number;
 	/** Between the selection's top and the bar, over what's drawn above it. */
 	above: number;
+	/** Which side to try first: under the selection, or (a section's) over its title. */
+	prefer?: "below" | "above";
 	zIndex: number;
 	/** The bar itself, to measure. */
 	bar: RefObject<HTMLElement | null>;
@@ -209,9 +212,10 @@ export function SelectionBar({
 						obstacles: frame.obstacles,
 						below,
 						above,
+						prefer,
 					})
 				: null,
-		[anchorBox, size, frame, below, above],
+		[anchorBox, size, frame, below, above, prefer],
 	);
 
 	// Glide when it changes sides (the board moving under it never does): on
