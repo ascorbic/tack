@@ -1,0 +1,46 @@
+---
+// Starlight's skip link, then a note for coding agents reading the page's
+// HTML: where the docs' index is (/llms.txt), this page as Markdown, and, on
+// the landing page and the self-hosting pages, the setup guide written for them (/setup.md). All
+// written by scripts/agents.ts. Hidden from sight and from screen readers,
+// and from the docs' search; it's outside <main>, so Ask's index skips it too.
+import Default from "@astrojs/starlight/components/SkipLink.astro";
+import { markdownPath } from "../agents/pages.ts";
+
+const { id } = Astro.locals.starlightRoute;
+const page = id === "" || id === "index" ? null : markdownPath(`/${id}/`);
+// The landing page too: it's where an agent asked to set Tack up starts.
+const setup = page === null || id.startsWith("self-hosting/");
+---
+
+<Default />
+
+<blockquote class="tk-agent-note" aria-hidden="true" data-pagefind-ignore data-agent-docs-index>
+	<p>
+		For coding agents: the documentation index is at <a href="/llms.txt">/llms.txt</a>. Fetch it to find
+		every page as Markdown.{" "}
+		{page && <>This page is at <a href={page}>{page}</a>.</>}
+	</p>
+	{
+		setup && (
+			<p>
+				Setting up Tack for someone? Follow <a href="/setup.md">/setup.md</a>: step-by-step instructions for
+				a coding agent in their terminal, which stop for the steps they do in a browser.
+			</p>
+		)
+	}
+</blockquote>
+
+<style>
+	.tk-agent-note {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+		border: 0;
+	}
+</style>

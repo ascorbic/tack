@@ -57,6 +57,7 @@ export default defineConfig({
 				Hero: "./src/components/Hero.astro",
 				SiteTitle: "./src/components/SiteTitle.astro",
 				Search: "./src/components/Search.astro",
+				SkipLink: "./src/components/SkipLink.astro",
 			},
 			expressiveCode: {
 				themes: ["github-dark", "github-light"],
