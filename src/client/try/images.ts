@@ -6,8 +6,10 @@ import { restore } from "./persist.ts";
 // board kept in localStorage still has its pictures after a refresh, and
 // nothing ever leaves the browser. Files are shared by the demo's boards
 // (copying between them needs nothing), and Reset lets go of the ones no
-// board or its history mentions any more. Without IndexedDB (private
-// windows, previews) they're kept for the page's life, as the playground's are.
+// board or its history mentions any more. Files are kept as bytes, so
+// Safari's private windows keep them too (for the window's life). Without
+// IndexedDB (some previews, or where writing fails) they're kept for the
+// page's life, as the playground's are.
 
 const DATABASE = "tack-try-images";
 const STORE = "files";
@@ -26,6 +28,10 @@ function open(): Promise<IDBDatabase | null> {
 	});
 }
 
+/**
+ * Once its transaction's committed (a write isn't kept until then), the
+ * request's result; null if anything failed.
+ */
 function run<T>(
 	db: IDBDatabase,
 	mode: IDBTransactionMode,
@@ -33,13 +39,44 @@ function run<T>(
 ): Promise<T | null> {
 	return new Promise((resolve) => {
 		try {
-			const request = fn(db.transaction(STORE, mode).objectStore(STORE));
-			request.onsuccess = () => resolve(request.result);
-			request.onerror = () => resolve(null);
+			const transaction = db.transaction(STORE, mode);
+			const request = fn(transaction.objectStore(STORE));
+			transaction.oncomplete = () => resolve(request.result);
+			transaction.onerror = () => resolve(null);
+			transaction.onabort = () => resolve(null);
 		} catch {
 			resolve(null);
 		}
 	});
+}
+
+/**
+ * A file as it's kept: its bytes, not a Blob, as Safari refuses Blobs in
+ * IndexedDB where it keeps nothing on disk (private windows, and
+ * Playwright's), failing the whole write.
+ */
+interface Kept {
+	type: string;
+	bytes: ArrayBuffer;
+}
+
+async function toKept(blob: Blob): Promise<Kept> {
+	return { type: blob.type, bytes: await blob.arrayBuffer() };
+}
+
+/** A kept file as a Blob again (files kept before were Blobs themselves). */
+function fromKept(value: unknown): Blob | null {
+	if (value instanceof Blob) return value;
+	if (
+		value &&
+		typeof value === "object" &&
+		"bytes" in value &&
+		value.bytes instanceof ArrayBuffer
+	) {
+		const type = "type" in value && typeof value.type === "string" ? value.type : "";
+		return new Blob([value.bytes], { type });
+	}
+	return null;
 }
 
 export function tryImages(): ImageService & { sweep(): Promise<number> } {
@@ -64,10 +101,10 @@ export function tryImages(): ImageService & { sweep(): Promise<number> } {
 		if (known) return known;
 		const db = await database;
 		const blob = db
-			? await run<Blob | undefined>(db, "readonly", (store) => store.get(hash))
+			? fromKept(await run<unknown>(db, "readonly", (store) => store.get(hash)))
 			: null;
-		if (blob instanceof Blob) keep(hash, blob);
-		return blob instanceof Blob ? blob : null;
+		if (blob) keep(hash, blob);
+		return blob;
 	};
 	return {
 		src(hash) {
@@ -95,7 +132,10 @@ export function tryImages(): ImageService & { sweep(): Promise<number> } {
 				// A moment's pretend upload, so it's seen arriving.
 				await pretendToSend(700, onProgress, signal);
 				const db = await database;
-				if (db) await run(db, "readwrite", (store) => store.put(image.blob, image.hash));
+				if (db) {
+					const kept = await toKept(image.blob);
+					await run(db, "readwrite", (store) => store.put(kept, image.hash));
+				}
 				keep(image.hash, image.blob);
 			}
 			onProgress?.(1);
