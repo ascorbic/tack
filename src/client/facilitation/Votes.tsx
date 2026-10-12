@@ -611,7 +611,8 @@ export function VoteBar({
 				<DotsIcon size={15} />
 			</span>
 			<span className="vote-bar-title">
-				{open ? "Voting on" : "Vote closed:"} <strong>{scopeTitle}</strong>
+				<span className="vote-bar-verb">{open ? "Voting on" : "Vote closed:"}</span>{" "}
+				<strong>{scopeTitle}</strong>
 			</span>
 			{open && !readOnly && (
 				<span

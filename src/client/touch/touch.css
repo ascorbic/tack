@@ -1118,6 +1118,11 @@
 	text-overflow: ellipsis;
 }
 
+/* The dots say it's a vote: the room goes to what's being voted on. */
+.app[data-phone] .vote-bar[data-open="true"] .vote-bar-verb {
+	display: none;
+}
+
 .app[data-phone] .vote-bar > :not(.vote-bar-title) {
 	flex-shrink: 0;
 }
