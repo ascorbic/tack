@@ -27,6 +27,15 @@ A shape belongs to the deepest section that contains its centre and is bigger th
 - **Moving**: pick a section up by its title. Dragging inside a section draws a selection box over its contents instead.
 - **Resizing**: drag one of the eight grips. Things stay where they are: shapes the section no longer covers leave it, and shapes it now covers join.
 - **Nesting**: sections can sit inside sections, as deep as you like.
+
+## Growing and fitting
+
+A section grows to hold what's in it. Drop, paste or add something that reaches over its edge (with its centre inside, so it belongs there), and the edge glides out to take it in, with a little room to spare. The same happens when a stack in it opens into its tray, or a card in it loads taller than it was placed. A section inside another one grows the one around it too. Undo takes back the drop and the growing together.
+
+Sections never shrink on their own, and never grow past a size you chose by hand: resize one smaller than what's in it and it stays that size. To snap a section to its contents, larger or smaller, select it on its own and choose **Fit** in the bar under it (<kbd>⌥</kbd> <kbd>F</kbd>), or double-click any of its grips. It fits snugly around what's in it, with room all round and for its title; an empty section fits to a small default size. It's one undo step.
+
+Sections showing a list or mini cards already size themselves to what's in them, so they don't need either.
+
 - **Deleting a section deletes everything in it**, with an undo toast.
 
 ## Cards, a list or mini cards
