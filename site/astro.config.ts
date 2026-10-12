@@ -2,14 +2,28 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
 
+const site = "https://tack.social";
+// The link preview image (scripts/og.ts), for every page.
+const og = [
+	{ property: "og:image", content: `${site}/og.png` },
+	{ property: "og:image:width", content: "1200" },
+	{ property: "og:image:height", content: "630" },
+	{
+		property: "og:image:alt",
+		content: "Tack: plan on a board, push to GitHub. A board of live issue and pull request cards.",
+	},
+	{ name: "twitter:image", content: `${site}/og.png` },
+];
+
 export default defineConfig({
-	site: "https://tack.social",
+	site,
 	integrations: [
 		starlight({
 			title: "Tack",
 			description:
 				"Tack is an open source, self-hosted whiteboard for planning sessions on GitHub's own data: live issue and pull request cards on a shared board, with what you decide pushed back to GitHub as one reviewed batch.",
 			favicon: "/favicon.svg",
+			head: og.map((attrs) => ({ tag: "meta" as const, attrs })),
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/ascorbic/tack" }],
 			editLink: { baseUrl: "https://github.com/ascorbic/tack/edit/main/site/" },
 			lastUpdated: true,

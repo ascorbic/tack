@@ -10,7 +10,8 @@
 		"build": "astro build && node scripts/try.ts && node scripts/build-output.ts",
 		"preview": "astro preview",
 		"deploy": "pnpm run build && cf deploy --prebuilt",
-		"screenshots": "node scripts/screenshots.ts"
+		"screenshots": "node scripts/screenshots.ts",
+		"og": "node scripts/og.ts"
 	},
 	"dependencies": {
 		"@astrojs/markdown-remark": "7.3.2",
