@@ -27,7 +27,7 @@
 
 import type { Card, CardKind, CardState, MissingCard } from "./cards.ts";
 import { arrowHead, arrowTrim, readConnector, resolveEnds, routeConnector } from "./connectors.ts";
-import { layoutDisplays } from "./display.ts";
+import { emptyState, layoutDisplays } from "./display.ts";
 import type { Point, Rect } from "./geometry.ts";
 import { LINK_CARD, linkHost, linkHue, linkLabel, readPreview } from "./linkPreview.ts";
 import { IMAGE_LIMITS, imageSize as imageBox, isImageHash } from "./images.ts";
@@ -256,6 +256,11 @@ export type SceneItem =
 			silent: boolean;
 			/** Showing a list or grid: drawn as a panel with its rows. */
 			display: boolean;
+			/**
+			 * An empty list or grid, as the board draws it (display.ts):
+			 * placeholder rows or mini cards, and its words beneath them.
+			 */
+			empty?: { mode: "list" | "mini"; placeholders: Rect[]; note: Rect; words: string };
 	  }
 	| {
 			kind: "sticky";
@@ -404,6 +409,8 @@ const STICKY_COLORS = new Set(["yellow", "pink", "blue", "green", "purple"]);
 const SECTION_COLORS = new Set(["grey", "red", "orange", "yellow", "green", "blue", "purple"]);
 const TEXT_PX: Record<string, number> = { s: 14, m: 20, l: 34, xl: 56 };
 const CONNECTOR_WIDTH = 2;
+/** What an empty list or grid says in a picture of a board, when it has no prompt of its own. */
+const EMPTY_WORDS = "Nothing here yet";
 
 /** An image shape's corners, as the board draws them (images.css). */
 const IMAGE_RADIUS = 10;
@@ -477,6 +484,8 @@ export function buildScene(
 		const shape = shapes.get(id)!;
 		const rect = boxes.get(id);
 		if (!rect) continue;
+		const list = layout.sections.get(id);
+		const empty = list ? emptyState(list) : null;
 		items.push({
 			kind: "section",
 			id,
@@ -485,6 +494,15 @@ export function buildScene(
 			color: SECTION_COLORS.has(shape.color ?? "") ? shape.color! : "grey",
 			silent: parseSession(shape.silent) !== null,
 			display: layout.sections.has(id),
+			// Read-only, as everyone looking at a picture is: what goes in it, or that it's empty.
+			...(list &&
+				empty && {
+					empty: {
+						mode: list.mode,
+						...empty,
+						words: clean(typeof shape.prompt === "string" ? shape.prompt : "") || EMPTY_WORDS,
+					},
+				}),
 		});
 	}
 

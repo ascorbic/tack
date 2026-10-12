@@ -264,7 +264,8 @@ function section(item: Extract<SceneItem, { kind: "section" }>, ctx: Ctx): El[] 
 		border: `${Math.max(1, k(1.5))}px solid ${colors.edge}`,
 		borderRadius: k(14),
 	});
-	if (!item.title) return [frame];
+	const frames = [frame, ...emptyList(item, colors, ctx)];
+	if (!item.title) return frames;
 	const grow = Math.min(10, Math.max(1, 1 / ctx.s));
 	const size = 13 * grow;
 	const height = 26 * grow;
@@ -283,9 +284,9 @@ function section(item: Extract<SceneItem, { kind: "section" }>, ctx: Ctx): El[] 
 		background: colors.title,
 		borderRadius: k(9 * grow),
 	} as const;
-	if (!legible(size, ctx)) return [frame, box({ ...pill, width: Math.max(1, k(width)) })];
+	if (!legible(size, ctx)) return [...frames, box({ ...pill, width: Math.max(1, k(width)) })];
 	return [
-		frame,
+		...frames,
 		box(
 			{ ...pill, padding: `0 ${k(10 * grow)}px` },
 			text(
@@ -315,6 +316,50 @@ function section(item: Extract<SceneItem, { kind: "section" }>, ctx: Ctx): El[] 
 				),
 		),
 	];
+}
+
+/**
+ * An empty list or grid, as the board draws it (EmptyList.tsx): faint
+ * placeholder rows or mini cards outlined in the section's edge colour, and
+ * what goes in it beneath, once that's big enough to read.
+ */
+function emptyList(
+	item: Extract<SceneItem, { kind: "section" }>,
+	colors: { edge: string; ink: string },
+	ctx: Ctx,
+): El[] {
+	const { k } = ctx;
+	if (!item.empty) return [];
+	const { mode, placeholders, note, words } = item.empty;
+	const out = placeholders.map((rect, i) =>
+		box({
+			...place(rect, ctx),
+			border: `${Math.max(1, k(1.25))}px dashed ${colors.edge}`,
+			borderRadius: k(mode === "mini" ? 10 : 9),
+			opacity: Math.max(0.38, 1 - i * (mode === "mini" ? 0.11 : 0.27)),
+		}),
+	);
+	const size = 13;
+	if (note.h >= 24 && legible(size, ctx)) {
+		out.push(
+			box(
+				{ ...place(note, ctx), alignItems: "center", justifyContent: "center" },
+				text(
+					{
+						fontSize: k(size),
+						lineHeight: 1.3,
+						fontWeight: 600,
+						color: colors.ink,
+						whiteSpace: "nowrap",
+						textOverflow: "ellipsis",
+					},
+					words,
+					1,
+				),
+			),
+		);
+	}
+	return out;
 }
 
 function sticky(item: Extract<SceneItem, { kind: "sticky" }>, ctx: Ctx): El {

@@ -795,6 +795,54 @@ describe("drawing", () => {
 		expect(svg).not.toContain(THUMB);
 	});
 
+	it("draws empty lists and grids as the board does, with what goes in them", async () => {
+		const shapes = new Map<string, ShapeProps>([
+			[
+				"now",
+				{
+					type: "section",
+					x: 0,
+					y: 0,
+					w: 580,
+					h: 640,
+					z: "a0",
+					title: "Now",
+					color: "green",
+					display: "list",
+					prompt: "What’s being built now.",
+				},
+			],
+			[
+				"next",
+				{
+					type: "section",
+					x: 640,
+					y: 0,
+					w: 1000,
+					h: 440,
+					z: "a1",
+					title: "Next",
+					color: "blue",
+					display: "mini",
+				},
+			],
+		]);
+		const scene = buildScene(shapes, new Map(), { kind: "board" });
+		const now = byId(scene, "now") as Extract<SceneItem, { kind: "section" }>;
+		expect(now.empty?.placeholders).toHaveLength(3);
+		expect(now.empty?.words).toBe("What’s being built now.");
+		const next = byId(scene, "next") as Extract<SceneItem, { kind: "section" }>;
+		expect(next.empty?.mode).toBe("mini");
+		expect(next.empty?.words).toBe("Nothing here yet");
+		for (const theme of ["light", "dark"] as const) {
+			for (const width of [1200, 200]) {
+				const size = imageSize(scene.frame, width);
+				const svg = await render(drawScene(scene, { theme, ...size }), size.width, size.height);
+				expect(svg).toMatch(/^<svg width="\d+" height="\d+"/);
+			}
+		}
+	});
+
 	it("draws an empty board, and a section that's gone, with a note", async () => {
 		for (const scene of [
 			buildScene(new Map(), new Map(), { kind: "board" }),

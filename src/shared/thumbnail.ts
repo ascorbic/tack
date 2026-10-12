@@ -12,7 +12,13 @@ import {
 	type ThumbnailKind,
 	type ThumbnailShape,
 } from "./boards.ts";
-import { type DisplayLayout, type SectionLayout, type Slot, layoutDisplays } from "./display.ts";
+import {
+	type DisplayLayout,
+	type SectionLayout,
+	type Slot,
+	emptyState,
+	layoutDisplays,
+} from "./display.ts";
 import { LINK_CARD, linkHue, readPreview } from "./linkPreview.ts";
 import { imageSize } from "./images.ts";
 import { readStructure } from "./sections.ts";
@@ -203,8 +209,9 @@ const OUTLINE = { pad: 0.05, row: 0.13, gap: 0.035, rows: 4, columns: 3, tile: 0
 
 /**
  * A section showing a list or mini cards: its frame, as tall as what's in
- * it, or with `outline`, an empty one at its own size with a few rows or
- * mini cards outlined in it.
+ * it (an empty one as tall as its empty state, with its placeholders
+ * outlined, as the board draws it), or with `outline`, an empty one at its
+ * own size with a few rows or mini cards outlined in it, bigger than life.
  */
 function displayBoxes(
 	list: SectionLayout,
@@ -215,7 +222,16 @@ function displayBoxes(
 	const own = explicitSize(shape);
 	if (!outline || list.order.length > 0 || !own) {
 		const { x, y, w: width, h: height } = list.box;
-		return [{ kind: "frame", x, y, width, height, tone }];
+		// An empty one as the board draws it: its placeholders, outlined.
+		const placeholders = (emptyState(list)?.placeholders ?? []).map((rect): Box => ({
+			kind: list.mode === "mini" ? "tile" : "row",
+			x: rect.x,
+			y: rect.y,
+			width: rect.w,
+			height: rect.h,
+			tone: "outline",
+		}));
+		return [{ kind: "frame", x, y, width, height, tone }, ...placeholders];
 	}
 	const { x, y, w: width } = list.box;
 	const frame: Box = { kind: "frame", x, y, width, height: own.height, tone };

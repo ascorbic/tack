@@ -79,7 +79,15 @@ describe("thumbnails of lists and mini cards", () => {
 
 	it("outline an empty one at its own size only when asked, as a template's", () => {
 		const empty = [{ id: "s", type: "section", x: 0, y: 0, w: 480, h: 900, display: "list" }];
-		expect(sketch(empty)?.shapes.map((shape) => shape[0])).toEqual(["frame"]);
+		// As the board draws it: as tall as its empty state, its placeholder rows outlined.
+		const plain = sketch(empty);
+		expect(plain?.shapes.map((shape) => [shape[0], shape[5]])).toEqual([
+			["frame", ""],
+			["row", "outline"],
+			["row", "outline"],
+			["row", "outline"],
+		]);
+		expect(plain!.width).toBeGreaterThan(plain!.height);
 		const outlined = sketch(empty, undefined, { outlineEmpty: true });
 		expect(outlined?.shapes.filter((shape) => shape[0] === "row")).toHaveLength(4);
 		expect(outlined!.height).toBeGreaterThan(outlined!.width);
