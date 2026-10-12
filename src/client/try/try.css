@@ -453,6 +453,31 @@
 	}
 }
 
+/* A phone: down in the dock's row, between Show the whole board and +,
+   rather than over the middle of the board. */
+.app[data-phone] .try-note {
+	left: 72px;
+	bottom: calc(24px + env(safe-area-inset-bottom));
+	max-width: calc(100% - 158px);
+}
+
+.app[data-phone] .try-note-pill {
+	max-width: 100%;
+}
+
+/* Its panel still spans the screen, from the dock's left edge. */
+.app[data-phone] .try-note-panel {
+	width: calc(100vw - 32px);
+	margin-left: -56px;
+}
+
+.app[data-phone] .try-note-short {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .try-note-panel {
 	position: relative;
 	width: min(340px, calc(100vw - 28px));
