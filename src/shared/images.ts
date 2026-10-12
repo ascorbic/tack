@@ -87,12 +87,20 @@ export const IMAGE_UPLOAD_STALE_MS = 5 * 60_000;
 export type ImageState = "ready" | "uploading" | "interrupted" | "missing";
 
 export function imageState(shape: Pick<ShapeProps, "image" | "upload">, now: number): ImageState {
-	if (isImageHash(shape.image)) return "ready";
 	const upload = shape.upload;
-	if (!upload) return "missing";
-	const at = Date.parse(upload.at);
-	return Number.isFinite(at) && now - at > IMAGE_UPLOAD_STALE_MS ? "interrupted" : "uploading";
+	const at = upload ? Date.parse(upload.at) : Number.NaN;
+	const stale = !Number.isFinite(at) || now - at > IMAGE_UPLOAD_STALE_MS;
+	// A file on its way (an upload, or a copy from another board) shows as arriving.
+	if (upload && !stale) return "uploading";
+	if (isImageHash(shape.image)) return "ready";
+	return upload ? "interrupted" : "missing";
 }
+
+/**
+ * Client writes that finish an upload when they can't join the step that
+ * added the image (something else has been done since): never undone.
+ */
+export const IMAGE_ORIGIN = "image";
 
 /** Smallest an image may be resized to, on its shorter side. */
 export const IMAGE_MIN = 24;

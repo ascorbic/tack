@@ -218,6 +218,8 @@ const UNCOPIED: Record<string, readonly string[]> = {
 	// An action item's staged issue is the original's; its link to an issue
 	// that exists travels, so a copy follows the same issue.
 	action: ACTION_UNCOPIED,
+	// An upload in progress is its uploader's: a copy has the file, or nothing.
+	image: ["upload", "preview"],
 };
 
 /**

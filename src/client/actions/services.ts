@@ -6,6 +6,7 @@ import type { QueryError, RelatedResult, SearchResult } from "../../shared/widge
 import { canEdit } from "../../shared/boards.ts";
 import { type AiService, liveAi } from "../ai/service.ts";
 import { boardsApi } from "../boards/api.ts";
+import { type ImageService, liveImages } from "../images/service.ts";
 import { repoApi } from "../changes/api.ts";
 import { type LinkService, liveLinks } from "../links/service.ts";
 import type { User } from "../presence.ts";
@@ -40,6 +41,8 @@ export interface WriteServices {
 	ai?: AiService;
 	/** Link cards: reading pages' previews, and where their images load from. */
 	links?: LinkService;
+	/** Where image files go and come from: the Worker's, unless given. */
+	images?: ImageService;
 }
 
 const SNAPSHOT_ERRORS: Record<string, string> = {
@@ -57,6 +60,7 @@ export function liveServices(boardId: string): WriteServices {
 		boardTitle: () => document.title.replace(/ · Tack$/, "") || null,
 		ai: liveAi(boardId),
 		links: liveLinks(boardId),
+		images: liveImages(boardId),
 		// The shared repository endpoint (src/client/changes/api.ts).
 		repoMeta: (repo) => repoApi.meta(repo).catch(() => null),
 		async uploadSnapshot(png) {

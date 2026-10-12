@@ -40,6 +40,7 @@ import {
 	toHtml,
 	toPlainText,
 } from "./clipboard.ts";
+import { imageFilesOf } from "./images/useBoardImages.tsx";
 import { type User, authorFor } from "./presence.ts";
 import type { ActionCommand } from "./actions/selection.ts";
 import { type CommandId, isApplePlatform, matchShortcut, shortcutHint } from "./shortcuts.ts";
@@ -106,6 +107,17 @@ interface CommandsOptions {
 	addCards?: (keys: string[], options: { at: Position }) => { added: string[] };
 	/** Add link cards for pasted web addresses (links.ts), starting at `at`, as cards are. */
 	addLinks?: (urls: string[], options: { at: Position }) => void;
+	/** Image files pasted: placed around `at`. False if none could be taken. */
+	addImages?: (files: File[], at: Position) => boolean;
+	/**
+	 * Shapes just pasted, inside the paste's transaction: images from another
+	 * board are marked as arriving. Returns the ids marked, for `onPastedImages`.
+	 */
+	markPasted?: (ids: string[], from: string | undefined) => string[];
+	/** After the paste: bring marked images' files over from the board they came from. */
+	onPastedImages?: (from: string, ids: string[]) => void;
+	/** Open the file picker for images. */
+	onInsertImage?: () => boolean;
 }
 
 /** How much each step in or out zooms by: React Flow's own step. */
@@ -113,7 +125,7 @@ const ZOOM_STEP = 1.2;
 
 /** Commands that change the document, which view-only boards ignore. */
 const WRITES =
-	/^(undo|redo|duplicate|delete|nudge|align|distribute|tidy|makeIssues|parentIssue|labels|milestone|assign|closeReopen|backlink|blockedBy|expandRelated|toActions|carryOver|stackThese|groupThese|unstack|fitSection|summarise|draftDecision)/;
+	/^(undo|redo|duplicate|delete|insertImage|nudge|align|distribute|tidy|makeIssues|parentIssue|labels|milestone|assign|closeReopen|backlink|blockedBy|expandRelated|toActions|carryOver|stackThese|groupThese|unstack|fitSection|summarise|draftDecision)/;
 
 export function useCanvasCommands(options: CommandsOptions) {
 	const flow = useReactFlow<ShapeNode>();
@@ -316,12 +328,17 @@ export function useCanvasCommands(options: CommandsOptions) {
 
 	const pastePayload = useCallback(
 		(payload: ClipboardPayload, offset: Position): string[] => {
+			let arriving: string[] = [];
 			const ids = transactLocal(doc, () => {
 				const added = pasteShapes(doc, payload, offset);
 				settlePasted(doc, added, offset, latest.current.boxSize);
+				arriving = latest.current.markPasted?.(added, payload.board) ?? [];
 				return added;
 			});
 			latest.current.setSelected(new Set(ids));
+			if (arriving.length > 0 && payload.board) {
+				latest.current.onPastedImages?.(payload.board, arriving);
+			}
 			return ids;
 		},
 		[doc],
@@ -573,6 +590,8 @@ export function useCanvasCommands(options: CommandsOptions) {
 				case "shortcuts":
 					toggleShortcuts();
 					return true;
+				case "insertImage":
+					return latest.current.onInsertImage?.() ?? false;
 				case "makeIssues":
 				case "parentIssue":
 				case "labels":
@@ -679,6 +698,12 @@ export function useCanvasCommands(options: CommandsOptions) {
 			const data = event.clipboardData;
 			if (!data) return;
 			flushNudge();
+			// Image files first (a screenshot, a copied image), then text.
+			const files = imageFilesOf(data);
+			if (files.length > 0 && latest.current.addImages?.(files, pointerOrCentre())) {
+				event.preventDefault();
+				return;
+			}
 			if (pasteFrom((type) => data.getData(type))) event.preventDefault();
 		};
 
@@ -702,7 +727,7 @@ export function useCanvasCommands(options: CommandsOptions) {
 			window.removeEventListener("paste", onPaste);
 			window.removeEventListener("pointermove", onPointerMove);
 		};
-	}, [copySelection, flushNudge, pasteFrom, removeSelection, run, writeClipboard]);
+	}, [copySelection, flushNudge, pasteFrom, pointerOrCentre, removeSelection, run, writeClipboard]);
 
 	// Commit a pending nudge if the board goes away.
 	useEffect(() => () => flushNudge(), [flushNudge]);

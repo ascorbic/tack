@@ -44,6 +44,8 @@ import { BlockedByAction } from "./actions/BlockedBy.tsx";
 import { ActionRequests } from "./actions/selection.ts";
 import { ServicesContext, type WriteServices, liveServices } from "./actions/services.ts";
 import { useLinkUnfurling } from "./links/unfurling.ts";
+import { ImagesContext, liveImages } from "./images/service.ts";
+import { carriesFiles, imageFilesOf, useBoardImages } from "./images/useBoardImages.tsx";
 import type { BoardSource } from "./connection.ts";
 import type { PushClient } from "./changes/api.ts";
 import { ChangesButton } from "./changes/ChangesButton.tsx";
@@ -467,6 +469,12 @@ export function Board({
 	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
 	// Link cards' previews: read by editors' clients, written for everyone (links/unfurling.ts).
 	useLinkUnfurling(liveDoc, writeServices.links, !viewOnly);
+	const imageService = useMemo(
+		() => writeServices.images ?? liveImages(name),
+		[writeServices, name],
+	);
+	// Images on the board: dropped, pasted or picked (defined below, with what they need).
+	const imagesRef = useRef<ReturnType<typeof useBoardImages> | null>(null);
 	const [actionRequests] = useState(() => new ActionRequests());
 	const [sheetOpen, setSheetOpen] = useState(false);
 	const [minimapOn, setMinimapOn] = useMinimapPreference();
@@ -1080,6 +1088,14 @@ export function Board({
 		drawnAt: (id) => displayRef.current.slots.get(id)?.rect,
 		addCards: (keys, options) => addCardsRef.current(keys, options),
 		addLinks: (urls, options) => addLinksRef.current(urls, options),
+		addImages: (files, at) => imagesRef.current?.add(files, at) ?? false,
+		markPasted: (ids, from) => imagesRef.current?.markPasted(ids, from, name) ?? [],
+		onPastedImages: (from, ids) => imagesRef.current?.adoptPasted(from, ids),
+		onInsertImage: () => {
+			if (!imagesRef.current) return false;
+			imagesRef.current.pick();
+			return true;
+		},
 	});
 	// Tablets: long-press to select several (#67).
 	const touchSelect = useTouchSelection({
@@ -1269,6 +1285,20 @@ export function Board({
 			flow.screenToFlowPosition({ x: window.innerWidth / 2 - 120, y: window.innerHeight / 2 - 60 }),
 		[flow],
 	);
+
+	const boardImages = useBoardImages({
+		doc,
+		history,
+		images: imageService,
+		by: user.name,
+		toasts,
+		sizeOf: boxSize,
+		select: (ids) => setSelected(new Set(ids)),
+		readOnly,
+		centre: () =>
+			flow.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }),
+	});
+	imagesRef.current = boardImages;
 
 	// Where the pointer is in flow space, only tracked while placing a sticky.
 	const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
@@ -1485,13 +1515,25 @@ export function Board({
 		if (
 			types.includes(STICKY_DRAG_TYPE) ||
 			types.includes(WIDGET_DRAG_TYPE) ||
-			(!readOnly && droppedText(types))
+			(!readOnly && (droppedText(types) || carriesFiles(event.dataTransfer)))
 		) {
 			event.preventDefault();
 			event.dataTransfer.dropEffect = "copy";
 		}
 	};
 	const onDrop = (event: DragEvent) => {
+		// Image files from the desktop, laid out together where they're dropped.
+		const files = imageFilesOf(event.dataTransfer);
+		if (files.length > 0 || carriesFiles(event.dataTransfer)) {
+			event.preventDefault();
+			if (files.length === 0) {
+				toasts.show({ message: "Boards take PNG, JPEG, GIF, WebP, AVIF and SVG images." });
+				return;
+			}
+			boardImages.add(files, flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
+			setTool("select");
+			return;
+		}
 		const widget = event.dataTransfer.getData(WIDGET_DRAG_TYPE);
 		if (widget && !readOnly) {
 			event.preventDefault();
@@ -1703,541 +1745,549 @@ export function Board({
 				widgets={widgetBoard}
 			>
 				<ServicesContext value={writeServices}>
-					<div
-						className="app"
-						data-read-only={readOnly || undefined}
-						data-phone={phone || undefined}
-						data-touch={device.touch || undefined}
-					>
-						<SkipToBoard onSkip={() => canvas.current?.focus()} />
-						<TopBar
-							home={home}
-							title={
-								<>
-									{title ?? <span className="board-name">{name}</span>}
-									<SyncStatus synced={synced} waiting={waiting} />
-								</>
-							}
-							people={
-								<>
-									{inbox}
-									<People
-										user={user}
-										selfId={awareness.clientID}
-										people={presence.people}
-										following={follow.following}
-										onFollow={follow.follow}
-										onJump={follow.jump}
-										self={account && ((label) => account(label, user))}
-									/>
-								</>
-							}
-							tools={
-								<>
-									<SinceButton doc={liveDoc} login={user.login} youId={comments.youId} />
-									{replay.controller && (
-										<HistoryButton open={replay.state.open} onToggle={toggleHistory} />
-									)}
-									<RulesButton
-										doc={doc}
-										open={rulesOpen}
-										onToggle={() => {
-											setRulesOpen((open) => !open);
-											comments.closePanel();
-										}}
-										toasts={toasts}
-										onReveal={reveal}
-									/>
-									<FacilitateMenu
-										doc={doc}
-										awareness={awareness}
-										user={user}
-										readOnly={readOnly}
-										toasts={toasts}
-										onReveal={reveal}
-										selectedSection={selectedSection}
-										onStamp={() => setTool("stamp")}
-									/>
-									<CommentsButton />
-								</>
-							}
-							actions={
-								<>
-									<ChangesButton />
-									{actions}
-								</>
-							}
-						/>
-						<main
-							ref={canvas}
-							id="board"
-							className="canvas"
-							// The skip link's target, named and summed up for screen readers.
-							tabIndex={-1}
-							aria-label="Board"
-							aria-describedby={SUMMARY_ID}
-							data-tool={tool}
-							data-picking={picking ?? undefined}
-							data-exporting={exporter.drawing || undefined}
-							data-history={
-								replay.state.open ? (replay.state.position === null ? "now" : "past") : undefined
-							}
-							onPointerMove={(event) => {
-								const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-								presence.setCursor(at);
-								pointerRef.current = at;
-								if (tool === "sticky") setGhost(at);
-							}}
-							onPointerLeave={() => {
-								presence.setCursor(null);
-								setGhost(null);
-							}}
-							onDragOver={onDragOver}
-							onDrop={onDrop}
+					<ImagesContext value={imageService}>
+						<div
+							className="app"
+							data-read-only={readOnly || undefined}
+							data-phone={phone || undefined}
+							data-touch={device.touch || undefined}
 						>
-							<BoardSummary id={SUMMARY_ID} nodes={shapeNodes} />
-							<Announcer />
-							<DisplayMarksContext value={displayMarks}>
-								<ReactFlow
-									nodes={nodes}
-									ariaLabelConfig={ARIA_LABELS}
-									nodeTypes={NODE_TYPES}
-									onNodesChange={onNodesChange}
-									onPaneClick={onPaneClick}
-									onMoveStart={follow.onMoveStart}
-									onMoveEnd={(_event, viewport) => {
-										if (rememberView && fitted.current) saveViewport(rememberView, viewport);
-									}}
-									proOptions={{ hideAttribution: true }}
-									onlyRenderVisibleElements={!exporter.drawing}
-									selectionOnDrag={tool === "select" && !phone}
-									// A finger on the board pans (React Flow's, for touch, whatever this
-									// says); a pencil draws a selection box, as a mouse does.
-									panOnDrag={tool === "hand" || phone ? true : [1, 2]}
-									// A finger wobbles: a tap shouldn't nudge what it lands on.
-									nodeDragThreshold={device.touch ? 6 : 1}
-									panOnScroll
-									nodesDraggable={!readOnly && shapesInteractive && !phone}
-									elementsSelectable={shapesInteractive && !phone}
-									minZoom={0.1}
-									// Deleting is a board command (see commands.ts), so that shapes
-									// and connectors go together, as one undo step.
-									deleteKeyCode={null}
-									selectionMode={SelectionMode.Partial}
-									selectionKeyCode={null}
-									multiSelectionKeyCode={["Shift", "Meta", "Control"]}
-									onSelectionStart={(event) => {
-										// React Flow has just deselected every shape, before calling
-										// this. A plain marquee replaces the whole selection,
-										// connectors too; with Shift, it adds to what was selected.
-										const base = event.shiftKey ? new Set(selected) : null;
-										marqueeBase.current = base;
-										setSelected(new Set(base));
-									}}
-									onSelectionEnd={() => {
-										marqueeBase.current = null;
-									}}
-									onNodeMouseEnter={(_event, node) => {
-										// Light up this item's rows in any list (#38).
-										if (node.type === "card" && node.data.shape.ref) {
-											linkStore.set(node.data.shape.ref, "card");
-										}
-										// A row or mini card pops its full card out (#72).
-										if (node.data.display === "row" || node.data.display === "mini") {
-											previewStore.enter(node.id);
-										}
-									}}
-									onNodeMouseLeave={(_event, node) => {
-										if (node.type === "card") linkStore.set(null, "card");
-										previewStore.leave(node.id);
-									}}
-									onNodeClick={(event, node) => {
-										// Picking a section to start something on.
-										if (picking) {
-											const section = sectionAt(doc, node.id);
-											if (section) pickSection(picking, section);
-											return;
-										}
-										// Stamping and dot voting: a click puts yours on the shape.
-										if (!readOnly && tool === "stamp" && node.type !== "connector") {
-											stampShape(doc, node.id, stamp, user);
-											return;
-										}
-										if (!readOnly && tool === "vote") {
-											const shapes = new Map(nodes.map((n) => [n.id, n.data.shape] as const));
-											const result = dotShape(
-												doc,
-												readVotes(doc),
-												shapes,
-												node.id,
-												user,
-												event.altKey,
-											);
-											// Said in place of the tool's hint, not in a toast above it
-											// (a phone has no toolbar to say it in).
-											const say = phone
-												? (message: string) => toasts.show({ message })
-												: showToolNote;
-											if (result === "none_left") {
-												say("No dots left: click one of yours to move it");
-											} else if (result === "no_vote") {
-												say("That’s not part of a vote");
-											}
-											return;
-										}
-										// On a phone, a tap opens the shape in a sheet: what it is,
-										// its votes and its comments.
-										if (phone) {
-											setSheetShape(node.id);
-											return;
-										}
-										// Clicking a stack spreads it open, here (#73); clicking
-										// its name renames it, in place.
-										if (
-											node.type === "stack" &&
-											!(event.target as Element | null)?.closest?.(
-												"button.stack-name, .stack-accept, .stack-name-input",
-											) &&
-											tool === "select" &&
-											!event.shiftKey &&
-											!event.metaKey &&
-											!event.ctrlKey &&
-											!node.data.stack?.open &&
-											node.data.display === undefined
-										) {
-											stackStore.setOpen(node.id);
-											setSelected(new Set([node.id]));
-											return;
-										}
-										// Clicking one shape in a multi-selection selects just that
-										// one (not while a finger is selecting several, on a tablet).
-										if (event.shiftKey || event.metaKey || event.ctrlKey || touchSelect.multi)
-											return;
-										if (selected.size > 1 && selected.has(node.id)) setSelected(new Set([node.id]));
-									}}
-								>
-									<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-									<ZoomControls
-										onCommand={commands.run}
-										onShortcuts={() => setSheetOpen(true)}
-										hasSelection={selected.size > 0}
-										minimap={shapeNodes.length > 0 ? minimapOn : null}
-										onMinimap={setMinimapOn}
-										onNavigate={follow.stop}
-									/>
-									{minimapOn && shapeNodes.length > 0 && (
-										<BoardMinimap pannable zoomable nodeClassName={minimapClass} />
-									)}
-									<ZoomVariable />
-									<PanelBoundary name="Connectors">
-										<ConnectorLayer
+							<SkipToBoard onSkip={() => canvas.current?.focus()} />
+							<TopBar
+								home={home}
+								title={
+									<>
+										{title ?? <span className="board-name">{name}</span>}
+										<SyncStatus synced={synced} waiting={waiting} />
+									</>
+								}
+								people={
+									<>
+										{inbox}
+										<People
+											user={user}
+											selfId={awareness.clientID}
+											people={presence.people}
+											following={follow.following}
+											onFollow={follow.follow}
+											onJump={follow.jump}
+											self={account && ((label) => account(label, user))}
+										/>
+									</>
+								}
+								tools={
+									<>
+										<SinceButton doc={liveDoc} login={user.login} youId={comments.youId} />
+										{replay.controller && (
+											<HistoryButton open={replay.state.open} onToggle={toggleHistory} />
+										)}
+										<RulesButton
+											doc={doc}
+											open={rulesOpen}
+											onToggle={() => {
+												setRulesOpen((open) => !open);
+												comments.closePanel();
+											}}
+											toasts={toasts}
+											onReveal={reveal}
+										/>
+										<FacilitateMenu
 											doc={doc}
 											awareness={awareness}
-											nodes={nodes}
-											sectionDrags={structure.sectionDrags}
-											drawing={!readOnly && tool === "connector"}
-											interactive={!readOnly && tool !== "hand"}
-											onDrawn={() => setTool("select")}
-											selected={selected}
-											setSelected={setSelected}
-											sizeOf={boxSize}
-											connectorActions={
-												readOnly
-													? undefined
-													: (id) => (
-															<BlockedByAction
-																key={id}
-																doc={doc}
-																connector={id}
-																user={user}
-																toasts={toasts}
-																history={history}
-																requests={actionRequests}
-															/>
-														)
+											user={user}
+											readOnly={readOnly}
+											toasts={toasts}
+											onReveal={reveal}
+											selectedSection={selectedSection}
+											onStamp={() => setTool("stamp")}
+										/>
+										<CommentsButton />
+									</>
+								}
+								actions={
+									<>
+										<ChangesButton />
+										{actions}
+									</>
+								}
+							/>
+							<main
+								ref={canvas}
+								id="board"
+								className="canvas"
+								// The skip link's target, named and summed up for screen readers.
+								tabIndex={-1}
+								aria-label="Board"
+								aria-describedby={SUMMARY_ID}
+								data-tool={tool}
+								data-picking={picking ?? undefined}
+								data-exporting={exporter.drawing || undefined}
+								data-history={
+									replay.state.open ? (replay.state.position === null ? "now" : "past") : undefined
+								}
+								onPointerMove={(event) => {
+									const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+									presence.setCursor(at);
+									pointerRef.current = at;
+									if (tool === "sticky") setGhost(at);
+								}}
+								onPointerLeave={() => {
+									presence.setCursor(null);
+									setGhost(null);
+								}}
+								onDragOver={onDragOver}
+								onDrop={onDrop}
+							>
+								<BoardSummary id={SUMMARY_ID} nodes={shapeNodes} />
+								<Announcer />
+								<DisplayMarksContext value={displayMarks}>
+									<ReactFlow
+										nodes={nodes}
+										ariaLabelConfig={ARIA_LABELS}
+										nodeTypes={NODE_TYPES}
+										onNodesChange={onNodesChange}
+										onPaneClick={onPaneClick}
+										onMoveStart={follow.onMoveStart}
+										onMoveEnd={(_event, viewport) => {
+											if (rememberView && fitted.current) saveViewport(rememberView, viewport);
+										}}
+										proOptions={{ hideAttribution: true }}
+										onlyRenderVisibleElements={!exporter.drawing}
+										selectionOnDrag={tool === "select" && !phone}
+										// A finger on the board pans (React Flow's, for touch, whatever this
+										// says); a pencil draws a selection box, as a mouse does.
+										panOnDrag={tool === "hand" || phone ? true : [1, 2]}
+										// A finger wobbles: a tap shouldn't nudge what it lands on.
+										nodeDragThreshold={device.touch ? 6 : 1}
+										panOnScroll
+										nodesDraggable={!readOnly && shapesInteractive && !phone}
+										elementsSelectable={shapesInteractive && !phone}
+										minZoom={0.1}
+										// Deleting is a board command (see commands.ts), so that shapes
+										// and connectors go together, as one undo step.
+										deleteKeyCode={null}
+										selectionMode={SelectionMode.Partial}
+										selectionKeyCode={null}
+										multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+										onSelectionStart={(event) => {
+											// React Flow has just deselected every shape, before calling
+											// this. A plain marquee replaces the whole selection,
+											// connectors too; with Shift, it adds to what was selected.
+											const base = event.shiftKey ? new Set(selected) : null;
+											marqueeBase.current = base;
+											setSelected(new Set(base));
+										}}
+										onSelectionEnd={() => {
+											marqueeBase.current = null;
+										}}
+										onNodeMouseEnter={(_event, node) => {
+											// Light up this item's rows in any list (#38).
+											if (node.type === "card" && node.data.shape.ref) {
+												linkStore.set(node.data.shape.ref, "card");
 											}
-										/>
-									</PanelBoundary>
-									{!readOnly && tool === "section" && (
-										<SectionTool
-											doc={doc}
-											sizeOf={boxSize}
-											onCreate={(id) => {
-												setSelected(new Set([id]));
-												setTool("select");
-											}}
-										/>
-									)}
-									<PanelBoundary name="Inboxes">
-										<InboxLayer
-											doc={doc}
-											nodes={nodes}
-											readOnly={readOnly}
-											user={user}
-											toasts={toasts}
-											sizeOf={boxSize}
-											onPlaced={(id) => setSelected(new Set([id]))}
-										/>
-									</PanelBoundary>
-									{!replay.state.open && (
-										<HighlightLayer doc={doc} nodes={nodes} sizeOf={drawnSize} />
-									)}
-									<PanelBoundary name="Comment pins">
-										<CommentLayer
-											nodes={nodes}
-											sizeOf={drawnSize}
-											placing={tool === "comment"}
-											user={user}
-											toasts={toasts}
-											// A phone opens threads in its sheet, not by their pins.
-											popovers={!phone}
-										/>
-									</PanelBoundary>
-									<Guides store={snapping.guides} />
-									{!readOnly && (
-										<SelectionTools
-											nodes={nodes}
-											selected={selected}
-											sizeOf={sizeOf}
-											dragging={snapping.dragging}
-											stacked={styledShapes(selectedNodes).length > 0}
+											// A row or mini card pops its full card out (#72).
+											if (node.data.display === "row" || node.data.display === "mini") {
+												previewStore.enter(node.id);
+											}
+										}}
+										onNodeMouseLeave={(_event, node) => {
+											if (node.type === "card") linkStore.set(null, "card");
+											previewStore.leave(node.id);
+										}}
+										onNodeClick={(event, node) => {
+											// Picking a section to start something on.
+											if (picking) {
+												const section = sectionAt(doc, node.id);
+												if (section) pickSection(picking, section);
+												return;
+											}
+											// Stamping and dot voting: a click puts yours on the shape.
+											if (!readOnly && tool === "stamp" && node.type !== "connector") {
+												stampShape(doc, node.id, stamp, user);
+												return;
+											}
+											if (!readOnly && tool === "vote") {
+												const shapes = new Map(nodes.map((n) => [n.id, n.data.shape] as const));
+												const result = dotShape(
+													doc,
+													readVotes(doc),
+													shapes,
+													node.id,
+													user,
+													event.altKey,
+												);
+												// Said in place of the tool's hint, not in a toast above it
+												// (a phone has no toolbar to say it in).
+												const say = phone
+													? (message: string) => toasts.show({ message })
+													: showToolNote;
+												if (result === "none_left") {
+													say("No dots left: click one of yours to move it");
+												} else if (result === "no_vote") {
+													say("That’s not part of a vote");
+												}
+												return;
+											}
+											// On a phone, a tap opens the shape in a sheet: what it is,
+											// its votes and its comments.
+											if (phone) {
+												setSheetShape(node.id);
+												return;
+											}
+											// Clicking a stack spreads it open, here (#73); clicking
+											// its name renames it, in place.
+											if (
+												node.type === "stack" &&
+												!(event.target as Element | null)?.closest?.(
+													"button.stack-name, .stack-accept, .stack-name-input",
+												) &&
+												tool === "select" &&
+												!event.shiftKey &&
+												!event.metaKey &&
+												!event.ctrlKey &&
+												!node.data.stack?.open &&
+												node.data.display === undefined
+											) {
+												stackStore.setOpen(node.id);
+												setSelected(new Set([node.id]));
+												return;
+											}
+											// Clicking one shape in a multi-selection selects just that
+											// one (not while a finger is selecting several, on a tablet).
+											if (event.shiftKey || event.metaKey || event.ctrlKey || touchSelect.multi)
+												return;
+											if (selected.size > 1 && selected.has(node.id))
+												setSelected(new Set([node.id]));
+										}}
+									>
+										<Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
+										<ZoomControls
 											onCommand={commands.run}
+											onShortcuts={() => setSheetOpen(true)}
+											hasSelection={selected.size > 0}
+											minimap={shapeNodes.length > 0 ? minimapOn : null}
+											onMinimap={setMinimapOn}
+											onNavigate={follow.stop}
 										/>
-									)}
-									<PanelBoundary name="Votes and marks">
-										<MarksLayer
-											doc={doc}
-											nodes={nodes}
-											sizeOf={boxSize}
-											me={user}
-											readOnly={readOnly}
-											voting={!readOnly && tool === "vote"}
-										/>
-									</PanelBoundary>
-									{replay.controller && replay.state.open && (
-										<HistoryCanvas
-											controller={replay.controller}
-											state={replay.state}
-											live={liveDoc}
-											selected={[...selected]}
-											readOnly={viewOnly}
-											sizeOf={boxSize}
-										/>
-									)}
-									<Cursors people={presence.people} />
-									<Emotes awareness={awareness} user={user} people={presence.people} />
-									<ViewPublisher awareness={awareness} paused={exporter.drawing} />
-									{!readOnly && (
-										<ShapeToolbar
-											doc={doc}
-											selected={selectedNodes}
-											dragging={snapping.dragging}
-											onStickyColor={setStickyColor}
-										/>
-									)}
-									{!readOnly && (
-										<ActionBar
-											doc={doc}
-											selected={selectedNodes}
-											nodes={nodes}
-											dragging={snapping.dragging}
-											user={user}
-											toasts={toasts}
-											history={history}
-											requests={actionRequests}
-											sizeOf={sizeOf}
-											boxSize={boxSize}
-										/>
-									)}
-									{ghost && (
-										<ViewportPortal>
-											<div
-												className="sticky sticky-ghost"
-												data-color={stickyColor}
-												aria-hidden="true"
-												style={{
-													transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+										{minimapOn && shapeNodes.length > 0 && (
+											<BoardMinimap pannable zoomable nodeClassName={minimapClass} />
+										)}
+										<ZoomVariable />
+										<PanelBoundary name="Connectors">
+											<ConnectorLayer
+												doc={doc}
+												awareness={awareness}
+												nodes={nodes}
+												sectionDrags={structure.sectionDrags}
+												drawing={!readOnly && tool === "connector"}
+												interactive={!readOnly && tool !== "hand"}
+												onDrawn={() => setTool("select")}
+												selected={selected}
+												setSelected={setSelected}
+												sizeOf={boxSize}
+												connectorActions={
+													readOnly
+														? undefined
+														: (id) => (
+																<BlockedByAction
+																	key={id}
+																	doc={doc}
+																	connector={id}
+																	user={user}
+																	toasts={toasts}
+																	history={history}
+																	requests={actionRequests}
+																/>
+															)
+												}
+											/>
+										</PanelBoundary>
+										{!readOnly && tool === "section" && (
+											<SectionTool
+												doc={doc}
+												sizeOf={boxSize}
+												onCreate={(id) => {
+													setSelected(new Set([id]));
+													setTool("select");
 												}}
 											/>
-										</ViewportPortal>
-									)}
-									<DisplayPreview
-										display={display}
-										selected={selected}
-										suppressed={snapping.dragging || tool !== "select"}
-									/>
-								</ReactFlow>
-							</DisplayMarksContext>
-							<EmptyBoard
-								empty={
-									!readOnly &&
-									synced &&
-									shapeNodes.length === 0 &&
-									tool !== "comment" &&
-									!comments.hasThreads
-								}
-								onTool={setTool}
-								phone={phone}
-							/>
-							{spotlight.along ? null : (
-								<FollowIndicator person={follow.target} onStop={follow.stop} />
-							)}
-							<SpotlightIndicator
-								state={spotlight}
-								withYou={
-									presence.people.filter((person) => person.following === awareness.clientID).length
-								}
-								onBreakOut={follow.stop}
-							/>
-							{/* A phone fits the board below a vote's bar (fitting.ts). */}
-							<div className="facilitation-dock" data-fit-clear="top">
-								<TimerPill doc={doc} user={user} readOnly={readOnly} />
-								<VoteBars
-									doc={doc}
-									user={user}
-									readOnly={readOnly}
-									voting={tool === "vote"}
-									onVoting={setVoting}
-									toasts={toasts}
+										)}
+										<PanelBoundary name="Inboxes">
+											<InboxLayer
+												doc={doc}
+												nodes={nodes}
+												readOnly={readOnly}
+												user={user}
+												toasts={toasts}
+												sizeOf={boxSize}
+												onPlaced={(id) => setSelected(new Set([id]))}
+											/>
+										</PanelBoundary>
+										{!replay.state.open && (
+											<HighlightLayer doc={doc} nodes={nodes} sizeOf={drawnSize} />
+										)}
+										<PanelBoundary name="Comment pins">
+											<CommentLayer
+												nodes={nodes}
+												sizeOf={drawnSize}
+												placing={tool === "comment"}
+												user={user}
+												toasts={toasts}
+												// A phone opens threads in its sheet, not by their pins.
+												popovers={!phone}
+											/>
+										</PanelBoundary>
+										<Guides store={snapping.guides} />
+										{!readOnly && (
+											<SelectionTools
+												nodes={nodes}
+												selected={selected}
+												sizeOf={sizeOf}
+												dragging={snapping.dragging}
+												stacked={styledShapes(selectedNodes).length > 0}
+												onCommand={commands.run}
+											/>
+										)}
+										<PanelBoundary name="Votes and marks">
+											<MarksLayer
+												doc={doc}
+												nodes={nodes}
+												sizeOf={boxSize}
+												me={user}
+												readOnly={readOnly}
+												voting={!readOnly && tool === "vote"}
+											/>
+										</PanelBoundary>
+										{replay.controller && replay.state.open && (
+											<HistoryCanvas
+												controller={replay.controller}
+												state={replay.state}
+												live={liveDoc}
+												selected={[...selected]}
+												readOnly={viewOnly}
+												sizeOf={boxSize}
+											/>
+										)}
+										<Cursors people={presence.people} />
+										<Emotes awareness={awareness} user={user} people={presence.people} />
+										<ViewPublisher awareness={awareness} paused={exporter.drawing} />
+										{!readOnly && (
+											<ShapeToolbar
+												doc={doc}
+												selected={selectedNodes}
+												dragging={snapping.dragging}
+												onStickyColor={setStickyColor}
+											/>
+										)}
+										{!readOnly && (
+											<ActionBar
+												doc={doc}
+												selected={selectedNodes}
+												nodes={nodes}
+												dragging={snapping.dragging}
+												user={user}
+												toasts={toasts}
+												history={history}
+												requests={actionRequests}
+												sizeOf={sizeOf}
+												boxSize={boxSize}
+											/>
+										)}
+										{ghost && (
+											<ViewportPortal>
+												<div
+													className="sticky sticky-ghost"
+													data-color={stickyColor}
+													aria-hidden="true"
+													style={{
+														transform: `translate(${ghost.x - STICKY_SIZE / 2}px, ${ghost.y - STICKY_SIZE / 2}px)`,
+													}}
+												/>
+											</ViewportPortal>
+										)}
+										<DisplayPreview
+											display={display}
+											selected={selected}
+											suppressed={snapping.dragging || tool !== "select"}
+										/>
+									</ReactFlow>
+								</DisplayMarksContext>
+								<EmptyBoard
+									empty={
+										!readOnly &&
+										synced &&
+										shapeNodes.length === 0 &&
+										tool !== "comment" &&
+										!comments.hasThreads
+									}
+									onTool={setTool}
+									phone={phone}
 								/>
-							</div>
-							{!readOnly && <StartVoteDialog doc={doc} user={user} now={facilitation.serverNow} />}
-							{picking && !readOnly && (
-								<SectionPickerHint
-									kind={picking}
-									hasSections={hasSections}
-									onMake={(title) => makeSectionToPick(picking, title)}
+								{spotlight.along ? null : (
+									<FollowIndicator person={follow.target} onStop={follow.stop} />
+								)}
+								<SpotlightIndicator
+									state={spotlight}
+									withYou={
+										presence.people.filter((person) => person.following === awareness.clientID)
+											.length
+									}
+									onBreakOut={follow.stop}
 								/>
-							)}
-							{voteState.tally && (
-								<PanelBoundary name="The vote’s results">
-									<TallyPanel
+								{/* A phone fits the board below a vote's bar (fitting.ts). */}
+								<div className="facilitation-dock" data-fit-clear="top">
+									<TimerPill doc={doc} user={user} readOnly={readOnly} />
+									<VoteBars
 										doc={doc}
-										voteId={voteState.tally}
 										user={user}
 										readOnly={readOnly}
-										onClose={() => voteUI.showTally(null)}
-										onReveal={reveal}
-									/>
-								</PanelBoundary>
-							)}
-							<CursorChat awareness={awareness} user={user} />
-							{!replay.state.open && !phone && (
-								<Toolbar
-									tool={tool}
-									onTool={setTool}
-									stickyColor={stickyColor}
-									onStickyColor={setStickyColor}
-									onAddCards={(keys, copies) => addCards(keys, { copies, notify: false })}
-									cardScope={cardScope}
-									searchItems={searchItems}
-									onBoard={onBoard}
-									onAddWidget={addWidgetAt}
-									suggestedRepo={suggestedRepo}
-									login={user.login ?? null}
-									stamp={stamp}
-									onStamp={setStamp}
-									viewOnly={readOnly}
-									commenting={comments.canComment}
-									note={toolNote}
-									commentBlocked={
-										comments.commentBlocked === "archived"
-											? "This board is archived, so it’s read-only"
-											: comments.commentBlocked === "signed_out"
-												? "Sign in to comment"
-												: undefined
-									}
-								/>
-							)}
-							<PanelBoundary name="What’s new">
-								<SincePanel
-									doc={liveDoc}
-									login={user.login}
-									youId={comments.youId}
-									onJump={comments.jumpToShape}
-									onOpenThread={comments.jumpToThread}
-								/>
-							</PanelBoundary>
-							<PanelBoundary name="Comments">
-								<CommentsPanel doc={liveDoc} login={user.login} onJump={comments.jumpToThread} />
-							</PanelBoundary>
-							{rulesOpen && (
-								<PanelBoundary name="Rules">
-									<RulesPanel
-										doc={doc}
-										user={{ name: user.name, color: user.color }}
-										readOnly={readOnly}
-										onClose={() => setRulesOpen(false)}
-										onReveal={reveal}
-										onUndo={() => history.undo()}
+										voting={tool === "vote"}
+										onVoting={setVoting}
 										toasts={toasts}
 									/>
-								</PanelBoundary>
-							)}
-							{replay.controller && replay.state.open && (
-								<>
-									<PanelBoundary name="History">
-										<HistoryPanel
-											controller={replay.controller}
-											state={replay.state}
-											live={liveDoc}
-											readOnly={viewOnly}
-											sizeOf={boxSize}
-											onClose={() => replay.controller?.close()}
-											onFocus={focusArea}
+								</div>
+								{!readOnly && (
+									<StartVoteDialog doc={doc} user={user} now={facilitation.serverNow} />
+								)}
+								{picking && !readOnly && (
+									<SectionPickerHint
+										kind={picking}
+										hasSections={hasSections}
+										onMake={(title) => makeSectionToPick(picking, title)}
+									/>
+								)}
+								{voteState.tally && (
+									<PanelBoundary name="The vote’s results">
+										<TallyPanel
+											doc={doc}
+											voteId={voteState.tally}
+											user={user}
+											readOnly={readOnly}
+											onClose={() => voteUI.showTally(null)}
+											onReveal={reveal}
 										/>
 									</PanelBoundary>
-									<HistoryDock
-										controller={replay.controller}
-										state={replay.state}
-										onClose={() => replay.controller?.close()}
-									/>
-								</>
-							)}
-							{phone && !replay.state.open && (
-								<PanelBoundary name="The phone’s sheet">
-									<PhoneBoard
-										doc={doc}
-										nodes={nodes}
-										user={user}
-										readOnly={readOnly}
-										toasts={toasts}
-										shape={sheetShape}
-										onShape={setSheetShape}
-										boxSize={boxSize}
-										drawnSize={drawnSize}
-										canvas={canvas}
-										onFit={() => {
-											follow.stop();
-											commands.run("zoomToFit");
-										}}
+								)}
+								<CursorChat awareness={awareness} user={user} />
+								{!replay.state.open && !phone && (
+									<Toolbar
+										tool={tool}
+										onTool={setTool}
 										stickyColor={stickyColor}
 										onStickyColor={setStickyColor}
+										onAddCards={(keys, copies) => addCards(keys, { copies, notify: false })}
+										cardScope={cardScope}
+										searchItems={searchItems}
+										onBoard={onBoard}
+										onAddWidget={addWidgetAt}
+										onImage={() => boardImages.pick()}
+										suggestedRepo={suggestedRepo}
+										login={user.login ?? null}
+										stamp={stamp}
+										onStamp={setStamp}
+										viewOnly={readOnly}
+										commenting={comments.canComment}
+										note={toolNote}
+										commentBlocked={
+											comments.commentBlocked === "archived"
+												? "This board is archived, so it’s read-only"
+												: comments.commentBlocked === "signed_out"
+													? "Sign in to comment"
+													: undefined
+										}
+									/>
+								)}
+								<PanelBoundary name="What’s new">
+									<SincePanel
+										doc={liveDoc}
+										login={user.login}
+										youId={comments.youId}
+										onJump={comments.jumpToShape}
+										onOpenThread={comments.jumpToThread}
 									/>
 								</PanelBoundary>
-							)}
-							{touchSelect.multi && (
-								<MultiSelectPill count={selected.size} onDone={touchSelect.done} />
-							)}
-							<RowGhost />
-							<Toasts store={toasts} />
-							<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
-							<ExportDialog
-								doc={doc}
-								exporter={exporter}
-								selected={selected}
-								toasts={toasts}
-								name={name}
-							/>
-							<PanelBoundary name="Changes">
-								<ChangesPanel />
-							</PanelBoundary>
-							<PanelBoundary name="Pushing">
-								<PushSheet />
-							</PanelBoundary>
-							{children}
-						</main>
-					</div>
+								<PanelBoundary name="Comments">
+									<CommentsPanel doc={liveDoc} login={user.login} onJump={comments.jumpToThread} />
+								</PanelBoundary>
+								{rulesOpen && (
+									<PanelBoundary name="Rules">
+										<RulesPanel
+											doc={doc}
+											user={{ name: user.name, color: user.color }}
+											readOnly={readOnly}
+											onClose={() => setRulesOpen(false)}
+											onReveal={reveal}
+											onUndo={() => history.undo()}
+											toasts={toasts}
+										/>
+									</PanelBoundary>
+								)}
+								{replay.controller && replay.state.open && (
+									<>
+										<PanelBoundary name="History">
+											<HistoryPanel
+												controller={replay.controller}
+												state={replay.state}
+												live={liveDoc}
+												readOnly={viewOnly}
+												sizeOf={boxSize}
+												onClose={() => replay.controller?.close()}
+												onFocus={focusArea}
+											/>
+										</PanelBoundary>
+										<HistoryDock
+											controller={replay.controller}
+											state={replay.state}
+											onClose={() => replay.controller?.close()}
+										/>
+									</>
+								)}
+								{phone && !replay.state.open && (
+									<PanelBoundary name="The phone’s sheet">
+										<PhoneBoard
+											doc={doc}
+											nodes={nodes}
+											user={user}
+											readOnly={readOnly}
+											toasts={toasts}
+											shape={sheetShape}
+											onShape={setSheetShape}
+											boxSize={boxSize}
+											drawnSize={drawnSize}
+											canvas={canvas}
+											onFit={() => {
+												follow.stop();
+												commands.run("zoomToFit");
+											}}
+											stickyColor={stickyColor}
+											onStickyColor={setStickyColor}
+										/>
+									</PanelBoundary>
+								)}
+								{touchSelect.multi && (
+									<MultiSelectPill count={selected.size} onDone={touchSelect.done} />
+								)}
+								<RowGhost />
+								<Toasts store={toasts} />
+								<ShortcutSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+								<ExportDialog
+									doc={doc}
+									exporter={exporter}
+									selected={selected}
+									toasts={toasts}
+									name={name}
+								/>
+								<PanelBoundary name="Changes">
+									<ChangesPanel />
+								</PanelBoundary>
+								<PanelBoundary name="Pushing">
+									<PushSheet />
+								</PanelBoundary>
+								{children}
+								{boardImages.input}
+							</main>
+						</div>
+					</ImagesContext>
 				</ServicesContext>
 			</BoardContext>
 		</ChangesContext>

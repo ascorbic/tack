@@ -420,6 +420,7 @@ export function ResizeGrip({
 	ui,
 	onCommit,
 	onDoubleClick,
+	constrain,
 	className = "section-resize",
 }: {
 	id: string;
@@ -431,6 +432,11 @@ export function ResizeGrip({
 	ui: SectionUI;
 	onCommit: (rect: Rect) => void;
 	onDoubleClick?: () => void;
+	/**
+	 * A box of its own making from the raw one (an image keeping its
+	 * proportions unless Shift's held), or null to snap the raw one as usual.
+	 */
+	constrain?: (start: Rect, raw: Rect, handle: ResizeHandle, shift: boolean) => Rect | null;
 	className?: string;
 }) {
 	const flow = useReactFlow();
@@ -451,7 +457,9 @@ export function ResizeGrip({
 		const onMove = (move: PointerEvent) => {
 			const at = flow.screenToFlowPosition({ x: move.clientX, y: move.clientY });
 			const raw = resizeRect(start, handle, { x: at.x - origin.x, y: at.y - origin.y }, min);
-			rect = ui.snapResize(id, raw, handle);
+			const own = constrain?.(start, raw, handle, move.shiftKey);
+			if (own) ui.snapResize(id, own, null);
+			rect = own ?? ui.snapResize(id, raw, handle);
 			ui.setResize(id, rect);
 		};
 		const finish = (commit: boolean) => {

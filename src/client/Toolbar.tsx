@@ -6,6 +6,7 @@ import { STICKY_COLORS, type StickyColor } from "./board.ts";
 import { type AddOutcome, CardPicker, type CardScope } from "./CardPicker.tsx";
 import type { QueryError, SearchResult } from "../shared/widgets.ts";
 import { GavelPaths } from "./decisions/icons.tsx";
+import { isApplePlatform } from "./shortcuts.ts";
 import { type AddWidget, WidgetPicker } from "./widgets/WidgetPicker.tsx";
 
 export type Tool =
@@ -62,6 +63,8 @@ interface ToolbarProps {
 	onBoard: (key: string) => boolean;
 	/** Add a widget from the picker (#37). */
 	onAddWidget?: AddWidget;
+	/** Add images from your files. */
+	onImage?: () => void;
 	/** The board's busiest repository, for ready-made lists: `owner/name`. */
 	suggestedRepo?: string | null;
 	/** Who's here, signed in: `@me` in ready-made lists. */
@@ -96,6 +99,7 @@ export function Toolbar({
 	searchItems,
 	onBoard,
 	onAddWidget,
+	onImage,
 	suggestedRepo = null,
 	login = null,
 	stamp,
@@ -252,6 +256,24 @@ export function Toolbar({
 						<path d="M3 7.5h14" />
 						<path d="m6 13.2 2.4-2.6 2.1 1.6 3.4-3.4" />
 					</ToolButton>
+				)}
+				{onImage && (
+					<button
+						type="button"
+						className="tool tool-image"
+						aria-label="Image"
+						aria-keyshortcuts={isApplePlatform() ? "Meta+Shift+K" : "Control+Shift+K"}
+						data-tooltip="Image"
+						data-shortcut={isApplePlatform() ? "⇧⌘K" : "Ctrl+Shift+K"}
+						onClick={onImage}
+					>
+						{/* A picture: a frame, a hill and the sun. */}
+						<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+							<rect x="3" y="4" width="14" height="12" rx="2.6" />
+							<path d="m3.4 13.6 3.7-3.7a1.4 1.4 0 0 1 2 0l2.4 2.4m-.9-1 1.4-1.4a1.4 1.4 0 0 1 2 0l2.6 2.6" />
+							<circle cx="12.8" cy="7.9" r="1.3" className="fill" />
+						</svg>
+					</button>
 				)}
 				<button
 					type="button"

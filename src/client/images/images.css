@@ -1,0 +1,410 @@
+/* Images on the board (ImageNode.tsx): a card's corners and shadow, the
+   picture developing in as it loads, a blurred stand-in that shimmers while
+   someone else's upload is on its way, and the uploader's own progress. */
+
+.image-node {
+	--image-radius: 10px;
+	position: relative;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+}
+
+.image-node[data-enter] {
+	animation: drop-in var(--t-settle) var(--ease-spring) backwards;
+}
+
+.image-frame {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	container-type: size;
+	border-radius: var(--image-radius);
+	background: var(--surface-muted);
+	box-shadow: var(--shadow-rest);
+	transition:
+		box-shadow var(--t-base) var(--ease-out),
+		transform var(--t-settle) var(--ease-settle);
+}
+
+/* A hairline over the picture's edge, so a dark image on a dark board (or a
+   white one on a light board) still has one. */
+.image-frame::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: inset 0 0 0 1px var(--line);
+	pointer-events: none;
+}
+
+.react-flow__node:hover .image-node:not([data-selected]) .image-frame {
+	box-shadow: var(--shadow-hover);
+}
+
+.react-flow__node.dragging .image-frame,
+.react-flow__node.remote-drag .image-frame {
+	transform: scale(1.03) rotate(-1deg);
+	box-shadow: var(--shadow-lifted);
+	transition:
+		transform var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.react-flow__node.remote-drag .image-frame {
+	outline: 2px solid var(--drag-color);
+	outline-offset: 3px;
+}
+
+.image-node[data-selected] .image-frame {
+	box-shadow:
+		0 0 0 2px var(--accent),
+		0 0 0 6px var(--accent-soft),
+		var(--shadow-hover);
+}
+
+.image-file,
+.image-preview {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	user-select: none;
+	-webkit-user-drag: none;
+}
+
+/* Developing in: from soft and faint to sharp. */
+.image-file {
+	opacity: 0;
+	filter: blur(10px);
+	transition:
+		opacity var(--t-settle) var(--ease-out),
+		filter var(--t-settle) var(--ease-out);
+}
+
+.image-file[data-loaded] {
+	opacity: 1;
+	filter: none;
+}
+
+.image-preview {
+	filter: blur(16px) saturate(1.1);
+	scale: 1.2;
+}
+
+/* Your own, while it uploads: there, but not quite yet. */
+.image-node[data-uploading] .image-file[data-loaded] {
+	filter: saturate(0.7) brightness(0.96);
+	opacity: 0.86;
+}
+
+.image-shimmer {
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 34%) 50%, transparent 70%);
+	background-size: 250% 100%;
+	animation: image-shimmer calc(1600ms * var(--motion)) linear infinite;
+	pointer-events: none;
+}
+
+.image-node[data-state="loading"] .image-shimmer {
+	background-color: var(--skeleton);
+	background-image: linear-gradient(
+		100deg,
+		var(--skeleton) 30%,
+		var(--skeleton-shine) 50%,
+		var(--skeleton) 70%
+	);
+}
+
+@keyframes image-shimmer {
+	from {
+		background-position: 120% 0;
+	}
+	to {
+		background-position: -120% 0;
+	}
+}
+
+.image-progress {
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	background: var(--chrome-strong);
+	box-shadow: var(--shadow-hover);
+	backdrop-filter: blur(10px);
+	animation: image-pop var(--t-settle) var(--ease-spring) backwards;
+}
+
+.image-progress svg {
+	rotate: -90deg;
+}
+
+.image-progress circle {
+	fill: none;
+	stroke-width: 2.5;
+}
+
+.image-progress-track {
+	stroke: var(--line-strong);
+}
+
+.image-progress-fill {
+	stroke: var(--accent);
+	stroke-linecap: round;
+	transition: stroke-dashoffset var(--t-base) var(--ease-out);
+}
+
+@keyframes image-pop {
+	from {
+		opacity: 0;
+		scale: 0.6;
+	}
+}
+
+.image-badge {
+	position: absolute;
+	left: 8px;
+	bottom: 8px;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: calc(100% - 16px);
+	padding: 4px 9px 4px 8px;
+	overflow: hidden;
+	border-radius: 999px;
+	background: var(--chrome-strong);
+	box-shadow: var(--shadow-hover);
+	backdrop-filter: blur(10px);
+	color: var(--ink-soft);
+	font-size: 11.5px;
+	font-weight: 560;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	animation: image-pop var(--t-settle) var(--ease-spring) backwards;
+}
+
+.image-badge-dot {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--accent);
+	animation: image-dot calc(1200ms * var(--motion)) var(--ease-out) infinite alternate;
+}
+
+@keyframes image-dot {
+	to {
+		opacity: 0.35;
+		scale: 0.7;
+	}
+}
+
+/* Too small to say much: the badge and progress stay out of the way. */
+@container (max-width: 120px) or (max-height: 70px) {
+	.image-badge {
+		display: none;
+	}
+	.image-progress {
+		right: 4px;
+		bottom: 4px;
+		scale: 0.8;
+	}
+}
+
+.image-empty {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	padding: 12px;
+	color: var(--muted);
+	text-align: center;
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--surface-muted) 0 10px,
+		var(--surface) 10px 20px
+	);
+}
+
+.image-empty-icon {
+	margin-bottom: 4px;
+	fill: none;
+	stroke: currentcolor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.image-empty-title {
+	color: var(--ink-soft);
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.image-empty-detail {
+	display: -webkit-box;
+	max-width: 100%;
+	overflow: hidden;
+	font-size: 12px;
+	line-height: 1.35;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+}
+
+.image-empty-action {
+	margin-top: 6px;
+	padding: 4px 12px;
+	border: 1px solid var(--line-strong);
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.image-empty-action:hover {
+	background: var(--hover);
+}
+
+@container (max-width: 140px) or (max-height: 90px) {
+	.image-empty-detail,
+	.image-empty-title {
+		display: none;
+	}
+}
+
+/* The caption hangs beneath the box, as a section's title sits above one. */
+.image-caption {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	display: -webkit-box;
+	margin-top: 8px;
+	overflow: hidden;
+	color: var(--muted);
+	font-size: 13px;
+	line-height: 1.4;
+	text-align: center;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+}
+
+/* The toolbar over a selected image, and its alt text. */
+.image-toolbar {
+	display: flex;
+	/* The alt text opens above the toolbar, away from the image. */
+	flex-direction: column-reverse;
+	align-items: center;
+	gap: 8px;
+}
+
+.image-toolbar .shape-toolbar-option {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--ink-soft);
+	text-decoration: none;
+}
+
+.image-toolbar .shape-toolbar-option svg {
+	fill: none;
+	stroke: currentcolor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.image-toolbar .shape-toolbar-option[aria-pressed="true"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.image-toolbar .shape-toolbar-option:disabled {
+	color: var(--muted);
+	cursor: default;
+	opacity: 0.6;
+}
+
+.image-toolbar .shape-toolbar-option:disabled:hover {
+	background: transparent;
+}
+
+/* No alt text yet: a small dot asks for some. */
+.image-toolbar-alt[data-empty] {
+	position: relative;
+}
+
+.image-toolbar-alt[data-empty]::after {
+	content: "";
+	position: absolute;
+	top: 5px;
+	right: 4px;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--pending);
+}
+
+.image-alt {
+	width: 300px;
+	padding: 10px;
+	border: 1px solid var(--line);
+	border-radius: 13px;
+	background: var(--chrome-strong);
+	box-shadow: var(--shadow-lifted);
+	backdrop-filter: blur(14px) saturate(1.4);
+	transform-origin: 50% 100%;
+	animation: shape-toolbar-in var(--t-settle) var(--ease-spring);
+}
+
+.image-alt-label {
+	display: block;
+	margin: 0 0 6px 2px;
+	color: var(--muted);
+	font-size: 11.5px;
+	font-weight: 600;
+}
+
+.image-alt-field {
+	display: block;
+	width: 100%;
+	padding: 8px 10px;
+	resize: none;
+	border: 1px solid var(--line-strong);
+	border-radius: 9px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 13.5px;
+	line-height: 1.4;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.image-alt-field:focus {
+	outline: none;
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.image-alt-hint {
+	margin: 7px 2px 0;
+	color: var(--muted);
+	font-size: 11.5px;
+	line-height: 1.35;
+}

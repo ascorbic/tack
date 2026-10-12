@@ -11,6 +11,7 @@ import { TextNode } from "./TextNode.tsx";
 import { ActionItemNode } from "./actionItems/ActionItemNode.tsx";
 import { DecisionNode } from "./decisions/DecisionNode.tsx";
 import { LinkNode } from "./links/LinkNode.tsx";
+import { ImageNode } from "./images/ImageNode.tsx";
 import { StackNode } from "./stacks/StackNode.tsx";
 import { useLinked } from "./widgets/store.ts";
 import { WidgetNode } from "./widgets/WidgetNode.tsx";
@@ -60,4 +61,5 @@ export const nodeTypes = {
 	action: ActionItemNode,
 	stack: StackNode,
 	link: LinkNode,
+	image: ImageNode,
 };

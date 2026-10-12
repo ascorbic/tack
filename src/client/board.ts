@@ -20,6 +20,7 @@ import {
 import { joinSilentSession } from "../shared/silent.ts";
 import { commitMoves, placeInSections, removeShapes } from "../shared/structure.ts";
 import { widgetSize } from "../shared/widgetRegistry.ts";
+import { imageSize } from "../shared/images.ts";
 import { facilitation } from "./facilitation/store.ts";
 import type { StackView } from "./stacks/view.ts";
 import { transactLocal } from "./undo.ts";
@@ -133,6 +134,11 @@ function createNodeStore(doc: Y.Doc) {
 						width: widgetSize(props).w,
 						height: widgetSize(props).h,
 						dragHandle: ".widget-handle",
+					}),
+					// Images are sized by their shape too.
+					...(type === "image" && {
+						width: imageSize(props).w,
+						height: imageSize(props).h,
 					}),
 					// For screen readers (#61): what it is, and its name in words,
 					// which each node draws (shapeLabel.tsx) as card data arrives.

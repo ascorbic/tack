@@ -111,12 +111,20 @@ export type CommandId =
 	| "fitSection"
 	| "summarise"
 	| "draftDecision"
+	| "insertImage"
 	| "shortcuts";
 
 const arrow = (key: string, shift: boolean): KeyCombo[] => [{ key, shift }];
 
 /** Every shortcut except tools, which come from the toolbar (see toolShortcuts). */
 export const SHORTCUTS: Shortcut[] = [
+	{
+		id: "insertImage",
+		label: "Image from your files",
+		group: "Tools",
+		combos: [{ key: "k", mod: true, shift: true, alt: false }],
+		keywords: "picture photo upload insert add file screenshot gif",
+	},
 	{ id: "undo", label: "Undo", group: "Edit", combos: [{ key: "z", mod: true, shift: false }] },
 	{
 		id: "redo",
@@ -134,7 +142,7 @@ export const SHORTCUTS: Shortcut[] = [
 		label: "Paste",
 		group: "Edit",
 		combos: [{ key: "v", mod: true, shift: false }],
-		keywords: "link url text sticky card",
+		keywords: "link url text sticky card image picture screenshot",
 	},
 	{
 		id: "duplicate",
