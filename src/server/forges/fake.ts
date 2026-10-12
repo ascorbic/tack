@@ -1,7 +1,13 @@
 import type { Card } from "../../shared/cards.ts";
 import type { OperationKind } from "../../shared/changes.ts";
 import { itemKey, itemOf, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
-import { matchSearch, parseSearch, searchKind, searchScope } from "../../shared/search.ts";
+import {
+	matchSearch,
+	parseSearch,
+	searchKind,
+	searchScope,
+	sortResults,
+} from "../../shared/search.ts";
 import type { RelatedResult } from "../../shared/widgets.ts";
 import type { ApplyResult, ForgeAdapter } from "./types.ts";
 
@@ -122,7 +128,8 @@ function fakeDiscussion(
 						chosenAt: new Date(0).toISOString(),
 					}
 				: null,
-			upvotes: (i * 5) % 31,
+			// Out of step with their numbers, so the most upvoted aren't the newest.
+			upvotes: (i * 13) % 31,
 			locked: i % 11 === 10,
 		},
 	};
@@ -270,6 +277,11 @@ export const fake: ForgeAdapter = {
 		};
 	},
 
+	// Every fake repository has the same categories its discussions go round.
+	async discussionCategories() {
+		return CATEGORIES.map((category) => ({ ...category }));
+	},
+
 	async listDirectory() {
 		return [];
 	},
@@ -338,7 +350,7 @@ export const fake: ForgeAdapter = {
 		return {
 			kind: "search",
 			total: items.length,
-			items: items.slice(0, Math.min(Math.max(1, query.limit ?? 50), 100)),
+			items: sortResults(items, query).slice(0, Math.min(Math.max(1, query.limit ?? 50), 100)),
 		};
 	},
 };

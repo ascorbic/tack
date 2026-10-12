@@ -439,12 +439,12 @@ interface WidgetGuide {
  */
 export const WIDGET_GUIDES: Record<string, WidgetGuide> = {
 	list: {
-		use: "A live list of issues and pull requests matching a GitHub search. The default for anything that's a set of items.",
+		use: "A live list of issues and pull requests matching a GitHub search, or of discussions with `is:discussion`. The default for anything that's a set of items.",
 		fields: {
 			title: "A short heading; empty to name it after the search.",
 			host: "The forge's host: always github.com unless the board is on another forge.",
-			q: "A GitHub issue search, e.g. `repo:owner/name is:open label:bug`. Use `repo:` qualifiers for the board's repositories, and `@me` for whoever's looking.",
-			sort: "How to sort the rows.",
+			q: "A GitHub issue search, e.g. `repo:owner/name is:open label:bug`. Use `repo:` qualifiers for the board's repositories, and `@me` for whoever's looking. For discussions add `is:discussion`, with `category:Ideas`, `is:answered` or `is:unanswered` as wanted.",
+			sort: "How to sort the rows. `top` is most upvoted, for discussions.",
 			limit: "How many rows at most.",
 		},
 	},

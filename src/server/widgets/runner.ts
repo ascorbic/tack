@@ -17,7 +17,7 @@ import {
 	previewId,
 } from "../../shared/inbox.ts";
 import { forgeForHost, parseRepoKey } from "../../shared/refs.ts";
-import { mentionsMe } from "../../shared/search.ts";
+import { mentionsMe, parseSearch, searchKind } from "../../shared/search.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import { boardQueryContext } from "../../shared/widgetContext.ts";
 import {
@@ -493,13 +493,21 @@ export class WidgetRunner {
 	/**
 	 * A repository changed (a webhook for one of its items arrived): queries
 	 * that read it or its owner, or that search everywhere, run again shortly.
+	 * `discussions` only reruns searches for discussions: one of its
+	 * discussions changed without a delivery (upvotes, which send none).
 	 */
-	repoChanged(repoKey: string): number {
+	repoChanged(repoKey: string, { discussions = false }: { discussions?: boolean } = {}): number {
 		const repo = repoKey.toLowerCase();
 		const owner = repo.split("/").slice(0, 2).join("/");
 		let due = 0;
 		for (const entry of this.entries.values()) {
 			if (!this.inUse(entry)) continue;
+			if (
+				discussions &&
+				(entry.query.kind !== "search" || searchKind(parseSearch(entry.query.q)) !== "discussion")
+			) {
+				continue;
+			}
 			const scope = queryScope(entry.query);
 			const everywhere = scope.repos.length === 0 && scope.owners.length === 0;
 			if (!everywhere && !scope.repos.includes(repo) && !scope.owners.includes(owner)) continue;

@@ -1,3 +1,4 @@
+import type { DiscussionCategory } from "./cards.ts";
 import type { OperationKind, PushAs } from "./changes.ts";
 import type { CreditBoard } from "./credit.ts";
 
@@ -8,6 +9,7 @@ import type { CreditBoard } from "./credit.ts";
 // POST /api/boards/:id/push                      PushRequest → PushResponse
 // GET  /api/boards/:id/pushes                    → AuditEntry[] (newest first)
 // GET  /api/repos/meta?repo=github.com/o/r       → RepoMeta
+// GET  /api/repos/categories?repo=github.com/o/r → { categories: RepoDiscussionCategory[] }
 // GET  /api/repos/files?repo=github.com/o/r&path=docs/decisions → string[]
 // POST /api/boards/:id/snapshots   (image/png body)  → { url: string }
 // GET  /snapshots/:id.png          public, unguessable id
@@ -69,6 +71,11 @@ export interface RepoMeta {
 	 * `capabilities.writes`), so the UI only offers those. Absent means unknown.
 	 */
 	writes?: OperationKind[];
+}
+
+/** A repository's discussion category, for pickers: as a card shows it, and what it's for. */
+export interface RepoDiscussionCategory extends DiscussionCategory {
+	description?: string;
 }
 
 /** One push, for the board's audit log. */

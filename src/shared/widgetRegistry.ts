@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import type * as Y from "yjs";
+import type { DiscussionCategory } from "./cards.ts";
 import { customWidget } from "./customWidgets.ts";
 import { dependencyWidget } from "./dependencyMap.ts";
 import type { Rect } from "./geometry.ts";
@@ -8,7 +9,7 @@ import { DEFAULT_HOST } from "./refs.ts";
 import { releaseWidget } from "./releaseDraft.ts";
 import { reviewWidget } from "./review.ts";
 import { staleWidget } from "./stale.ts";
-import { parseSearch, searchScope, withLogin } from "./search.ts";
+import { formatTerm, parseSearch, searchScope, withLogin } from "./search.ts";
 import { type ShapeProps, addShape, nextZ, shapesMap } from "./shapes.ts";
 import { timelineWidget } from "./timeline.ts";
 import {
@@ -33,7 +34,8 @@ import {
 
 // --- List (#38) ------------------------------------------------------------------
 
-export const LIST_SORTS = ["updated", "created", "comments", "reactions"] as const;
+/** `top` is most upvoted, for discussions; issues and pull requests take most reactions instead. */
+export const LIST_SORTS = ["updated", "created", "comments", "reactions", "top"] as const;
 export type ListSort = (typeof LIST_SORTS)[number];
 
 export interface ListConfig {
@@ -92,6 +94,16 @@ export interface ListPreset {
 	q: (repo: string) => string;
 	/** A search about whoever's looking (`@me`): its title for one person, by login. */
 	mine?: (login: string) => string;
+	/** The order it reads best in, for lists. */
+	sort?: ListSort;
+}
+
+/** A ready-made search, filled in. */
+export interface FilledPreset {
+	label: string;
+	title: string;
+	q: string;
+	sort?: ListSort;
 }
 
 /** Ready-made lists for the picker, the empty state, inboxes and rules. */
@@ -137,19 +149,97 @@ export const LIST_PRESETS: ListPreset[] = [
  * whoever's adding it, when they're signed in. A board is shared: an `@me`
  * list shows each person their own, so "look at the review queue" would mean
  * eight different lists. Named, it's the same list for everyone.
+ *
+ * `categories` are the repository's discussion categories, when known, for
+ * discussion lists that fit them (`discussionPresets`). `ordered: false`
+ * leaves out lists that only mean something in their order (the most
+ * upvoted), for inboxes and rules, which have none.
  */
 export function listPresets(
 	repo: string | null,
 	login?: string | null,
-	{ personal = true }: { personal?: boolean } = {},
-): { label: string; title: string; q: string }[] {
-	return LIST_PRESETS.filter((preset) => repo || !preset.q("x/y").includes("x/y"))
+	{
+		personal = true,
+		categories = null,
+		ordered = true,
+	}: {
+		personal?: boolean;
+		categories?: readonly DiscussionCategory[] | null;
+		ordered?: boolean;
+	} = {},
+): FilledPreset[] {
+	// Nobody answers where no category takes answers.
+	const answerable = !categories || categories.some((category) => category.answerable);
+	const presets = LIST_PRESETS.flatMap((preset) => {
+		if (preset.label !== "Unanswered questions") return [preset];
+		const extra = discussionPresets(categories);
+		return answerable ? [preset, ...extra] : extra;
+	});
+	return presets
+		.filter((preset) => repo || !preset.q("x/y").includes("x/y"))
 		.filter((preset) => personal || !preset.mine)
+		.filter((preset) => ordered || preset.sort !== "top")
 		.map((preset) => {
 			const q = preset.q(repo ?? "");
-			if (!preset.mine || !login) return { label: preset.label, title: preset.title, q };
-			return { label: preset.label, title: preset.mine(login), q: withLogin(q, login) };
+			const sort = preset.sort ? { sort: preset.sort } : {};
+			if (!preset.mine || !login) return { label: preset.label, title: preset.title, q, ...sort };
+			return { label: preset.label, title: preset.mine(login), q: withLogin(q, login), ...sort };
 		});
+}
+
+/** A category's name as a search term's value, quoted when it must be. */
+function categoryValue(name: string): string {
+	return formatTerm({ key: null, value: name, negated: false });
+}
+
+/**
+ * Ready-made discussion lists that fit a repository's categories: its most
+ * upvoted ideas and its latest announcements, only where it has categories
+ * by those names; otherwise the most upvoted of any category, which assumes
+ * no names. Unknown categories (null) get only that. A repository without
+ * discussions (no categories) gets none.
+ */
+function discussionPresets(categories: readonly DiscussionCategory[] | null): ListPreset[] {
+	if (categories?.length === 0) return [];
+	const named = (pattern: RegExp) => categories?.find((category) => pattern.test(category.name));
+	const ideas = named(/^\W*ideas?\W*$/i) ?? named(/\bideas?\b/i);
+	const announcements = named(/announce/i);
+	const presets: ListPreset[] = [
+		ideas
+			? {
+					label: "Top ideas",
+					title: "Top ideas",
+					q: (repo) => `repo:${repo} is:discussion is:open category:${categoryValue(ideas.name)}`,
+					sort: "top",
+				}
+			: {
+					label: "Top discussions",
+					title: "Top discussions",
+					q: (repo) => `repo:${repo} is:discussion is:open`,
+					sort: "top",
+				},
+	];
+	if (announcements) {
+		presets.push({
+			label: "Recent announcements",
+			title: "Recent announcements",
+			q: (repo) => `repo:${repo} is:discussion category:${categoryValue(announcements.name)}`,
+			sort: "created",
+		});
+	}
+	return presets;
+}
+
+/** A ready-made list's config: its search, its title unless the list has one, and its order. */
+export function presetConfig(
+	preset: Pick<FilledPreset, "q" | "title" | "sort">,
+	current?: Pick<ListConfig, "title">,
+): Partial<ListConfig> {
+	return {
+		q: preset.q,
+		title: current?.title || preset.title,
+		...(preset.sort ? { sort: preset.sort } : {}),
+	};
 }
 
 /**
@@ -162,10 +252,12 @@ export function inboxSuggestions(
 	sectionTitle = "",
 	labels: string[] = [],
 ): { label: string; q: string }[] {
-	const presets = listPresets(repo, null, { personal: false }).map(({ label, q }) => ({
-		label,
-		q,
-	}));
+	const presets = listPresets(repo, null, { personal: false, ordered: false }).map(
+		({ label, q }) => ({
+			label,
+			q,
+		}),
+	);
 	const label = labelNamed(sectionTitle, labels);
 	if (!label) return presets;
 	const value = /[\s,]/.test(label) ? `"${label}"` : label;

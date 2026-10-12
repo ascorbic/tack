@@ -30,7 +30,8 @@ export interface SearchQuery {
 	 * means the person looking at the widget.
 	 */
 	q: string;
-	sort?: "updated" | "created" | "comments" | "reactions";
+	/** `top` is most upvoted, for discussions (`searchSort`). */
+	sort?: "updated" | "created" | "comments" | "reactions" | "top";
 	order?: "asc" | "desc";
 	/** At most this many results. Defaults to 50, at most 100. */
 	limit?: number;

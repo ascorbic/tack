@@ -15,7 +15,13 @@ import {
 	type Timeline,
 	encodeSegment,
 } from "../shared/history.ts";
-import type { BoardRequest, Card, CardMessage, MissingCard } from "../shared/cards.ts";
+import {
+	type BoardRequest,
+	type Card,
+	type CardMessage,
+	type MissingCard,
+	isMissing,
+} from "../shared/cards.ts";
 import type { AuditEntry, PushResponse } from "../shared/push.ts";
 import {
 	type CommentEvent,
@@ -1296,6 +1302,13 @@ export class Board extends YServer<Env> {
 		this.publish(cards.filter((card) => this.subscribed.has(card.key)));
 		// A stacked card's title may be what its stack's named from.
 		this.stacks?.cardsChanged(cards.map((card) => card.key));
+		// Upvotes send no webhook: when a discussion's change is seen another
+		// way (its card refetched or reconciled), lists of the most upvoted
+		// read again, debounced like a delivery.
+		const discussions = new Set(
+			cards.flatMap((card) => (!isMissing(card) && card.discussion ? [repoKeyOf(card.key)] : [])),
+		);
+		for (const repo of discussions) this.widgets?.repoChanged(repo, { discussions: true });
 	}
 
 	/** Called by Repo when a subscribed card changes. */

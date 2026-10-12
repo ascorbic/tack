@@ -210,7 +210,7 @@ Who may use every route and every message on a board's connection (#60). "Can op
 | `GET /api/templates`                                                               | Instance users                                                                          |
 | `POST /api/templates`                                                              | Editors of the board saved                                                              |
 | `DELETE /api/templates/:id`                                                        | Whoever saved it, or an admin                                                           |
-| `GET /api/repos/meta`, `GET /api/repos/files`                                      | Instance users, for repositories they can read                                          |
+| `GET /api/repos/meta`, `GET /api/repos/files`, `GET /api/repos/categories`         | Instance users, for repositories they can read                                          |
 | `GET /api/people`, `GET /api/people/:login`                                        | Instance users                                                                          |
 | `GET /api/notifications`, `POST /api/notifications/read`                           | Signed in: their own                                                                    |
 | `GET /snapshots/:id.png`                                                           | Anyone with the link (128 random bits)                                                  |

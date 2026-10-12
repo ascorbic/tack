@@ -127,7 +127,7 @@ export interface CustomSearch {
 	limit?: number;
 }
 
-const SORTS = ["updated", "created", "comments", "reactions"] as const;
+const SORTS = ["updated", "created", "comments", "reactions", "top"] as const;
 
 const SearchShape = v.object({
 	q: v.pipe(v.string(), v.maxLength(CUSTOM_LIMITS.query * 4)),

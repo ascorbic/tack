@@ -2,7 +2,7 @@ import type { Card, MissingCard } from "../../shared/cards.ts";
 import type { Command } from "../../shared/commands.ts";
 import type { ChangeProblem, Operation, OperationKind, PushAs } from "../../shared/changes.ts";
 import type { ItemMention } from "../../shared/mentions.ts";
-import type { RepoMeta } from "../../shared/push.ts";
+import type { RepoDiscussionCategory, RepoMeta } from "../../shared/push.ts";
 import type {
 	QueryError,
 	RelatedResult,
@@ -332,6 +332,17 @@ export interface ForgeAdapter {
 	): Promise<BranchResult>;
 	/** What a repository offers to write with: labels, milestones, people, categories. */
 	repoMeta?(repo: RepoIdentity, env: Env, auth?: ReadAuth): Promise<RepoMeta>;
+	/**
+	 * A repository's discussion categories, in the forge's order, with their
+	 * emoji and whether they take answers: empty when discussions are off.
+	 * Throws if the repository can't be read. Read through `Repo`, which
+	 * keeps them (`Repo.discussionCategories`).
+	 */
+	discussionCategories?(
+		repo: RepoIdentity,
+		env: Env,
+		auth?: ReadAuth,
+	): Promise<RepoDiscussionCategory[]>;
 	// Reading for widgets (M3). `auth.token` is the viewer's own token where
 	// they have one; adapters fall back to the app's for public data.
 

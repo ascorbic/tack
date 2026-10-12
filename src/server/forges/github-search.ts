@@ -1,6 +1,12 @@
 import { plainSearchError } from "../../shared/queryHelp.ts";
 import type { Card } from "../../shared/cards.ts";
-import { mentionsMe, parseSearch, searchKind, withoutDiscussionType } from "../../shared/search.ts";
+import {
+	mentionsMe,
+	parseSearch,
+	searchKind,
+	searchSort,
+	withoutDiscussionType,
+} from "../../shared/search.ts";
 import type { QueryError, SearchQuery, SearchResult } from "../../shared/widgets.ts";
 import { type GitHubIssueLike, normaliseIssue } from "./github.ts";
 import {
@@ -68,11 +74,37 @@ function error(reason: QueryError["reason"], message: string, retryAt?: number):
 	return { kind: "error", reason, message, ...(retryAt ? { retryAt } : {}) };
 }
 
-/** The query as GitHub wants it: with the sort written in, as GraphQL search has no sort argument. */
+/**
+ * The query as GitHub wants it: with the sort written in, as GraphQL search
+ * has no sort argument. Discussion search understands `sort:top` (most
+ * upvoted); issue search doesn't, so there it's most reactions (`searchSort`).
+ */
 export function searchText(query: SearchQuery): string {
 	const q = query.q.trim();
-	if (!query.sort || /(^|\s)-?sort:/i.test(q)) return q;
-	return `${q} sort:${query.sort}-${query.order ?? "desc"}`;
+	const sort = searchSort(query);
+	if (!sort || /(^|\s)-?sort:/i.test(q)) return q;
+	return `${q} sort:${sort}-${query.order ?? "desc"}`;
+}
+
+/** Whether a search is for the most upvoted discussions first. */
+function byUpvotes(q: string): boolean {
+	const term = parseSearch(q).terms.find((t) => t.key === "sort" && !t.negated);
+	return /^top(-desc)?$/i.test(term?.value ?? "");
+}
+
+/**
+ * GitHub orders `sort:top` by its search index, which lags the upvotes
+ * themselves: put what came back in order of the upvotes it carries (ties
+ * as GitHub had them). A few more than asked for are read, so one that
+ * climbed just past the end of the page can still take its place.
+ */
+const TOP_SLACK = 20;
+
+function orderByUpvotes(items: Card[]): Card[] {
+	return items
+		.map((card, i) => ({ card, i, up: card.discussion?.upvotes ?? 0 }))
+		.sort((a, b) => b.up - a.up || a.i - b.i)
+		.map(({ card }) => card);
 }
 
 /**
@@ -124,7 +156,16 @@ export async function searchGitHub(
 	if (kind === "discussion") {
 		// Only GraphQL searches discussions, and it always takes a token.
 		if (!token) return error("signed_out", "Sign in to search GitHub's discussions.");
-		return searchGraphQL(withoutDiscussionType(q), limit, token, "discussions");
+		const text = withoutDiscussionType(q);
+		if (!byUpvotes(text)) return searchGraphQL(text, limit, token, "discussions");
+		const found = await searchGraphQL(
+			text,
+			Math.min(limit + TOP_SLACK, MAX_LIMIT),
+			token,
+			"discussions",
+		);
+		if (found.kind === "error") return found;
+		return { ...found, items: orderByUpvotes(found.items).slice(0, limit) };
 	}
 	if (!token) return searchRest(q, limit, query);
 	if (kind === "issues" || !query.anyKind) return searchGraphQL(q, limit, token, "issues");

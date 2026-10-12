@@ -337,6 +337,11 @@ const ROWS: Row[] = [
 		request: (a) => call(a, "GET", "/api/repos/meta?repo=fake.tack/acme/app"),
 	},
 	{
+		route: "GET /api/repos/categories",
+		allowed: instanceUsers,
+		request: (a) => call(a, "GET", "/api/repos/categories?repo=fake.tack/acme/app"),
+	},
+	{
 		route: "GET /api/people",
 		allowed: instanceUsers,
 		request: (a) => call(a, "GET", "/api/people?q=ol"),

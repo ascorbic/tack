@@ -21,7 +21,7 @@ import type {
 	ProblemCode,
 	Target,
 } from "../../shared/changes.ts";
-import type { Label, Milestone, RepoMeta } from "../../shared/push.ts";
+import type { Label, Milestone, RepoDiscussionCategory, RepoMeta } from "../../shared/push.ts";
 import { itemKey, parseKey } from "../../shared/refs.ts";
 import { isInstalled, repoToken } from "../github/tokens.ts";
 import type {
@@ -33,6 +33,7 @@ import type {
 	RepoIdentity,
 	WriteAuth,
 } from "./types.ts";
+import { categoryEmoji } from "./github-emoji.ts";
 import { forgeFetch, graphqlRateLimited, noteBodyLimit, rateLimitOf } from "./rateLimit.ts";
 
 const HOST = "github.com";
@@ -1373,6 +1374,62 @@ export async function repoMetaGitHub(
 			defaultBranch: info.default_branch,
 			writable: installed,
 		};
+	} catch (error) {
+		if (error instanceof WriteFailure) throw new Error(error.failure.error);
+		throw error;
+	}
+}
+
+const CATEGORY_DETAILS = `query TackDiscussionCategoryList($owner: String!, $name: String!) {
+	repository(owner: $owner, name: $name) {
+		hasDiscussionsEnabled
+		discussionCategories(first: 50) { nodes { name emoji emojiHTML isAnswerable description } }
+	}
+}`;
+
+/**
+ * A repository's discussion categories, with their emoji and whether they
+ * take answers, for the list's Discussions mode. Empty when discussions are
+ * off. Read with the installation's token, else the viewer's, else the instance's.
+ */
+export async function discussionCategoriesGitHub(
+	repo: RepoIdentity,
+	env: Env,
+	auth?: ReadAuth,
+): Promise<RepoDiscussionCategory[]> {
+	const token = (await readToken(env, repo, auth)) ?? (env.GITHUB_TOKEN || null);
+	// Only GraphQL reads them, and it always takes a token: unknown, not none.
+	if (!token) throw new Error("No token to read discussion categories with");
+	const [owner, name] = repo.name.split("/");
+	try {
+		const data = await graphql<{
+			repository: {
+				hasDiscussionsEnabled?: boolean;
+				discussionCategories: {
+					nodes: {
+						name: string;
+						emoji: string;
+						emojiHTML?: string | null;
+						isAnswerable: boolean;
+						description?: string | null;
+					}[];
+				};
+			} | null;
+		}>(
+			token,
+			"TackDiscussionCategoryList",
+			CATEGORY_DETAILS,
+			{ owner, name },
+			"list discussion categories",
+		);
+		const repository = data.repository;
+		if (!repository || repository.hasDiscussionsEnabled === false) return [];
+		return repository.discussionCategories.nodes.map((category) => ({
+			name: category.name,
+			emoji: categoryEmoji(category.emojiHTML, category.emoji),
+			answerable: category.isAnswerable,
+			...(category.description ? { description: category.description } : {}),
+		}));
 	} catch (error) {
 		if (error instanceof WriteFailure) throw new Error(error.failure.error);
 		throw error;

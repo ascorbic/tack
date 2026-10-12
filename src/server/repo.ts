@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { getServerByName } from "partyserver";
 import { type Card, type DiscussionDetails, isMissing, type MissingCard } from "../shared/cards.ts";
 import type { ItemMention } from "../shared/mentions.ts";
+import type { RepoDiscussionCategory } from "../shared/push.ts";
 import { itemKey, itemOf, parseKey, repoKeyOf } from "../shared/refs.ts";
 import type { RepoActivity } from "../shared/rules.ts";
 import type { Board } from "./board.ts";
@@ -67,6 +68,12 @@ const INSTALLED_TTL_MS = 10 * 60_000;
 const DELIVERIES_LIVE_MS = 7 * 24 * 60 * 60_000;
 /** How long to reuse a viewer's token for reading, before asking for it again. */
 const READER_TOKEN_TTL_MS = 60_000;
+/**
+ * How long a repository's discussion categories are kept. They change
+ * rarely, and no webhook says when; a delivery naming one that isn't known
+ * forgets them sooner.
+ */
+const CATEGORIES_TTL_MS = 10 * 60_000;
 
 /** What a repository's cards say about where their data comes from (#9). */
 export interface RepoStatus {
@@ -120,6 +127,8 @@ export class Repo extends DurableObject<Env> {
 	private watchingInstall = false;
 	/** Commands left in comments on this repository's items (#58). */
 	private commands: CommentCommands;
+	/** Reading the discussion categories, once at a time. */
+	private categoriesRead: Promise<RepoDiscussionCategory[]> | null = null;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -360,6 +369,69 @@ export class Repo extends DurableObject<Env> {
 		return after;
 	}
 
+	/**
+	 * The repository's discussion categories (with their emoji, and whether
+	 * they take answers), kept for `CATEGORIES_TTL_MS` so every list's
+	 * Discussions mode and every board asking costs one read. A delivery
+	 * naming a category it doesn't know forgets them sooner. `repo` seeds an
+	 * object that doesn't know its repository yet; `reader` is who's asking,
+	 * whose token reads where the app isn't installed. A failed read keeps
+	 * what was known; with nothing known, it throws.
+	 */
+	async discussionCategories(
+		repo: RepoIdentity,
+		reader: number | null = null,
+	): Promise<RepoDiscussionCategory[]> {
+		if (!this.identity()) this.saveIdentity(repo);
+		const identity = this.identity() ?? repo;
+		const adapter = forge(identity.forge);
+		if (!adapter.discussionCategories) return [];
+		const row = this.sql
+			.exec<{ value: string }>("SELECT value FROM meta WHERE key = 'categories'")
+			.toArray()[0];
+		const kept = row
+			? (JSON.parse(row.value) as { at: number; categories: RepoDiscussionCategory[] })
+			: null;
+		if (kept && Date.now() - kept.at < CATEGORIES_TTL_MS) return kept.categories;
+		this.categoriesRead ??= (async () => {
+			const token = reader === null ? null : await userToken(this.env, reader).catch(() => null);
+			const categories = await adapter.discussionCategories!(
+				identity,
+				this.env,
+				token ? { token } : {},
+			);
+			this.sql.exec(
+				"INSERT OR REPLACE INTO meta (key, value) VALUES ('categories', ?)",
+				JSON.stringify({ at: Date.now(), categories }),
+			);
+			this.logger().info("repo.categories", { count: categories.length });
+			return categories;
+		})().finally(() => {
+			this.categoriesRead = null;
+		});
+		try {
+			return await this.categoriesRead;
+		} catch (error) {
+			this.logger().warn("repo.categories.failed", { error });
+			if (kept) return kept.categories;
+			throw error;
+		}
+	}
+
+	/** Forget the discussion categories if a delivery names one they don't have. */
+	private noticeCategories(cards: Card[]): void {
+		const named = cards.flatMap((card) => (card.discussion ? [card.discussion.category] : []));
+		if (named.length === 0) return;
+		const row = this.sql
+			.exec<{ value: string }>("SELECT value FROM meta WHERE key = 'categories'")
+			.toArray()[0];
+		if (!row) return;
+		const { categories } = JSON.parse(row.value) as { categories: RepoDiscussionCategory[] };
+		const known = new Set(categories.map((category) => category.name.toLowerCase()));
+		if (named.every((category) => !category.name || known.has(category.name.toLowerCase()))) return;
+		this.sql.exec("DELETE FROM meta WHERE key = 'categories'");
+	}
+
 	/** Poll now, if this repository isn't live and someone's watching, for tests and debugging. */
 	async pollNow(): Promise<void> {
 		if (!this.status().live && this.watched()) await this.poll();
@@ -429,6 +501,7 @@ export class Repo extends DurableObject<Env> {
 			missing({ ...delivery.repo, repo: delivery.repo.name, item }, "not_found"),
 		);
 		const updated = this.apply([...fresh, ...gone]);
+		this.noticeCategories(fresh);
 		const refetching = await this.scheduleRefetch(delivery.refetch);
 
 		const now = Date.now();

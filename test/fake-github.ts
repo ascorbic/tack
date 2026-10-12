@@ -174,6 +174,11 @@ export interface FakeDiscussion {
 	/** The chosen answer: who wrote it, and when it was chosen. */
 	answer?: { login: string; chosenAt: string } | null;
 	upvotes?: number;
+	/**
+	 * The upvotes GitHub's search index has, when it lags behind: what
+	 * `sort:top` orders by. The discussion itself still says `upvotes`.
+	 */
+	indexedUpvotes?: number;
 	locked?: boolean;
 	/** Comments, oldest first. */
 	comments?: { body: string; login: string; createdAt: string }[];
@@ -528,6 +533,11 @@ export class FakeGitHub {
 		};
 		this.discussions.push(discussion);
 		return discussion;
+	}
+
+	/** A new discussion category, as a maintainer adds one on GitHub. */
+	addDiscussionCategory(repoId: number, name: string): void {
+		this.repos.get(repoId)?.discussionCategories.push(name);
 	}
 
 	/** A discussion, for assertions and changing as someone on GitHub would. */
@@ -1518,10 +1528,12 @@ export class FakeGitHub {
 	/** Discussion search (`type: DISCUSSION`), as far as Tack's matcher can tell. */
 	private searchDiscussions(q: string, auth: string, limit: number) {
 		const parsed = parseSearch(`${q} is:discussion`);
+		const indexed = new Map<object, number>();
 		const found = this.discussions.flatMap((d) => {
 			const repo = this.repos.get(d.repoId);
 			if (!repo || !this.canSee(repo, auth) || !this.discussionsAllowed(auth)) return [];
 			const node = this.gqlDiscussion(repo, d);
+			indexed.set(node, d.indexedUpvotes ?? d.upvotes ?? 0);
 			const card: Card = {
 				key: `github.com/${repo.name}#${d.number}`.toLowerCase(),
 				forge: "github",
@@ -1548,6 +1560,25 @@ export class FakeGitHub {
 			};
 			return matchSearch(card, parsed) === "yes" ? [node] : [];
 		});
+		// GitHub's orders: `sort:top` is the most upvoted, the rest as for issues.
+		const sort = parsed.terms.find((term) => term.key === "sort" && !term.negated)?.value ?? "";
+		const [field, direction] = sort.toLowerCase().split("-");
+		const key = (node: (typeof found)[number]): string | number =>
+			field === "top"
+				? (indexed.get(node) ?? 0)
+				: field === "created"
+					? node.createdAt
+					: field === "comments"
+						? node.comments.totalCount
+						: node.updatedAt;
+		if (field) {
+			const sign = direction === "asc" ? 1 : -1;
+			found.sort((a, b) => {
+				const x = key(a);
+				const y = key(b);
+				return x === y ? 0 : (x < y ? -1 : 1) * sign;
+			});
+		}
 		return found.slice(0, limit);
 	}
 
@@ -1685,6 +1716,33 @@ export class FakeGitHub {
 			}));
 		const url = (repo: FakeRepo, d: FakeDiscussion) =>
 			`https://github.com/${repo.name}/discussions/${d.number}`;
+		if (operation === "TackDiscussionCategoryList") {
+			const repo = named(variables.owner, variables.name);
+			return json({
+				data: {
+					repository: repo
+						? {
+								hasDiscussionsEnabled: repo.discussionCategories.length > 0,
+								discussionCategories: {
+									nodes: repo.discussionCategories.map((name) => {
+										const [shortcode, emoji] = CATEGORY_EMOJI[name.toLowerCase()] ?? [
+											":speech_balloon:",
+											"💬",
+										];
+										return {
+											name,
+											emoji: shortcode,
+											emojiHTML: `<div><g-emoji class="g-emoji" alias="${shortcode.slice(1, -1)}">${emoji}</g-emoji></div>`,
+											isAnswerable: name.toLowerCase() === "q&a",
+											description: `All about ${name}`,
+										};
+									}),
+								},
+							}
+						: null,
+				},
+			});
+		}
 		if (operation === "TackDiscussionTarget" || operation === "TackDiscussionCategories") {
 			const repo = named(variables.owner, variables.name);
 			return json({

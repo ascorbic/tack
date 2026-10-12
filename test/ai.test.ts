@@ -51,7 +51,7 @@ describe("what the model is told about widgets", () => {
 		};
 		expect(list.properties.sort).toEqual({
 			type: "string",
-			enum: ["updated", "created", "comments", "reactions"],
+			enum: ["updated", "created", "comments", "reactions", "top"],
 		});
 		expect(list.properties.limit).toEqual({ type: "integer", minimum: 5, maximum: 100 });
 		expect(list.properties.q).toEqual({ type: "string", maxLength: 1000 });

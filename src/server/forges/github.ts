@@ -27,6 +27,7 @@ import {
 	writeBranchGitHub,
 	listDirectoryGitHub,
 	repoMetaGitHub,
+	discussionCategoriesGitHub,
 } from "./github-write.ts";
 import type {
 	FetchRef,
@@ -617,6 +618,7 @@ export const github: ForgeAdapter = {
 	// Backups to a branch (#59).
 	writeBranch: (repo, write, auth) => writeBranchGitHub(repo, write, auth),
 	repoMeta: repoMetaGitHub,
+	discussionCategories: discussionCategoriesGitHub,
 	listDirectory: listDirectoryGitHub,
 
 	// Reading for widgets (M3): see github-related.ts.

@@ -128,6 +128,47 @@ export function withoutDiscussionType(q: string): string {
 		.join(" ");
 }
 
+/**
+ * The order a search runs in. `top` is most upvoted, which only
+ * discussions have: issues and pull requests take most reactions instead.
+ */
+export function searchSort(query: Pick<SearchQuery, "q" | "sort">): SearchQuery["sort"] {
+	if (query.sort !== "top") return query.sort;
+	return searchKind(parseSearch(query.q)) === "discussion" ? "top" : "reactions";
+}
+
+/**
+ * Items in a search's order, as GitHub sorts them (for the fake forges): by `sort:` in the search
+ * if it says, else the query's, newest first unless `-asc`. Ties keep the
+ * order they came in. With no sort at all, they're left as they are.
+ */
+export function sortResults(
+	items: Card[],
+	query: Pick<SearchQuery, "q" | "sort" | "order">,
+): Card[] {
+	const term = parseSearch(query.q).terms.find((t) => t.key === "sort" && !t.negated);
+	const [field, direction] = term
+		? (term.value
+				.toLowerCase()
+				.match(/^([a-z]+)(?:-(asc|desc))?/)
+				?.slice(1) ?? [])
+		: [searchSort(query), query.order];
+	const keys: Record<string, (card: Card) => string | number> = {
+		created: (card) => card.createdAt ?? card.updatedAt,
+		updated: (card) => card.updatedAt,
+		comments: (card) => card.comments,
+		reactions: (card) => card.reactions,
+		top: (card) => card.discussion?.upvotes ?? 0,
+	};
+	const key = field ? keys[field] : undefined;
+	if (!key) return items;
+	const sign = direction === "asc" ? 1 : -1;
+	return items
+		.map((card, i) => ({ card, i, k: key(card) }))
+		.sort((a, b) => (a.k === b.k ? a.i - b.i : (a.k < b.k ? -1 : 1) * sign))
+		.map(({ card }) => card);
+}
+
 /** Whether a search mentions `@me`, so means something different to each person. */
 export function mentionsMe(q: string): boolean {
 	return /(^|[\s:,])@me\b/i.test(q);
@@ -218,7 +259,10 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 				case "answered":
 					return card.discussion?.answered ? "yes" : "no";
 				case "unanswered":
-					return isDiscussion && !card.discussion?.answered ? "yes" : "no";
+					// As on GitHub: only categories that take answers have unanswered discussions.
+					return isDiscussion && card.discussion?.category.answerable && !card.discussion.answered
+						? "yes"
+						: "no";
 				case "locked":
 					return card.discussion?.locked ? "yes" : isDiscussion ? "no" : "unknown";
 				case "unlocked":

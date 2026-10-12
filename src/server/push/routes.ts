@@ -4,6 +4,7 @@
 //   GET  /api/boards/:id/pushes                   the board's audit log, newest first
 //   GET  /api/repos/meta?repo=github.com/o/r      labels, milestones, people, categories…
 //   GET  /api/repos/files?repo=github.com/o/r&path=docs/decisions   file names
+//   GET  /api/repos/categories?repo=github.com/o/r  discussion categories, kept by `Repo`
 //
 // Pushing needs edit access to the board and a signed-in person; the board's
 // object checks the rest (write access to every repository, the app
@@ -25,7 +26,7 @@ import { forge, type RepoIdentity } from "../forges/index.ts";
 import { getViewer, type Viewer, viewerToken } from "../identity.ts";
 import { log } from "../log.ts";
 import { boards, directory } from "../namespaces.ts";
-import { resolveRepo } from "../routing.ts";
+import { repoObject, resolveRepo } from "../routing.ts";
 
 const PushBody = v.object({
 	ids: v.pipe(
@@ -62,6 +63,7 @@ export async function handlePush(request: Request, env: Env): Promise<Response |
 	if (board) return boardRoute(request, env, decode(board[1] ?? ""), board[2] as "push" | "pushes");
 	if (url.pathname === "/api/repos/meta") return repoRoute(request, env, url, "meta");
 	if (url.pathname === "/api/repos/files") return repoRoute(request, env, url, "files");
+	if (url.pathname === "/api/repos/categories") return repoRoute(request, env, url, "categories");
 	return null;
 }
 
@@ -138,7 +140,7 @@ async function repoRoute(
 	request: Request,
 	env: Env,
 	url: URL,
-	route: "meta" | "files",
+	route: "meta" | "files" | "categories",
 ): Promise<Response> {
 	if (request.method !== "GET") return json({ error: "method_not_allowed" }, { status: 405 });
 	const denied = await requireInstanceAccess(request, env);
@@ -147,7 +149,13 @@ async function repoRoute(
 	const repoKey = url.searchParams.get("repo") ?? "";
 	const parsed = parseRepoKey(repoKey);
 	const adapter = parsed ? forge(parsed.forge) : null;
-	if (!parsed || !adapter || (route === "meta" ? !adapter.repoMeta : !adapter.listDirectory)) {
+	const supported =
+		route === "meta"
+			? !!adapter?.repoMeta
+			: route === "files"
+				? !!adapter?.listDirectory
+				: !!adapter?.discussionCategories;
+	if (!parsed || !adapter || !supported) {
 		return json({ error: "unsupported" }, { status: 404 });
 	}
 	const path = (url.searchParams.get("path") ?? "").replace(/^\/+|\/+$/g, "");
@@ -168,6 +176,20 @@ async function repoRoute(
 	if (!(await mayRead(env, repo, viewer, token))) {
 		// As if it weren't there: private repositories aren't revealed.
 		return json({ error: "not_found" }, { status: 404 });
+	}
+
+	if (route === "categories") {
+		// Kept by the repository's own object, for everyone who asks.
+		try {
+			const categories = await repoObject(env, repo).discussionCategories(repo, viewer?.id ?? null);
+			return Response.json(
+				{ categories },
+				{ headers: { "cache-control": `private, max-age=${META_TTL_MS / 1000}` } },
+			);
+		} catch (error) {
+			log.warn("repos.categories.failed", { repo: repoKey, error });
+			return json({ error: "unavailable" }, { status: 502 });
+		}
 	}
 
 	const key = `${route}:${repo.host}/${repo.id}${route === "files" ? `:${path}` : ""}`;

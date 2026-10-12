@@ -735,7 +735,7 @@ function freshStart(
 				[...mine].every((term) => other.has(term)) || [...other].every((term) => mine.has(term)),
 		);
 	};
-	const presets = listPresets(repo, null, { personal: false });
+	const presets = listPresets(repo, null, { personal: false, ordered: false });
 	const fresh = presets.find((preset) => !taken(preset.q)) ?? presets[0];
 	const busy = new Set(
 		rules.flatMap((rule) => (rule.action.kind === "section" ? [rule.action.section] : [])),
