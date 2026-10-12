@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, openScenario, settleCanvas, test } from "./fixtures.ts";
 
 // The selection actions (#32, #33) on the playground's "Write back" board:
@@ -186,6 +186,56 @@ test("a section becomes a parent issue with sub-issues", async ({ page }) => {
 		true,
 	);
 	expect(links.filter((c) => "pending" in (c.op.child as object))).toHaveLength(2);
+});
+
+test("a section taller than the view keeps its bar and panels on screen", async ({ page }) => {
+	const section = page.locator(".react-flow__node-section", { hasText: "Docs for 5.0" }).first();
+	await page.locator(".section-handle", { hasText: "Docs for 5.0" }).click();
+	await expect(bar(page)).toBeVisible();
+	// Zoom in on it until it's taller than the canvas, its top edge off screen.
+	const canvas = page.locator(".react-flow");
+	const view = await canvas.boundingBox();
+	if (!view) throw new Error("no canvas");
+	await page.keyboard.press("Shift+Digit2");
+	await settleCanvas(page);
+	await expect(async () => {
+		await page.getByRole("button", { name: "Zoom in" }).click();
+		await settleCanvas(page);
+		const box = await section.boundingBox();
+		expect(box?.height).toBeGreaterThan(view.height);
+		expect(box?.y).toBeLessThan(view.y);
+	}).toPass({ timeout: 20_000 });
+
+	// Wholly on the canvas: under the top bar, over the tool dock.
+	const header = await page.locator(".topbar").boundingBox();
+	const dock = await page.getByRole("toolbar", { name: "Tools" }).boundingBox();
+	if (!header || !dock) throw new Error("no chrome");
+	const onScreen = async (locator: Locator) => {
+		await expect
+			.poll(async () => {
+				const box = await locator.boundingBox();
+				if (!box) return "not drawn";
+				const clear =
+					box.y >= header.y + header.height &&
+					box.x >= view.x &&
+					box.x + box.width <= view.x + view.width &&
+					box.y + box.height <= view.y + view.height &&
+					// Not under the dock where they're level with it.
+					(box.y + box.height <= dock.y ||
+						box.x + box.width <= dock.x ||
+						box.x >= dock.x + dock.width);
+				return clear ? "on screen" : JSON.stringify(box);
+			})
+			.toBe("on screen");
+	};
+	await onScreen(bar(page));
+
+	// Its panels too.
+	await bar(page).getByRole("button", { name: "Make a parent issue from this section" }).click();
+	const panel = page.getByRole("dialog");
+	await expect(panel.getByRole("textbox", { name: "Title" })).toHaveValue("Docs for 5.0");
+	await onScreen(panel);
+	await onScreen(bar(page));
 });
 
 test("a section that's already under a parent issue adds to it, rather than making another", async ({
