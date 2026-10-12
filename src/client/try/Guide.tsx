@@ -385,6 +385,8 @@ function CoachMark({
 				data-cheer={cheer ? true : undefined}
 				data-side={spot?.side ?? undefined}
 				data-docked={spot === null || undefined}
+				// Docked along the bottom of a phone, the board opens above it (fitting.ts).
+				data-fit-clear={spot === null ? "bottom" : undefined}
 				aria-labelledby={titleId}
 				aria-live="polite"
 				data-chrome

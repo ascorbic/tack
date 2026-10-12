@@ -21,6 +21,24 @@ describe("chromeInsets", () => {
 		expect(insets.left).toBe(32);
 	});
 
+	it("keeps fitted content below what hangs from the top and above what sits along the bottom", () => {
+		const phone = { left: 0, top: 54, right: 393, bottom: 852 };
+		const insets = chromeInsets(
+			phone,
+			{
+				// A vote's bar, and the demo's guide card, which reaches higher than the dock.
+				top: [{ left: 12, top: 64, right: 381, bottom: 110 }],
+				bottom: [{ left: 12, top: 385, right: 381, bottom: 768 }],
+				dock: { left: 16, top: 774, right: 377, bottom: 836 },
+			},
+			16,
+		);
+		expect(insets.top).toBe(110 - 54 + 8);
+		expect(insets.bottom).toBe(852 - 385 + 8);
+		expect(insets.left).toBe(16);
+		expect(insets.right).toBe(16);
+	});
+
 	it("takes the gap it's given", () => {
 		expect(chromeInsets(canvas, {}, 96).top).toBe(96);
 	});

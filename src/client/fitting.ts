@@ -27,20 +27,43 @@ interface Box {
 
 /** Space kept between fitted content and the canvas's edge or its chrome. */
 const GAP = 32;
+/** A phone's screen is too narrow to spare as much. */
+const PHONE_GAP = 16;
+
+/**
+ * Marks chrome that a phone's fit keeps content clear of, beyond the dock
+ * and the minimap: `"top"` for what hangs from the top (a vote's bar),
+ * `"bottom"` for what sits along the bottom (the demo's guide card).
+ */
+export const FIT_CLEAR = "data-fit-clear";
 
 /**
  * How far in from each side of `canvas` fitted content must stay: clear of
  * the dock at the bottom and the minimap at the bottom right (beside it,
- * which costs less of the screen than going above it).
+ * which costs less of the screen than going above it), below everything in
+ * `top` and above everything in `bottom`.
  */
 export function chromeInsets(
 	canvas: Box,
-	{ dock, minimap }: { dock?: Box | null; minimap?: Box | null },
+	{
+		dock,
+		minimap,
+		top = [],
+		bottom = [],
+	}: { dock?: Box | null; minimap?: Box | null; top?: Box[]; bottom?: Box[] },
 	gap = GAP,
 ): Insets {
-	const bottom = dock ? Math.max(gap, canvas.bottom - dock.top + gap / 2) : gap;
+	const under = (box: Box) => box.bottom - canvas.top + gap / 2;
+	const over = (box: Box) => canvas.bottom - box.top + gap / 2;
+	const fromTop = Math.max(gap, ...top.map(under));
+	const fromBottom = Math.max(gap, ...(dock ? [dock] : []).concat(bottom).map(over));
 	const right = minimap ? Math.max(gap, canvas.right - minimap.left + gap / 2) : gap;
-	return { top: gap, right: Math.round(right), bottom: Math.round(bottom), left: gap };
+	return {
+		top: Math.round(fromTop),
+		right: Math.round(right),
+		bottom: Math.round(fromBottom),
+		left: gap,
+	};
 }
 
 /**
@@ -99,21 +122,38 @@ export function shapeBoxes(
 	});
 }
 
-/** What the chrome floating over `canvas` (the dock, the minimap) leaves to fit content into. */
-export function insetsOf(canvas: HTMLElement, gap = GAP): Insets {
-	const box = (selector: string) => {
-		const el = canvas.querySelector(selector);
+/**
+ * What the chrome floating over `canvas` (the dock, the minimap, and on a
+ * phone whatever's marked with `FIT_CLEAR`) leaves to fit content into.
+ */
+export function insetsOf(canvas: HTMLElement, gap?: number): Insets {
+	const shown = (el: Element | null) => {
 		if (!el) return null;
 		const rect = el.getBoundingClientRect();
 		return rect.width > 0 && rect.height > 0 ? rect : null;
 	};
+	const box = (selector: string) => shown(canvas.querySelector(selector));
+	const bounds = canvas.getBoundingClientRect();
+	// A wider screen has room beside a vote's bar; a phone has to go below it.
+	const phone = canvas.closest("[data-phone]") !== null;
+	const marked = (edge: "top" | "bottom") =>
+		phone
+			? [...document.querySelectorAll(`[${FIT_CLEAR}="${edge}"]`)]
+					.map(shown)
+					.filter(
+						(rect): rect is DOMRect =>
+							rect !== null && rect.bottom > bounds.top && rect.top < bounds.bottom,
+					)
+			: [];
 	return chromeInsets(
-		canvas.getBoundingClientRect(),
+		bounds,
 		{
 			dock: box(".toolbar-dock .toolbar, .history-dock"),
 			minimap: box(".react-flow__minimap"),
+			top: marked("top"),
+			bottom: marked("bottom"),
 		},
-		gap,
+		gap ?? (phone ? PHONE_GAP : GAP),
 	);
 }
 
