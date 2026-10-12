@@ -693,6 +693,20 @@ function PrivateCardView({ card, selected }: { card: MissingCard; selected?: boo
 
 function MissingCardView({ card, selected }: { card: MissingCard; selected?: boolean }) {
 	if (card.reason === "private") return <PrivateCardView card={card} selected={selected} />;
+	if (card.reason === "demo") {
+		// The public demo reads nothing beyond its own pretend forge.
+		return (
+			<article className="card missing" data-selected={selected} data-reason="demo">
+				<div className="card-head mono">{card.key.split("/").slice(1).join("/")}</div>
+				<div className="missing-message">
+					The demo can’t read real repositories. On your own Tack, this card is live.
+				</div>
+				<a className="card-action nodrag" href="/self-hosting/deploy/" target="_top">
+					Get your own
+				</a>
+			</article>
+		);
+	}
 	if (card.permission === "discussions") {
 		// An install from before Tack read discussions: its owner accepts the new permission.
 		const repo = repoOfKey(card.key);
@@ -730,6 +744,7 @@ function MissingCardView({ card, selected }: { card: MissingCard; selected?: boo
 				unsupported: "This forge isn’t supported yet.",
 				error: "Couldn’t reach the forge. Retrying…",
 				private: "",
+				demo: "",
 			}[card.reason];
 	return (
 		<article className="card missing" data-selected={selected}>

@@ -2,6 +2,7 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
+import { shapesMap } from "../../shared/shapes.ts";
 import { Board } from "../Board.tsx";
 import { cardStore } from "../cardStore.ts";
 import { commentStore } from "../comments/store.ts";
@@ -233,6 +234,23 @@ function TryBoard({
 			sim.destroy();
 		};
 	}, [sim, history, facilitator, stacks, widgets, comments]);
+
+	// Cards from real forges (an issue's URL pasted in): the demo reads nothing
+	// beyond its pretend one, so they say so, rather than loading for ever.
+	useEffect(() => {
+		const shapes = shapesMap(sim.doc);
+		const mark = () => {
+			for (const shape of shapes.values()) {
+				const ref = shape.get("ref");
+				if (shape.get("type") !== "card" || typeof ref !== "string") continue;
+				if (ref.startsWith("fake.tack/") || cardStore.get(ref)) continue;
+				cardStore.set({ key: ref, missing: true, reason: "demo" });
+			}
+		};
+		mark();
+		shapes.observeDeep(mark);
+		return () => shapes.unobserveDeep(mark);
+	}, [sim]);
 
 	// Kept in this browser: saved a moment after each change, and on leaving.
 	const forgotten = useRef(false);

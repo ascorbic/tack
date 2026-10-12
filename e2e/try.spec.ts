@@ -368,3 +368,20 @@ test("a pasted image stays in this browser, across a reload, and nothing's sent"
 	expect(api).toEqual([]);
 	expect(left).toEqual([]);
 });
+
+test("a real repository's issue pasted in says the demo can't read it, rather than loading", async ({
+	page,
+}) => {
+	await open(page);
+	await coach(page).getByRole("button", { name: "Skip tour" }).click();
+	await settleCanvas(page);
+	await page.mouse.click(640, 700);
+	await page.evaluate((text) => {
+		const data = new DataTransfer();
+		data.setData("text/plain", text);
+		window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true }));
+	}, "https://github.com/emdash-cms/emdash/issues/4054");
+	const card = page.locator(".card.missing[data-reason='demo']");
+	await expect(card).toContainText("The demo can’t read real repositories");
+	await expect(card.getByRole("link", { name: "Get your own" })).toBeVisible();
+});

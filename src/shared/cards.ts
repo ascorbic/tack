@@ -216,7 +216,8 @@ export function checksState(counts: Pick<Checks, "passed" | "failed" | "pending"
 export interface MissingCard {
 	key: string;
 	missing: true;
-	reason: "not_found" | "forbidden" | "unsupported" | "error" | "private";
+	/** `demo`: the public demo, which reads nothing beyond its own pretend forge. */
+	reason: "not_found" | "forbidden" | "unsupported" | "error" | "private" | "demo";
 	/**
 	 * What the app would need to read it, when that's why: an install from
 	 * before Tack read Discussions can't see a discussion until its owner
