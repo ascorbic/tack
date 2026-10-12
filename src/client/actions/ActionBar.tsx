@@ -56,6 +56,7 @@ import {
 	BacklinkIcon,
 	BlockedIcon,
 	CloseIssueIcon,
+	FitIcon,
 	IssueIcon,
 	LabelIcon,
 	MilestoneIcon,
@@ -99,7 +100,7 @@ import { snapshotRegion as snapshotRegionFor } from "./snapshot.ts";
 import type { SizeOf } from "../../shared/sections.ts";
 import { spreadStack, stackSelection } from "../../shared/stackEdits.ts";
 import { countMembers, membersOf, nameState, stackName } from "../../shared/stacks.ts";
-import { readShapes } from "../../shared/structure.ts";
+import { fitSection, readShapes } from "../../shared/structure.ts";
 import { GroupThese } from "../stacks/GroupThese.tsx";
 import { SparkIcon, SpreadIcon, StackIcon } from "../stacks/StackNode.tsx";
 import { stackStore, useStacks } from "../stacks/store.ts";
@@ -316,6 +317,18 @@ export function ActionBar(props: ActionBarProps) {
 				unavailable: onlySection ? undefined : faceDown,
 			});
 		}
+		// A free-form section on its own fits to what's in it (lists and grids
+		// are as big as what's in them already).
+		const loneSection = onlySection && selected.length === 1 ? sections[0] : undefined;
+		if (loneSection && !loneSection.data.shape.display && !loneSection.data.display) {
+			out.push({
+				id: "fitSection",
+				label: "Fit to contents",
+				icon: <FitIcon />,
+				text: "Fit",
+				quiet: true,
+			});
+		}
 		// Stacks (#73): stickies and cards into one, a selection into themed ones
 		// by AI, and a stack back out, or up as a parent issue.
 		const onlyStack = stacks.length === 1 && selected.length === 1 ? stacks[0] : undefined;
@@ -529,11 +542,20 @@ export function ActionBar(props: ActionBarProps) {
 		toast(`Unstacked ${countMembers(spread.map((id) => types.get(id)?.type))}`);
 	};
 
+	/** A section snapped to its contents, larger or smaller: one undo step. */
+	const fit = () => {
+		const section = sections[0];
+		if (!section) return;
+		const done = transactLocal(doc, () => fitSection(doc, section.id, props.boxSize));
+		if (!done) toasts.show({ message: "It already fits what’s in it" });
+	};
+
 	/** What the bar does at once, without a panel. */
 	const immediate: Partial<Record<ActionCommand, () => void>> = {
 		toActions: makeActionItems,
 		stackThese,
 		unstack,
+		fitSection: fit,
 	};
 
 	useEffect(

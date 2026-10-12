@@ -24,6 +24,7 @@ export type ActionCommand = Extract<
 	| "stackThese"
 	| "groupThese"
 	| "unstack"
+	| "fitSection"
 	| "summarise"
 	| "draftDecision"
 >;

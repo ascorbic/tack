@@ -29,6 +29,14 @@ export const IssueIcon = () => (
 	</Icon>
 );
 
+/** A frame drawn in snug around what's in it. */
+export const FitIcon = () => (
+	<Icon>
+		<path d="M1.75 5V2.75a1 1 0 0 1 1-1H5M11 1.75h2.25a1 1 0 0 1 1 1V5M14.25 11v2.25a1 1 0 0 1-1 1H11M5 14.25H2.75a1 1 0 0 1-1-1V11" />
+		<rect x="5.25" y="5.25" width="5.5" height="5.5" rx="1" />
+	</Icon>
+);
+
 export const ParentIcon = () => (
 	<Icon>
 		<circle cx="4.5" cy="4" r="2" />

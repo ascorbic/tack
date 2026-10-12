@@ -108,6 +108,7 @@ export type CommandId =
 	| "stackThese"
 	| "groupThese"
 	| "unstack"
+	| "fitSection"
 	| "summarise"
 	| "draftDecision"
 	| "shortcuts";
@@ -458,6 +459,14 @@ export const SHORTCUTS: Shortcut[] = [
 		group: "Arrange",
 		combos: [{ code: "KeyU", alt: true, shift: false }],
 		keywords: "unstack spread ungroup stack stickies",
+	},
+	// Sections (growth.ts): snapped to what's in them, bigger or smaller.
+	{
+		id: "fitSection",
+		label: "Fit a section to its contents",
+		group: "Arrange",
+		combos: [{ code: "KeyF", alt: true, shift: false }],
+		keywords: "section fit contents resize shrink grow snug auto size",
 	},
 	// AI (#64): drafts from what's selected, to read and place.
 	{
