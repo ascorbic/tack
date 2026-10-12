@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light dark" />
+		<meta name="robots" content="noindex" />
+		<title>Tack, live</title>
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<!-- The landing page's theme before the board loads (start.ts keeps
+		     following it), so a dark page never shows a white frame. -->
+		<script>
+			try {
+				var t = new URLSearchParams(location.search).get("theme");
+				var dark = t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+				document.documentElement.dataset.theme = dark ? "dark" : "light";
+			} catch (e) {}
+		</script>
+		<style>
+			html {
+				background: #f4f3ef;
+				overflow: hidden;
+			}
+			html[data-theme="dark"] {
+				background: #141518;
+				color-scheme: dark;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="./main.tsx"></script>
+	</body>
+</html>

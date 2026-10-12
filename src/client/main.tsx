@@ -43,6 +43,8 @@ const routes: Record<string, ComponentType> = {
 				"/play/crash": lazy(() => import("./play/Crash.tsx")),
 				// The public demo (tack.social/try, #75), as it's published.
 				"/play/try": lazy(() => import("./try/DevRoute.tsx")),
+				// Its live embeds on the landing page (tack.social/try/embed/).
+				"/play/embed": lazy(() => import("./try/embed/DevRoute.tsx")),
 			}
 		: {}),
 };

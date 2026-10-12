@@ -1,0 +1,212 @@
+/* The live embeds on tack.social's landing page: the board alone, no top
+   bar, no minimap, no zoom buttons, and no toolbar until it's yours. */
+
+.embed .topbar,
+.embed .skip-link,
+.embed .react-flow__minimap,
+.embed .zoom-controls {
+	display: none;
+}
+
+.embed .app {
+	height: 100dvh;
+}
+
+/* The toolbar rises in when the board's yours. */
+.embed .toolbar-dock {
+	transition:
+		transform var(--t-settle) var(--ease-spring),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.embed:not([data-mode="yours"]) .toolbar-dock {
+	transform: translate(-50%, calc(100% + 32px));
+	opacity: 0;
+	visibility: hidden;
+}
+
+/* A selection the director made is about its actions, not arranging or
+   restyling it, and what the board tells you (toasts) isn't about you yet. */
+.embed:not([data-mode="yours"]) .arrange,
+.embed:not([data-mode="yours"]) .shape-toolbar,
+.embed:not([data-mode="yours"]) .toasts {
+	display: none;
+}
+
+/* Between loops, the board fades to its paper and back. */
+.embed-cover {
+	position: absolute;
+	inset: 0;
+	z-index: 30;
+	background: var(--ground);
+	opacity: 1;
+	pointer-events: none;
+}
+
+.embed-cover[data-mode="yours"] {
+	opacity: 0 !important;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.embed-marks {
+	position: fixed;
+	inset: 0;
+	z-index: 29;
+	pointer-events: none;
+}
+
+/* A marquee someone else is drawing, in their colour. */
+.embed-marquee {
+	position: fixed;
+	border: 1.5px dashed var(--who);
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--who) 9%, transparent);
+}
+
+/* A click landing: a ring in their colour, out and gone. */
+.embed-click {
+	position: fixed;
+	width: 30px;
+	height: 30px;
+	margin: -15px 0 0 -15px;
+	border: 2px solid var(--who);
+	border-radius: 50%;
+	animation: embed-click calc(560ms * var(--motion)) var(--ease-out) forwards;
+}
+
+@keyframes embed-click {
+	from {
+		transform: scale(0.3);
+		opacity: 0.9;
+	}
+	to {
+		transform: scale(1.25);
+		opacity: 0;
+	}
+}
+
+.embed-corner {
+	position: absolute;
+	left: 14px;
+	bottom: 14px;
+	z-index: 31;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	pointer-events: none;
+}
+
+.embed-corner > * {
+	pointer-events: auto;
+}
+
+.embed-live,
+.embed-full,
+.embed-yours {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	height: 30px;
+	padding: 0 12px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--chrome-strong);
+	backdrop-filter: blur(12px) saturate(1.4);
+	box-shadow: var(--shadow-hover);
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	white-space: nowrap;
+}
+
+.embed-live {
+	opacity: 0.92;
+	animation: embed-rise var(--t-settle) var(--ease-spring) calc(900ms * var(--motion)) backwards;
+}
+
+.embed[data-mode="loading"] .embed-live {
+	opacity: 0;
+}
+
+.embed-live-dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: #e5484d;
+	box-shadow: 0 0 0 0 color-mix(in srgb, #e5484d 50%, transparent);
+	animation: embed-pulse calc(1800ms * var(--motion)) var(--ease-out) infinite;
+}
+
+.embed[data-mode="paused"] .embed-live-dot {
+	animation: none;
+	background: var(--muted);
+}
+
+@keyframes embed-pulse {
+	0% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, #e5484d 55%, transparent);
+	}
+	70%,
+	100% {
+		box-shadow: 0 0 0 7px color-mix(in srgb, #e5484d 0%, transparent);
+	}
+}
+
+/* "Your turn": a sticky's yellow, popping in, then settling to a quiet word. */
+.embed-yours {
+	border-color: transparent;
+	border-radius: 3px 3px 3px 10px;
+	background: var(--sticky-yellow);
+	color: var(--sticky-ink);
+	font-weight: 650;
+	transform: rotate(-2deg);
+	animation: embed-pop calc(520ms * var(--motion)) var(--ease-spring) backwards;
+}
+
+.embed-full {
+	color: var(--ink);
+	font-weight: 600;
+	text-decoration: none;
+	animation: embed-rise var(--t-settle) var(--ease-spring) calc(260ms * var(--motion)) backwards;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.embed-full span {
+	display: inline-block;
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.embed-full:hover {
+	background: var(--chrome-solid);
+}
+
+.embed-full:hover span {
+	transform: translateX(3px);
+}
+
+.embed-full:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+@keyframes embed-rise {
+	from {
+		transform: translateY(8px);
+		opacity: 0;
+	}
+}
+
+@keyframes embed-pop {
+	0% {
+		transform: rotate(-8deg) scale(0.4);
+		opacity: 0;
+	}
+	60% {
+		transform: rotate(1deg) scale(1.08);
+		opacity: 1;
+	}
+	100% {
+		transform: rotate(-2deg) scale(1);
+	}
+}

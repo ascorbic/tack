@@ -91,6 +91,11 @@ export function numberAfter(n: number): void {
 	nextNumber = Math.max(nextNumber, n + 1);
 }
 
+/** Number what's created from now on from `n`: the landing page's loops, the same each time. */
+export function numberFrom(n: number): void {
+	nextNumber = n;
+}
+
 /**
  * Every playground repository's metadata, from the same fakes the
  * selection actions' pickers use (play/writes.ts), so the pretend push
