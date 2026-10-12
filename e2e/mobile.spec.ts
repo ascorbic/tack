@@ -2,35 +2,38 @@ import { deflateSync } from "node:zlib";
 import { type Locator, type Page, devices } from "@playwright/test";
 import { expect, openScenario, settleCanvas, test } from "./fixtures.ts";
 
-// Phones and tablets (#67), under Playwright's mobile emulation in
-// Chromium (the project's only browser): an iPhone's viewport, touch and
-// user agent for the phone's board (tap a shape into a sheet, vote, comment,
-// write stickies, pinch and pan), and an iPad's for editing with a finger and
-// a pencil. Multi-finger gestures go through the DevTools protocol, which
-// Playwright's touchscreen (taps only) doesn't cover.
+// Phones and tablets (#67), under Playwright's mobile emulation: an
+// iPhone's viewport, touch and user agent for the phone's board (tap a shape
+// into a sheet, vote, comment, write stickies, pinch and pan), and an iPad's
+// for editing with a finger and a pencil. In Chromium, fingers and the pencil
+// go through the DevTools protocol, which Playwright's touchscreen (taps
+// only) doesn't cover; in WebKit, which has no such protocol, they're
+// pointer and touch events dispatched in the page, as Safari sends them.
 
-// The devices' own browser is WebKit; keep the project's Chromium.
+// The devices' own browser is WebKit; keep the project's browser.
 const { defaultBrowserType: _phoneBrowser, ...iPhone } = devices["iPhone 13"];
 const { defaultBrowserType: _tabletBrowser, ...iPad } = devices["iPad Pro 11"];
 
 type Point = [number, number];
 
-/** Fingers on the screen, through the DevTools protocol. */
-async function fingers(page: Page) {
-	const cdp = await page.context().newCDPSession(page);
-	const send = (type: string, points: Point[]) =>
-		cdp.send("Input.dispatchTouchEvent", {
-			type: type as "touchStart",
-			touchPoints: points.map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 })),
-		});
+interface Fingers {
+	/** Put fingers down, move each by its own offset in steps, and lift them. */
+	gesture: (from: Point[], by: Point[], steps?: number, hold?: number) => Promise<void>;
+	tap: (at: Point) => Promise<void>;
+	longPress: (at: Point) => Promise<void>;
+	/** Draw a line with a pencil. */
+	pencil: (from: Point, to: Point, steps?: number) => Promise<void>;
+}
+
+/** Fingers (and a pencil) on the screen, however this browser takes them. */
+async function fingers(page: Page, browserName: string): Promise<Fingers> {
+	const send = browserName === "chromium" ? await devtoolsInput(page) : await pageInput(page);
 	return {
-		cdp,
-		/** Put fingers down, move each by its own offset in steps, and lift them. */
-		gesture: async (from: Point[], by: Point[], steps = 10, hold = 0) => {
-			await send("touchStart", from);
+		gesture: async (from, by, steps = 10, hold = 0) => {
+			await send.touch("touchStart", from);
 			if (hold) await page.waitForTimeout(hold);
 			for (let i = 1; i <= steps; i++) {
-				await send(
+				await send.touch(
 					"touchMove",
 					from.map(([x, y], n) => [
 						x + ((by[n]?.[0] ?? 0) * i) / steps,
@@ -39,17 +42,260 @@ async function fingers(page: Page) {
 				);
 				await page.waitForTimeout(16);
 			}
-			await send("touchEnd", []);
+			await send.touch("touchEnd", []);
 		},
-		tap: async ([x, y]: Point) => {
-			await send("touchStart", [[x, y]]);
-			await send("touchEnd", []);
+		tap: async (at) => {
+			await send.touch("touchStart", [at]);
+			await send.touch("touchEnd", []);
 		},
-		longPress: async ([x, y]: Point) => {
-			await send("touchStart", [[x, y]]);
+		longPress: async (at) => {
+			await send.touch("touchStart", [at]);
 			await page.waitForTimeout(700);
-			await send("touchEnd", []);
+			await send.touch("touchEnd", []);
 		},
+		pencil: async (from, to, steps = 10) => {
+			await send.pen("move", from, 0);
+			await send.pen("down", from, 1);
+			for (let i = 1; i <= steps; i++) {
+				await send.pen(
+					"move",
+					[from[0] + ((to[0] - from[0]) * i) / steps, from[1] + ((to[1] - from[1]) * i) / steps],
+					1,
+				);
+			}
+			await send.pen("up", to, 0);
+		},
+	};
+}
+
+type TouchType = "touchStart" | "touchMove" | "touchEnd";
+type PenType = "down" | "move" | "up";
+interface Input {
+	/** Where every finger on the screen is now (none: all lifted). */
+	touch: (type: TouchType, points: Point[]) => Promise<void>;
+	pen: (type: PenType, at: Point, buttons: number) => Promise<void>;
+}
+
+/** Chromium: real input, through the DevTools protocol. */
+async function devtoolsInput(page: Page): Promise<Input> {
+	const cdp = await page.context().newCDPSession(page);
+	const pens = { down: "mousePressed", move: "mouseMoved", up: "mouseReleased" } as const;
+	return {
+		touch: async (type, points) => {
+			await cdp.send("Input.dispatchTouchEvent", {
+				type,
+				touchPoints: points.map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 })),
+			});
+		},
+		pen: async (type, [x, y], buttons) => {
+			await cdp.send("Input.dispatchMouseEvent", {
+				type: pens[type],
+				x,
+				y,
+				button: "left",
+				buttons,
+				clickCount: 1,
+				pointerType: "pen",
+			});
+		},
+	};
+}
+
+/**
+ * WebKit: the events Safari sends for fingers and a pencil, dispatched in
+ * the page. Each finger's pointer and touch events go to what it first
+ * touched (as a touch's are captured), and a tap that moved no further
+ * than a press may, and wasn't cancelled, is followed by the mouse events
+ * and click Safari sends after one (however long it was held). The page can't capture pointers the browser
+ * doesn't know of, so asking to is let through for these.
+ */
+async function pageInput(page: Page): Promise<Input> {
+	await page.evaluate(() => {
+		const FIRST_ID = 1000;
+		const PEN_ID = 999_999;
+		const owner = window as unknown as { tackFingers?: unknown };
+		if (owner.tackFingers) return;
+		for (const name of ["setPointerCapture", "releasePointerCapture"] as const) {
+			const original = Reflect.get(Element.prototype, name) as Element[typeof name];
+			Element.prototype[name] = function (this: Element, id: number) {
+				if (id < FIRST_ID) original.call(this, id);
+			};
+		}
+		type Finger = {
+			id: number;
+			target: Element;
+			x: number;
+			y: number;
+			from: Point;
+			cancelled: boolean;
+		};
+		type Point = [number, number];
+		let down: Finger[] = [];
+		let next = 0;
+		const pointer = (
+			type: string,
+			target: Element,
+			id: number,
+			[x, y]: Point,
+			options: { pointerType: string; isPrimary: boolean; buttons: number },
+		) =>
+			target.dispatchEvent(
+				new PointerEvent(type, {
+					bubbles: true,
+					cancelable: type !== "pointerenter" && type !== "pointerleave",
+					composed: true,
+					view: window,
+					pointerId: id,
+					clientX: x,
+					clientY: y,
+					screenX: x,
+					screenY: y,
+					button: type === "pointermove" ? -1 : 0,
+					width: 8,
+					height: 8,
+					pressure: options.buttons ? 0.5 : 0,
+					...options,
+				}),
+			);
+		const mouse = (type: string, target: Element, [x, y]: Point, buttons: number) =>
+			target.dispatchEvent(
+				new MouseEvent(type, {
+					bubbles: true,
+					cancelable: true,
+					composed: true,
+					view: window,
+					clientX: x,
+					clientY: y,
+					screenX: x,
+					screenY: y,
+					button: 0,
+					buttons,
+					detail: 1,
+				}),
+			);
+		// WebKit makes Touches the old way only (its Touch constructor is iOS's).
+		const doc = document as Document & {
+			createTouch(...args: unknown[]): Touch;
+			createTouchList(...touches: Touch[]): TouchList;
+		};
+		const touchOf = (finger: Finger) =>
+			doc.createTouch(
+				window,
+				finger.target,
+				finger.id,
+				finger.x + scrollX,
+				finger.y + scrollY,
+				finger.x,
+				finger.y,
+				4,
+				4,
+				0,
+				1,
+			);
+		/** One touch event per target, as Safari sends them; whether any was cancelled. */
+		const touch = (type: string, changed: Finger[]) => {
+			let cancelled = false;
+			for (const target of new Set(changed.map((finger) => finger.target))) {
+				const mine = changed.filter((finger) => finger.target === target);
+				const event = new TouchEvent(type, {
+					bubbles: true,
+					cancelable: true,
+					composed: true,
+					view: window,
+					touches: doc.createTouchList(...down.map(touchOf)),
+					targetTouches: doc.createTouchList(
+						...down.filter((finger) => finger.target === target).map(touchOf),
+					),
+					changedTouches: doc.createTouchList(...mine.map(touchOf)),
+				} as unknown as TouchEventInit);
+				if (!target.dispatchEvent(event)) cancelled = true;
+			}
+			return cancelled;
+		};
+		const fingerPointer = (type: string, finger: Finger, buttons: number) =>
+			pointer(type, finger.target, finger.id, [finger.x, finger.y], {
+				pointerType: "touch",
+				isPrimary: finger === down[0],
+				buttons,
+			});
+		let pen: Element | null = null;
+		owner.tackFingers = {
+			touch(type: string, points: Point[]) {
+				if (type === "touchStart") {
+					const added = points.slice(down.length).map(([x, y]) => {
+						const target = document.elementFromPoint(x, y) ?? document.documentElement;
+						return {
+							id: FIRST_ID + next++,
+							target,
+							x,
+							y,
+							from: [x, y] as Point,
+							cancelled: false,
+						};
+					});
+					down.push(...added);
+					for (const finger of added) fingerPointer("pointerdown", finger, 1);
+					if (touch("touchstart", added)) for (const finger of added) finger.cancelled = true;
+				} else if (type === "touchMove") {
+					down.forEach((finger, n) => {
+						const point = points[n];
+						if (point) [finger.x, finger.y] = point;
+					});
+					for (const finger of down) fingerPointer("pointermove", finger, 1);
+					touch("touchmove", down);
+				} else {
+					const lifted = down.slice(points.length);
+					const primary = down[0];
+					down = down.slice(0, points.length);
+					for (const finger of lifted) {
+						pointer("pointerup", finger.target, finger.id, [finger.x, finger.y], {
+							pointerType: "touch",
+							isPrimary: finger === primary,
+							buttons: 0,
+						});
+					}
+					const cancelled = touch("touchend", lifted);
+					// A tap: then the mouse events and click Safari sends after one.
+					const [only] = lifted;
+					if (
+						only &&
+						lifted.length === 1 &&
+						down.length === 0 &&
+						!cancelled &&
+						!only.cancelled &&
+						Math.hypot(only.x - only.from[0], only.y - only.from[1]) < 10
+					) {
+						const at: Point = [only.x, only.y];
+						const target = document.elementFromPoint(...at) ?? only.target;
+						mouse("mousemove", target, at, 0);
+						mouse("mousedown", target, at, 1);
+						mouse("mouseup", target, at, 0);
+						mouse("click", target, at, 0);
+					}
+				}
+			},
+			pen(type: string, at: Point, buttons: number) {
+				const target =
+					type === "move" && pen ? pen : (document.elementFromPoint(...at) ?? document.body);
+				if (type === "down") pen = target;
+				const options = { pointerType: "pen", isPrimary: true, buttons };
+				pointer(`pointer${type}`, target, PEN_ID, at, options);
+				if (type === "up") pen = null;
+			},
+		};
+	});
+	const call = (method: "touch" | "pen", ...args: unknown[]) =>
+		page.evaluate(
+			({ method, args }) =>
+				(
+					(window as unknown as { tackFingers: Record<string, (...a: unknown[]) => void> })
+						.tackFingers[method] as (...a: unknown[]) => void
+				)(...args),
+			{ method, args },
+		);
+	return {
+		touch: (type, points) => call("touch", type, points),
+		pen: (type, at, buttons) => call("pen", type, at, buttons),
 	};
 }
 
@@ -98,11 +344,10 @@ async function shapeOnScreen(page: Page, type = "sticky"): Promise<Point> {
 }
 
 function viewport(page: Page) {
+	// As a matrix: Safari writes translate(x, 0) as translate(x).
 	return page.locator(".react-flow__viewport").evaluate((element) => {
-		const match = /translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\(([\d.]+)\)/.exec(
-			(element as HTMLElement).style.transform,
-		);
-		return { x: Number(match?.[1]), y: Number(match?.[2]), zoom: Number(match?.[3]) };
+		const { e, f, a } = new DOMMatrixReadOnly((element as HTMLElement).style.transform);
+		return { x: e, y: f, zoom: a };
 	});
 }
 
@@ -151,6 +396,7 @@ test.describe("on a phone", () => {
 
 	test("tapping a shape opens it in a sheet, with its comments to read and answer", async ({
 		page,
+		browserName,
 	}) => {
 		await openScenario(page, "comments");
 		const card = page.locator(".react-flow__node-card").filter({ hasText: "Drop Node 18" });
@@ -178,14 +424,14 @@ test.describe("on a phone", () => {
 		await expect(sheet).toContainText("Phones can comment too");
 
 		// Tapping the empty board puts it away.
-		const { tap } = await fingers(page);
+		const { tap } = await fingers(page, browserName);
 		await tap(await emptySpot(page));
 		await expect(page.getByRole("dialog", { name: "Card" })).toHaveCount(0);
 	});
 
-	test("tapping a stack shows its stickies, top first", async ({ page }) => {
+	test("tapping a stack shows its stickies, top first", async ({ page, browserName }) => {
 		await openScenario(page, "stacks");
-		const { tap } = await fingers(page);
+		const { tap } = await fingers(page, browserName);
 		await tap(await shapeOnScreen(page, "stack"));
 		const sheet = page.getByRole("dialog", { name: "Shape" });
 		await expect(sheet).toBeVisible();
@@ -320,9 +566,12 @@ test.describe("on a phone", () => {
 		await expect(sheet.locator(".phone-sheet-image .image-file")).toBeVisible();
 	});
 
-	test("pinch zooms, and one or two fingers pan, without opening anything", async ({ page }) => {
+	test("pinch zooms, and one or two fingers pan, without opening anything", async ({
+		page,
+		browserName,
+	}) => {
 		await openScenario(page, "retro");
-		const { gesture } = await fingers(page);
+		const { gesture } = await fingers(page, browserName);
 		// One finger pans, even starting on a shape.
 		const first = await viewport(page);
 		await gesture([await shapeOnScreen(page)], [[-70, 0]]);
@@ -361,9 +610,9 @@ test.describe("on a phone", () => {
 		await expect(page.getByRole("dialog")).toHaveCount(0);
 	});
 
-	test("a sheet goes away dragged down by its grip", async ({ page }) => {
+	test("a sheet goes away dragged down by its grip", async ({ page, browserName }) => {
 		await openScenario(page, "retro");
-		const { gesture, tap } = await fingers(page);
+		const { gesture, tap } = await fingers(page, browserName);
 		await tap(await shapeOnScreen(page));
 		const sheet = page.getByRole("dialog", { name: "Shape" });
 		await expect(sheet).toBeVisible();
@@ -404,12 +653,13 @@ test.describe("on a tablet", () => {
 
 	test("a finger selects, drags and reaches the action bar; long-press selects several", async ({
 		page,
+		browserName,
 	}) => {
 		await openScenario(page, "brainstorm");
 		await expect(page.locator(".app")).toHaveAttribute("data-touch", "true");
 		await expect(page.locator(".app")).not.toHaveAttribute("data-phone", "true");
 		await expect(page.getByRole("toolbar", { name: "Tools" })).toBeVisible();
-		const { gesture, tap, longPress } = await fingers(page);
+		const { gesture, tap, longPress } = await fingers(page, browserName);
 		const stickies = page.locator(".react-flow__node-sticky");
 		const selected = page.locator(".react-flow__node.selected");
 
@@ -451,9 +701,9 @@ test.describe("on a tablet", () => {
 		expect(Math.abs(moved.x - start.x)).toBeGreaterThan(40);
 	});
 
-	test("a pencil draws a selection box", async ({ page }) => {
+	test("a pencil draws a selection box", async ({ page, browserName }) => {
 		await openScenario(page, "brainstorm");
-		const { cdp } = await fingers(page);
+		const { pencil } = await fingers(page, browserName);
 		// Two stickies side by side, all on screen, with the board just above and left of them.
 		const box = await page.evaluate(() => {
 			const pane = document.querySelector(".react-flow__pane")?.getBoundingClientRect();
@@ -477,33 +727,14 @@ test.describe("on a tablet", () => {
 			return null;
 		});
 		if (!box) throw new Error("no two stickies side by side");
-		const { from, to } = box;
-		const pen = (type: string, [x, y]: Point, buttons = 1) =>
-			cdp.send("Input.dispatchMouseEvent", {
-				type: type as "mousePressed",
-				x,
-				y,
-				button: "left",
-				buttons,
-				clickCount: 1,
-				pointerType: "pen",
-			});
-		await pen("mouseMoved", from, 0);
-		await pen("mousePressed", from);
-		for (let i = 1; i <= 10; i++) {
-			await pen("mouseMoved", [
-				from[0] + ((to[0] - from[0]) * i) / 10,
-				from[1] + ((to[1] - from[1]) * i) / 10,
-			]);
-		}
-		await pen("mouseReleased", to, 0);
+		await pencil(box.from, box.to);
 		await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
 	});
 
-	test("500 cards pinch-zoom and pan smoothly enough", async ({ page }) => {
+	test("500 cards pinch-zoom and pan smoothly enough", async ({ page, browserName }) => {
 		test.slow();
 		await openScenario(page, "stress");
-		const { gesture } = await fingers(page);
+		const { gesture } = await fingers(page, browserName);
 		const spot = await emptySpot(page).catch((): Point => [400, 600]);
 		// Frame times while pinching in and out and panning, for about two seconds.
 		await page.evaluate(() => {
