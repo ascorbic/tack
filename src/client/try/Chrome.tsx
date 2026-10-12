@@ -4,7 +4,8 @@ import { TRY_SCENARIOS, type TryScenarioId } from "./scenarios.ts";
 
 // What the public demo adds around the board (#75): the scenario picker in
 // the board's title, Reset, the way to the docs and to running your own,
-// and the note that it's a demo that never leaves the browser.
+// and the note that it's a demo where nothing leaves the browser but what
+// you ask the AI to read.
 
 /** Where the demo sends people: the docs site it's part of. */
 export const LINKS = {
@@ -240,7 +241,8 @@ function LockIcon() {
 }
 
 /**
- * "This is a demo: nothing leaves your browser", in the corner of the board,
+ * "This is a demo: nothing leaves your browser, except what you ask the AI
+ * to read", in the corner of the board,
  * opening to say how, with the ways on: the docs, running your own, the
  * tour again, and the theme. Links to the pretend forge stay on the board,
  * with a word about why.
@@ -264,17 +266,20 @@ export function DemoNote({ onTour, touring }: { onTour: () => void; touring: boo
 					<LockIcon />
 				</span>
 				<span className="try-note-text">
-					<strong>This is a demo:</strong> nothing leaves your browser
+					<strong>This is a demo:</strong> nothing leaves your browser, except what you ask the AI
+					to read
 				</span>
-				<span className="try-note-short">Demo · stays in your browser</span>
+				<span className="try-note-short">Demo · in your browser, AI aside</span>
 			</button>
 			{open && (
 				<div id={panelId} className="try-popover try-note-panel">
-					<p className="try-popover-title">Everything here happens in your browser</p>
+					<p className="try-popover-title">Everything but the AI happens in your browser</p>
 					<p className="try-popover-text">
-						The board, your teammates, the AI that names stacks and the forge you push to are all
-						pretend, running on this page. Nothing is sent anywhere: your board is kept in this
-						browser so a refresh doesn’t lose it, until you reset it.
+						The board, your teammates and the forge you push to are all pretend, running on this
+						page. Nothing is sent anywhere except what you ask the AI to read, like a stack’s
+						stickies to name it or a section to summarise: that goes to a real model on Cloudflare
+						Workers AI, and Tack doesn’t keep it. Your board is kept in this browser so a refresh
+						doesn’t lose it, until you reset it.
 					</p>
 					<p className="try-popover-text">
 						The real Tack does all of this with your GitHub issues and pull requests, on a

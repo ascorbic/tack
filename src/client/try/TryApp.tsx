@@ -17,6 +17,9 @@ import { SimulatedStacks } from "../play/stacks.ts";
 import { SimulatedWidgets } from "../play/widgets.ts";
 import { playServices } from "../play/writes.ts";
 import { widgetStore } from "../widgets/store.ts";
+import { AiHint } from "./AiHint.tsx";
+import { DemoAi, demoAiEndpoint, wantsRealAi } from "./ai.ts";
+import { HintStore } from "./hints.ts";
 import { DemoNote, ResetButton, ScenarioPicker, TryActions } from "./Chrome.tsx";
 import { Guide, type GuideState, startingGuide } from "./Guide.tsx";
 import { type Restored, forget, readPref, restore, save, writePref } from "./persist.ts";
@@ -26,11 +29,23 @@ import { KAI, PRIYA, TRY_SCENARIOS, type TryScenarioId, isScenario } from "./sce
 // in this browser on the playground's simulations (people, the board's
 // server for stacks, votes and history, a pretend forge to push to), kept
 // in localStorage so a refresh doesn't lose it, with a guide for a first run
-// and no developer controls.
+// and no developer controls. Only what you ask the AI to read leaves the
+// browser, for the real model (ai.ts), with the stand-in as its fallback.
 
 /** Where changes made by the demo itself come from: never undone, never yours. */
 const RESTORED = "try-restored";
 const SAVE_MS = 400;
+
+/**
+ * The real AI, for stacks' names, Auto-stack, summaries, decisions and
+ * widgets, where this page asks it (`wantsRealAi`), with a quiet word when
+ * the stand-in answers instead. One for the page, so a rate limit or a busy
+ * day holds across boards.
+ */
+const hints = new HintStore();
+const realAi = wantsRealAi()
+	? new DemoAi({ endpoint: demoAiEndpoint(), onFallback: hints.show })
+	: null;
 
 function firstScenario(): TryScenarioId {
 	const asked = new URLSearchParams(location.search).get("scenario");
@@ -150,7 +165,7 @@ function makeWorld(scenario: TryScenarioId, kept: Restored | null, user: () => U
 		history,
 		push,
 		facilitator: new SimulatedFacilitator(sim),
-		stacks: new SimulatedStacks(sim.doc),
+		stacks: new SimulatedStacks(sim.doc, realAi),
 		widgets: new SimulatedWidgets(sim.doc),
 		comments,
 		restored: kept !== null,
@@ -195,14 +210,19 @@ function TryBoard({
 		];
 		widgetStore.connect(widgets);
 		comments.setAccess({ signedIn: true, role: "owner" });
-		// AI (#64) answers in the browser, over this board and its widgets.
+		// AI (#64) over this board and its widgets: the real model, where
+		// there is one, else the stand-in, in the browser.
 		playAi.mode = "live";
+		playAi.remote = realAi;
 		playAi.doc = sim.doc;
 		playAi.widgets = widgets;
 		playAi.login = userRef.current.login ?? null;
 		return () => {
 			for (const uninstall of uninstalls) uninstall();
-			if (playAi.doc === sim.doc) playAi.doc = null;
+			if (playAi.doc === sim.doc) {
+				playAi.doc = null;
+				playAi.remote = null;
+			}
 			if (playAi.widgets === widgets) playAi.widgets = null;
 			widgetStore.connect(null);
 			widgets.destroy();
@@ -266,6 +286,7 @@ function TryBoard({
 		>
 			<DemoNote onTour={() => onGuide({ step: 0, status: "on" })} touring={guide.status === "on"} />
 			<Guide doc={sim.doc} scenario={definition} state={guide} onState={onGuide} />
+			{realAi && <AiHint store={hints} />}
 		</Board>
 	);
 }

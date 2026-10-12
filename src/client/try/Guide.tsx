@@ -125,7 +125,7 @@ function copyFor(step: StepId, scenario: TryScenario): StepCopy {
 				body: (
 					<>
 						Drag <q>{scenario.stack.from}</q> onto <q>{scenario.stack.onto}</q> and hold it there a
-						moment. ✨ A stand-in AI names the stack from what they say.
+						moment. ✨ AI names the stack from what they say.
 					</>
 				),
 			};
@@ -488,8 +488,8 @@ function Finale({ onClose }: { onClose: () => void }) {
 				That’s Tack.
 			</h2>
 			<p className="try-coach-body">
-				You stacked, staged, pushed and voted, without leaving your browser. On your own Tack the
-				cards are your real issues and pull requests, and pushes land on GitHub.
+				You stacked, staged, pushed and voted, all on this page. On your own Tack the cards are your
+				real issues and pull requests, and pushes land on GitHub.
 			</p>
 			<div className="try-finale-actions">
 				<a className="try-finale-primary" href={LINKS.selfHost}>

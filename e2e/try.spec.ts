@@ -131,7 +131,7 @@ test("the tour can be skipped, and started again from the demo note", async ({ p
 	await expect(coach(page)).toHaveCount(0);
 
 	await page.getByRole("button", { name: /This is a demo/ }).click();
-	await expect(page.getByText("Everything here happens in your browser")).toBeVisible();
+	await expect(page.getByText("Everything but the AI happens in your browser")).toBeVisible();
 	await page.getByRole("button", { name: "Show me around again" }).click();
 	await expect(coach(page)).toContainText("Step 1 of 4");
 });
@@ -205,9 +205,9 @@ test("nothing can leave the browser: requests elsewhere are refused", async ({ p
 		}
 		return [...(await Promise.all(tries)), socket, String(navigator.sendBeacon("/x", "y"))];
 	});
-	expect(refused[0]).toContain("never connects out");
-	expect(refused[1]).toContain("never connects out");
-	expect(refused[2]).toContain("never connects out");
+	expect(refused[0]).toContain("only connects out");
+	expect(refused[1]).toContain("only connects out");
+	expect(refused[2]).toContain("only connects out");
 	expect(refused[3]).toBe("false");
 	// Links to the pretend forge stay on the board, and say why.
 	await coach(page).getByRole("button", { name: "Skip tour" }).click();
@@ -236,4 +236,72 @@ test("the demo's AI answers: summarise a section", async ({ page }) => {
 	const panel = page.getByRole("dialog");
 	await expect(panel.getByLabel("Summary")).not.toHaveValue("", { timeout: 10_000 });
 	await expect(panel).not.toContainText("The AI didn’t answer");
+});
+
+// The real AI, as tack.social asks it (`?ai=live` here; the endpoint is the
+// docs site's Worker, so it's answered by the test instead): only what the
+// task reads is sent, and the stand-in answers whenever it can't.
+const stacked = (page: Page) => page.locator(".react-flow__node-stack").first();
+
+test("the demo's real AI names a stack, sent only the stickies' text", async ({ page }) => {
+	const sent: unknown[] = [];
+	await page.route("**/api/ai", async (route) => {
+		sent.push(route.request().postDataJSON());
+		await route.fulfill({ json: { name: "Slow, flaky CI" } });
+	});
+	await open(page, "?ai=live");
+	await coach(page).getByRole("button", { name: "Skip tour" }).click();
+	await stackOnto(
+		page,
+		sticky(page, "Flaky e2e tests on Safari"),
+		sticky(page, "CI takes 20 minutes on a good day"),
+	);
+	await expect(stacked(page)).toContainText("Slow, flaky CI", { timeout: 10_000 });
+	expect(sent[0]).toEqual({
+		task: "name",
+		texts: expect.arrayContaining([
+			"Flaky e2e tests on Safari",
+			"CI takes 20 minutes on a good day",
+		]),
+	});
+	await expect(page.locator(".try-ai-hint")).toHaveCount(0);
+});
+
+test("when the real AI is busy, the stand-in answers, and says so quietly", async ({ page }) => {
+	let asked = 0;
+	await page.route("**/api/ai", async (route) => {
+		asked++;
+		await route.fulfill({
+			status: 503,
+			json: {
+				kind: "error",
+				reason: "unavailable",
+				message: "Busy",
+				retryAt: Date.now() + 3_600_000,
+			},
+		});
+	});
+	await open(page, "?ai=live");
+	await coach(page).getByRole("button", { name: "Skip tour" }).click();
+	await stackOnto(
+		page,
+		sticky(page, "Flaky e2e tests on Safari"),
+		sticky(page, "CI takes 20 minutes on a good day"),
+	);
+	await expect(stacked(page)).toContainText("Unreliable CI", { timeout: 10_000 });
+	await expect(
+		page.getByRole("status").filter({ hasText: "Using the offline stand-in" }),
+	).toBeVisible();
+	// Summarising doesn't ask again today: the stand-in answers straight away.
+	await page
+		.locator(".section-title", { hasText: "What should 1.0 fix?" })
+		.click({ position: { x: 12, y: 8 } });
+	await page
+		.getByRole("toolbar", { name: "Stage changes" })
+		.getByRole("button", { name: "Summarise with AI" })
+		.click();
+	await expect(page.getByRole("dialog").getByLabel("Summary")).not.toHaveValue("", {
+		timeout: 10_000,
+	});
+	expect(asked).toBe(1);
 });

@@ -7,6 +7,7 @@ import { type StackAi, StackNamer } from "../../shared/stackNamer.ts";
 import { addSection, readShapes } from "../../shared/structure.ts";
 import { cardStore } from "../cardStore.ts";
 import { stackStore } from "../stacks/store.ts";
+import type { RemoteAi } from "./ai.ts";
 import { fixture } from "./fixtures.ts";
 
 // Stacks on /play (#73): `?scenario=stacks` seeds a planning session's
@@ -16,6 +17,7 @@ import { fixture } from "./fixtures.ts";
 // (fakeStackAi.ts), in the browser. As the server does, it only names from
 // the titles of cards everyone could read (here, a public repository's). Its
 // mode is the playground's "AI suggestions" switch: on, slow, failing or off.
+// The public demo gives it a real model to ask first (`withRemote`).
 
 const REPO = "ascorbic/unpic";
 
@@ -167,15 +169,39 @@ export function seedStacks(doc: Y.Doc): void {
 	});
 }
 
+/** How long the real model gets before the stand-in answers instead. */
+const REMOTE_TIMEOUT_MS = { name: 12_000, group: 30_000 } as const;
+
+/**
+ * A real model asked first, with the stand-in answering whenever it doesn't
+ * (`remote` answers null): the public demo's (src/client/try/ai.ts).
+ */
+export function withRemote(remote: RemoteAi, standIn: StackAi): StackAi {
+	return {
+		name: async (texts) =>
+			(await remote.ask({ task: "name", texts: [...texts] }, REMOTE_TIMEOUT_MS.name)) ??
+			standIn.name(texts),
+		group: async (notes) =>
+			(await remote.ask(
+				{ task: "group", notes: notes.map(({ id, text }) => ({ id, text })) },
+				REMOTE_TIMEOUT_MS.group,
+			)) ?? standIn.group(notes),
+	};
+}
+
 export class SimulatedStacks {
 	namer: StackNamer | null = null;
 	private mode: StackAiMode = "on";
 
-	constructor(private readonly doc: Y.Doc) {}
+	/** `remote`, if given, is asked before the stand-in: the public demo's real AI. */
+	constructor(
+		private readonly doc: Y.Doc,
+		private readonly remote: RemoteAi | null = null,
+	) {}
 
 	/** Start naming, and answer the board's "Group these". Returns a function to stop. */
 	install(): () => void {
-		const fake = fakeStackAi(600);
+		const fake = this.remote ? withRemote(this.remote, fakeStackAi(200)) : fakeStackAi(600);
 		const slow = fakeStackAi(4000);
 		const failing: StackAi = {
 			name: () => new Promise((_, reject) => setTimeout(() => reject(new Error("3040")), 800)),

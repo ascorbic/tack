@@ -1,0 +1,67 @@
+/* The demo's quiet "Using the offline stand-in" (AiHint.tsx), at the top of the board. */
+
+.try-ai-hint-wrap {
+	position: absolute;
+	top: 12px;
+	left: 50%;
+	z-index: 24;
+	max-width: calc(100% - 32px);
+	transform: translateX(-50%);
+	pointer-events: none;
+}
+
+.try-ai-hint {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	height: 28px;
+	padding: 0 12px 0 10px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--chrome-strong);
+	backdrop-filter: blur(12px) saturate(1.4);
+	box-shadow: var(--shadow-hover);
+	color: var(--ink-soft);
+	font-size: 12px;
+	white-space: nowrap;
+	animation: try-ai-hint-in var(--t-base) var(--ease-spring) both;
+}
+
+.try-ai-hint[data-leaving] {
+	animation: try-ai-hint-out var(--t-quick) ease-in both;
+}
+
+.try-ai-hint-dot {
+	width: 7px;
+	height: 7px;
+	flex: none;
+	border-radius: 50%;
+	background: var(--muted);
+	opacity: 0.55;
+}
+
+.try-ai-hint-why {
+	color: var(--muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+@keyframes try-ai-hint-in {
+	from {
+		opacity: 0;
+		transform: translateY(-6px) scale(0.97);
+	}
+}
+
+@keyframes try-ai-hint-out {
+	to {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+}
+
+@media (max-width: 560px) {
+	.try-ai-hint-why {
+		display: none;
+	}
+}

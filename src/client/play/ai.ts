@@ -1,6 +1,16 @@
 import type * as Y from "yjs";
-import { type AiRequest, type AiResponse, aiError, checkWidget } from "../../shared/ai.ts";
+import {
+	type AiRequest,
+	type AiResponse,
+	type WidgetCheck,
+	type WidgetContext,
+	aiError,
+	checkWidget,
+	readDecision,
+	readSummary,
+} from "../../shared/ai.ts";
 import { collectItems, widgetContext } from "../../shared/aiContext.ts";
+import { type DemoAiRequest, fitItems, fitWidgetContext } from "../../shared/demoAi.ts";
 import { draftDecision, proposeWidget, summarise } from "../../shared/fakeBoardAi.ts";
 import { addShape, nextZ } from "../../shared/shapes.ts";
 import { addSection, readShapes } from "../../shared/structure.ts";
@@ -18,7 +28,9 @@ const VAULT_CARD = "fake.tack/acme/vault#7";
 // `checkWidget`, and previews them over the playground's fake repository.
 // What it writes is local dev's stand-in (src/shared/fakeBoardAi.ts), made
 // up from keywords: it's for trying the flow, not the model. Modes (the
-// playground's AI suggestions switch) slow it down or make it fail.
+// playground's AI suggestions switch) slow it down or make it fail. The
+// public demo gives it a real model to ask first (`remote`), and it answers
+// itself only when that doesn't (src/client/try/ai.ts).
 
 export type PlayAiMode = "live" | "slow" | "unusable" | "rate_limited" | "failed";
 
@@ -31,15 +43,33 @@ const DELAY: Record<PlayAiMode, number> = {
 	failed: 2000,
 };
 
+/**
+ * A real model to ask first, where there is one: the public demo's
+ * (src/client/try/ai.ts). Its answer, or null for the stand-in to answer.
+ */
+export interface RemoteAi {
+	ask(
+		body: DemoAiRequest,
+		timeoutMs: number,
+		signal?: AbortSignal,
+	): Promise<Record<string, unknown> | null>;
+}
+
+/** How long the real model gets before the stand-in answers instead. */
+const REMOTE_TIMEOUT_MS = 30_000;
+
 export class PlayAi implements AiService {
 	mode: PlayAiMode = "live";
 	/** The playground's board and widgets, once it's running. */
 	doc: Y.Doc | null = null;
 	widgets: SimulatedWidgets | null = null;
 	login: string | null = null;
+	/** Asked first while live, if set: the public demo's real AI. */
+	remote: RemoteAi | null = null;
 
 	async ask(request: AiRequest, signal?: AbortSignal): Promise<AiResponse> {
-		await wait(DELAY[this.mode] * (0.8 + Math.random() * 0.4), signal);
+		const remote = this.mode === "live" ? this.remote : null;
+		if (!remote) await wait(DELAY[this.mode] * (0.8 + Math.random() * 0.4), signal);
 		if (this.mode === "rate_limited") {
 			return aiError("rate_limited", { retryAt: Date.now() + 40_000 });
 		}
@@ -48,8 +78,25 @@ export class PlayAi implements AiService {
 		const doc = this.doc;
 		if (!doc) return aiError("failed");
 		if (request.task === "widget") {
-			const proposal = proposeWidget(request.prompt, widgetContext(doc, this.login));
-			const check = checkWidget(proposal, { host: proposal.host });
+			const context = widgetContext(doc, this.login);
+			const asked = remote
+				? await remote.ask(
+						{ task: "widget", prompt: request.prompt, context: fitWidgetContext(context) },
+						REMOTE_TIMEOUT_MS,
+						signal,
+					)
+				: null;
+			// The real model's widget, checked here too; else the stand-in's.
+			const real = asked
+				? checkWidget(
+						{
+							explanation: asked.explanation,
+							widget: { kind: asked.widget, config: asked.config },
+						},
+						{ host: context.host },
+					)
+				: null;
+			const check = real?.ok ? real : standInWidget(request.prompt, context);
 			if (!check.ok) return aiError("unusable");
 			return {
 				kind: "widget",
@@ -73,14 +120,36 @@ export class PlayAi implements AiService {
 			});
 		}
 		const read = items.length;
-		return request.task === "summary"
-			? { kind: "summary", ...summarise(items), read, leftOut }
-			: { kind: "decision", ...draftDecision(items, request.prompt), read, leftOut };
+		const fitted = remote ? fitItems(items) : [];
+		const asking = remote && fitted.length > 0 ? remote : null;
+		if (request.task === "summary") {
+			const asked = asking
+				? await asking.ask({ task: "summary", items: fitted }, REMOTE_TIMEOUT_MS, signal)
+				: null;
+			const real = asked ? readSummary(asked) : null;
+			return { kind: "summary", ...(real ?? summarise(items)), read, leftOut };
+		}
+		const about = request.prompt || undefined;
+		const asked = asking
+			? await asking.ask(
+					{ task: "decision", items: fitted, ...(about ? { prompt: about } : {}) },
+					REMOTE_TIMEOUT_MS,
+					signal,
+				)
+			: null;
+		const real = asked ? readDecision(asked) : null;
+		return { kind: "decision", ...(real ?? draftDecision(items, about)), read, leftOut };
 	}
 
 	preview(id: string, widget: string, config: unknown): void {
 		this.widgets?.preview(id, widget, config);
 	}
+}
+
+/** The stand-in's widget, checked as the model's would be. */
+function standInWidget(prompt: string, context: WidgetContext): WidgetCheck {
+	const proposal = proposeWidget(prompt, context);
+	return checkWidget(proposal, { host: proposal.host });
 }
 
 /** The playground's AI, shared by its board and gallery. */
