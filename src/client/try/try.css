@@ -805,6 +805,11 @@
 		left: 12px;
 		translate: none;
 	}
+
+	/* The board's toasts ("Voting closes in…") go above the card, not over it. */
+	body:has(.try-guide:not([data-covered]) .try-coach[data-docked]) .toasts {
+		bottom: calc(84px + var(--try-coach-h, 200px) + 10px);
+	}
 }
 
 /* The last word ------------------------------------------------------------- */

@@ -350,6 +350,16 @@ function CoachMark({
 		observer.observe(element);
 		return () => observer.disconnect();
 	}, []);
+	// Docked along the bottom, the card's height lifts the board's toasts clear of it.
+	useLayoutEffect(() => {
+		document.body.style.setProperty("--try-coach-h", `${size.h}px`);
+	}, [size.h]);
+	useLayoutEffect(
+		() => () => {
+			document.body.style.removeProperty("--try-coach-h");
+		},
+		[],
+	);
 	const anchor = rects[0] ?? null;
 	const spot = narrow ? null : place(anchor, size);
 	const copy = copyFor(step, scenario);
