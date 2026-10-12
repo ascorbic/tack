@@ -35,6 +35,25 @@ export function scrollWithin(element: Element): void {
 	else if (inner.right > outer.right) box.scrollLeft += inner.right - outer.right;
 }
 
+/**
+ * Focus came into this frame without anyone coming in: give it back to
+ * what had it on the page around (`before`, read just before), or to that
+ * page itself.
+ */
+function giveFocusBack(host: Element | null, before: Element | null): void {
+	(document.activeElement as HTMLElement | null)?.blur();
+	const page = host?.ownerDocument;
+	if (before && page && before !== host && before !== page.body && "focus" in before) {
+		(before as HTMLElement).focus({ preventScroll: true });
+		return;
+	}
+	// Blurring the frame's element is enough for Chromium; Safari only lets
+	// go of a frame when another one's focused, and focusing a window
+	// doesn't scroll it (and works across origins).
+	(host as HTMLElement | null)?.blur();
+	if (document.hasFocus()) window.parent.focus();
+}
+
 /** Keep the page around this frame where its reader left it. Only in a frame. */
 export function keepThePageStill(): void {
 	if (window.parent === window) return;
@@ -48,24 +67,27 @@ export function keepThePageStill(): void {
 		if (!document.hasFocus()) return;
 		focusSvg.call(this, { ...options, preventScroll: true });
 	};
-	// A modal dialog takes focus as it opens, whatever's asked: give it back
-	// to whatever had it on the page around, unless it was here already.
-	const showModal = Reflect.get(
-		HTMLDialogElement.prototype,
-		"showModal",
-	) as HTMLDialogElement["showModal"];
-	HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
-		const here = document.hasFocus();
-		const host = here ? null : frameElement;
-		const before = host?.ownerDocument.activeElement ?? null;
-		showModal.call(this);
-		if (!host || !before) return;
-		if (before === host || before === host.ownerDocument.body) {
-			(host as HTMLElement).blur();
-		} else if ("focus" in before) {
-			(before as HTMLElement).focus({ preventScroll: true });
-		}
-	};
+	// A dialog takes focus as it opens (its focusing steps, run by the browser
+	// rather than through `focus()`), and in Safari that focuses the frame
+	// itself, after which `hasFocus()` says yes and everything else may too.
+	// So while one opens in a frame nobody's in, nothing in it can take focus;
+	// and should focus get in anyway, it goes back to the page around.
+	for (const name of ["showModal", "show"] as const) {
+		const open = Reflect.get(HTMLDialogElement.prototype, name) as HTMLDialogElement["show"];
+		HTMLDialogElement.prototype[name] = function (this: HTMLDialogElement) {
+			if (document.hasFocus()) return open.call(this);
+			const host = frameElement;
+			const before = host?.ownerDocument.activeElement ?? null;
+			const inert = this.inert;
+			this.inert = true;
+			try {
+				open.call(this);
+			} finally {
+				this.inert = inert;
+			}
+			if (document.hasFocus()) giveFocusBack(host, before);
+		};
+	}
 	// Hidden overflow still scrolls for focus and dialogs: the frame's page
 	// stays where it is, whatever asks it to move.
 	addEventListener("scroll", () => {
