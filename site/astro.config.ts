@@ -45,8 +45,9 @@ export default defineConfig({
 				{ label: "Self-hosting", items: [{ autogenerate: { directory: "self-hosting" } }] },
 				{ label: "Help", items: [{ autogenerate: { directory: "help" } }] },
 			],
-			// Broken links between pages fail the build.
-			plugins: [starlightLinksValidator()],
+			// Broken links between pages fail the build. The demo at /try/ isn't
+			// one of its pages: scripts/try.ts copies it in after Astro's build.
+			plugins: [starlightLinksValidator({ exclude: ["/try/", "/try/**"] })],
 		}),
 	],
 });

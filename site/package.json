@@ -7,7 +7,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "astro dev",
-		"build": "astro build && node scripts/build-output.ts",
+		"build": "astro build && node scripts/try.ts && node scripts/build-output.ts",
 		"preview": "astro preview",
 		"deploy": "pnpm run build && cf deploy --prebuilt",
 		"screenshots": "node scripts/screenshots.ts"
