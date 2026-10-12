@@ -7,7 +7,7 @@ sidebar:
 
 A backlink is a comment on an issue or pull request that links back to the board, so people on GitHub can find where it was discussed.
 
-Select one or more cards and choose **Comment with a link to this board** (<kbd>⌥</kbd> <kbd>K</kbd>). Add an optional **Note**, and **Stage N comments**. Like every action, nothing is written until someone [pushes](/writing-back/pushing/).
+Select one or more cards and choose **Backlink** (comment with a link to this board, <kbd>⌥</kbd> <kbd>K</kbd>). Add an optional **Note**, and **Stage N comments**. Like every action, nothing is written until someone [pushes](/writing-back/pushing/).
 
 ## What the comment says
 

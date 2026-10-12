@@ -5,7 +5,7 @@ sidebar:
   order: 6
 ---
 
-An action item is something someone will do: a row with a checkbox, an **owner** and a **due date**. Press <kbd>A</kbd> and click the board to add one, then type what needs doing. Select stickies and press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>A</kbd> (**Make action items**) to turn them into action items in place.
+An action item is something someone will do: a row with a checkbox, an **owner** and a **due date**. Press <kbd>A</kbd> and click the board to add one, then type what needs doing. Select stickies and press <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>A</kbd> (**Action items** in the bar) to turn them into action items in place.
 
 ## Owner and due date
 
