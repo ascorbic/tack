@@ -18,6 +18,7 @@ interface Shape {
 	display?: string;
 	sort?: unknown;
 	order?: string;
+	stack?: string;
 }
 
 /** Every shape in the board's document, by id. */
@@ -234,4 +235,44 @@ test("a section switched to mini cards keeps its bar just under it, not under th
 			return s && b ? Math.round(b.y - (s.y + s.height)) : null;
 		})
 		.toBeLessThan(40);
+});
+
+test("a row dragged out of a list and held over a sticky makes a stack with it", async ({
+	page,
+}) => {
+	const sticky = await idOf(page, "Ship this by Friday!");
+	const now = await idOf(page, "Now");
+	// Bring the loose sticky beside the list.
+	await page.evaluate(
+		([stickyId, sectionId]) => {
+			const board = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } })
+				.tackPlayground;
+			const map = board.doc.getMap("shapes");
+			const section = map.get(sectionId) as import("yjs").Map<unknown>;
+			const shape = map.get(stickyId) as import("yjs").Map<unknown>;
+			board.doc.transact(() => {
+				shape.set("x", Number(section.get("x")) + Number(section.get("w")) + 60);
+				shape.set("y", Number(section.get("y")) + 40);
+			});
+		},
+		[sticky, now] as const,
+	);
+	await settled(page);
+	const target = page.locator(`.react-flow__node[data-id="${sticky}"]`);
+	await expect(target).toBeVisible();
+	const from = row(page, "#377");
+	const a = (await from.boundingBox())!;
+	const b = (await target.boundingBox())!;
+	const start = { x: a.x + 40, y: a.y + a.height / 2 };
+	await drag(page, start, { x: b.x + b.width / 2 - start.x, y: b.y + b.height / 2 - start.y }, () =>
+		page.waitForTimeout(700),
+	);
+	const card = await idOf(page, "#377");
+	await expect
+		.poll(async () => {
+			const all = await shapes(page);
+			const stack = all[sticky]?.stack;
+			return Boolean(stack) && all[card]?.stack === stack;
+		})
+		.toBe(true);
 });

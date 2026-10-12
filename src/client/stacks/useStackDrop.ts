@@ -10,7 +10,7 @@ import type { StackLayout } from "./view.ts";
 // into folders on a phone: hold what you're dragging over one for a moment
 // and it opens up to take it in; let go and they're a stack (or join it).
 // Moving on before it opens is just moving. Only stickies, cards (issues and
-// pull requests) and stacks can be stacked.
+// pull requests) and stacks can be stacked, from the board or out of a list.
 
 /** How long to hold over a sticky, card or stack before it opens to take what's dragged. */
 export const STACK_HOLD_MS = 350;
@@ -92,7 +92,10 @@ export function useStackDrop({
 						node.type === "card" ||
 						node.type === "link" ||
 						node.type === "stack") &&
-					node.data.display === undefined &&
+					// A row or mini card dragged out of a list stacks like any card.
+					(node.data.display === undefined ||
+						node.data.display === "row" ||
+						node.data.display === "mini") &&
 					!(node.type === "stack" && node.data.stack?.open)
 				);
 			});
