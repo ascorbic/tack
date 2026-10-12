@@ -76,6 +76,28 @@ export function stackSize(count: number, nameLines = 1): { w: number; h: number 
 	};
 }
 
+/**
+ * How many lines a name takes as a theme card's headline (at most three),
+ * roughly: words wrapped at about fourteen characters a line, as the
+ * display face sets them beside the count. For where nothing's measured
+ * (the server, and images of the board).
+ */
+export function nameLines(name: string): number {
+	const perLine = 14;
+	let lines = 1;
+	let used = 0;
+	for (const word of name.split(/\s+/).filter(Boolean)) {
+		const length = Math.min(word.length, perLine);
+		if (used === 0) used = length;
+		else if (used + 1 + length <= perLine) used += 1 + length;
+		else {
+			lines++;
+			used = length;
+		}
+	}
+	return Math.min(3, lines);
+}
+
 /** A stack's box when nothing's measured: a theme card of three, its name on two lines. */
 export const STACK_SIZE = stackSize(3, 2);
 /** Where its top member sits inside its box (and so where a stacked shape's x and y are). */

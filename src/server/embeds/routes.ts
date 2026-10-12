@@ -44,7 +44,7 @@ import { boards, directory } from "../namespaces.ts";
 import { drawPreview, drawScene } from "./draw.ts";
 
 /** Bump when drawing changes, so cached images and ETags from before are dropped. */
-const RENDERER_VERSION = "2";
+const RENDERER_VERSION = "3";
 
 /** How long browsers and proxies may reuse an image before asking again. */
 const IMAGE_CACHE_CONTROL = "public, max-age=60, stale-while-revalidate=600";

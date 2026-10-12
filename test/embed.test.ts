@@ -219,21 +219,107 @@ describe("the scene", () => {
 		});
 	});
 
-	it("draws a stack as its top stickies peeking out, with its name", () => {
+	it("draws a stack as its theme card: its name, count, first few members and +N more", () => {
 		const shapes = new Map<string, ShapeProps>([
 			["s", { type: "stack", x: 0, y: 0, z: "a0", suggested: { title: "Flaky CI", hash: "h" } }],
 			...[1, 2, 3, 4].map((n): [string, ShapeProps] => [
 				`m${n}`,
-				{ type: "sticky", x: 12, y: 10, z: `a${n}`, text: `Note ${n}`, stack: "s" },
+				{
+					type: "sticky",
+					x: 12,
+					y: 10,
+					z: `a${n}`,
+					text: `Note ${n}`,
+					color: n === 3 ? "pink" : "yellow",
+					stack: "s",
+				},
 			]),
+			["c", { type: "card", x: 12, y: 10, z: "a5", ref: PUBLIC_KEY, stack: "s" }],
+			["p", { type: "card", x: 12, y: 10, z: "a6", ref: PRIVATE_KEY, stack: "s" }],
+			[
+				"k",
+				{
+					type: "connector",
+					x: 0,
+					y: 0,
+					z: "a7",
+					from: { x: 0, y: 0, shape: "m1" },
+					to: { x: 0, y: 0, shape: "n" },
+				} as ShapeProps,
+			],
+			["n", { type: "sticky", x: 600, y: 0, z: "a8", text: "Elsewhere" }],
 		]);
-		const scene = buildScene(shapes, new Map(), { kind: "board" });
-		// The top three (highest z first), offset; the fourth isn't drawn.
-		expect(byId(scene, "m4")).toMatchObject({ rect: { x: 12, y: 10 } });
-		expect(byId(scene, "m3")).toMatchObject({ rect: { x: 17, y: 16 } });
-		expect(byId(scene, "m2")).toMatchObject({ rect: { x: 22, y: 22 } });
-		expect(byId(scene, "m1")).toBeUndefined();
-		expect(byId(scene, "s")).toMatchObject({ kind: "text", text: "Flaky CI" });
+		const scene = buildScene(shapes, cards(card(PUBLIC_KEY), placeholder), { kind: "board" });
+		// Its members aren't drawn on their own.
+		for (const id of ["m1", "m2", "m3", "m4", "c", "p"]) expect(byId(scene, id)).toBeUndefined();
+		const stack = byId(scene, "s") as Extract<SceneItem, { kind: "stack" }>;
+		expect(stack).toMatchObject({
+			kind: "stack",
+			rect: { x: 0, y: 0 },
+			name: "Flaky CI",
+			suggested: true,
+			count: 6,
+			more: 3,
+			papers: ["card", "yellow"],
+		});
+		// Top of the stack first; the private item says nothing about itself.
+		expect(stack.rows).toEqual([
+			{ face: "card", card: { status: "private" } },
+			{
+				face: "card",
+				card: expect.objectContaining({ status: "ok", ref: "astro#12", state: "open" }),
+			},
+			{ face: "sticky", tone: "yellow", text: "Note 4" },
+		]);
+		expect(JSON.stringify(scene)).not.toContain("secret");
+		// A line from a stacked sticky starts just past the stack's edge.
+		const line = byId(scene, "k") as Extract<SceneItem, { kind: "connector" }>;
+		const [x0 = Number.NaN] = (line.d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+		expect(x0).toBeGreaterThanOrEqual(stack.rect.x + stack.rect.w);
+		expect(x0).toBeLessThan(stack.rect.x + stack.rect.w + 12);
+
+		// A face-down sticky on top is face down, and an unnamed stack Untitled.
+		shapes.set("s", { type: "stack", x: 0, y: 0, z: "a0" });
+		shapes.set("m9", {
+			type: "sticky",
+			x: 12,
+			y: 10,
+			z: "a9",
+			silent: "session",
+			text: "Hidden thought",
+			color: "blue",
+			stack: "s",
+		});
+		const silent = byId(buildScene(shapes, cards(), { kind: "board" }), "s");
+		expect(silent).toMatchObject({
+			name: "Untitled stack",
+			suggested: false,
+			rows: [{ face: "hidden", tone: "blue" }, { face: "card" }, { face: "card" }],
+		});
+		expect(JSON.stringify(silent)).not.toContain("Hidden thought");
+	});
+
+	it("draws a stack in a list as one row: its name and what it holds", () => {
+		const shapes = board();
+		shapes.set("s1", { ...shapes.get("s1")!, display: "list" });
+		shapes.set("st", { type: "stack", x: 40, y: 400, z: "b0", parent: "s1", title: "Docs gaps" });
+		for (const n of [1, 2]) {
+			shapes.set(`sm${n}`, {
+				type: "sticky",
+				x: 52,
+				y: 410,
+				z: `b${n}`,
+				parent: "s1",
+				text: `Gap ${n}`,
+				stack: "st",
+			});
+		}
+		const scene = buildScene(shapes, cards(card(PUBLIC_KEY), placeholder), {
+			kind: "section",
+			id: "s1",
+		});
+		expect(byId(scene, "st")).toMatchObject({ kind: "row", text: "Docs gaps · 2 stickies" });
+		expect(byId(scene, "sm1")).toBeUndefined();
 	});
 
 	it("puts sections first and lines under shapes", () => {
@@ -397,6 +483,22 @@ describe("drawing", () => {
 			due: "2026-10-14",
 		} as ShapeProps);
 		shapes.set("t1", { type: "text", x: 0, y: -80, z: "b2", text: "Planning", size: "xl" });
+		shapes.set("st", {
+			type: "stack",
+			x: 1000,
+			y: 500,
+			z: "b3",
+			suggested: { title: "Release notes", hash: "h" },
+		});
+		for (const [n, extra] of [
+			[1, { type: "sticky", text: "Changelog is thin", color: "green" }],
+			[2, { type: "card", ref: PUBLIC_KEY }],
+			[3, { type: "card", ref: PRIVATE_KEY }],
+			[4, { type: "sticky", silent: "session", color: "blue" }],
+			[5, { type: "sticky", text: "Credit contributors", color: "green" }],
+		] as const) {
+			shapes.set(`sm${n}`, { x: 1012, y: 510, z: `b${3 + n}`, stack: "st", ...extra } as ShapeProps);
+		}
 		const scene = buildScene(
 			shapes,
 			cards(card(PUBLIC_KEY, { kind: "pull", state: "merged" }), placeholder),

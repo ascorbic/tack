@@ -198,6 +198,8 @@ function drawItem(item: Exclude<SceneItem, { kind: "connector" }>, ctx: Ctx): El
 			return widget(item, ctx);
 		case "row":
 			return row(item, ctx);
+		case "stack":
+			return stack(item, ctx);
 	}
 }
 
@@ -562,6 +564,28 @@ function stateGlyph(data: Extract<SceneCard, { status: "ok" }>, color: string, s
 	return { type: "svg", props: { width: size, height: size, viewBox: "0 0 16 16", children } };
 }
 
+/** A suggested name's quiet mark. */
+function spark(size: number, color: string, top: number): El {
+	return {
+		type: "svg",
+		props: {
+			width: size,
+			height: size,
+			viewBox: "0 0 16 16",
+			style: { marginLeft: size * 0.4, marginTop: top, flexShrink: 0, opacity: 0.75 },
+			children: [
+				{
+					type: "path",
+					props: {
+						d: "M8 1.5c.4 2.9 1.6 4.1 4.5 4.5-2.9.4-4.1 1.6-4.5 4.5-.4-2.9-1.6-4.1-4.5-4.5 2.9-.4 4.1-1.6 4.5-4.5z",
+						fill: color,
+					},
+				},
+			],
+		},
+	};
+}
+
 function lock(size: number, color: string): El {
 	return {
 		type: "svg",
@@ -760,6 +784,160 @@ function widget(item: Extract<SceneItem, { kind: "widget" }>, ctx: Ctx): El {
 		skeleton,
 		legible(12, ctx) && text({ fontSize: k(12), color: p.muted }, "Live on the board", 1),
 	);
+}
+
+/**
+ * A stack (#73): its theme card, as the board draws it: two papers peeking
+ * out behind in its members' colours, its name as the headline with its
+ * count, then its first few members a line each. Too small to read, its
+ * name alone, big, as the board shows it zoomed out.
+ */
+function stack(item: Extract<SceneItem, { kind: "stack" }>, ctx: Ctx): El[] {
+	const { p, k } = ctx;
+	const r = k(14);
+	const paperOf = (tone: string | undefined) =>
+		tone === "card" ? p.chip : (p.sticky[tone ?? "yellow"] ?? p.sticky.yellow!);
+	const papers = item.papers
+		.map((tone, i) =>
+			box({
+				...place({ ...item.rect, x: item.rect.x + 5 + i * 4, y: item.rect.y + 5 + i * 5 }, ctx),
+				background: paperOf(tone),
+				border: `${Math.max(1, k(1))}px solid ${p.line}`,
+				borderRadius: r,
+			}),
+		)
+		.reverse();
+	const card = surface(item.rect, ctx, {
+		borderRadius: r,
+		padding: `${k(14)}px ${k(14)}px ${k(14)}px ${k(16)}px`,
+	});
+	const count = (size: number) =>
+		text(
+			{
+				flexShrink: 0,
+				minWidth: k(size * 1.8),
+				height: k(size * 1.8),
+				padding: `0 ${k(size * 0.55)}px`,
+				borderRadius: k(size * 0.9),
+				background: p.chip,
+				color: p.inkSoft,
+				fontSize: k(size),
+				fontWeight: 600,
+				lineHeight: `${k(size * 1.8)}px`,
+				textAlign: "center",
+			},
+			String(item.count),
+		);
+	if (!legible(13, ctx)) {
+		// Far out: its name and count, big.
+		return [
+			...papers,
+			box(
+				{ ...card, justifyContent: "center" },
+				legible(27, ctx)
+					? text(
+							{
+								fontSize: k(27),
+								lineHeight: 1.12,
+								fontWeight: 700,
+								fontFamily: FONTS.display,
+								color: item.name ? p.ink : p.muted,
+							},
+							`${item.name}  ${item.count}`,
+							3,
+						)
+					: bars(ctx, 27, 2, p.lineStrong),
+			),
+		];
+	}
+	const head = box(
+		{ alignItems: "flex-start", marginBottom: k(10) },
+		text(
+			{
+				flexGrow: 1,
+				flexShrink: 1,
+				fontSize: k(20),
+				lineHeight: 1.25,
+				fontWeight: 700,
+				fontFamily: FONTS.display,
+				color: item.suggested ? p.inkSoft : p.ink,
+				letterSpacing: -0.4 * ctx.s,
+			},
+			item.name,
+			3,
+		),
+		item.suggested && spark(k(12), p.accent, k(6)),
+		box({ marginLeft: k(8) }, count(12)),
+	);
+	const rows = item.rows.map((member) => {
+		const line = { alignItems: "center", height: k(22), marginBottom: k(4) } as const;
+		const words = (value: string, style: Style = {}) =>
+			text(
+				{
+					marginLeft: k(7),
+					fontSize: k(13),
+					color: p.inkSoft,
+					whiteSpace: "nowrap",
+					textOverflow: "ellipsis",
+					flexShrink: 1,
+					...style,
+				},
+				value,
+				1,
+			);
+		if (member.face === "card") {
+			const data = member.card;
+			if (data.status !== "ok") {
+				return box(
+					line,
+					lock(Math.max(4, k(12)), p.muted),
+					words(data.status === "private" ? "Private item" : data.ref, { color: p.muted }),
+				);
+			}
+			const state = p.state[data.state];
+			return box(
+				line,
+				stateGlyph(data, state.ink, k(13)),
+				text(
+					{
+						marginLeft: k(7),
+						fontSize: k(12),
+						color: p.muted,
+						whiteSpace: "nowrap",
+						flexShrink: 0,
+					},
+					data.ref.slice(data.ref.indexOf("#")),
+					1,
+				),
+				words(data.title, { marginLeft: k(6), color: p.ink, fontWeight: 600 }),
+			);
+		}
+		const dot = box({
+			width: k(10),
+			height: k(10),
+			flexShrink: 0,
+			borderRadius: k(2),
+			background: p.sticky[member.tone] ?? p.sticky.yellow!,
+			border: `${Math.max(1, k(1))}px solid ${p.line}`,
+		});
+		return member.face === "hidden"
+			? box(line, dot, words("Face down", { color: p.muted }))
+			: box(line, dot, words(member.text || "Empty sticky"));
+	});
+	return [
+		...papers,
+		box(
+			{ ...card, justifyContent: "flex-start" },
+			head,
+			...rows,
+			item.more > 0 &&
+				text(
+					{ marginLeft: k(17), fontSize: k(12), fontWeight: 600, color: p.muted },
+					`+${item.more} more`,
+					1,
+				),
+		),
+	];
 }
 
 function row(item: Extract<SceneItem, { kind: "row" }>, ctx: Ctx): El {

@@ -26,7 +26,16 @@ import { parseKey } from "./refs.ts";
 import { NOMINAL_SIZE, readStructure } from "./sections.ts";
 import type { ShapeProps } from "./shapes.ts";
 import { parseSession } from "./silent.ts";
-import { STACK_SIZE, stackMembers, stackName } from "./stacks.ts";
+import {
+	countMembers,
+	excerptCount,
+	nameLines,
+	nameState,
+	stackMembers,
+	stackName,
+	stackSize,
+	UNTITLED_STACK,
+} from "./stacks.ts";
 import { textSize } from "./thumbnail.ts";
 import { widgetDefinition, widgetSize } from "./widgetRegistry.ts";
 
@@ -257,6 +266,22 @@ export type SceneItem =
 	  }
 	| { kind: "widget"; id: string; rect: Rect; label: string; title: string }
 	| {
+			kind: "stack";
+			id: string;
+			rect: Rect;
+			/** Its name, or "Untitled stack". */
+			name: string;
+			/** The name's a suggestion (✨), not a person's. */
+			suggested: boolean;
+			count: number;
+			/** Its first few members, a line each. */
+			rows: StackRow[];
+			/** How many more there are than rows. */
+			more: number;
+			/** The colours of the papers peeking out behind it: sticky colours, or "card". */
+			papers: string[];
+	  }
+	| {
 			kind: "connector";
 			id: string;
 			/** SVG path data, in board units. */
@@ -281,6 +306,13 @@ export type SceneItem =
 			tone: string;
 			face: "card" | "sticky" | "private" | "hidden" | "group" | "other";
 	  };
+
+/** One member of a stack, in a line. */
+export type StackRow =
+	| { face: "sticky"; tone: string; text: string }
+	/** Face down in silent mode: its colour, nothing else. */
+	| { face: "hidden"; tone: string }
+	| { face: "card"; card: SceneCard };
 
 export interface Scene {
 	/** The part of the board drawn, in board units. */
@@ -333,15 +365,26 @@ export function buildScene(
 		const box = shapeBox(shape, layout.slots.get(id)?.rect, layout.sections.get(id)?.box);
 		if (box) boxes.set(id, box);
 	}
-	// A stack (#73) draws its top three stickies, the two under the top one
-	// peeking out, as the board does; the rest aren't drawn.
-	for (const members of stackMembers(shapes).values()) {
-		members.forEach((id, i) => {
-			const box = boxes.get(id);
-			if (!box || layout.slots.has(id)) return;
-			if (i >= 3) boxes.delete(id);
-			else if (i > 0) boxes.set(id, { ...box, x: box.x + 5 * i, y: box.y + 6 * i });
-		});
+	// A stack (#73) draws as its theme card, as big as what it shows; its
+	// members aren't drawn on their own, and connectors to them end at it.
+	const stacks = stackMembers(shapes);
+	const stacked = new Set<string>();
+	for (const [stack, members] of stacks) {
+		const shape = shapes.get(stack);
+		const box = boxes.get(stack);
+		if (!shape || !box) continue;
+		const rect = layout.slots.has(stack)
+			? box
+			: {
+					x: box.x,
+					y: box.y,
+					...stackSize(members.length, nameLines(stackName(shape) ?? UNTITLED_STACK)),
+				};
+		boxes.set(stack, rect);
+		for (const id of members) {
+			stacked.add(id);
+			boxes.set(id, rect);
+		}
 	}
 
 	const items: SceneItem[] = [];
@@ -407,13 +450,17 @@ export function buildScene(
 	for (const id of ordered) {
 		const shape = shapes.get(id)!;
 		const rect = boxes.get(id);
-		if (!rect || shape.type === "connector") continue;
+		if (!rect || shape.type === "connector" || stacked.has(id)) continue;
 		const slot = layout.slots.get(id);
 		if (slot) {
-			items.push(rowItem(id, shape, slot.kind, rect, cards));
+			const held = (stacks.get(id) ?? []).map((member) => shapes.get(member)?.type);
+			items.push(rowItem(id, shape, slot.kind, rect, cards, held));
 			continue;
 		}
-		const item = shapeItem(id, shape, rect, cards);
+		const item =
+			shape.type === "stack"
+				? stackItem(id, shape, rect, stacks.get(id) ?? [], shapes, cards)
+				: shapeItem(id, shape, rect, cards);
 		if (item) items.push(item);
 	}
 
@@ -626,19 +673,6 @@ function shapeItem(
 				due: typeof due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null,
 			};
 		}
-		case "stack": {
-			// Its stickies draw themselves; the stack is its name, under them.
-			const name = clean(stackName(shape) ?? "");
-			if (!name) return null;
-			return {
-				kind: "text",
-				id,
-				rect: { x: rect.x + 12, y: rect.y + STACK_SIZE.h - 34, w: STACK_SIZE.w - 24, h: 26 },
-				text: name,
-				size: 16,
-				font: "sans",
-			};
-		}
 		case "widget": {
 			const definition = widgetDefinition(shape.widget);
 			const config = (shape as { config?: { title?: unknown } }).config;
@@ -656,14 +690,56 @@ function shapeItem(
 	}
 }
 
+/** A stack's theme card: its name, count, and its first few members a line each. */
+function stackItem(
+	id: string,
+	shape: ShapeProps,
+	rect: Rect,
+	members: readonly string[],
+	shapes: ReadonlyMap<string, ShapeProps>,
+	cards: ReadonlyMap<string, Entry>,
+): SceneItem {
+	const rows = members.slice(0, excerptCount(members.length)).map((member): StackRow => {
+		const props = shapes.get(member);
+		if (props?.type === "card") return { face: "card", card: sceneCard(props.ref, cards) };
+		const tone = STICKY_COLORS.has(props?.color ?? "") ? props!.color! : "yellow";
+		if (!props || faceDownSticky(props)) return { face: "hidden", tone };
+		return { face: "sticky", tone, text: clean(props.text ?? "") };
+	});
+	const paper = (member: string | undefined) => {
+		const props = member ? shapes.get(member) : undefined;
+		if (!props) return null;
+		if (props.type === "card") return "card";
+		return STICKY_COLORS.has(props.color ?? "") ? props.color! : "yellow";
+	};
+	return {
+		kind: "stack",
+		id,
+		rect,
+		name: clean(stackName(shape) ?? UNTITLED_STACK),
+		suggested: nameState(shape) === "suggested",
+		count: members.length,
+		rows,
+		more: members.length - rows.length,
+		papers: [paper(members[1]), paper(members[2])].filter((tone): tone is string => !!tone),
+	};
+}
+
 function rowItem(
 	id: string,
 	shape: ShapeProps,
 	mode: "row" | "mini" | "group",
 	rect: Rect,
 	cards: ReadonlyMap<string, Entry>,
+	/** A stack's members' types, to say what it holds. */
+	held: readonly (ShapeProps["type"] | undefined)[] = [],
 ): SceneItem {
 	const base = { kind: "row" as const, id, rect, mode };
+	if (shape.type === "stack") {
+		// A stack's row: its name, and what it holds (#73).
+		const name = clean(stackName(shape) ?? UNTITLED_STACK);
+		return { ...base, text: `${name} · ${countMembers(held)}`, ref: null, tone: "", face: "other" };
+	}
 	if (mode === "group" || shape.type === "section") {
 		return {
 			...base,
