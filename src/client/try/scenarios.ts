@@ -5,8 +5,8 @@ import { toggleStamp } from "../../shared/facilitation.ts";
 import { type ShapeFont, type TextSize, addShape, nextZ } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
 import { addCard } from "../board.ts";
-import { makeChecks, pullDetails, reviewer } from "../play/ci.ts";
-import { LABELS, fixture as playFixture } from "../play/fixtures.ts";
+import { PEOPLE, makeChecks, pullDetails, reviewer } from "../play/ci.ts";
+import { CATEGORIES, LABELS, discussion, fixture as playFixture } from "../play/fixtures.ts";
 import { seedLink } from "../play/links.ts";
 
 // The boards the public demo starts from (#75): a planning session, a retro
@@ -137,6 +137,21 @@ const PLANNING_CARDS: Card[] = [
 	}),
 ];
 
+/** The RFC the session follows: a discussion, beside what's next. */
+const PLANNING_RFC = discussion(
+	{
+		repo: TACK,
+		item: "#200",
+		title: "RFC: what goes in Tack 1.0?",
+		labels: [LABELS.enhancement],
+		author: PEOPLE.priya,
+		comments: 27,
+		reactions: 9,
+		visibility: "public",
+	},
+	{ category: CATEGORIES.rfcs, upvotes: 31 },
+);
+
 function seedPlanning(doc: Y.Doc): void {
 	doc.transact(() => {
 		heading(doc, "Tack 1.0 planning", "Sort the ideas, vote on what's next, push what we decide.");
@@ -173,6 +188,7 @@ function seedPlanning(doc: Y.Doc): void {
 		const cards = PLANNING_CARDS.map((card, i) =>
 			addCard(doc, card.key, { x: 1010 + (i % 2) * 300, y: 64 + Math.floor(i / 2) * 270 }),
 		);
+		addCard(doc, PLANNING_RFC.key, { x: 1680, y: 64 });
 		const vote = startVote(doc, {
 			scope: next,
 			dots: 3,
@@ -298,6 +314,28 @@ const TRIAGE_CARDS: Card[] = TRIAGE.map(({ item, title, labels }, i) =>
 	fixture({ repo: UNPIC, item, title, labels, comments: (i * 7) % 11, reactions: (i * 5) % 9 }),
 );
 
+/** What people asked in the repository's discussions: a question, answered. */
+const TRIAGE_QUESTION = discussion(
+	{
+		repo: UNPIC,
+		item: "#598",
+		title: "How do I use unpic with emdash's image component?",
+		author: PEOPLE.jo,
+		comments: 6,
+		visibility: "public",
+	},
+	{
+		category: CATEGORIES.qa,
+		upvotes: 14,
+		answered: true,
+		answer: {
+			url: "https://fake.tack/ascorbic/unpic/discussions/598#discussioncomment-1",
+			author: "kai",
+			chosenAt: null,
+		},
+	},
+);
+
 function seedTriage(doc: Y.Doc): void {
 	doc.transact(() => {
 		heading(doc, "unpic triage", "New this week: what's a bug, what's next, and what we heard.");
@@ -332,6 +370,8 @@ function seedTriage(doc: Y.Doc): void {
 		);
 		sticky(doc, "Benchmarks against a plain img tag?", "blue", { x: 1056, y: 318 }, TOM, heard);
 		sticky(doc, "Who maintains the Tidewell provider?", "pink", { x: 1250, y: 312 }, JO, heard);
+		// And what people asked in the discussions, answered already.
+		addCard(doc, TRIAGE_QUESTION.key, { x: 1560, y: 64 });
 
 		const vote = startVote(doc, {
 			scope: inbox,
@@ -352,7 +392,7 @@ export const TRY_SCENARIOS = {
 	planning: {
 		name: "Planning session",
 		blurb: "Tack 1.0: sort the ideas and vote on what's next",
-		cards: PLANNING_CARDS,
+		cards: [...PLANNING_CARDS, PLANNING_RFC],
 		seed: seedPlanning,
 		stack: { from: "Flaky e2e tests on Safari", onto: "CI takes 20 minutes on a good day" },
 	},
@@ -366,7 +406,7 @@ export const TRY_SCENARIOS = {
 	triage: {
 		name: "Triage",
 		blurb: "unpic: this week's new issues, and what people asked for",
-		cards: TRIAGE_CARDS,
+		cards: [...TRIAGE_CARDS, TRIAGE_QUESTION],
 		seed: seedTriage,
 		stack: {
 			from: "README doesn't mention the web component",
