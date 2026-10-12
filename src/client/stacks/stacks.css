@@ -306,6 +306,51 @@ button.stack-name:hover {
 	stroke-linejoin: round;
 }
 
+/* Untitled because nothing in it may be read by everyone here: why, said
+   quietly under the name on hover or focus. It stays within the card's
+   width, clear of the dots around a hovered shape that start connectors
+   (drawn over every shape). */
+.stack-name-row {
+	position: relative;
+}
+
+.stack-name-tip {
+	position: absolute;
+	top: calc(100% + 8px);
+	left: -6px;
+	z-index: 10;
+	display: grid;
+	gap: 2px;
+	width: max-content;
+	max-width: 198px;
+	padding: 8px 11px 9px;
+	border-radius: 9px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	box-shadow: var(--shadow-lifted);
+	font: 450 12px/1.4 var(--font-ui);
+	letter-spacing: normal;
+	text-align: left;
+	white-space: normal;
+	opacity: 0;
+	transform: translateY(-3px) scale(0.98);
+	transform-origin: top left;
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.stack-name-tip strong {
+	font-weight: 650;
+}
+
+.stack-name:is(:hover, :focus-visible) ~ .stack-name-tip {
+	opacity: 1;
+	transform: none;
+	transition-delay: calc(350ms * var(--motion));
+}
+
 /* ✓ keeps a suggestion: small, and there when you're near. */
 .stack-accept {
 	display: grid;

@@ -38,6 +38,16 @@ test("stacks are theme cards: stickies, issues and pull requests a line each, or
 	await expect(mixed.locator(".stack-row[data-kind=card]")).toHaveCount(2);
 	await expect(figure("one of them private")).toContainText("Private item");
 	await expect(figure("✓ keeps it").getByRole("button", { name: /^Keep/ })).toBeVisible();
+	// Waiting for a name; one that isn't coming (nothing everyone may read); one that didn't come.
+	await expect(figure("Being named").locator(".stack-name")).toHaveText("Naming…");
+	const unnameable = figure("not named automatically").locator(".stack-name");
+	await expect(unnameable).toHaveAttribute("data-unnamed", "unnameable");
+	await expect(unnameable).toHaveText("Untitled stack");
+	await expect(unnameable).toHaveAccessibleDescription(/what everyone here can read/);
+	await expect(figure("No name came in time").locator(".stack-name")).toHaveAttribute(
+		"data-unnamed",
+		"late",
+	);
 	await expect(figure("Zoomed out: its name").locator(".stack")).toHaveAttribute(
 		"data-far",
 		"true",

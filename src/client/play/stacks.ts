@@ -15,13 +15,14 @@ import { fixture } from "./fixtures.ts";
 // `SimulatedStacks` stands in for the board's server, naming stacks and
 // answering "Group these" with the same stand-in local dev uses
 // (fakeStackAi.ts), in the browser. As the server does, it only names from
-// the titles of cards everyone could read (here, a public repository's). Its
+// the titles of cards everyone could read (here, a public repository's), and
+// marks a stack of only private cards as one it can't name. Its
 // mode is the playground's "AI suggestions" switch: on, slow, failing or off.
 // The public demo gives it a real model to ask first (`withRemote`).
 
 const REPO = "ascorbic/unpic";
 
-/** Issues and pull requests on the theming board: one from a private repository. */
+/** Issues and pull requests on the theming board: three from a private repository. */
 export const STACK_CARDS: Card[] = [
 	fixture({
 		repo: REPO,
@@ -62,6 +63,19 @@ export const STACK_CARDS: Card[] = [
 		repo: "ascorbic/tack-internal",
 		item: "#9",
 		title: "Embargoed: the 5.0 launch date",
+		visibility: "private",
+	}),
+	fixture({
+		repo: "ascorbic/tack-internal",
+		item: "#11",
+		title: "Draft the 5.0 launch post",
+		visibility: "private",
+	}),
+	fixture({
+		repo: "ascorbic/tack-internal",
+		item: "#12",
+		kind: "pull",
+		title: "Launch checklist for the 5.0 release",
 		visibility: "private",
 	}),
 ];
@@ -116,7 +130,9 @@ function sticky(doc: Y.Doc, text: string, color: string, x: number, y: number, i
  */
 export function seedStacks(doc: Y.Doc): void {
 	for (const item of STACK_CARDS) cardStore.set(item);
-	const [notes, loader, versions, lags, srcset, embargo] = STACK_CARDS as [
+	const [notes, loader, versions, lags, srcset, embargo, post, checklist] = STACK_CARDS as [
+		Card,
+		Card,
 		Card,
 		Card,
 		Card,
@@ -157,6 +173,10 @@ export function seedStacks(doc: Y.Doc): void {
 			sticky(doc, "Upgrade notes for 5.0 are missing", "green", 1300, 650, 1),
 		];
 		stackUp(doc, release[0] as string, release.slice(1));
+		// Only private cards: nothing in it everyone could read, so it isn't
+		// named for them, and says so; it's there for a person to name.
+		const launch = [card(doc, checklist, 640, 760), card(doc, post, 640, 760)];
+		stackUp(doc, launch[0] as string, launch.slice(1));
 		// Loose cards, to drag onto a stack.
 		card(doc, lags, 40, 760);
 		card(doc, srcset, 330, 760);

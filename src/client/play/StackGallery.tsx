@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import * as Y from "yjs";
 import type { Card, MissingCard } from "../../shared/cards.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
-import { STICKY, openLayout } from "../../shared/stacks.ts";
+import { STICKY, membersHash, openLayout } from "../../shared/stacks.ts";
 import { cardStore } from "../cardStore.ts";
 import { StickyView } from "../StickyNode.tsx";
 import { GroupThese } from "../stacks/GroupThese.tsx";
@@ -37,7 +37,7 @@ const HIDDEN_CARD: MissingCard = {
 	reason: "private",
 };
 
-const [notesCard, loaderCard, versionsCard, , srcsetCard] = STACK_CARDS;
+const [notesCard, loaderCard, versionsCard, , srcsetCard, embargoCard] = STACK_CARDS;
 
 const item = (id: string, entry: Card | MissingCard | undefined) => ({
 	id,
@@ -75,8 +75,12 @@ interface Sample {
 	view: StackView;
 	selected?: boolean;
 	naming?: boolean;
+	patience?: number | null;
 	far?: boolean;
 }
+
+/** Only private cards: the server can't name it from anything everyone could read. */
+const PRIVATE_ONLY = [item("u1", embargoCard), item("u2", HIDDEN_CARD)];
 
 const SAMPLES: Sample[] = [
 	{
@@ -107,6 +111,22 @@ const SAMPLES: Sample[] = [
 		shape: stack(),
 		view: view(CI.slice(0, 2)),
 		naming: true,
+		patience: null,
+	},
+	{
+		label: "Only private cards: not named automatically",
+		shape: stack({
+			unnameable: { hash: membersHash(PRIVATE_ONLY.map((member) => member.id)) },
+		}),
+		view: view(PRIVATE_ONLY),
+		naming: true,
+	},
+	{
+		label: "No name came in time",
+		shape: stack(),
+		view: view(CI.slice(0, 2)),
+		naming: true,
+		patience: 0,
 	},
 	{
 		label: "AI suggestions off",
@@ -171,6 +191,7 @@ export function StackGallery() {
 							view={sample.view}
 							selected={sample.selected}
 							naming={sample.naming}
+							patience={sample.patience}
 							far={sample.far}
 							editable
 						/>

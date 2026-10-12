@@ -17,6 +17,7 @@ interface Shape {
 	title?: string;
 	stack?: string | null;
 	suggested?: { title: string };
+	unnameable?: { hash: string };
 }
 
 function shapes(page: Page): Promise<Shape[]> {
@@ -386,4 +387,60 @@ test("with AI suggestions off, stacks are Untitled and there's no Group these", 
 	const bar = page.getByRole("toolbar", { name: "Stage changes" });
 	await expect(bar.getByRole("button", { name: "Stack these" })).toBeVisible();
 	await expect(bar.getByRole("button", { name: "Group these into named stacks" })).toHaveCount(0);
+});
+
+test("a stack of only private cards is untitled for a person to name, never Naming… forever", async ({
+	page,
+}) => {
+	// Seeded with two cards from a private repository: nothing everyone could read.
+	const stack = page.getByRole("group", { name: "Untitled stack: a stack of 2 cards" });
+	await expect(stack.locator(".stack-rows")).toContainText("Draft the 5.0 launch post");
+	const name = stack.locator(".stack-name");
+	// The pretend server marks it, well before the client would stop waiting on its own.
+	await expect(name).toHaveAttribute("data-unnamed", "unnameable", { timeout: 5_000 });
+	await expect(name).not.toHaveAttribute("data-waiting");
+	await expect(name).toHaveText("Untitled stack");
+	await expect(name.locator(".stack-pencil")).toBeVisible();
+	expect((await stacks(page)).filter((s) => s.unnameable)).toHaveLength(1);
+	// Why, said quietly: on hover, and to a screen reader.
+	await expect(name).toHaveAccessibleDescription(
+		"Not named automatically Tack only names stacks from what everyone here can read.",
+	);
+	const tip = stack.getByRole("tooltip");
+	await expect(tip).toHaveCSS("opacity", "0");
+	await name.hover();
+	await expect(tip).toHaveCSS("opacity", "1");
+	// And it's theirs to name.
+	await name.click();
+	const field = page.getByRole("textbox", { name: "Stack name" });
+	await field.fill("Launch prep");
+	await field.press("Enter");
+	await expect(page.getByRole("group", { name: "Launch prep: a stack of 2 cards" })).toBeVisible();
+	await expect
+		.poll(async () => (await stacks(page)).some((s) => s.title === "Launch prep"))
+		.toBe(true);
+});
+
+test("a stack whose name never comes stops saying Naming… and is untitled to name", async ({
+	page,
+}) => {
+	test.slow();
+	await page.getByRole("radiogroup", { name: "AI suggestions" }).getByText("Failing").click();
+	await selectAll(page, [sticky(page, "A logo?"), sticky(page, "Getting started guide")]);
+	await page
+		.getByRole("toolbar", { name: "Stage changes" })
+		.getByRole("button", { name: "Stack these" })
+		.click();
+	const name = page
+		.getByRole("group", { name: "Untitled stack: a stack of 2 stickies" })
+		.locator(".stack-name");
+	// Waiting, for a while: the model's failing, but it could have been slow.
+	await expect(name).toHaveAttribute("data-waiting", "true");
+	await expect(name).toHaveText("Naming…");
+	await page.waitForTimeout(5_000);
+	await expect(name).toHaveText("Naming…");
+	// Then it stops waiting: untitled, with the pencil.
+	await expect(name).toHaveAttribute("data-unnamed", "late", { timeout: 12_000 });
+	await expect(name).toHaveText("Untitled stack");
+	await expect(name.locator(".stack-pencil")).toBeVisible();
 });

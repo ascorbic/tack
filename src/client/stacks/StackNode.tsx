@@ -5,6 +5,7 @@ import {
 	memo,
 	useContext,
 	useEffect,
+	useId,
 	useRef,
 	useState,
 	useSyncExternalStore,
@@ -15,6 +16,7 @@ import {
 	UNTITLED_STACK,
 	countMembers,
 	excerptCount,
+	isUnnameable,
 	nameState,
 	readSuggestion,
 	stackName,
@@ -98,10 +100,40 @@ function paperOf(member: Member | undefined): string | undefined {
 	return member.shape.type === "card" ? "card" : (member.shape.color ?? "yellow");
 }
 
-/** Whether a member has words to read (so a name's on its way). */
+/**
+ * Whether a member may have words to read (so a name may be on its way). A
+ * card always may: whether its title can be shared is the server's to say,
+ * and it marks a stack it can't name (`unnameable`).
+ */
 function hasWords(member: Member): boolean {
 	if (member.shape.type === "card") return true;
 	return !silentOf(member.shape) && (member.shape.text ?? "").trim() !== "";
+}
+
+/**
+ * How long a stack waits for a suggested name before it stops saying
+ * "Naming…" and shows itself untitled, for a person to name: past a slow
+ * model, well past a normal one (a moment's debounce, then a second or two).
+ */
+export const NAMING_PATIENCE_MS = 12_000;
+
+/**
+ * Whether a stack is still waiting for a name: while it's `expecting` one,
+ * for `patience` ms (null waits forever), starting again whenever what it's
+ * named from (`key`) changes, so "Naming…" never sticks when the name isn't
+ * coming (the model's slow or failing, or the server's out of reach).
+ */
+function useNamingWait(expecting: boolean, key: string, patience: number | null): boolean {
+	const [gaveUp, setGaveUp] = useState<string | null>(null);
+	useEffect(() => {
+		if (!expecting || patience === null) return;
+		const timer = setTimeout(() => setGaveUp(key), patience);
+		return () => {
+			clearTimeout(timer);
+			setGaveUp(null);
+		};
+	}, [expecting, key, patience]);
+	return expecting && gaveUp !== key;
 }
 
 /** A stack, without any board behaviour: the gallery uses it too. */
@@ -113,6 +145,7 @@ export function StackPapers({
 	enter = false,
 	far = false,
 	naming = false,
+	patience = NAMING_PATIENCE_MS,
 	editable = false,
 	onRename,
 	onGather,
@@ -126,13 +159,33 @@ export function StackPapers({
 	far?: boolean;
 	/** Whether names are suggested here (AI suggestions are on). */
 	naming?: boolean;
+	/** How long to say "Naming…" before showing it untitled (null: for as long as it takes). */
+	patience?: number | null;
 	editable?: boolean;
 	onRename?: (name: string) => void;
 	onGather?: () => void;
 }) {
 	const count = view.members.length;
 	const holds = countMembers(view.members.map((member) => member.shape.type));
-	const waiting = naming && view.members.some(hasWords);
+	// The server's said there's nothing here it may name it from: no name's coming.
+	const unnameable =
+		naming &&
+		isUnnameable(
+			shape,
+			view.members.map((member) => member.id),
+		);
+	const expecting =
+		naming && !unnameable && nameState(shape) === "none" && view.members.some(hasWords);
+	// What a name would be made from, as far as this client can tell: a change asks again.
+	const wordsKey = view.members
+		.map((member) =>
+			member.shape.type === "card"
+				? member.id
+				: `${member.id}:${silentOf(member.shape) ?? ""}:${member.shape.text ?? ""}`,
+		)
+		.join("\n");
+	const waiting = useNamingWait(expecting, wordsKey, patience);
+	const unnamed = unnameable ? "unnameable" : expecting && !waiting ? "late" : null;
 	const label = stackName(shape) ?? UNTITLED_STACK;
 	if (view.open) {
 		return (
@@ -149,6 +202,7 @@ export function StackPapers({
 						shape={shape}
 						editable={editable}
 						waiting={waiting}
+						unnamed={unnamed}
 						onRename={onRename}
 					/>
 					<span className="stack-tray-count">{holds}</span>
@@ -197,6 +251,7 @@ export function StackPapers({
 							shape={shape}
 							editable={editable}
 							waiting={waiting}
+							unnamed={unnamed}
 							headline
 							onRename={onRename}
 						/>
@@ -326,6 +381,7 @@ export function StackName({
 	shape,
 	editable,
 	waiting,
+	unnamed = null,
 	headline = false,
 	onRename,
 }: {
@@ -334,6 +390,12 @@ export function StackName({
 	editable: boolean;
 	/** Suggestions are on and there's something to read: a name's on its way. */
 	waiting: boolean;
+	/**
+	 * Suggestions are on, but no name's coming: the server can't name it
+	 * from anything everyone here can read (`unnameable`), or one didn't
+	 * come in time (`late`). Either way, it's untitled for a person to name.
+	 */
+	unnamed?: "unnameable" | "late" | null;
 	/** The theme card's headline, rather than the open tray's. */
 	headline?: boolean;
 	onRename?: (name: string) => void;
@@ -344,6 +406,7 @@ export function StackName({
 	const [draft, setDraft] = useState("");
 	const field = useRef<HTMLTextAreaElement>(null);
 	const down = useRef<{ x: number; y: number } | null>(null);
+	const tipId = useId();
 	const start = () => {
 		if (!editable) return;
 		setDraft(name ?? "");
@@ -406,6 +469,9 @@ export function StackName({
 	}
 	const text = name ?? (state === "none" && waiting ? "Naming…" : UNTITLED_STACK);
 	const suggestion = state === "suggested" ? readSuggestion(shape.suggested)?.title : null;
+	// Why it's untitled, said quietly on hover or focus: only when it's
+	// untitled for that reason, and never while a name's on its way.
+	const why = state === "none" && !waiting ? unnamed : null;
 	return (
 		<span className="stack-name-row" data-headline={headline || undefined}>
 			{editable ? (
@@ -414,10 +480,16 @@ export function StackName({
 					className="stack-name"
 					data-state={state}
 					data-waiting={(state === "none" && waiting) || undefined}
+					data-unnamed={why ?? undefined}
+					aria-describedby={why === "unnameable" ? tipId : undefined}
 					title={
 						state === "suggested"
 							? "Suggested from what’s in it. Click to rename, or ✓ to keep it"
-							: "Rename"
+							: why === "unnameable"
+								? undefined
+								: why === "late"
+									? "No name was suggested: click to name it"
+									: "Rename"
 					}
 					onPointerDown={(event: PointerEvent) => {
 						down.current = { x: event.clientX, y: event.clientY };
@@ -439,8 +511,16 @@ export function StackName({
 					className="stack-name"
 					data-state={state}
 					data-waiting={(state === "none" && waiting) || undefined}
+					data-unnamed={why ?? undefined}
+					aria-describedby={why === "unnameable" ? tipId : undefined}
 				>
 					<NameText text={text} suggested={state === "suggested"} />
+				</span>
+			)}
+			{why === "unnameable" && (
+				<span className="stack-name-tip" id={tipId} role="tooltip">
+					<strong>Not named automatically</strong>
+					<span>Tack only names stacks from what everyone here can read.</span>
 				</span>
 			)}
 			{suggestion && editable && (
