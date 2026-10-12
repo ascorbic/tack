@@ -27,8 +27,8 @@ const ZONE = "Europe/London";
 const NOW = Date.UTC(2026, 9, 12, 7);
 const DAY = 24 * 60 * 60_000;
 const NEXT = Date.UTC(2026, 9, 12, 8);
-const BOARD = { id: "roadmap", title: "Imagekit roadmap", visibility: "instance" as const };
-const URL = "https://tack.example.com/b/roadmap/imagekit-roadmap";
+const BOARD = { id: "roadmap", title: "Unpic roadmap", visibility: "instance" as const };
+const URL = "https://tack.example.com/b/roadmap/unpic-roadmap";
 
 const BUSY: WeeklyDigest = {
 	board: { id: BOARD.id, title: BOARD.title, url: URL },
@@ -63,26 +63,26 @@ const BUSY: WeeklyDigest = {
 	},
 	items: [
 		{
-			key: "github.com/acme/imagekit#433",
-			ref: "acme/imagekit#433",
+			key: "github.com/acme/unpic#433",
+			ref: "acme/unpic#433",
 			title: "Retry flaky image downloads in CI",
-			url: "https://github.com/acme/imagekit/pull/433",
+			url: "https://github.com/acme/unpic/pull/433",
 			kind: "pull",
 			activity: ["approved", "merged"],
 		},
 		{
-			key: "github.com/acme/imagekit#412",
-			ref: "acme/imagekit#412",
+			key: "github.com/acme/unpic#412",
+			ref: "acme/unpic#412",
 			title: "Document the plugin API",
-			url: "https://github.com/acme/imagekit/issues/412",
+			url: "https://github.com/acme/unpic/issues/412",
 			kind: "issue",
 			activity: ["2 new comments", "closed"],
 		},
 		{
-			key: "github.com/acme/imagekit#440",
-			ref: "acme/imagekit#440",
+			key: "github.com/acme/unpic#440",
+			ref: "acme/unpic#440",
 			title: "Upgrade the test matrix to Node 24",
-			url: "https://github.com/acme/imagekit/pull/440",
+			url: "https://github.com/acme/unpic/pull/440",
 			kind: "pull",
 			activity: ["CI failing", "changes requested"],
 		},
@@ -125,7 +125,7 @@ const QUIET: WeeklyDigest = {
 };
 
 const SETTINGS = {
-	discussion: { repo: "github.com/acme/imagekit", category: "Announcements" },
+	discussion: { repo: "github.com/acme/unpic", category: "Announcements" },
 	email: true,
 	weekday: 1 as const,
 	hour: 9,
@@ -138,7 +138,7 @@ const RUNS: DigestRun[] = [
 		channel: "discussion",
 		status: "sent",
 		at: NOW - 7 * DAY + 60_000,
-		url: "https://github.com/acme/imagekit/discussions/52",
+		url: "https://github.com/acme/unpic/discussions/52",
 	},
 	{
 		week: "2026-W41",
@@ -155,7 +155,7 @@ const RUNS: DigestRun[] = [
 		channel: "discussion",
 		status: "failed",
 		at: NOW - 21 * DAY,
-		error: "The Tack app isn’t installed on acme/imagekit.",
+		error: "The Tack app isn’t installed on acme/unpic.",
 	},
 ];
 
@@ -332,7 +332,7 @@ export default function DigestsGallery() {
 								result: {
 									ok: true,
 									title: BOARD.title,
-									path: "/b/roadmap/imagekit-roadmap",
+									path: "/b/roadmap/unpic-roadmap",
 									schedule: describeSchedule(SETTINGS),
 								},
 							}}

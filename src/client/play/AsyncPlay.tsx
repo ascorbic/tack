@@ -121,7 +121,7 @@ export function AsyncPlay({
 		else if (scenario === "digest") {
 			// A week of work, a digest already set up, and its dialog open on the preview.
 			digests.settings = {
-				discussion: { repo: "github.com/acme/imagekit", category: "Announcements" },
+				discussion: { repo: "github.com/acme/unpic", category: "Announcements" },
 				email: true,
 				weekday: 1,
 				hour: 9,
