@@ -12,6 +12,16 @@
 	height: 100dvh;
 }
 
+/* The frame never scrolls: the toolbar waiting below it (and a dialog
+   opening) would otherwise leave room to, and the board would slide up,
+   cutting off its foot. */
+html:has(.embed),
+html:has(.embed) body {
+	height: 100%;
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+
 /* The toolbar rises in when the board's yours. */
 .embed .toolbar-dock {
 	transition:

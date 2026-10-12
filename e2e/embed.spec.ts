@@ -205,6 +205,8 @@ test("a page with an embed playing below the fold stays where its reader left it
 	const until = Date.now() + 14_000;
 	while (Date.now() < until) {
 		expect(await page.evaluate(() => scrollY)).toBe(0);
+		// Nor does the frame's own page slide, cutting off its foot.
+		expect(await frame.locator("html").evaluate(() => scrollY)).toBe(0);
 		// Nor does the reader's focus go into the board.
 		expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("BODY");
 		await page.waitForTimeout(250);

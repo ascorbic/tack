@@ -66,6 +66,11 @@ export function keepThePageStill(): void {
 			(before as HTMLElement).focus({ preventScroll: true });
 		}
 	};
+	// Hidden overflow still scrolls for focus and dialogs: the frame's page
+	// stays where it is, whatever asks it to move.
+	addEventListener("scroll", () => {
+		if (scrollX !== 0 || scrollY !== 0) scrollTo(0, 0);
+	});
 	Element.prototype.scrollIntoView = function (this: Element) {
 		scrollWithin(this);
 	};
