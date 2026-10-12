@@ -239,7 +239,8 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 
 	/* Pinned by its tack: it turns about the pin, never lifts away. */
 	.tk-sticky-hero {
-		transform-origin: 50% 0.55rem;
+		/* The tack's head: the mark is 30px, its pin's centre 8.75px down (12, 7 of 24). */
+		transform-origin: 50% 8.75px;
 		width: 12.5rem;
 		right: -1.5rem;
 		bottom: -2.25rem;
@@ -250,6 +251,11 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 
 	.tk-sticky-hero:hover {
 		transform: rotate(-2.5deg);
+	}
+
+	/* The tack stays put while the sticky turns on it (the mark's own hover lifts it). */
+	.tk-sticky-hero:hover :global(.tk-mark-pin) {
+		transform: none;
 	}
 
 	/* The tack's head sits in the paper, where the sticky turns about it. */
