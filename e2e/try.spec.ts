@@ -58,13 +58,13 @@ test.beforeEach(async ({ page }) => {
 	});
 });
 
-test("the guided first run: stack, issues, push, vote, history", async ({ page }) => {
+test("the guided first run: stack, issues, push, vote", async ({ page }) => {
 	const out = outbound(page);
 	await open(page);
 	await expect(page.getByRole("button", { name: /This is a demo/ })).toBeVisible();
 
 	// 1. Stack two stickies: the step says which, and rings them.
-	await expect(coach(page)).toContainText("Step 1 of 5");
+	await expect(coach(page)).toContainText("Step 1 of 4");
 	await expect(coach(page)).toContainText("Stack two stickies");
 	await expect(page.locator(".try-ring")).toHaveCount(2);
 	await stackOnto(
@@ -72,7 +72,7 @@ test("the guided first run: stack, issues, push, vote, history", async ({ page }
 		sticky(page, "Flaky e2e tests on Safari"),
 		sticky(page, "CI takes 20 minutes on a good day"),
 	);
-	await expect(coach(page)).toContainText("Step 2 of 5", { timeout: 10_000 });
+	await expect(coach(page)).toContainText("Step 2 of 4", { timeout: 10_000 });
 
 	// 2. The stack as a parent issue with sub-issues, staged. The new stack
 	// is selected, so its actions are there already, and the step points
@@ -87,7 +87,7 @@ test("the guided first run: stack, issues, push, vote, history", async ({ page }
 		.getByRole("dialog")
 		.getByRole("button", { name: /^Stage/ })
 		.click();
-	await expect(coach(page)).toContainText("Step 3 of 5", { timeout: 10_000 });
+	await expect(coach(page)).toContainText("Step 3 of 4", { timeout: 10_000 });
 
 	// 3. Pushed to the demo forge, named as such, and landed.
 	await expect(page.locator(".changes-button")).toHaveAttribute(
@@ -104,22 +104,18 @@ test("the guided first run: stack, issues, push, vote, history", async ({ page }
 		timeout: 20_000,
 	});
 	// The step's done once you've seen it land and closed the sheet.
-	await expect(coach(page)).toContainText("Step 3 of 5");
+	await expect(coach(page)).toContainText("Step 3 of 4");
 	await sheet.getByRole("button", { name: "Done" }).click();
-	await expect(coach(page)).toContainText("Step 4 of 5", { timeout: 10_000 });
+	await expect(coach(page)).toContainText("Step 4 of 4", { timeout: 10_000 });
 
 	// 4. A dot of your own.
 	const bar = page.getByRole("region", { name: /^Vote on/ });
 	await bar.getByRole("button", { name: "Place dots" }).click();
 	await page.locator(".react-flow__node", { hasText: "Offline edits survive a refresh" }).click();
-	await expect(coach(page)).toContainText("Step 5 of 5", { timeout: 10_000 });
-	await bar.getByRole("button", { name: "Done" }).click();
-
-	// 5. History, then the last word.
-	await page.locator(".history-button").click();
 	const finale = page.getByRole("region", { name: "That’s Tack." });
 	await expect(finale).toBeVisible({ timeout: 10_000 });
-	await expect(finale.getByRole("link", { name: "Run your own" })).toBeVisible();
+	await expect(finale.getByRole("link", { name: "Get your own" })).toBeVisible();
+	await expect(finale.getByRole("link", { name: "Take the tour" })).toHaveCount(0);
 	await finale.getByRole("button", { name: "Keep playing" }).click();
 	await expect(finale).toHaveCount(0);
 
@@ -137,7 +133,7 @@ test("the tour can be skipped, and started again from the demo note", async ({ p
 	await page.getByRole("button", { name: /This is a demo/ }).click();
 	await expect(page.getByText("Everything here happens in your browser")).toBeVisible();
 	await page.getByRole("button", { name: "Show me around again" }).click();
-	await expect(coach(page)).toContainText("Step 1 of 5");
+	await expect(coach(page)).toContainText("Step 1 of 4");
 });
 
 test("a board is kept across a reload, until it's reset", async ({ page }) => {

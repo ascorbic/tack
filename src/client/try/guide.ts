@@ -3,13 +3,13 @@ import { changesMap } from "../../shared/changes.ts";
 import { dotVotesMap } from "../../shared/dotvotes.ts";
 import { LOCAL_ORIGIN, shapesMap } from "../../shared/shapes.ts";
 
-// The demo's guided first run (#75): five steps, each done by doing it on the
-// board, not by pressing Next. Each step watches the document (or the page,
-// for History) for what it asks for, and points at what to use. Watching the
+// The demo's guided first run (#75): four steps, each done by doing it on the
+// board, not by pressing Next. Each step watches the document for what
+// it asks for, and points at what to use. Watching the
 // document rather than the UI keeps the guide working however the UI it
 // points at changes.
 
-export const STEPS = ["stack", "issues", "push", "vote", "history"] as const;
+export const STEPS = ["stack", "issues", "push", "vote"] as const;
 export type StepId = (typeof STEPS)[number];
 
 /** What a step learned that a later one needs: the stack you made. */
@@ -127,21 +127,6 @@ export function watchDots(doc: Y.Doc, done: Done): () => void {
 	};
 	map.observeDeep(check);
 	return () => map.unobserveDeep(check);
-}
-
-/** Step 5: History open (the canvas says so while it is). */
-export function watchHistory(done: Done): () => void {
-	const open = () => document.querySelector("#board[data-history]") !== null;
-	if (open()) {
-		done();
-		return () => {};
-	}
-	const observer = new MutationObserver(() => {
-		if (open()) done();
-	});
-	const board = document.getElementById("board");
-	if (board) observer.observe(board, { attributes: true, attributeFilter: ["data-history"] });
-	return () => observer.disconnect();
 }
 
 /** A sticky on the board by what it says. */

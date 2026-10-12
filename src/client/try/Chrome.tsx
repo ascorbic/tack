@@ -9,7 +9,6 @@ import { TRY_SCENARIOS, type TryScenarioId } from "./scenarios.ts";
 /** Where the demo sends people: the docs site it's part of. */
 export const LINKS = {
 	docs: "/start/introduction/",
-	tour: "/start/tour/",
 	selfHost: "/self-hosting/deploy/",
 };
 
@@ -209,7 +208,7 @@ export function TryActions({ children }: { children: ReactNode }) {
 		<>
 			{children}
 			<a className="try-cta" href={LINKS.selfHost}>
-				<span className="try-cta-long">Run your own</span>
+				<span className="try-cta-long">Get your own</span>
 				<span className="try-cta-short">Get Tack</span>
 				<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
 					<path
@@ -283,7 +282,7 @@ export function DemoNote({ onTour, touring }: { onTour: () => void; touring: boo
 					</p>
 					<div className="try-note-links">
 						<a className="try-note-link try-note-primary" href={LINKS.selfHost}>
-							Run your own Tack
+							Get your own Tack
 						</a>
 						<a className="try-note-link" href={LINKS.docs}>
 							Read the docs

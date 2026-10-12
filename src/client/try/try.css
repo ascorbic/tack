@@ -880,8 +880,7 @@
 	margin-top: 18px;
 }
 
-.try-finale-primary,
-.try-finale-secondary {
+.try-finale-primary {
 	display: inline-flex;
 	align-items: center;
 	height: 36px;
@@ -904,17 +903,7 @@
 	background: var(--accent-hover);
 }
 
-.try-finale-secondary {
-	border: 1px solid var(--line-strong);
-	color: var(--ink);
-}
-
-.try-finale-secondary:hover {
-	background: var(--hover);
-}
-
-.try-finale-primary:active,
-.try-finale-secondary:active {
+.try-finale-primary:active {
 	transform: scale(0.96);
 }
 

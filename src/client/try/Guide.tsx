@@ -10,7 +10,6 @@ import {
 	shapeNode,
 	stickyNode,
 	watchDots,
-	watchHistory,
 	watchLanded,
 	watchStack,
 	watchStaged,
@@ -25,7 +24,7 @@ import type { TryScenario } from "./scenarios.ts";
 // any time; the tour can be started again from the demo note.
 
 export interface GuideState {
-	/** The step showing: 0–4, or 5 for the last word. */
+	/** The step showing: 0–3, or 4 for the last word. */
 	step: number;
 	status: "on" | "skipped" | "done";
 }
@@ -160,16 +159,6 @@ function copyFor(step: StepId, scenario: TryScenario): StepCopy {
 					</>
 				),
 			};
-		case "history":
-			return {
-				title: "Go back in time",
-				body: (
-					<>
-						Open <b>History</b>: everything you just did is there, step by step. Scrub through it,
-						play it back, or bring back something that’s gone.
-					</>
-				),
-			};
 	}
 }
 
@@ -193,10 +182,6 @@ function targetsFor(step: StepId, scenario: TryScenario, memo: GuideMemo): (Elem
 		}
 		case "vote":
 			return [document.querySelector(".vote-bar[data-open='true'] .vote-bar-place")];
-		case "history":
-			return [
-				visible(document.querySelector(".history-button"), document.querySelector(".topbar-more")),
-			];
 	}
 }
 
@@ -215,8 +200,6 @@ function watch(
 			return watchLanded(doc, done);
 		case "vote":
 			return watchDots(doc, done);
-		case "history":
-			return watchHistory(done);
 	}
 }
 
@@ -505,15 +488,12 @@ function Finale({ onClose }: { onClose: () => void }) {
 				That’s Tack.
 			</h2>
 			<p className="try-coach-body">
-				You stacked, staged, pushed, voted and went back in time, without leaving your browser. On
-				your own Tack the cards are your real issues and pull requests, and pushes land on GitHub.
+				You stacked, staged, pushed and voted, without leaving your browser. On your own Tack the
+				cards are your real issues and pull requests, and pushes land on GitHub.
 			</p>
 			<div className="try-finale-actions">
 				<a className="try-finale-primary" href={LINKS.selfHost}>
-					Run your own
-				</a>
-				<a className="try-finale-secondary" href={LINKS.tour}>
-					Take the tour
+					Get your own
 				</a>
 				<button ref={close} type="button" className="try-coach-quiet" onClick={onClose}>
 					Keep playing
