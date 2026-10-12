@@ -135,7 +135,11 @@ test("zoomed far out, a resting cursor's name folds to initials", async ({ page 
 	await page.getByRole("button", { name: "Someone joins" }).click();
 	const cursor = page.locator(".cursor");
 	const name = cursor.locator(".cursor-name");
+	// The whole name shows, not clipped to the width of its initials.
+	const clipped = () =>
+		name.locator(".cursor-name-full > span").evaluate((el) => el.scrollWidth > el.clientWidth);
 	await expect(cursor).toHaveAttribute("data-compact", "false");
+	expect(await clipped()).toBe(false);
 
 	const zoom = page.getByRole("button", { name: /^Zoom: / });
 	const percent = async () => Number((await zoom.getAttribute("aria-label"))?.match(/\d+/)?.[0]);
@@ -152,6 +156,7 @@ test("zoomed far out, a resting cursor's name folds to initials", async ({ page 
 	await page.getByRole("menuitem", { name: "Zoom to 100%" }).click();
 	await expect(cursor).toHaveAttribute("data-compact", "false");
 	await expect(name).toHaveCSS("font-size", "11.5px");
+	await expect.poll(clipped).toBe(false);
 });
 
 test("an empty board's guide lets a placing tool click through it", async ({ page }) => {

@@ -3669,10 +3669,16 @@ a.card-title {
 	transform-origin: 0 0;
 }
 
+/*
+ * Sized to its content, as its layer has no width to shrink to: the name tag
+ * has no minimum width of its own (it folds to initials), so without this the
+ * tag would be clipped to them and the arrow squeezed.
+ */
 .cursor {
 	position: absolute;
 	left: 0;
 	top: 0;
+	width: max-content;
 	display: flex;
 	align-items: flex-start;
 	pointer-events: none;
@@ -3687,6 +3693,10 @@ a.card-title {
 	from {
 		opacity: 0;
 	}
+}
+
+.cursor svg {
+	flex: none;
 }
 
 .cursor svg path {
