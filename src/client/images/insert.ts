@@ -169,7 +169,7 @@ function place(
 				ih: image.height,
 				mime: image.type,
 				upload,
-				preview: image.preview,
+				blur: image.blur,
 			});
 		});
 		placeInSections(doc, ids, context.sizeOf);

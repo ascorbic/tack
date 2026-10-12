@@ -526,7 +526,7 @@ function pictures(hash: string): Y.Doc {
 			w: 100,
 			h: 100,
 			upload: { by: "Kai", client: 7, at: NOW },
-			preview: "data:image/webp;base64,AAAA",
+			blur: "data:image/webp;base64,AAAA",
 		});
 	});
 	return doc;

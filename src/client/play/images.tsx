@@ -122,7 +122,7 @@ export function seedImages(doc: Y.Doc): void {
 				iw: 1200,
 				ih: 800,
 				mime: "image/png",
-				preview: chart.preview,
+				blur: chart.blur,
 				upload: { by: PRIYA, client: -1, at: new Date(now + 60 * 60_000).toISOString() },
 			});
 			// Kai closed their tab halfway.
@@ -165,12 +165,12 @@ export function seedImages(doc: Y.Doc): void {
 
 /** Every state an image can be in, for /play/cards. */
 export function ImageGallery() {
-	const [mark, setMark] = useState<{ url: string; preview?: string } | null>(null);
+	const [mark, setMark] = useState<{ url: string; blur?: string } | null>(null);
 	useEffect(() => {
 		let url = "";
 		void tackMark().then((image) => {
 			url = URL.createObjectURL(image.blob);
-			setMark({ url, preview: image.preview });
+			setMark({ url, blur: image.blur });
 		});
 		return () => URL.revokeObjectURL(url);
 	}, []);
@@ -180,7 +180,7 @@ export function ImageGallery() {
 		src: string | null | undefined;
 		progress?: number;
 		selected?: boolean;
-		shape?: { alt?: string; caption?: boolean; upload?: boolean; preview?: boolean };
+		shape?: { alt?: string; caption?: boolean; upload?: boolean; blur?: boolean };
 	}[] = [
 		{ caption: "An image", state: "ready", src: mark?.url },
 		{ caption: "Selected", state: "ready", src: mark?.url, selected: true },
@@ -196,7 +196,7 @@ export function ImageGallery() {
 			caption: "Uploading, someone else’s",
 			state: "uploading",
 			src: null,
-			shape: { upload: true, preview: true },
+			shape: { upload: true, blur: true },
 		},
 		{ caption: "Upload abandoned", state: "interrupted", src: null, shape: { upload: true } },
 		{
@@ -217,7 +217,7 @@ export function ImageGallery() {
 								shape={{
 									alt: shape.alt,
 									caption: shape.caption,
-									preview: shape.preview ? mark?.preview : undefined,
+									blur: shape.blur ? mark?.blur : undefined,
 									upload: shape.upload
 										? { by: PRIYA, client: -1, at: new Date().toISOString() }
 										: undefined,

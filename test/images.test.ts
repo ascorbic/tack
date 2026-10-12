@@ -279,7 +279,7 @@ describe("an image shape", () => {
 			ih: 800,
 			mime: "image/png",
 			upload: upload(0),
-			preview: "data:image/webp;base64,AAAA",
+			blur: "data:image/webp;base64,AAAA",
 			alt: "  A   chart\nof sizes ",
 		});
 		const shape = readShape(shapesMap(doc).get("i") as Y.Map<unknown>);
@@ -292,7 +292,7 @@ describe("an image shape", () => {
 		const done = readShape(shapesMap(doc).get("i") as Y.Map<unknown>);
 		expect(done.image).toBe(hash);
 		expect(done.upload).toBeUndefined();
-		expect(done.preview).toBeUndefined();
+		expect(done.blur).toBeUndefined();
 		expect([...imageRefs(doc)]).toEqual([hash]);
 		expect(finishImage(doc, "gone", hash)).toBe(false);
 	});
@@ -323,7 +323,7 @@ describe("an image shape", () => {
 			ih: 1,
 			mime: "image/png",
 			upload: upload(0),
-			preview: "data:image/webp;base64,AAAA",
+			blur: "data:image/webp;base64,AAAA",
 		});
 		const other = new Y.Doc();
 		const pasted = pasteShapes(other, copyShapes(doc, ["ready", "going"]), { x: 0, y: 0 });
@@ -332,6 +332,6 @@ describe("an image shape", () => {
 		);
 		expect(first?.image).toBe(hash);
 		expect(second?.upload).toBeUndefined();
-		expect(second?.preview).toBeUndefined();
+		expect(second?.blur).toBeUndefined();
 	});
 });

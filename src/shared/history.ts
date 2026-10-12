@@ -1048,7 +1048,7 @@ const SIZE_KEYS = new Set(["w", "h"]);
 const TEXT_KEYS = new Set(["text", "title", "label", "alt"]);
 const STYLE_KEYS = new Set(["color", "font", "size", "route", "arrow", "dash", "caption"]);
 /** An image's file arriving (images.ts). */
-const UPLOAD_KEYS = new Set(["image", "upload", "preview"]);
+const UPLOAD_KEYS = new Set(["image", "upload", "blur"]);
 
 /** What kind of edit a change was, by which properties changed. */
 export function editKind(keys: readonly string[] | undefined): string {

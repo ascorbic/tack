@@ -119,7 +119,7 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | caption      | image              | show `alt` beneath it as a caption            |
 // | upload       | image              | who's uploading its file (`ImageUpload`),     |
 // |              |                    | until it's stored                             |
-// | preview      | image              | a tiny blurred data URL others see while it   |
+// | blur         | image              | a tiny blurred data URL others see while it   |
 // |              |                    | uploads; cleared with `upload`                |
 //
 // Beside `shapes`, the document has these root maps:

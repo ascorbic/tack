@@ -10,7 +10,7 @@ import { type ShapeProps, addShape, nextZ, shapesMap } from "./shapes.ts";
 // files live beside the board, in its Durable Object's SQLite storage
 // (src/server/images.ts), served only to people who can open the board, and
 // the same file twice is stored once. A shape is in the document from the
-// moment it's dropped, with `upload` set and a tiny blurred `preview`, so
+// moment it's dropped, with `upload` set and a tiny blurred stand-in (`blur`), so
 // everyone sees it arriving; its uploader writes `image` once the file's
 // stored, and clears both.
 
@@ -52,8 +52,8 @@ export const IMAGE_LIMITS = {
 	boardBytes: 256 * MB,
 	/** Longest alt text. */
 	alt: 1000,
-	/** Longest `preview` data URL, the blurred stand-in others see while it uploads. */
-	preview: 2048,
+	/** Longest `blur` data URL, the blurred stand-in others see while it uploads. */
+	blur: 2048,
 } as const;
 
 /** A file's id: the hex SHA-256 of its bytes. */
@@ -189,7 +189,7 @@ export interface NewImage {
 	image?: string;
 	/** Who's uploading it, otherwise. */
 	upload?: ImageUpload;
-	preview?: string;
+	blur?: string;
 	alt?: string;
 }
 
@@ -206,10 +206,8 @@ export function addImageShape(doc: Y.Doc, id: string, image: NewImage): void {
 		mime: image.mime,
 		image: image.image,
 		upload: image.image ? undefined : image.upload,
-		preview:
-			!image.image && image.preview && image.preview.length <= IMAGE_LIMITS.preview
-				? image.preview
-				: undefined,
+		blur:
+			!image.image && image.blur && image.blur.length <= IMAGE_LIMITS.blur ? image.blur : undefined,
 		alt: image.alt ? cleanAlt(image.alt) : undefined,
 		z: nextZ(doc),
 	});
@@ -225,7 +223,7 @@ export function finishImage(doc: Y.Doc, id: string, hash: string): boolean {
 	doc.transact(() => {
 		if (shape.get("image") !== hash) shape.set("image", hash);
 		if (shape.has("upload")) shape.delete("upload");
-		if (shape.has("preview")) shape.delete("preview");
+		if (shape.has("blur")) shape.delete("blur");
 	});
 	return true;
 }

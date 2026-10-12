@@ -37,7 +37,7 @@ export interface PreparedImage {
 	/** A PNG or JPEG no bigger than `IMAGE_LIMITS.thumbEdge`, for board images drawn on the server. */
 	thumb?: Blob;
 	/** A tiny blurred data URL, for everyone else while it uploads. */
-	preview?: string;
+	blur?: string;
 	/** Something to say about what was done to it ("Big GIFs are added as a still picture"). */
 	note?: string;
 }
@@ -114,12 +114,12 @@ async function finish(drawn: Drawn): Promise<PreparedImage> {
 				`That image is still ${describeBytes(blob.size)} once it’s made smaller: images up to ${describeBytes(IMAGE_LIMITS.bytes)} can be added.`,
 			);
 		}
-		const [hash, thumb, preview] = await Promise.all([
+		const [hash, thumb, blur] = await Promise.all([
 			blob.arrayBuffer().then(hashImage),
 			thumbnail(source, width, height).catch(() => undefined),
 			blurred(source, width, height).catch(() => undefined),
 		]);
-		return { blob, type, width, height, hash, thumb, preview, note: drawn.note };
+		return { blob, type, width, height, hash, thumb, blur, note: drawn.note };
 	} finally {
 		if (source instanceof ImageBitmap) source.close();
 	}
@@ -267,7 +267,7 @@ async function blurred(
 	);
 	for (const type of ["image/webp", "image/png"]) {
 		const url = canvas.toDataURL(type, 0.6);
-		if (url.startsWith(`data:${type}`) && url.length <= IMAGE_LIMITS.preview) return url;
+		if (url.startsWith(`data:${type}`) && url.length <= IMAGE_LIMITS.blur) return url;
 	}
 	return undefined;
 }

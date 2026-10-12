@@ -158,7 +158,7 @@ function useNow(ms: number | null): number {
 }
 
 export interface ImageViewProps {
-	shape: Pick<ShapeProps, "alt" | "caption" | "preview" | "upload" | "mime" | "w" | "h">;
+	shape: Pick<ShapeProps, "alt" | "caption" | "blur" | "upload" | "mime" | "w" | "h">;
 	state: ImageState;
 	/** Where the file loads from: undefined while that's being found, null if it isn't here. */
 	src: string | null | undefined;
@@ -209,8 +209,8 @@ export function ImageView({
 			onDoubleClick={onDoubleClick}
 		>
 			<div className="image-frame">
-				{shape.preview && shown !== "ready" && shown !== "missing" && (
-					<img className="image-preview" src={shape.preview} alt="" draggable={false} />
+				{shape.blur && shown !== "ready" && shown !== "missing" && (
+					<img className="image-preview" src={shape.blur} alt="" draggable={false} />
 				)}
 				{showFile && !broken && (
 					<img

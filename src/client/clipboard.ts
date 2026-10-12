@@ -219,7 +219,7 @@ const UNCOPIED: Record<string, readonly string[]> = {
 	// that exists travels, so a copy follows the same issue.
 	action: ACTION_UNCOPIED,
 	// An upload in progress is its uploader's: a copy has the file, or nothing.
-	image: ["upload", "preview"],
+	image: ["upload", "blur"],
 };
 
 /**

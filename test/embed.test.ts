@@ -196,7 +196,7 @@ function imageBoard(): Map<string, ShapeProps> {
 				y: 400,
 				z: "a2",
 				upload: { by: "Ada", client: 1, at: "2026-10-01T00:00:00Z" },
-				preview: "data:image/webp;base64,AAAA",
+				blur: "data:image/webp;base64,AAAA",
 			},
 		],
 	]);

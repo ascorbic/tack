@@ -112,7 +112,7 @@ test.describe("images in the playground", () => {
 		const [shape] = await images(page);
 		expect(shape?.image).toMatch(/^[0-9a-f]{64}$/);
 		expect(shape?.upload).toBeUndefined();
-		expect(shape?.preview).toBeUndefined();
+		expect(shape?.blur).toBeUndefined();
 		// Placed at its proportions.
 		expect(Number(shape?.w) / Number(shape?.h)).toBeCloseTo(1.6, 1);
 
