@@ -59,6 +59,7 @@ Images draw what someone who isn't signed in sees:
 
 - Cards from public repositories, with their number, title, state, labels and CI. Cards from private repositories (or any repository Tack doesn't know to be public) are drawn as **Private item**, without even the repository's name.
 - Stickies, text, sections, connectors, decisions and action items. Stickies written in [silent mode](/facilitation/silent-mode/) that haven't been revealed are drawn face down, as "Hidden until the reveal".
+- [Stacks](/boards/stacks/) as their theme cards: the name, the count and the first few stickies and cards a line each (private ones as **Private item**), or just the name and count when the image is small.
 - Widgets as their frame and title, never their results.
 - No comments, stamps, dot votes, cursors, staged changes or names of who wrote what.
 
