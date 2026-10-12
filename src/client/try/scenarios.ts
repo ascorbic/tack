@@ -262,7 +262,7 @@ function seedRetro(doc: Y.Doc): void {
 
 const TRIAGE: { item: string; title: string; labels: (typeof LABELS)[keyof typeof LABELS][] }[] = [
 	{ item: "#601", title: "srcset widths off by one at 2x density", labels: [LABELS.bug] },
-	{ item: "#604", title: "Astro component warns during the SSR build", labels: [LABELS.bug] },
+	{ item: "#604", title: "Web component warns during the SSR build", labels: [LABELS.bug] },
 	{ item: "#607", title: "Support fit=cover for every provider", labels: [LABELS.enhancement] },
 	{ item: "#609", title: "Type error with exactOptionalPropertyTypes", labels: [] },
 	{ item: "#612", title: "Images flicker when the layout changes", labels: [] },
@@ -292,7 +292,7 @@ function seedTriage(doc: Y.Doc): void {
 		);
 		sticky(
 			doc,
-			"The Astro docs example is out of date",
+			"The emdash docs example is out of date",
 			"yellow",
 			{ x: 1050, y: 64 },
 			PRIYA,
@@ -300,14 +300,14 @@ function seedTriage(doc: Y.Doc): void {
 		);
 		sticky(
 			doc,
-			"README doesn't mention the Astro component",
+			"README doesn't mention the web component",
 			"yellow",
 			{ x: 1252, y: 70 },
 			KAI,
 			heard,
 		);
-		sticky(doc, "Benchmarks against next/image?", "blue", { x: 1056, y: 318 }, TOM, heard);
-		sticky(doc, "Who maintains the Shopify provider?", "pink", { x: 1250, y: 312 }, JO, heard);
+		sticky(doc, "Benchmarks against a plain img tag?", "blue", { x: 1056, y: 318 }, TOM, heard);
+		sticky(doc, "Who maintains the Tidewell provider?", "pink", { x: 1250, y: 312 }, JO, heard);
 
 		const vote = startVote(doc, {
 			scope: inbox,
@@ -345,8 +345,8 @@ export const TRY_SCENARIOS = {
 		cards: TRIAGE_CARDS,
 		seed: seedTriage,
 		stack: {
-			from: "README doesn't mention the Astro component",
-			onto: "The Astro docs example is out of date",
+			from: "README doesn't mention the web component",
+			onto: "The emdash docs example is out of date",
 		},
 	},
 } satisfies Record<string, TryScenario>;
