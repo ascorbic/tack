@@ -82,6 +82,8 @@ test("custom widgets draw the board's data, and nothing gets out of the sandbox"
 test("the editor previews a draft as you type, and Apply puts it on the board", async ({
 	page,
 }) => {
+	// A long walk through the editor, two frames running the same code.
+	test.slow();
 	await openScenario(page, "custom");
 	const node = page.locator(".react-flow__node", { hasText: "Draw anything from the board" });
 	await node.getByRole("button", { name: "Blank" }).click();
@@ -90,7 +92,7 @@ test("the editor previews a draft as you type, and Apply puts it on the board", 
 
 	await editor.getByLabel("Title").fill("Open count");
 	await editor.getByRole("tab", { name: "Settings" }).click();
-	await editor.getByLabel("Settings (JSON)").fill('{ "query": "repo:acme/imagekit is:open" }');
+	await editor.getByLabel("Settings (JSON)").fill('{ "query": "is:open" }');
 	await editor.getByRole("tab", { name: "Code" }).click();
 	await editor
 		.getByRole("textbox", { name: "Code" })
@@ -106,7 +108,7 @@ test("the editor previews a draft as you type, and Apply puts it on the board", 
 	await editor.getByRole("tab", { name: /Settings/ }).click();
 	await editor.getByLabel("Settings (JSON)").fill("{ nope");
 	await expect(editor.getByRole("button", { name: /^Apply/ })).toBeDisabled();
-	await editor.getByLabel("Settings (JSON)").fill('{ "query": "repo:acme/imagekit is:open" }');
+	await editor.getByLabel("Settings (JSON)").fill('{ "query": "is:open" }');
 
 	await editor.getByRole("button", { name: /^Apply/ }).click();
 	await expect(editor.getByText("Applied")).toBeVisible();
