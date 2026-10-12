@@ -2,6 +2,7 @@
 // The landing page's first screen: what Tack is, two ways in, and a board.
 // Replaces Starlight's Hero, which is only used on the home page.
 import { LinkButton } from "@astrojs/starlight/components";
+import { HERO_NOTE, HERO_STICKY } from "../hero.ts";
 import BrandMark from "./BrandMark.astro";
 import Screenshot from "./Screenshot.astro";
 
@@ -32,21 +33,21 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 
 	<div class="tk-hero-board">
 		<Screenshot
-			name="planning"
+			name="hero"
 			eager
-			alt="A Tack board: live issue and pull request cards with labels, CI and reviews, beside stickies from a planning session."
+			alt="A Tack board: live issue and pull request cards with labels, CI and reviews, a stack of stickies and an issue with a suggested name, stickies from a planning session, a live list of open bugs and a milestone's progress."
 			class="tk-hero-shot"
 		/>
 		<div class="tk-sticky tk-sticky-hero tk-brand" aria-hidden="true">
 			<span class="tk-sticky-pin"><BrandMark size={30} /></span>
-			<span class="tk-sticky-text">No more copying stickies into GitHub issues</span>
+			<span class="tk-sticky-text">{HERO_STICKY}</span>
 			<span class="tk-sticky-foot">
 				<span class="tk-sticky-author"><span class="tk-dot" style="--c: #b4467a"></span>Priya</span>
 				<span class="tk-votes"><span></span><span></span><span></span></span>
 			</span>
 		</div>
 		<div class="tk-sticky tk-sticky-small tk-sticky-pink" aria-hidden="true">
-			<span class="tk-sticky-text">Every card here is live from GitHub</span>
+			<span class="tk-sticky-text">{HERO_NOTE}</span>
 			<span class="tk-sticky-foot">
 				<span class="tk-sticky-author"><span class="tk-dot" style="--c: #2f6fd6"></span>Kai</span>
 			</span>

@@ -47,6 +47,14 @@ async function retext(page: Page, from: RegExp, to: string): Promise<void> {
 }
 
 const SHOTS: Shot[] = [
+	// The landing page's board: smaller than the rest, so it reads at the hero's size.
+	{
+		name: "hero",
+		title: "unpic 5.0 planning",
+		url: "/play?scenario=hero",
+		width: 1200,
+		height: 750,
+	},
 	{ name: "planning", title: "unpic 5.0 planning", url: "/play?scenario=planning" },
 	{ name: "roadmap", title: "Release 5.0", url: "/play?scenario=roadmap" },
 	{ name: "tracking", title: "Maintainer dashboard", url: "/play?scenario=tracking" },
