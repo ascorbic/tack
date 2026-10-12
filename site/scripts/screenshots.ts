@@ -8,7 +8,7 @@
 // Install the browser once with `pnpm exec playwright install chromium`.
 // The images are committed (src/assets/screenshots/), so building the site
 // never needs the app.
-import { chromium, type Page } from "@playwright/test";
+import { chromium, devices, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
@@ -18,14 +18,32 @@ const out = path.resolve(import.meta.dirname, "../src/assets/screenshots");
 
 interface Shot {
 	name: string;
-	/** The board's name in the top bar, in place of the playground's. */
-	title: string;
+	/** The board's name in the top bar, in place of the playground's. Galleries have none. */
+	title?: string;
 	/** A path on the app, e.g. /play?scenario=planning. */
 	url: string;
 	width?: number;
 	height?: number;
+	/** A phone: its viewport, touch and user agent, at three times the pixels. */
+	phone?: boolean;
+	/** Only this element, not the whole viewport: for a gallery's panel. */
+	element?: string;
 	/** Run once the board has settled, before the screenshot. */
 	prepare?: (page: Page) => Promise<void>;
+}
+
+/** Replace text on the page: names the playground uses that the docs shouldn't. */
+async function retext(page: Page, from: RegExp, to: string): Promise<void> {
+	await page.evaluate(
+		([source, flags, to]) => {
+			const pattern = new RegExp(source, flags);
+			const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+				node.textContent = (node.textContent ?? "").replace(pattern, to);
+			}
+		},
+		[from.source, from.flags, to] as const,
+	);
 }
 
 const SHOTS: Shot[] = [
@@ -43,7 +61,7 @@ const SHOTS: Shot[] = [
 		title: "Sprint 14 retro",
 		url: "/play?scenario=history",
 		prepare: async (page) => {
-			await page.getByTitle(/^History \(/).click();
+			await page.getByRole("button", { name: "History", exact: true }).click();
 			await page.waitForTimeout(1200);
 			// A few steps back, so the board shows the past and who changed it.
 			for (let step = 0; step < 4; step++) {
@@ -59,7 +77,7 @@ const SHOTS: Shot[] = [
 		title: "Triage",
 		url: "/play?scenario=rules",
 		prepare: async (page) => {
-			await page.getByTitle("Rules: automation that places cards").click();
+			await page.getByRole("button", { name: /^Rules/ }).click();
 			await page.waitForTimeout(600);
 		},
 	},
@@ -69,6 +87,7 @@ const SHOTS: Shot[] = [
 		url: "/play?scenario=push",
 		prepare: async (page) => {
 			await page.getByRole("button", { name: /^Changes/ }).click();
+			await retext(page, /the test forge/gi, "GitHub");
 			await page.waitForTimeout(600);
 		},
 	},
@@ -80,12 +99,9 @@ const SHOTS: Shot[] = [
 			await page.getByRole("button", { name: /^Changes/ }).click();
 			await page.getByRole("button", { name: /^Review and push/ }).click();
 			// The playground pushes to the fake forge; on an instance it's GitHub.
-			await page.evaluate(() => {
-				const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-				for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-					node.textContent = (node.textContent ?? "").replace(/the test forge/gi, "GitHub");
-				}
-			});
+			await retext(page, /the test forge/gi, "GitHub");
+			// Each issue's backlink names the board, not the playground.
+			await retext(page, /^Playground$/, "unpic 5.0 planning");
 			await page.waitForTimeout(800);
 		},
 	},
@@ -95,7 +111,56 @@ const SHOTS: Shot[] = [
 	{ name: "sections", title: "Roadmap", url: "/play?scenario=sections" },
 	{ name: "lists", title: "Roadmap", url: "/play?scenario=lists" },
 	{ name: "connectors", title: "Dependencies", url: "/play?scenario=connectors" },
+	{ name: "stacks", title: "unpic 5.0 planning", url: "/play?scenario=stacks" },
+	{
+		name: "ai",
+		title: "unpic 5.0 retro",
+		url: "/play?scenario=ai",
+		prepare: async (page) => {
+			await page.keyboard.press("w");
+			await page
+				.getByRole("group", { name: "Widgets" })
+				.getByLabel("Ask for a widget: describe it")
+				.fill("Open bugs in unpic");
+			await page.keyboard.press("Enter");
+			await page
+				.getByRole("group", { name: "Ask for a widget" })
+				.getByRole("button", { name: "Place on board" })
+				.waitFor();
+			await page.waitForTimeout(1500);
+		},
+	},
+	{ name: "custom", title: "unpic dashboard", url: "/play?scenario=custom" },
+	{
+		name: "phone",
+		title: "Next quarter",
+		url: "/play?scenario=vote",
+		phone: true,
+		prepare: async (page) => {
+			await page
+				.locator(".react-flow__node-sticky")
+				.filter({ hasText: "A provider playground" })
+				.tap();
+			const sheet = page.getByRole("dialog", { name: "Shape" });
+			await sheet.getByRole("button", { name: "Add a dot" }).tap();
+			await sheet.getByRole("button", { name: "Add a dot" }).tap();
+			await page.waitForTimeout(1200);
+		},
+	},
+	{
+		name: "templates",
+		url: "/play/templates",
+		width: 1200,
+		element: '[data-state="picker-saved"] .templates-gallery-dialog',
+		prepare: async (page) => {
+			await retext(page, /octocat/g, "kai");
+		},
+	},
 ];
+
+// An iPhone's viewport, touch and user agent, in Chromium (the device's own
+// browser is WebKit).
+const { defaultBrowserType: _browser, ...PHONE } = devices["iPhone 13"];
 
 /** Hide the playground's own controls: the screenshots show the board as people see it. */
 const HIDE_PLAYGROUND = `
@@ -103,7 +168,12 @@ const HIDE_PLAYGROUND = `
 	*, *::before, *::after { caret-color: transparent !important; }
 `;
 
-async function settle(page: Page): Promise<void> {
+async function settle(page: Page, shot: Shot): Promise<void> {
+	if (shot.element) {
+		await page.locator(shot.element).waitFor();
+		await page.waitForTimeout(1500);
+		return;
+	}
 	await page.locator(".react-flow__renderer").waitFor();
 	await page.waitForFunction(() =>
 		[...document.querySelectorAll(".react-flow__node")].every(
@@ -122,25 +192,33 @@ for (const shot of SHOTS) {
 	if (only.size > 0 && !only.has(shot.name)) continue;
 	for (const theme of ["light", "dark"] as const) {
 		const context = await browser.newContext({
-			viewport: { width: shot.width ?? 1440, height: shot.height ?? 900 },
-			deviceScaleFactor: 2,
+			...(shot.phone
+				? { ...PHONE, deviceScaleFactor: 3 }
+				: {
+						viewport: { width: shot.width ?? 1440, height: shot.height ?? 900 },
+						deviceScaleFactor: 2,
+					}),
 			colorScheme: theme,
 			reducedMotion: "reduce",
 		});
 		const page = await context.newPage();
 		await page.goto(new URL(shot.url, base).href);
 		await page.addStyleTag({ content: HIDE_PLAYGROUND });
-		await settle(page);
-		await page.locator(".board-name").evaluate((element, title) => {
-			element.textContent = title;
-		}, shot.title);
+		await settle(page, shot);
+		if (shot.title) {
+			await page.locator(".board-name").evaluate((element, title) => {
+				element.textContent = title;
+			}, shot.title);
+		}
 		await shot.prepare?.(page);
-		await page.mouse.move(-10, -10);
-		const png = await page.screenshot({ animations: "disabled" });
+		if (!shot.phone) await page.mouse.move(-10, -10);
+		const png = shot.element
+			? await page.locator(shot.element).screenshot({ animations: "disabled" })
+			: await page.screenshot({ animations: "disabled" });
 		// WebP at a little over twice the docs' widest image, to keep the
 		// repository light; Astro makes the sizes each page needs from these.
 		await sharp(png)
-			.resize({ width: 2400 })
+			.resize({ width: 2400, withoutEnlargement: true })
 			.webp({ quality: 80 })
 			.toFile(path.join(out, `${shot.name}-${theme}.webp`));
 		console.log(`${shot.name} (${theme})`);
