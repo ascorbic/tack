@@ -36,6 +36,7 @@ export const NOMINAL_SIZE: Partial<Record<ShapeProps["type"], Size>> = {
 	widget: { w: 360, h: 440 },
 	action: { w: 296, h: 104 },
 	stack: STACK_SIZE,
+	link: { w: 252, h: 296 },
 };
 
 /** A shape's rendered size where known (e.g. measured by the client). */

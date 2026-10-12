@@ -181,3 +181,32 @@ describe("z-keys", () => {
 		expect(z("c") > "a0" && z("c") < "a1").toBe(true);
 	});
 });
+
+describe("link cards", () => {
+	it("need no migration: a new shape type with keys of its own, loaded as they are", () => {
+		const doc = new Y.Doc();
+		const shape = new Y.Map<unknown>();
+		const preview = { status: "ok", title: "Tack", fetchedAt: "2026-10-12T10:00:00.000Z" };
+		for (const [key, value] of Object.entries({
+			type: "link",
+			x: 0,
+			y: 0,
+			z: "a0",
+			url: "https://tack.social/",
+			preview,
+		})) {
+			shape.set(key, value);
+		}
+		shapesMap(doc).set("l", shape);
+		migrateBoard(doc);
+		expect(shapesMap(doc).get("l")?.toJSON()).toEqual({
+			type: "link",
+			x: 0,
+			y: 0,
+			z: "a0",
+			url: "https://tack.social/",
+			preview,
+		});
+		expect(boardSchema(doc)).toBe(BOARD_SCHEMA);
+	});
+});

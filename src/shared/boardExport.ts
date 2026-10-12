@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { isDate } from "./actionItems.ts";
 import { type CreatedBoard, MAX_TITLE, type Visibility } from "./boards.ts";
 import { type PreparedPlan, preparedMap, readPrepared, readStep } from "./prepared.ts";
+import { LINK_LIMITS, linkUrl, readPreview } from "./linkPreview.ts";
 import { parseKey } from "./refs.ts";
 import {
 	type RuleAction,
@@ -14,6 +15,7 @@ import {
 	setScopeRepos,
 } from "./rules.ts";
 import { type ShapeType, shapesMap } from "./shapes.ts";
+import { isStackable } from "./stacks.ts";
 import { TEMPLATE_REPOS_MAX, cleanRepos } from "./templates.ts";
 
 // A board as a file (#59): its shapes (cards, stickies, text, sections,
@@ -123,6 +125,8 @@ const KEEP: Record<ShapeType, readonly string[]> = {
 	action: ["text", "owner", "due", "done", "ref", "author"],
 	// A suggested name is the board's content as much as a person's (stacks.ts).
 	stack: ["title", "suggested"],
+	// A link's preview is what anyone who opens the address sees (links.ts).
+	link: ["url", "preview", "stack"],
 };
 
 const SHAPE_TYPES = Object.keys(KEEP) as ShapeType[];
@@ -199,7 +203,7 @@ export function exportBoard(
 		if (type === "decision" && typeof shape.supersededBy === "string") {
 			if (!kept.has(shape.supersededBy)) delete shape.supersededBy;
 		}
-		if ((type === "sticky" || type === "card") && shape.stack !== undefined) {
+		if (isStackable(type) && shape.stack !== undefined) {
 			if (typeof shape.stack !== "string" || !kept.has(shape.stack)) delete shape.stack;
 		}
 		shapes.push(shape);
@@ -402,6 +406,23 @@ const ShapeSchema = v.variant("type", [
 		type: v.literal("stack"),
 		title: v.optional(text(400)),
 		suggested: v.optional(v.object({ title: text(200), hash: text(64) })),
+	}),
+	v.object({
+		...common,
+		type: v.literal("link"),
+		url: v.pipe(
+			v.string(),
+			v.maxLength(LINK_LIMITS.url),
+			v.check((url: string) => linkUrl(url) !== null, "Not a web address"),
+		),
+		// Read again field by field as the document's previews are (`readPreview`).
+		preview: v.optional(
+			v.pipe(
+				v.looseObject({ status: v.picklist(["ok", "failed", "blocked"]), fetchedAt: Instant }),
+				v.transform((value) => readPreview(value) ?? undefined),
+			),
+		),
+		stack: v.optional(ShapeId),
 	}),
 ]);
 
@@ -644,7 +665,7 @@ export function importBoard(
 				map.set("votes", new Y.Map());
 			}
 			if (type === "section" && props.inbox) map.set("dismissed", new Y.Map());
-			if ((type === "sticky" || type === "card") && props.stack !== undefined) {
+			if (isStackable(type) && props.stack !== undefined) {
 				const old = typeof props.stack === "string" ? props.stack : "";
 				const stack = types.get(old) === "stack" ? ids.get(old) : null;
 				if (stack) map.set("stack", stack);

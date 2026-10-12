@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import type { ListSort, SectionDisplay } from "./display.ts";
 import type { Anchor } from "./geometry.ts";
 import type { Dismissal } from "./inbox.ts";
+import type { LinkPreview } from "./linkPreview.ts";
 import type { SilentSession } from "./silent.ts";
 import type { InboxConfig, Provenance } from "./widgets.ts";
 
@@ -18,8 +19,8 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | key          | shapes             | meaning                                       |
 // | ------------ | ------------------ | --------------------------------------------- |
 // | type         | all                | `card`, `sticky`, `text`, `section`,          |
-// |              |                    | `connector`, `decision`, `widget`, `action`   |
-// |              |                    | or `stack`                                     |
+// |              |                    | `connector`, `decision`, `widget`, `action`,  |
+// |              |                    | `stack` or `link`                             |
 // | x, y         | all but connectors | top-left corner, absolute; 0 on connectors    |
 // | z            | all                | fractional index for stacking order           |
 // | parent       | all but connectors | id of the containing section, or null         |
@@ -95,6 +96,11 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              |                    | (`StackSuggestion`: title, and a hash of the   |
 // |              |                    | text it was made from), written only by the   |
 // |              |                    | server, so it never overwrites `title`        |
+// | url          | link               | the page's address, http(s) (links.ts)        |
+// | preview      | link               | what the page says about itself, once read    |
+// |              |                    | (`LinkPreview`: status, title, description,   |
+// |              |                    | site name, image and icon addresses, when),   |
+// |              |                    | replaced whole, written with `UNFURL_ORIGIN`  |
 // | unnameable   | stack               | the server found nothing in it everyone on    |
 // |              |                    | the board may read to name it from (only      |
 // |              |                    | cards whose titles can't be shared), so no    |
@@ -145,7 +151,8 @@ export type ShapeType =
 	| "decision"
 	| "widget"
 	| "action"
-	| "stack";
+	| "stack"
+	| "link";
 
 /** Where a decision stands. */
 export type DecisionStatus = "proposed" | "decided" | "superseded";
@@ -294,6 +301,10 @@ export interface ShapeProps {
 	suggested?: StackSuggestion;
 	/** Stacks: nothing in it the server may name it from, written by the server. */
 	unnameable?: StackUnnameable;
+	/** Link cards: the page's address (links.ts). */
+	url?: string;
+	/** Link cards: what the page says about itself, once it's been read. */
+	preview?: LinkPreview;
 }
 
 /**

@@ -26,6 +26,7 @@ const CARD: Size = NOMINAL_SIZE.card ?? { w: 252, h: 124 };
 const IN_ROWS: ReadonlySet<ShapeProps["type"]> = new Set([
 	"sticky",
 	"card",
+	"link",
 	"text",
 	"action",
 	"decision",

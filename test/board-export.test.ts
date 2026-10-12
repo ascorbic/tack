@@ -386,3 +386,78 @@ describe("importing a board", () => {
 		expect(exportBoard(new Y.Doc(), { title: "Empty" }).data).not.toHaveProperty("repos");
 	});
 });
+
+describe("link cards", () => {
+	const PREVIEW = {
+		status: "ok",
+		title: "Unpic",
+		description: "Responsive images",
+		image: "https://unpic.pics/og.png",
+		fetchedAt: NOW,
+	} as const;
+
+	it("go out and come back with their address, preview and stack", () => {
+		const doc = new Y.Doc();
+		doc.transact(() => {
+			addShape(doc, "stack", { type: "stack", x: 0, y: 0, z: "a0", title: "Images" });
+			addShape(doc, "l1", {
+				type: "link",
+				x: 10,
+				y: 20,
+				z: "a1",
+				url: "https://unpic.pics/",
+				preview: PREVIEW,
+				stack: "stack",
+			});
+			addShape(doc, "l2", { type: "link", x: 300, y: 20, z: "a2", url: "https://tack.social/" });
+		});
+		const { data } = exportBoard(doc, { title: "Links" });
+		expect(data.shapes.filter((shape) => shape.type === "link")).toEqual([
+			{
+				id: "l1",
+				type: "link",
+				x: 10,
+				y: 20,
+				parent: null,
+				url: "https://unpic.pics/",
+				preview: PREVIEW,
+				stack: "stack",
+			},
+			{ id: "l2", type: "link", x: 300, y: 20, parent: null, url: "https://tack.social/" },
+		]);
+		const read = readBoardExport(serialiseExport(data));
+		expect(read.ok).toBe(true);
+		if (!read.ok) return;
+		const copy = new Y.Doc();
+		importBoard(copy, read.data, { by: BY, newId: counter() });
+		const links = [...readShapes(copy).values()].filter((shape) => shape.type === "link");
+		expect(links).toHaveLength(2);
+		expect(links[0]).toMatchObject({ url: "https://unpic.pics/", preview: PREVIEW, stack: "new1" });
+	});
+
+	it("refuse addresses that aren't the web's, and drop what a preview shouldn't hold", () => {
+		const base = { format: BOARD_EXPORT_FORMAT, version: BOARD_EXPORT_VERSION, title: "x" };
+		const bad = readBoardExport({
+			...base,
+			shapes: [{ id: "l", type: "link", x: 0, y: 0, url: "javascript:alert(1)" }],
+		});
+		expect(bad.ok).toBe(false);
+		const odd = readBoardExport({
+			...base,
+			shapes: [
+				{
+					id: "l",
+					type: "link",
+					x: 0,
+					y: 0,
+					url: "https://tack.social/",
+					preview: { status: "ok", fetchedAt: NOW, image: "javascript:x", title: "Tack", extra: 1 },
+				},
+			],
+		});
+		expect(odd.ok).toBe(true);
+		if (!odd.ok) return;
+		const preview = (odd.data.shapes[0] as { preview?: object }).preview;
+		expect(preview).toEqual({ status: "ok", fetchedAt: NOW, title: "Tack" });
+	});
+});

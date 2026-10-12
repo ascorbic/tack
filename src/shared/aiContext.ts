@@ -3,6 +3,7 @@ import type { Card } from "./cards.ts";
 import { boardOrder, type Placed } from "./a11y.ts";
 import { searchScopeOf } from "./addCards.ts";
 import { AI_ITEMS_MAX, type AiItem, type AiLeftOut, type WidgetContext } from "./ai.ts";
+import { linkText } from "./linkPreview.ts";
 import { readShapes } from "./structure.ts";
 import { boxOf, descendantsOf, readStructure } from "./sections.ts";
 import type { ShapeProps } from "./shapes.ts";
@@ -115,6 +116,15 @@ function itemOf(shape: ShapeProps, cardFor: CardFor, leftOut: AiLeftOut): AiItem
 		case "action": {
 			const text = shape.text?.trim();
 			return text ? { kind: "action", text: `Action item: ${text}` } : null;
+		}
+		case "link": {
+			// What the page says about itself is on the board for everyone, as a sticky's words are.
+			if (typeof shape.url !== "string") return null;
+			const { title, description, host } = linkText(shape);
+			return {
+				kind: "text",
+				text: `Link: ${title}${description ? ` — ${description}` : ""} (${host})`,
+			};
 		}
 		case "card": {
 			if (!shape.ref) return null;

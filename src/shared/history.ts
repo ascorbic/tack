@@ -1038,6 +1038,7 @@ const NOUNS: Record<string, [string, string]> = {
 	decision: ["decision", "decisions"],
 	widget: ["widget", "widgets"],
 	stack: ["stack", "stacks"],
+	link: ["link card", "link cards"],
 };
 
 const MOVE_KEYS = new Set(["x", "y", "parent", "z"]);

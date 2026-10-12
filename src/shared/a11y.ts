@@ -1,5 +1,6 @@
 import { type CardState } from "./cards.ts";
 import { readingOrder } from "./display.ts";
+import { linkText } from "./linkPreview.ts";
 import type { ShapeProps, ShapeType } from "./shapes.ts";
 import { nameState, stackName } from "./stacks.ts";
 
@@ -155,6 +156,7 @@ export const ROLE_NAMES: Record<ShapeType, [one: string, many: string]> = {
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
 	stack: ["stack", "stacks"],
+	link: ["link", "links"],
 };
 
 export function roleName(type: ShapeType): string {
@@ -258,6 +260,8 @@ export function describeShape(
 		| "due"
 		| "owner"
 		| "suggested"
+		| "url"
+		| "preview"
 	>,
 	context: DescribeContext = {},
 ): string {
@@ -315,6 +319,13 @@ export function describeShape(
 			const title = typeof config?.title === "string" ? config.title.trim() : "";
 			const kind = context.widgetName?.(String(shape.widget ?? "")) ?? "widget";
 			parts.push(title ? `${title}, ${kind.toLowerCase()}` : kind);
+			break;
+		}
+		case "link": {
+			// A link card: its page's title (or address) and where it is.
+			const { title, host } = linkText(shape);
+			parts.push(clip(title) || "untitled");
+			parts.push(host);
 			break;
 		}
 		case "action": {

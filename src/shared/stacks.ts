@@ -1,4 +1,5 @@
 import type { Point, Rect } from "./geometry.ts";
+import { linkText } from "./linkPreview.ts";
 import type { ShapeType, StackSuggestion, StackUnnameable, ShapeProps } from "./shapes.ts";
 
 // Stacks (#73): stickies (and issues and pull requests) gathered into a
@@ -118,9 +119,9 @@ export const UNTITLED_STACK = "Untitled stack";
 
 type Shapes = ReadonlyMap<string, ShapeProps>;
 
-/** What can go in a stack: stickies, and cards (issues and pull requests). */
+/** What can go in a stack: stickies, cards (issues and pull requests) and link cards. */
 export function isStackable(type: ShapeType | undefined): boolean {
-	return type === "sticky" || type === "card";
+	return type === "sticky" || type === "card" || type === "link";
 }
 
 /** The stack a shape is in, if it's a sticky or card that says it's in one (which may be gone). */
@@ -301,6 +302,14 @@ export function namingTexts(
 			if (out.length >= NAMING_LIMITS.stickies) break;
 			continue;
 		}
+		if (shape?.type === "link") {
+			// A link card's preview is in the document, for everyone who can see the board.
+			const { title, description } = linkText(shape);
+			const text = cleanText(description ? `${title}: ${description}` : title);
+			if (text) out.push(text);
+			if (out.length >= NAMING_LIMITS.stickies) break;
+			continue;
+		}
 		if (!shape || shape.type !== "sticky" || shape.silent !== undefined) continue;
 		const text = typeof shape.text === "string" ? cleanText(shape.text) : "";
 		if (!text) continue;
@@ -396,7 +405,8 @@ export function openLayout(
 	const columns = gridColumns(count);
 	const rows = Math.ceil(count / columns);
 	const sizeOf = (id: string) => {
-		if (options.typeOf?.(id) !== "card") return { w: STICKY, h: STICKY };
+		const type = options.typeOf?.(id);
+		if (type !== "card" && type !== "link") return { w: STICKY, h: STICKY };
 		const known = options.sizeOf?.(id);
 		return known && known.w > 0 && known.h > 0 ? known : CARD_CELL;
 	};
@@ -454,11 +464,14 @@ export function nearestSlot(layout: OpenLayout, point: Point): number {
 	return best;
 }
 
-/** What a stack holds, in words: "5 stickies", "2 cards", or "3 items" for a mix. */
+/** What a stack holds, in words: "5 stickies", "2 cards", "2 links", or "3 items" for a mix. */
 export function countMembers(types: readonly (ShapeType | undefined)[]): string {
 	const n = types.length;
 	if (n > 0 && types.every((type) => type === "card")) return `${n} ${n === 1 ? "card" : "cards"}`;
-	if (types.every((type) => type !== "card")) return `${n} ${n === 1 ? "sticky" : "stickies"}`;
+	if (n > 0 && types.every((type) => type === "link")) return `${n} ${n === 1 ? "link" : "links"}`;
+	if (types.every((type) => type !== "card" && type !== "link")) {
+		return `${n} ${n === 1 ? "sticky" : "stickies"}`;
+	}
 	return `${n} ${n === 1 ? "item" : "items"}`;
 }
 
