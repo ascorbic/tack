@@ -920,9 +920,8 @@
 
 /* Zoomed out: one line, grown against the zoom to stay readable. */
 .list-empty[data-tier="compact"] .list-empty-title {
-	font-size: calc(13px * min(var(--unzoom, 1), 2.4));
+	font-size: calc(12px * min(var(--unzoom, 1), 1.9));
 	line-height: 1.2;
-	font-weight: 650;
 }
 
 .list-empty[data-tier="compact"] .list-empty-bit {
