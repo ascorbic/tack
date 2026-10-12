@@ -1,5 +1,6 @@
 // The site's link preview image, public/og.png: 1200 × 630, drawn in a
-// browser from the landing page's words and the planning board's screenshot.
+// browser from the landing page's words, its sticky (src/hero.ts) and its
+// board's screenshot.
 //
 //   pnpm --filter site og
 //
@@ -8,6 +9,7 @@
 import { chromium } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { HERO_STICKY } from "../src/hero.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
 const out = path.join(root, "public/og.png");
@@ -18,7 +20,7 @@ const font = async (pkg: string, file: string) =>
 	).toString("base64")}`;
 const display = await font("bricolage-grotesque", "bricolage-grotesque-latin-wght-normal.woff2");
 const ui = await font("geist", "geist-latin-wght-normal.woff2");
-const board = await readFile(path.join(root, "src/assets/screenshots/planning-light.webp"));
+const board = await readFile(path.join(root, "src/assets/screenshots/hero-light.webp"));
 
 const html = `<!doctype html>
 <html>
@@ -140,7 +142,7 @@ const html = `<!doctype html>
 	</div>
 	<div class="sticky">
 		<span class="pin">${mark(false)}</span>
-		No more copying stickies into GitHub issues
+		${HERO_STICKY}
 		<div class="who"><i></i>Priya</div>
 	</div>
 	<div class="url">tack.social</div>
