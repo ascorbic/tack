@@ -159,14 +159,35 @@ interface FakeComment {
 	updatedAt?: string;
 }
 
-interface FakeDiscussion {
+export interface FakeDiscussion {
 	repoId: number;
 	number: number;
 	title: string;
 	body: string;
 	category: string;
 	createdAt: string;
+	updatedAt?: string;
+	labels?: { name: string; color: string }[];
+	closed?: boolean;
+	/** `RESOLVED`, `OUTDATED` or `DUPLICATE`, once closed. */
+	stateReason?: string | null;
+	/** The chosen answer: who wrote it, and when it was chosen. */
+	answer?: { login: string; chosenAt: string } | null;
+	upvotes?: number;
+	locked?: boolean;
+	/** Comments, oldest first. */
+	comments?: { body: string; login: string; createdAt: string }[];
+	author?: string;
 }
+
+/** Categories' emoji, as GitHub gives them: a shortcode, and HTML. */
+const CATEGORY_EMOJI: Record<string, [string, string]> = {
+	"q&a": [":pray:", "🙏"],
+	ideas: [":bulb:", "💡"],
+	announcements: [":mega:", "📣"],
+	"show and tell": [":raised_hands:", "🙌"],
+	polls: [":ballot_box:", "🗳️"],
+};
 
 /** A delivery in the app's webhook delivery log. */
 export interface FakeHookDelivery {
@@ -482,6 +503,106 @@ export class FakeGitHub {
 				merged,
 				merged_at: merged ? item.updatedAt : null,
 			},
+		};
+	}
+
+	/**
+	 * A discussion in a repository, numbered among its issues and pull
+	 * requests as on GitHub (so pick a number no item has). Its category
+	 * should be one of the repository's `discussionCategories`.
+	 */
+	addDiscussion(
+		repoId: number,
+		number: number,
+		fields: Partial<Omit<FakeDiscussion, "repoId" | "number">> & { title: string },
+	): FakeDiscussion {
+		const at = new Date(this.now()).toISOString();
+		const discussion: FakeDiscussion = {
+			repoId,
+			number,
+			body: "",
+			category: this.repos.get(repoId)?.discussionCategories[0] ?? "General",
+			createdAt: at,
+			updatedAt: at,
+			...fields,
+		};
+		this.discussions.push(discussion);
+		return discussion;
+	}
+
+	/** A discussion, for assertions and changing as someone on GitHub would. */
+	discussion(repoId: number, number: number): FakeDiscussion | undefined {
+		return this.discussions.find((d) => d.repoId === repoId && d.number === number);
+	}
+
+	/**
+	 * The webhook payload GitHub sends for a discussion as it is now: a
+	 * `discussion` event's (`answered`, `closed`, `labeled`, …), or with
+	 * `comment` a `discussion_comment` event's.
+	 */
+	discussionEvent(
+		repoId: number,
+		number: number,
+		action: string,
+		{ comment }: { comment?: string } = {},
+	): Record<string, unknown> {
+		const repo = this.repos.get(repoId);
+		const d = this.discussion(repoId, number);
+		if (!repo || !d) throw new Error(`no discussion ${repoId}#${number}`);
+		const repository = {
+			id: repo.id,
+			node_id: `R_${repo.id}`,
+			full_name: repo.name,
+			private: repo.private,
+		};
+		const [shortcode] = CATEGORY_EMOJI[d.category.toLowerCase()] ?? [":speech_balloon:"];
+		const url = `https://github.com/${repo.name}/discussions/${d.number}`;
+		const discussion = {
+			number: d.number,
+			title: d.title,
+			body: d.body,
+			html_url: url,
+			node_id: `D_${repo.id}_${d.number}`,
+			repository_url: `https://api.github.com/repos/${repo.name}`,
+			state: d.closed ? "closed" : "open",
+			state_reason: d.closed ? (d.stateReason ?? "RESOLVED").toLowerCase() : null,
+			locked: d.locked ?? false,
+			comments: d.comments?.length ?? 0,
+			created_at: d.createdAt,
+			updated_at: d.updatedAt ?? d.createdAt,
+			answer_html_url: d.answer ? `${url}#discussioncomment-${d.number}` : null,
+			answer_chosen_at: d.answer?.chosenAt ?? null,
+			answer_chosen_by: d.answer ? { login: "octocat" } : null,
+			category: {
+				name: d.category,
+				emoji: shortcode,
+				slug: d.category.toLowerCase().replace(/\W+/g, "-"),
+				is_answerable: d.category.toLowerCase() === "q&a",
+			},
+			user: { login: d.author ?? "octocat", avatar_url: "https://avatars.example/octocat" },
+			labels: d.labels ?? [],
+			reactions: { total_count: 0, "+1": 0 },
+		};
+		if (comment !== undefined) {
+			return {
+				action,
+				repository,
+				discussion,
+				comment: { body: comment, user: { login: "octocat" }, html_url: `${url}#comment` },
+			};
+		}
+		return {
+			action,
+			repository,
+			discussion,
+			...(action === "answered" && d.answer
+				? {
+						answer: {
+							html_url: `${url}#discussioncomment-${d.number}`,
+							user: { login: d.answer.login },
+						},
+					}
+				: {}),
 		};
 	}
 
@@ -1300,8 +1421,20 @@ export class FakeGitHub {
 		record.operation = body.operationName;
 		record.variables = body.variables;
 		record.aliases = [...body.query.matchAll(/(i\d+): issueOrPullRequest/g)].map((m) => m[1] ?? "");
-		const discussions = this.discussionsGraphQL(body.operationName, body.variables, auth);
+		const discussions =
+			this.discussionsGraphQL(body.operationName, body.variables, auth) ??
+			this.discussionWrites(body.operationName, body.variables, auth);
 		if (discussions) return discussions;
+		if (body.operationName === "TackSearch" && /type: DISCUSSION/.test(body.query)) {
+			const failure = this.searchFailures.shift();
+			if (failure) return failed(failure);
+			const found = this.searchDiscussions(
+				typeof body.variables.q === "string" ? body.variables.q : "",
+				auth,
+				Number(body.variables.first ?? 10),
+			);
+			return json({ data: { search: { discussionCount: found.length, nodes: found } } });
+		}
 		if (body.operationName === "TackSearch") {
 			const failure = this.searchFailures.shift();
 			if (failure) return failed(failure);
@@ -1319,7 +1452,219 @@ export class FakeGitHub {
 				},
 			});
 		}
-		return json({ data: this.graphql(body.operationName, body.query, body.variables, auth) });
+		const errors: unknown[] = [];
+		const data = this.graphql(body.operationName, body.query, body.variables, auth, errors);
+		return json({ data, ...(errors.length > 0 ? { errors } : {}) });
+	}
+
+	/**
+	 * Whether a token's app may read and write discussions: an installation
+	 * that granted only some permissions (`install`'s `permissions`) without
+	 * `discussions` may not, as an install from before Tack asked can't.
+	 */
+	private discussionsAllowed(auth: string): boolean {
+		const id = this.installationTokens.get(auth);
+		if (id === undefined) return true;
+		const permissions = this.installations.get(id)?.permissions;
+		return !permissions || permissions.discussions !== undefined;
+	}
+
+	private notAccessible(path: (string | number)[]) {
+		return { type: "FORBIDDEN", path, message: "Resource not accessible by integration" };
+	}
+
+	/** A discussion as GraphQL shows it (`TackDiscussion`). */
+	private gqlDiscussion(repo: Pick<FakeRepo, "id" | "name" | "private">, d: FakeDiscussion) {
+		const url = `https://github.com/${repo.name}/discussions/${d.number}`;
+		const [shortcode, emoji] = CATEGORY_EMOJI[d.category.toLowerCase()] ?? [
+			":speech_balloon:",
+			"💬",
+		];
+		return {
+			__typename: "Discussion",
+			id: `D_${repo.id}_${d.number}`,
+			number: d.number,
+			title: d.title,
+			url,
+			updatedAt: d.updatedAt ?? d.createdAt,
+			createdAt: d.createdAt,
+			closedAt: d.closed ? (d.updatedAt ?? d.createdAt) : null,
+			repository: { nameWithOwner: repo.name, isPrivate: repo.private },
+			author: {
+				login: d.author ?? "octocat",
+				avatarUrl: `https://avatars.example/${d.author ?? "octocat"}`,
+			},
+			labels: { nodes: d.labels ?? [] },
+			comments: { totalCount: d.comments?.length ?? 0 },
+			reactions: { totalCount: 0 },
+			thumbsUp: { totalCount: 0, nodes: [] },
+			discussionClosed: d.closed ?? false,
+			discussionStateReason: d.closed ? (d.stateReason ?? "RESOLVED") : null,
+			locked: d.locked ?? false,
+			upvoteCount: d.upvotes ?? 0,
+			category: {
+				name: d.category,
+				emoji: shortcode,
+				emojiHTML: `<div><g-emoji class="g-emoji" alias="${shortcode.slice(1, -1)}">${emoji}</g-emoji></div>`,
+				isAnswerable: d.category.toLowerCase() === "q&a",
+			},
+			answer: d.answer
+				? { url: `${url}#discussioncomment-${d.number}`, author: { login: d.answer.login } }
+				: null,
+			answerChosenAt: d.answer?.chosenAt ?? null,
+		};
+	}
+
+	/** Discussion search (`type: DISCUSSION`), as far as Tack's matcher can tell. */
+	private searchDiscussions(q: string, auth: string, limit: number) {
+		const parsed = parseSearch(`${q} is:discussion`);
+		const found = this.discussions.flatMap((d) => {
+			const repo = this.repos.get(d.repoId);
+			if (!repo || !this.canSee(repo, auth) || !this.discussionsAllowed(auth)) return [];
+			const node = this.gqlDiscussion(repo, d);
+			const card: Card = {
+				key: `github.com/${repo.name}#${d.number}`.toLowerCase(),
+				forge: "github",
+				host: "github.com",
+				repo: repo.name.toLowerCase(),
+				item: `#${d.number}`,
+				kind: "discussion",
+				title: d.title,
+				state: d.closed ? "closed" : "open",
+				stateReason: null,
+				labels: d.labels ?? [],
+				assignees: [],
+				author: { login: d.author ?? "octocat", avatarUrl: "" },
+				comments: d.comments?.length ?? 0,
+				reactions: 0,
+				url: node.url,
+				updatedAt: node.updatedAt,
+				visibility: repo.private ? "private" : "public",
+				discussion: {
+					category: { name: d.category, emoji: null, answerable: node.category.isAnswerable },
+					answered: Boolean(d.answer),
+					locked: d.locked ?? false,
+				},
+			};
+			return matchSearch(card, parsed) === "yes" ? [node] : [];
+		});
+		return found.slice(0, limit);
+	}
+
+	/** Reading and writing a discussion (src/server/forges/github-write.ts). */
+	private discussionWrites(
+		operation: string,
+		variables: Record<string, unknown>,
+		auth: string,
+	): Response | undefined {
+		const ops = [
+			"TackDiscussion",
+			"TackLabelDiscussion",
+			"TackUnlabelDiscussion",
+			"TackCloseDiscussion",
+			"TackReopenDiscussion",
+			"TackDiscussionComments",
+			"TackCommentOnDiscussion",
+		];
+		if (!ops.includes(operation)) return undefined;
+		if (!this.discussionsAllowed(auth)) {
+			return json({ data: null, errors: [this.notAccessible(["repository", "discussion"])] });
+		}
+		const reading = operation === "TackDiscussion" || operation === "TackDiscussionComments";
+		const failure = reading ? undefined : this.takeFailure(operation);
+		if (failure && !failure.after) return failed(failure);
+		const byId = (id: unknown) => {
+			const match = /^D_(\d+)_(\d+)$/.exec(String(id));
+			const repo = match ? this.repos.get(Number(match[1])) : undefined;
+			const d = match && repo ? this.discussion(repo.id, Number(match[2])) : undefined;
+			return repo && d ? { repo, d } : null;
+		};
+		const forbidden = () =>
+			json({ data: null, errors: [{ type: "FORBIDDEN", message: "Resource not accessible" }] });
+		const touch = (d: FakeDiscussion) => {
+			d.updatedAt = new Date(
+				Math.max(this.now(), Date.parse(d.updatedAt ?? d.createdAt) + 1),
+			).toISOString();
+		};
+		const answer = (data: unknown) => (failure?.after ? failed(failure) : json({ data }));
+		if (reading) {
+			const repo = this.repoByName(`${String(variables.owner)}/${String(variables.name)}`);
+			if (!repo || !this.canSee(repo, auth)) return json({ data: { repository: null } });
+			const d = this.discussion(repo.id, Number(variables.number));
+			const url = d ? `https://github.com/${repo.name}/discussions/${d.number}` : "";
+			const labelId = (name: string) =>
+				`L_${repo.id}_${repo.labels.findIndex((l) => l.name === name)}`;
+			return json({
+				data: {
+					repository: {
+						discussion: d
+							? {
+									id: `D_${repo.id}_${d.number}`,
+									url,
+									closed: d.closed ?? false,
+									labels: {
+										nodes: (d.labels ?? []).map((l) => ({ id: labelId(l.name), name: l.name })),
+									},
+									comments: {
+										nodes: (d.comments ?? []).map((c, i) => ({
+											body: c.body,
+											url: `${url}#discussioncomment-${i + 1}`,
+											createdAt: c.createdAt,
+										})),
+									},
+								}
+							: null,
+						labels: { nodes: repo.labels.map((l) => ({ id: labelId(l.name), name: l.name })) },
+					},
+				},
+			});
+		}
+		const found = byId(variables.id);
+		if (!found || !this.writer(found.repo, auth)) return forbidden();
+		const { repo, d } = found;
+		const labels = (ids: unknown) =>
+			(ids as string[]).flatMap((id) => {
+				const label = repo.labels[Number(/_(\d+)$/.exec(id)?.[1] ?? -1)];
+				return label ? [{ name: label.name, color: label.color }] : [];
+			});
+		if (this.dropWrites) return json({ data: {} });
+		switch (operation) {
+			case "TackLabelDiscussion": {
+				const add = labels(variables.labels).filter(
+					(label) => !(d.labels ?? []).some((l) => l.name === label.name),
+				);
+				d.labels = [...(d.labels ?? []), ...add];
+				touch(d);
+				return answer({ addLabelsToLabelable: { clientMutationId: null } });
+			}
+			case "TackUnlabelDiscussion": {
+				const remove = new Set(labels(variables.labels).map((l) => l.name));
+				d.labels = (d.labels ?? []).filter((l) => !remove.has(l.name));
+				touch(d);
+				return answer({ removeLabelsFromLabelable: { clientMutationId: null } });
+			}
+			case "TackCloseDiscussion":
+				d.closed = true;
+				d.stateReason = typeof variables.reason === "string" ? variables.reason : "RESOLVED";
+				touch(d);
+				return answer({ closeDiscussion: { discussion: { id: variables.id } } });
+			case "TackReopenDiscussion":
+				d.closed = false;
+				d.stateReason = null;
+				touch(d);
+				return answer({ reopenDiscussion: { discussion: { id: variables.id } } });
+			default: {
+				const comments = (d.comments ??= []);
+				comments.push({
+					body: String(variables.body),
+					login: this.writer(repo, auth) ?? "",
+					createdAt: new Date(this.now()).toISOString(),
+				});
+				touch(d);
+				const url = `https://github.com/${repo.name}/discussions/${d.number}#discussioncomment-${comments.length}`;
+				return answer({ addDiscussionComment: { comment: { url } } });
+			}
+		}
 	}
 
 	/** The discussion queries and mutation Tack makes (src/server/forges/github-write.ts). */
@@ -1479,11 +1824,30 @@ export class FakeGitHub {
 		return repo && item ? { repo, item } : null;
 	}
 
+	/** A discussion by node id (`D_{repo}_{number}`), if `auth` may read it; refusals go in `errors`. */
+	private discussionNode(
+		id: string,
+		auth: string,
+		errors: unknown[],
+		path: (string | number)[],
+	): { repo: FakeRepo; d: FakeDiscussion } | null {
+		const match = /^D_(\d+)_(\d+)$/.exec(id);
+		const repo = match ? this.repos.get(Number(match[1])) : undefined;
+		const d = repo ? this.discussion(repo.id, Number(match?.[2])) : undefined;
+		if (!repo || !d || !this.canSee(repo, auth)) return null;
+		if (!this.discussionsAllowed(auth)) {
+			errors.push(this.notAccessible(path));
+			return null;
+		}
+		return { repo, d };
+	}
+
 	private graphql(
 		operation: string,
 		query: string,
 		variables: Record<string, unknown>,
 		auth: string,
+		errors: unknown[] = [],
 	) {
 		if (operation === "TackRelated") return this.relatedGraphQL(variables, auth);
 		if (operation === "TackRelease") return this.releaseGraphQL(variables, auth);
@@ -1491,7 +1855,18 @@ export class FakeGitHub {
 		const ids = (variables.ids as string[] | undefined) ?? [];
 		if (operation === "TackFreshness") {
 			return {
-				nodes: ids.map((id) => {
+				nodes: ids.map((id, i) => {
+					if (id.startsWith("D_")) {
+						const found = this.discussionNode(id, auth, errors, ["nodes", i]);
+						return found
+							? {
+									__typename: "Discussion",
+									id,
+									updatedAt: found.d.updatedAt ?? found.d.createdAt,
+									upvoteCount: found.d.upvotes ?? 0,
+								}
+							: null;
+					}
 					const found = this.byNodeId(id);
 					return found && this.canSee(found.repo, auth)
 						? this.freshness(found.repo, found.item)
@@ -1501,7 +1876,11 @@ export class FakeGitHub {
 		}
 		const data: Record<string, unknown> = {};
 		if (variables.ids) {
-			data.nodes = ids.map((id) => {
+			data.nodes = ids.map((id, i) => {
+				if (id.startsWith("D_")) {
+					const found = this.discussionNode(id, auth, errors, ["nodes", i]);
+					return found ? this.gqlDiscussion(found.repo, found.d) : null;
+				}
 				const found = this.byNodeId(id);
 				return found && this.canSee(found.repo, auth) ? this.gqlItem(found.repo, found.item) : null;
 			});
@@ -1524,6 +1903,15 @@ export class FakeGitHub {
 				)) {
 					const item = this.items.get(`${repo.id}#${number}`);
 					fields[alias!] = item ? this.gqlItem(repo, item) : null;
+				}
+				for (const [, alias, number] of query.matchAll(/(d\d+): discussion\(number: (\d+)\)/g)) {
+					if (!this.discussionsAllowed(auth)) {
+						errors.push(this.notAccessible(["repo", alias!]));
+						fields[alias!] = null;
+						continue;
+					}
+					const d = this.discussion(repo.id, Number(number));
+					fields[alias!] = d ? this.gqlDiscussion(repo, d) : null;
 				}
 				data.repo = fields;
 			}

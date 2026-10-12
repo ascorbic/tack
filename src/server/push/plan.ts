@@ -4,6 +4,7 @@
 
 import * as v from "valibot";
 import {
+	DISCUSSION_CLOSE,
 	type Operation,
 	type PendingChange,
 	type Target,
@@ -51,6 +52,7 @@ const OperationSchema = v.variant("kind", [
 		target: TargetSchema,
 		add: v.optional(Names),
 		remove: v.optional(Names),
+		discussion: v.optional(v.boolean()),
 	}),
 	v.object({
 		kind: v.literal("item.milestone"),
@@ -68,6 +70,7 @@ const OperationSchema = v.variant("kind", [
 		target: TargetSchema,
 		state: v.picklist(["open", "closed"]),
 		reason: v.optional(v.picklist(["completed", "not_planned", "duplicate"])),
+		discussion: v.optional(v.boolean()),
 	}),
 	v.object({
 		kind: v.literal("item.subIssue"),
@@ -81,6 +84,7 @@ const OperationSchema = v.variant("kind", [
 		kind: v.literal("item.comment"),
 		target: TargetSchema,
 		body: v.pipe(Body, v.minLength(1)),
+		discussion: v.optional(v.boolean()),
 	}),
 	v.object({
 		kind: v.literal("pr.create"),
@@ -303,6 +307,11 @@ function describe(op: Operation, byId: ReadonlyMap<string, { op: Operation }>): 
 			return `Assign ${describeTarget(op.target, byId)}: ${people}`;
 		}
 		case "item.state":
+			if (op.discussion) {
+				return op.state === "open"
+					? `Reopen discussion ${describeTarget(op.target, byId)}`
+					: `Close discussion ${describeTarget(op.target, byId)} as ${DISCUSSION_CLOSE[op.reason ?? "completed"]}`;
+			}
 			return op.state === "open"
 				? `Reopen ${describeTarget(op.target, byId)}`
 				: `Close ${describeTarget(op.target, byId)}${op.reason && op.reason !== "completed" ? ` as ${op.reason.replace("_", " ")}` : ""}`;

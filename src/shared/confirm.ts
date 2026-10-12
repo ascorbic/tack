@@ -1,5 +1,5 @@
 import type { Card, MissingCard } from "./cards.ts";
-import type { Operation } from "./changes.ts";
+import { DISCUSSION_CLOSE, type Operation } from "./changes.ts";
 
 // Confirming pushed changes: a change the forge accepted is `sent` until the
 // card shows it (from a webhook, or reconciliation), then `applied`.
@@ -40,7 +40,9 @@ export function reflects(op: Operation, card: Card | MissingCard): boolean | nul
 			if (card.state !== "closed" && card.state !== "merged") return false;
 			// Pull requests have no reason; issues closed without one are completed.
 			if (!op.reason || card.kind === "pull" || card.stateReason === null) return true;
-			return card.stateReason.toLowerCase() === op.reason;
+			// Discussions call the reasons something else: resolved, outdated.
+			const reason = card.kind === "discussion" ? DISCUSSION_CLOSE[op.reason] : op.reason;
+			return card.stateReason.toLowerCase() === reason;
 		}
 		case "item.milestone":
 		case "item.subIssue":

@@ -30,6 +30,23 @@ export interface RepoTarget {
 
 export type CloseReason = "completed" | "not_planned" | "duplicate";
 
+/**
+ * Writes that discussions take too (labels, closing and reopening, comments)
+ * say when their item is one, as staged from its card: a key alone can't
+ * tell (discussions share their repository's numbers), and on GitHub they're
+ * written through another API.
+ */
+export interface OnDiscussion {
+	discussion?: boolean;
+}
+
+/** What a discussion calls each reason for closing: resolved, outdated, duplicate. */
+export const DISCUSSION_CLOSE: Record<CloseReason, string> = {
+	completed: "resolved",
+	not_planned: "outdated",
+	duplicate: "duplicate",
+};
+
 /** A forge-neutral write. Adapters declare which kinds they support. */
 export type Operation =
 	| ({
@@ -40,10 +57,16 @@ export type Operation =
 			assignees?: string[];
 			milestone?: string;
 	  } & RepoTarget)
-	| { kind: "item.labels"; target: Target; add?: string[]; remove?: string[] }
+	| ({ kind: "item.labels"; target: Target; add?: string[]; remove?: string[] } & OnDiscussion)
 	| { kind: "item.milestone"; target: Target; milestone: string | null }
 	| { kind: "item.assignees"; target: Target; add?: string[]; remove?: string[] }
-	| { kind: "item.state"; target: Target; state: "open" | "closed"; reason?: CloseReason }
+	| ({
+			kind: "item.state";
+			target: Target;
+			state: "open" | "closed";
+			/** For a discussion: completed is resolved, not planned is outdated. */
+			reason?: CloseReason;
+	  } & OnDiscussion)
 	| {
 			kind: "item.subIssue";
 			parent: Target;
@@ -57,7 +80,7 @@ export type Operation =
 			previousParent?: string;
 	  }
 	| { kind: "item.blockedBy"; target: Target; blockedBy: Target }
-	| { kind: "item.comment"; target: Target; body: string }
+	| ({ kind: "item.comment"; target: Target; body: string } & OnDiscussion)
 	| ({
 			kind: "pr.create";
 			title: string;

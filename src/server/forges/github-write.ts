@@ -14,6 +14,7 @@
 // unanswered attempt made before making it again (`ApplyOptions.retryOf`).
 
 import type {
+	CloseReason,
 	ChangeProblem,
 	Operation,
 	PushAs,
@@ -536,6 +537,7 @@ async function applyOrFail(
 
 		case "item.labels": {
 			const target = item(op.target);
+			if (op.discussion) return labelDiscussion(op, repo, target, token);
 			const url = `${path}/issues/${target.number}`;
 			if (op.add?.length) {
 				// Adding is idempotent: labels already there stay as they are.
@@ -616,6 +618,7 @@ async function applyOrFail(
 
 		case "item.state": {
 			const target = item(op.target);
+			if (op.discussion) return closeDiscussion(op, repo, target, token);
 			const body =
 				op.state === "closed"
 					? { state: "closed", ...(op.reason ? { state_reason: op.reason } : {}) }
@@ -732,6 +735,7 @@ async function applyOrFail(
 
 		case "item.comment": {
 			const target = item(op.target);
+			if (op.discussion) return commentOnDiscussion(op, repo, target, token, options);
 			const url = `${path}/issues/${target.number}/comments`;
 			if (options.retryOf !== undefined) {
 				const since = new Date(options.retryOf - RETRY_SLACK_MS).toISOString();
@@ -1035,6 +1039,231 @@ async function createDiscussion(
 	);
 	// Discussions aren't cards: GitHub's answer is the confirmation.
 	return { ok: true, url: created.createDiscussion.discussion.url, confirmed: true };
+}
+
+// --- Writing to discussions ------------------------------------------------------
+//
+// Discussions have no REST API: labels, closing and reopening, and comments
+// go through GraphQL, by the discussion's node id (and labels' ids), looked
+// up by number first.
+
+const DISCUSSION_BY_NUMBER = `query TackDiscussion($owner: String!, $name: String!, $number: Int!, $labels: Int!) {
+	repository(owner: $owner, name: $name) {
+		discussion(number: $number) { id url closed labels(first: 100) { nodes { id name } } }
+		labels(first: $labels) { nodes { id name } }
+	}
+}`;
+
+interface DiscussionNode {
+	id: string;
+	url: string;
+	closed: boolean;
+	labels: { nodes: { id: string; name: string }[] };
+}
+
+/** The discussion a target is, with its labels and (if asked) the repository's. */
+async function discussionOf(
+	token: string,
+	repo: RepoIdentity,
+	target: Item,
+	what: string,
+	{ repoLabels = false } = {},
+): Promise<{ discussion: DiscussionNode; labels: { id: string; name: string }[] }> {
+	const [owner, name] = target.repo.split("/");
+	const data = await graphql<{
+		repository: {
+			discussion: DiscussionNode | null;
+			labels: { nodes: { id: string; name: string }[] } | null;
+		} | null;
+	}>(
+		token,
+		"TackDiscussion",
+		DISCUSSION_BY_NUMBER,
+		{ owner, name, number: target.number, labels: repoLabels ? 100 : 1 },
+		what,
+	);
+	const discussion = data.repository?.discussion;
+	if (!discussion) fail(`There's no discussion #${target.number} in ${repo.name}.`);
+	return { discussion, labels: data.repository?.labels?.nodes ?? [] };
+}
+
+async function labelDiscussion(
+	op: Extract<Operation, { kind: "item.labels" }>,
+	repo: RepoIdentity,
+	target: Item,
+	token: string,
+): Promise<ApplyResult> {
+	const what = `label discussion ${short(target)}`;
+	const { discussion, labels } = await discussionOf(token, repo, target, what, {
+		repoLabels: (op.add?.length ?? 0) > 0,
+	});
+	const byName = (list: { id: string; name: string }[], wanted: string) =>
+		list.find((label) => label.name.toLowerCase() === wanted.toLowerCase());
+	const add = (op.add ?? []).map((wanted) => {
+		const label = byName(labels, wanted);
+		// Issues make labels that don't exist yet; discussions can't.
+		if (!label) fail(`There's no label called “${wanted}” in ${repo.name} to add.`);
+		return label.id;
+	});
+	// A label that isn't there (any more) is nothing to remove.
+	const remove = (op.remove ?? []).flatMap((wanted) => {
+		const label = byName(discussion.labels.nodes, wanted);
+		return label ? [label.id] : [];
+	});
+	if (add.length > 0) {
+		await graphql(
+			token,
+			"TackLabelDiscussion",
+			`
+				mutation TackLabelDiscussion($id: ID!, $labels: [ID!]!) {
+					addLabelsToLabelable(input: { labelableId: $id, labelIds: $labels }) {
+						clientMutationId
+					}
+				}
+			`,
+			{ id: discussion.id, labels: add },
+			what,
+		);
+	}
+	if (remove.length > 0) {
+		await graphql(
+			token,
+			"TackUnlabelDiscussion",
+			`
+				mutation TackUnlabelDiscussion($id: ID!, $labels: [ID!]!) {
+					removeLabelsFromLabelable(input: { labelableId: $id, labelIds: $labels }) {
+						clientMutationId
+					}
+				}
+			`,
+			{ id: discussion.id, labels: remove },
+			what,
+		);
+	}
+	return { ok: true, key: target.key, url: discussion.url, confirmed: false };
+}
+
+/** Tack's reasons for closing, as GitHub's for discussions. */
+const DISCUSSION_REASONS: Record<CloseReason, string> = {
+	completed: "RESOLVED",
+	not_planned: "OUTDATED",
+	duplicate: "DUPLICATE",
+};
+
+async function closeDiscussion(
+	op: Extract<Operation, { kind: "item.state" }>,
+	repo: RepoIdentity,
+	target: Item,
+	token: string,
+): Promise<ApplyResult> {
+	const closing = op.state === "closed";
+	const what = `${closing ? "close" : "reopen"} discussion ${short(target)}`;
+	const { discussion } = await discussionOf(token, repo, target, what);
+	if (closing) {
+		await graphql(
+			token,
+			"TackCloseDiscussion",
+			`
+				mutation TackCloseDiscussion($id: ID!, $reason: DiscussionCloseReason) {
+					closeDiscussion(input: { discussionId: $id, reason: $reason }) {
+						discussion {
+							id
+						}
+					}
+				}
+			`,
+			{ id: discussion.id, reason: DISCUSSION_REASONS[op.reason ?? "completed"] },
+			what,
+		);
+	} else if (discussion.closed) {
+		await graphql(
+			token,
+			"TackReopenDiscussion",
+			`
+				mutation TackReopenDiscussion($id: ID!) {
+					reopenDiscussion(input: { discussionId: $id }) {
+						discussion {
+							id
+						}
+					}
+				}
+			`,
+			{ id: discussion.id },
+			what,
+		);
+	}
+	return { ok: true, key: target.key, url: discussion.url, confirmed: false };
+}
+
+async function commentOnDiscussion(
+	op: Extract<Operation, { kind: "item.comment" }>,
+	repo: RepoIdentity,
+	target: Item,
+	token: string,
+	options: ApplyOptions,
+): Promise<ApplyResult> {
+	const what = `comment on discussion ${short(target)}`;
+	const [owner, name] = target.repo.split("/");
+	const data = await graphql<{
+		repository: {
+			discussion: {
+				id: string;
+				comments: { nodes: { body: string; url: string; createdAt: string }[] };
+			} | null;
+		} | null;
+	}>(
+		token,
+		"TackDiscussionComments",
+		`
+			query TackDiscussionComments($owner: String!, $name: String!, $number: Int!) {
+				repository(owner: $owner, name: $name) {
+					discussion(number: $number) {
+						id
+						comments(last: 30) {
+							nodes {
+								body
+								url
+								createdAt
+							}
+						}
+					}
+				}
+			}
+		`,
+		{ owner, name, number: target.number },
+		what,
+	);
+	const discussion = data.repository?.discussion;
+	if (!discussion) fail(`There's no discussion #${target.number} in ${repo.name}.`);
+	if (options.retryOf !== undefined) {
+		const made = discussion.comments.nodes.find(
+			(comment) =>
+				comment.body.trim() === op.body.trim() &&
+				sinceRetry(comment.createdAt, options.retryOf ?? 0),
+		);
+		if (made) return { ok: true, key: target.key, url: made.url, confirmed: true };
+	}
+	const added = await graphql<{ addDiscussionComment: { comment: { url: string } } }>(
+		token,
+		"TackCommentOnDiscussion",
+		`
+			mutation TackCommentOnDiscussion($id: ID!, $body: String!) {
+				addDiscussionComment(input: { discussionId: $id, body: $body }) {
+					comment {
+						url
+					}
+				}
+			}
+		`,
+		{ id: discussion.id, body: op.body },
+		what,
+	);
+	return {
+		ok: true,
+		key: target.key,
+		url: added.addDiscussionComment.comment.url,
+		confirmed: true,
+	};
 }
 
 // --- Reading what writes need ---------------------------------------------------
