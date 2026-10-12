@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import {
+	EMPTY,
 	GROUP,
 	LIST,
 	MINI,
 	type SortableCard,
 	displayOf,
+	emptyState,
+	emptyWell,
 	insertionIndex,
 	keepInSection,
 	layoutDisplays,
@@ -196,14 +199,82 @@ describe("list layout", () => {
 		expect(slots.get("c")?.rect.y).toBe(200 + LIST.pad + (LIST.row + LIST.gap) * 2);
 	});
 
-	it("keeps a well to drop into when it's empty, and sits where a drag puts it", () => {
+	it("gives an empty list its empty state, and sits where a drag puts it", () => {
 		const { doc, section, layout } = board();
 		section("s", 0, 0, 200);
 		setDisplay(doc, ["s"], "list");
-		const box = layout({ at: (id) => (id === "s" ? { x: 50, y: 60 } : undefined) }).sections.get(
+		const list = layout({ at: (id) => (id === "s" ? { x: 50, y: 60 } : undefined) }).sections.get(
 			"s",
-		)?.box;
-		expect(box).toEqual({ x: 50, y: 60, w: LIST.minW, h: LIST.pad * 2 + LIST.empty });
+		);
+		const h = LIST.pad * 2 + emptyWell("list");
+		expect(list?.box).toEqual({ x: 50, y: 60, w: LIST.minW, h });
+		expect(list?.empty).toBe(true);
+		// Room for three rows and a line of words: a column you'll fill, not a strip.
+		expect(h).toBeGreaterThanOrEqual(160);
+		expect(h).toBeLessThanOrEqual(220);
+		const state = emptyState(list!);
+		expect(state?.placeholders).toHaveLength(EMPTY.rows);
+		expect(state?.placeholders[0]).toEqual({
+			x: 50 + LIST.pad,
+			y: 60 + LIST.pad,
+			w: LIST.minW - LIST.pad * 2,
+			h: LIST.row,
+		});
+		expect(state?.note).toEqual({
+			x: 50 + LIST.pad,
+			y: 60 + LIST.pad + EMPTY.rows * (LIST.row + LIST.gap) - LIST.gap,
+			w: LIST.minW - LIST.pad * 2,
+			h: EMPTY.note,
+		});
+	});
+
+	it("gives an empty grid a line of placeholder mini cards where its first will go", () => {
+		const { doc, section, sticky, layout } = board();
+		section("s", 0, 0, 600);
+		setDisplay(doc, ["s"], "mini");
+		const list = layout().sections.get("s")!;
+		expect(list.box.h).toBe(MINI.pad * 2 + MINI.tileH + EMPTY.note);
+		expect(list.box.h).toBeGreaterThanOrEqual(160);
+		const placeholders = emptyState(list)?.placeholders ?? [];
+		expect(placeholders).toHaveLength(4);
+		sticky("a", 20, 20, "s");
+		const filled = layout();
+		expect(filled.slots.get("a")?.rect).toEqual(placeholders[0]);
+		expect(filled.sections.get("s")?.empty).toBe(false);
+		expect(emptyState(filled.sections.get("s")!)).toBeNull();
+	});
+
+	it("keeps its empty state while something's held over it, and shrinks to its rows once in", () => {
+		const { doc, section, sticky, layout } = board();
+		section("s", 0, 0, 400);
+		setDisplay(doc, ["s"], "list");
+		const empty = LIST.pad * 2 + emptyWell("list");
+		// One held over it: the gap opens on the first placeholder, and it stays as tall.
+		const held = layout({ gap: { section: "s", index: 0, count: 1 } }).sections.get("s")!;
+		expect(held.box.h).toBe(empty);
+		expect(emptyState(held, 1)?.placeholders).toHaveLength(EMPTY.rows);
+		// More than it has placeholders for: as tall as they are, with no room for words.
+		const many = layout({ gap: { section: "s", index: 0, count: 6 } }).sections.get("s")!;
+		expect(many.box.h).toBe(LIST.pad * 2 + LIST.row * 6 + LIST.gap * 5);
+		expect(emptyState(many, 6)?.placeholders).toHaveLength(6);
+		expect(emptyState(many, 6)?.note.h).toBe(0);
+		// In: just its row.
+		sticky("a", 20, 20, "s");
+		expect(layout().sections.get("s")?.box.h).toBe(LIST.pad * 2 + LIST.row);
+		// Its only row dragged out: a slim well, not the empty state, until it's gone.
+		const out = layout({ exclude: new Set(["a"]) }).sections.get("s")!;
+		expect(out.box.h).toBe(LIST.pad * 2 + LIST.empty);
+		expect(emptyState(out)).toBeNull();
+	});
+
+	it("keeps an empty group inside a list slim", () => {
+		const { doc, section, layout } = board();
+		section("outer", 0, 0, 640, 800);
+		section("inner", 20, 300, 400, 300, "outer");
+		setDisplay(doc, ["outer"], "list");
+		const inner = layout().sections.get("inner")!;
+		expect(inner.box.h).toBe(GROUP.head + GROUP.pad * 2 + LIST.row);
+		expect(emptyState(inner)).toBeNull();
 	});
 
 	it("holds a gap open for what's being dragged in, and leaves out what's being dragged", () => {

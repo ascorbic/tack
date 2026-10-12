@@ -40,7 +40,7 @@ export const LIST = {
 	/** A list is never narrower or wider than this, whatever its section's width. */
 	minW: 320,
 	maxW: 600,
-	/** An empty list's well, for dropping into. */
+	/** The well a list keeps while everything in it is being dragged out. */
 	empty: 64,
 } as const;
 
@@ -53,6 +53,23 @@ export const MINI = {
 	tileH: 82,
 	minW: 300,
 } as const;
+
+/**
+ * An empty list or grid's empty state: a few placeholder rows (or a line of
+ * placeholder mini cards) just where the first things dropped in will go,
+ * and room beneath them for a line saying what goes there. Tall enough to
+ * read as a column waiting to be filled, so a fresh board from a template
+ * doesn't look unfinished. Only a list or grid with nothing in it at all
+ * has one: one whose rows are only being dragged out keeps a slim well.
+ */
+export const EMPTY = { rows: 3, note: 60 } as const;
+
+/** How tall an empty list or grid's empty state is, inside its padding. */
+export function emptyWell(mode: "list" | "mini"): number {
+	const placeholders =
+		mode === "mini" ? MINI.tileH : EMPTY.rows * LIST.row + (EMPTY.rows - 1) * LIST.gap;
+	return placeholders + EMPTY.note;
+}
 
 /** A section nested in a list or grid: a header row, then its contents. */
 export const GROUP = { head: 30, pad: 6 } as const;
@@ -79,6 +96,11 @@ export interface SectionLayout {
 	order: string[];
 	/** Nested in another list or grid (drawn as a group). */
 	nested: boolean;
+	/**
+	 * Nothing's in it at all, not even something being dragged out of it: an
+	 * outermost one shows its empty state (`emptyState`).
+	 */
+	empty: boolean;
 	/** Where a gap is held open for something being dragged in, if anywhere. */
 	gap?: { index: number; count: number };
 }
@@ -290,13 +312,14 @@ function layoutSection(
 	frame: { x: number; y: number; w: number },
 	nested: boolean,
 ): number {
-	const children = (structure.children.get(id) ?? []).filter(
+	const contents = (structure.children.get(id) ?? []).filter(
 		(child) =>
-			!options.exclude?.has(child) &&
 			shapes.get(child)?.type !== "connector" &&
 			// A stacked sticky shows as part of its stack's row (stacks.ts).
 			!isStacked(shapes, child),
 	);
+	const children = contents.filter((child) => !options.exclude?.has(child));
+	const empty = contents.length === 0;
 	const order = sortItems(
 		shapes,
 		manualOrder(shapes, children),
@@ -377,13 +400,18 @@ function layoutSection(
 	if (gap && gap.index >= order.length) placeGap(gap.count);
 	newLine();
 
+	// The last row's or grid line's trailing gap gives way to the padding.
+	const filled = y === top ? top : y - (mode === "mini" ? MINI.gap : LIST.gap);
 	let bottom: number;
-	if (y === top) {
-		// Nothing in it: a well to drop into (a nested one stays slim).
+	if (empty && !nested) {
+		// Its empty state, which a gap held open for a drop opens up inside
+		// (its placeholders are where the gap's rows go) until it needs more.
+		bottom = Math.max(filled, top + emptyWell(mode)) + pad;
+	} else if (y === top) {
+		// Everything in it is being dragged out (or it's a group): a slim well.
 		bottom = top + (nested ? LIST.row : LIST.empty) + pad;
 	} else {
-		// The last row's or grid line's trailing gap gives way to the padding.
-		bottom = y - (mode === "mini" ? MINI.gap : LIST.gap) + pad;
+		bottom = filled + pad;
 	}
 	const height = bottom - frame.y;
 	out.sections.set(id, {
@@ -392,9 +420,58 @@ function layoutSection(
 		box: { x: frame.x, y: frame.y, w: frame.w, h: height },
 		order,
 		nested,
+		empty,
 		...(gap && { gap: { index: Math.min(gap.index, order.length), count: gap.count } }),
 	});
 	return height;
+}
+
+/** What an empty list or grid shows, in board units: its placeholders, and where its words go. */
+export interface EmptyState {
+	/** Placeholder rows or mini cards, where the first rows or mini cards will be. */
+	placeholders: Rect[];
+	/** The room beneath them, for a line saying what goes here. */
+	note: Rect;
+}
+
+/**
+ * An outermost list or grid with nothing in it: placeholders where its first
+ * rows (three) or mini cards (a line of them) will go, laid out exactly as
+ * they will be, and room for its words beneath. While `dropping` things are
+ * held over it, there are at least as many placeholders as there are things
+ * (just where the gap for them opens), and the words get what room is left.
+ * Null for anything else.
+ */
+export function emptyState(list: SectionLayout, dropping = 0): EmptyState | null {
+	if (!list.empty || list.nested) return null;
+	const { box, mode } = list;
+	const pad = mode === "list" ? LIST.pad : MINI.pad;
+	const x = box.x + pad;
+	const y = box.y + pad;
+	const w = box.w - pad * 2;
+	const placeholders: Rect[] = [];
+	if (mode === "list") {
+		for (let i = 0; i < Math.max(EMPTY.rows, dropping); i++) {
+			placeholders.push({ x, y: y + i * (LIST.row + LIST.gap), w, h: LIST.row });
+		}
+	} else {
+		const columns = Math.max(1, Math.floor((w + MINI.gap) / (MINI.tile + MINI.gap)));
+		const tileW = (w - MINI.gap * (columns - 1)) / columns;
+		const lines = Math.max(1, Math.ceil(dropping / columns));
+		for (let i = 0; i < columns * lines; i++) {
+			const line = Math.floor(i / columns);
+			placeholders.push({
+				x: x + (i % columns) * (tileW + MINI.gap),
+				y: y + line * (MINI.tileH + MINI.gap),
+				w: tileW,
+				h: MINI.tileH,
+			});
+		}
+	}
+	const last = placeholders.at(-1) as Rect;
+	const noteY = last.y + last.h;
+	const noteH = Math.max(0, box.y + box.h - pad - noteY);
+	return { placeholders, note: { x, y: noteY, w, h: noteH } };
 }
 
 /**
