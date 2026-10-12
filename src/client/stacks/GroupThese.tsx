@@ -9,7 +9,7 @@ import { transactLocal } from "../undo.ts";
 import { type GroupAnswer, groupFailure, stackStore } from "./store.ts";
 import { SparkIcon } from "./StackNode.tsx";
 
-// "Group these" (#73): stacks the board's AI proposes for a selection of
+// Auto-stack (#73, `groupThese`): stacks the board's AI proposes for a selection of
 // stickies (and, if asked, the cards selected with them: "Include cards"),
 // or of issues and pull requests on their own, previewed before anything's
 // written. The board marks each proposed stack's stickies in its colour
@@ -134,7 +134,7 @@ export function GroupThese({
 	const title = (
 		<span className="group-title">
 			<SparkIcon />
-			Group these
+			Auto-stack
 		</span>
 	);
 

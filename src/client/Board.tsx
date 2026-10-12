@@ -718,7 +718,7 @@ export function Board({
 			if (armed && dragged.includes(base.id)) {
 				className = `${className ?? ""} stack-joining`.trim();
 			}
-			// "Group these" being previewed: its stickies ringed and numbered.
+			// Auto-stack being previewed: its stickies ringed and numbered.
 			const proposed = proposalOf.get(base.id);
 			if (proposed) className = `${className ?? ""} stack-proposed`.trim();
 			const morph = display.morphing.get(base.id);

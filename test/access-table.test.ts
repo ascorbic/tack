@@ -589,7 +589,7 @@ describe("the access table: board messages", () => {
 		expect(received(viewer, "silent-refused")[0]?.reason).toBe("not_editor");
 	});
 
-	it("stack-group (Group these): editors only; strangers and viewers are refused", async () => {
+	it("stack-group (Auto-stack): editors only; strangers and viewers are refused", async () => {
 		const viewer = await open("viewer");
 		viewer.send({ type: "stack-group", request: "r1", ids: ["a", "b", "c"] });
 		const stranger = await open("stranger", publicBoard);

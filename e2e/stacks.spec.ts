@@ -7,7 +7,7 @@ import { expect, openScenario, test } from "./fixtures.ts";
 // members, and only its name zoomed out); ✓ keeps a suggested name; stacks
 // open into a tray and gather back; issues and pull requests stack too, and
 // a stack of them becomes a parent issue with its issues as sub-issues;
-// "Group these" previews stacks for a selection (cards too, if asked) before
+// Auto-stack previews stacks for a selection (cards too, if asked) before
 // making them.
 
 interface Shape {
@@ -205,7 +205,7 @@ test("a stack's name is a person's once they write one, and never replaced", asy
 		.toBeTruthy();
 });
 
-test("Group these proposes named stacks, previewed on the board, made in one undo step", async ({
+test("Auto-stack proposes named stacks, previewed on the board, made in one undo step", async ({
 	page,
 }) => {
 	const texts = [
@@ -225,8 +225,8 @@ test("Group these proposes named stacks, previewed on the board, made in one und
 	}
 	await page.keyboard.up("Shift");
 	const bar = page.getByRole("toolbar", { name: "Stage changes" });
-	await bar.getByRole("button", { name: "Group these into named stacks" }).click();
-	const panel = page.getByRole("dialog", { name: "Group these into named stacks" });
+	await bar.getByRole("button", { name: "Auto-stack: sort these into named stacks" }).click();
+	const panel = page.getByRole("dialog", { name: "Auto-stack: sort these into named stacks" });
 	await expect(panel.getByRole("textbox", { name: "Name of stack 1" })).toBeVisible();
 	// The board marks what each proposed stack would take.
 	await expect(page.locator(".react-flow__node.stack-proposed")).toHaveCount(6);
@@ -349,7 +349,7 @@ test("Unstack lays a stack's stickies out where it was", async ({ page }) => {
 	}
 });
 
-test("Group these leaves cards out unless asked to include them", async ({ page }) => {
+test("Auto-stack leaves cards out unless asked to include them", async ({ page }) => {
 	await selectAll(page, [
 		sticky(page, "CI takes 25 minutes"),
 		sticky(page, "Flaky e2e on Windows"),
@@ -357,7 +357,7 @@ test("Group these leaves cards out unless asked to include them", async ({ page 
 		cardNode(page, "Dev server lags"),
 	]);
 	await page.keyboard.press("Alt+Shift+KeyG");
-	const panel = page.getByRole("dialog", { name: "Group these into named stacks" });
+	const panel = page.getByRole("dialog", { name: "Auto-stack: sort these into named stacks" });
 	await expect(panel.getByRole("textbox", { name: "Name of stack 1" })).toHaveValue(
 		"Unreliable CI",
 	);
@@ -386,9 +386,11 @@ test("issues and pull requests on their own are grouped, with nothing to tick", 
 		cardNode(page, "perf: cache srcset"),
 	]);
 	const bar = page.getByRole("toolbar", { name: "Stage changes" });
-	await expect(bar.getByRole("button", { name: "Group these into named stacks" })).toHaveCount(1);
+	await expect(
+		bar.getByRole("button", { name: "Auto-stack: sort these into named stacks" }),
+	).toHaveCount(1);
 	await page.keyboard.press("Alt+Shift+KeyG");
-	const panel = page.getByRole("dialog", { name: "Group these into named stacks" });
+	const panel = page.getByRole("dialog", { name: "Auto-stack: sort these into named stacks" });
 	await expect(panel.getByRole("textbox", { name: "Name of stack 1" })).toHaveValue(
 		"Thin release notes",
 	);
@@ -401,9 +403,7 @@ test("issues and pull requests on their own are grouped, with nothing to tick", 
 	await expect.poll(async () => (await stacks(page)).length).toBe(before + 1);
 });
 
-test("with AI suggestions off, stacks are Untitled and there's no Group these", async ({
-	page,
-}) => {
+test("with AI suggestions off, stacks are Untitled and there's no Auto-stack", async ({ page }) => {
 	await page.getByRole("radiogroup", { name: "AI suggestions" }).getByText("Off").click();
 	await dragOnto(page, sticky(page, "A logo?"), sticky(page, "Getting started guide"), 700);
 	await expect(stackNode(page, "Untitled stack")).toBeVisible();
@@ -417,7 +417,9 @@ test("with AI suggestions off, stacks are Untitled and there's no Group these", 
 	await page.keyboard.up("Shift");
 	const bar = page.getByRole("toolbar", { name: "Stage changes" });
 	await expect(bar.getByRole("button", { name: "Stack these" })).toBeVisible();
-	await expect(bar.getByRole("button", { name: "Group these into named stacks" })).toHaveCount(0);
+	await expect(
+		bar.getByRole("button", { name: "Auto-stack: sort these into named stacks" }),
+	).toHaveCount(0);
 });
 
 test("a stack of only private cards is untitled for a person to name, never Naming… forever", async ({

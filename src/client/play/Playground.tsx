@@ -113,7 +113,7 @@ export default function Playground() {
 		Object.assign(window, { tackFacilitator: facilitator });
 		return uninstall;
 	}, [facilitator, scenario]);
-	// The board's server for stacks (#73): names and "Group these", with a fake model.
+	// The board's server for stacks (#73): names and Auto-stack, with a fake model.
 	const stacks = useMemo(() => new SimulatedStacks(sim.doc), [sim]);
 	const [stackAi, setStackAi] = useState<StackAiMode>("on");
 	useEffect(() => {
@@ -761,9 +761,9 @@ export default function Playground() {
 						</div>
 						<p className="play-hint">
 							A stand-in model names stacks from their stickies’ words. Hold a dragged sticky over
-							another to stack them; select three or more and Group these. It also proposes widgets
-							(W, then describe one), and summarises (⌥⇧S) or drafts a decision (⌥⇧D) from what’s
-							selected.
+							another to stack them; select three or more and Auto-stack them. It also proposes
+							widgets (W, then describe one), and summarises (⌥⇧S) or drafts a decision (⌥⇧D) from
+							what’s selected.
 						</p>
 					</div>
 

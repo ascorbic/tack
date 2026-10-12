@@ -256,7 +256,7 @@ export function setStackName(doc: Y.Doc, stack: string, name: string): void {
 	});
 }
 
-// --- Grouping a selection ("Group these") ------------------------------------------------
+// --- Grouping a selection (Auto-stack) --------------------------------------------------
 
 /** Stacks proposed for some stickies: a name, and which stickies, best first. */
 export interface ProposedStack {

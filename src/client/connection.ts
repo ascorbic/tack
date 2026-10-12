@@ -183,7 +183,7 @@ export function useLiveBoard(name: string, events: LiveBoardEvents = {}): BoardS
 			if (provider.wsconnected) provider.sendMessage(JSON.stringify(message));
 		};
 		facilitation.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
-		// Stacks' suggestions and "Group these" (#73).
+		// Stacks' suggestions and Auto-stack (#73).
 		stackStore.reset();
 		stackStore.channel = { send: (request) => provider.sendMessage(JSON.stringify(request)) };
 		// Comments and "since you were here" (#51, #46) travel on the same channel.

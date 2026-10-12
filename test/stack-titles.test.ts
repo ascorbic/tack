@@ -226,7 +226,7 @@ describe("names from cards", () => {
 		expect(lastNamed()).not.toContain(SECRET_TITLE);
 	});
 
-	it("Group these sends only the titles that may be shared, and says how many weren't", async () => {
+	it("Auto-stack sends only the titles that may be shared, and says how many weren't", async () => {
 		const id = await board("private");
 		await invite(id, "bob");
 		const client = await open(id, alice);

@@ -27,7 +27,7 @@ import { log } from "./log.ts";
 // (stickies' visible text, and the titles of cards that everyone who can see
 // the board can read: the name is everyone's, so it mustn't carry a title
 // some of them can't see; the board decides, with `cardTitles`),
-// and "Group these", asked of Workers AI (`askModel`, src/server/ai.ts) while AI
+// and Auto-stack, asked of Workers AI (`askModel`, src/server/ai.ts) while AI
 // suggestions are on (`TACK_AI`, on by default). The naming itself (what's
 // sent, when, caching, the budget) is `StackNamer`, shared with the
 // playground; here it gets its model, a cache in the board's SQLite, and the
@@ -175,7 +175,7 @@ export class Stacks {
 		}
 	}
 
-	/** "Group these": stacks proposed for the stickies a connection selected, back to it alone. */
+	/** Auto-stack: stacks proposed for the stickies a connection selected, back to it alone. */
 	async receive(connection: Connection<ConnectionAccess>, request: StackRequest): Promise<void> {
 		const { board } = this.options;
 		const access = connection.state;

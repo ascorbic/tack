@@ -463,18 +463,18 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
 	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
-	// 27, and Group these' eight (#73): one with cards included, two of cards alone.
+	// 27, and Auto-stack's eight (#73): one with cards included, two of cards alone.
 	await expect(page.locator(".action-popover")).toHaveCount(35);
 	await expect(
 		page
-			.getByRole("dialog", { name: "Group these: Cards included" })
+			.getByRole("dialog", { name: "Auto-stack: Cards included" })
 			.getByRole("checkbox", { name: /Include cards/ }),
 	).toBeChecked();
 	// Too few to group once the cards whose titles can't be shared are left out: it says so.
 	await expect(
-		page.getByRole("dialog", { name: "Group these: Too few, once private cards are left out" }),
+		page.getByRole("dialog", { name: "Auto-stack: Too few, once private cards are left out" }),
 	).toContainText("2 cards were left out, as their titles can’t be shared");
-	const unreadable = page.getByRole("dialog", { name: "Group these: Nothing everyone can read" });
+	const unreadable = page.getByRole("dialog", { name: "Auto-stack: Nothing everyone can read" });
 	await expect(unreadable).toContainText("Tack can only group what everyone here can read");
 	await expect(unreadable.getByRole("checkbox")).toHaveCount(0);
 	// Parent issues over what already has one: add to it, move them, or leave them.

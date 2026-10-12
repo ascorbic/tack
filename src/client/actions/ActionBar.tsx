@@ -197,7 +197,7 @@ export function ActionBar(props: ActionBarProps) {
 	const cardData = useCards(keys);
 	const kinds = useMemo(() => classify(selected, cardData), [selected, cardData]);
 	const { stickies, cards, cardNodes, sections, stacks, others } = kinds;
-	// Whether the board's AI suggestions are on, for Group these (#73).
+	// Whether the board's AI suggestions are on, for Auto-stack (#73).
 	const { ai } = useStacks();
 	// The connector between two selected issues (or stickies), for blocked-by.
 	const pairKey =
@@ -354,9 +354,9 @@ export function ActionBar(props: ActionBarProps) {
 			);
 			out.push({
 				id: "groupThese",
-				label: "Group these into named stacks",
+				label: "Auto-stack: sort these into named stacks",
 				icon: <SparkIcon />,
-				text: "Group these",
+				text: "Auto-stack",
 				unavailable:
 					readable.length + cardNodes.length >= 3
 						? undefined

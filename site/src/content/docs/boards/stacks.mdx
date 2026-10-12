@@ -42,9 +42,9 @@ Click a stack's name to give it one of your own, or keep the suggestion with the
 
 Names come from the instance's [AI suggestions](#ai-suggestions). Without them, a stack is "Untitled stack" until someone names it.
 
-## Group these
+## Auto-stack
 
-Select three or more stickies, issues or pull requests and choose **Group these** (<kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>G</kbd>). Tack reads them and proposes stacks, each with a name. Before anything changes, you see the proposal: what goes in each stack is ringed and numbered on the board, and the panel lists it. Rename a stack, leave something out, or drop a stack, then **Make** them, in one undo step. Whatever fits no stack stays where it is. **Try again** asks for another proposal.
+Select three or more stickies, issues or pull requests and choose **Auto-stack** (<kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>G</kbd>). Tack reads them and proposes stacks, each with a name. Before anything changes, you see the proposal: what goes in each stack is ringed and numbered on the board, and the panel lists it. Rename a stack, leave something out, or drop a stack, then **Make** them, in one undo step. Whatever fits no stack stays where it is. **Try again** asks for another proposal.
 
 Cards selected with the stickies stay out of it unless you tick **Include cards**: themes usually come from what people wrote. Select only issues and pull requests and they're what's grouped. A card whose title can't be shared with everyone on the board (see below) is left out, and the panel says so; Tack can only group what everyone there can read.
 
@@ -54,8 +54,8 @@ Select a stack and choose **Make parent issue**: its name is the parent issue's 
 
 ## Silent mode
 
-A face-down sticky in a [silent](/facilitation/silent-mode/) section can be stacked like any other: it stays face down on the stack until the reveal, a line that says only "Face down". Its text isn't on the board until then, so it never lends a stack its words, and Group these leaves it out.
+A face-down sticky in a [silent](/facilitation/silent-mode/) section can be stacked like any other: it stays face down on the stack until the reveal, a line that says only "Face down". Its text isn't on the board until then, so it never lends a stack its words, and Auto-stack leaves it out.
 
 ## AI suggestions
 
-Names and Group these come from a language model running on the instance's own Cloudflare account ([Workers AI](/self-hosting/configuration/#ai-suggestions)), on by default. Only stickies' visible text is sent, and the titles of issues and pull requests that everyone who can see the board can read: a name is seen by everyone, so it mustn't give away a title some of them can't see. That's a card from a public repository, or, on a board only its members can open, one every member can read. Never face-down stickies, comments or anything else. A card whose title can't be shared still counts toward its stack, and its line on the stack shows it only to those who can read it. Each board limits how often it asks, and a stack whose text hasn't changed is never asked about twice. An instance can turn them off.
+Names and Auto-stack come from a language model running on the instance's own Cloudflare account ([Workers AI](/self-hosting/configuration/#ai-suggestions)), on by default. Only stickies' visible text is sent, and the titles of issues and pull requests that everyone who can see the board can read: a name is seen by everyone, so it mustn't give away a title some of them can't see. That's a card from a public repository, or, on a board only its members can open, one every member can read. Never face-down stickies, comments or anything else. A card whose title can't be shared still counts toward its stack, and its line on the stack shows it only to those who can read it. Each board limits how often it asks, and a stack whose text hasn't changed is never asked about twice. An instance can turn them off.

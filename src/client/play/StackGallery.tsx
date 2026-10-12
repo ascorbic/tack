@@ -13,7 +13,7 @@ import { STACK_CARDS } from "./stacks.ts";
 
 // Stacks (#73) for the galleries: every state of the stack's theme card on
 // the board, issues and pull requests in it too, close up and zoomed out
-// (/play/cards), and Group these' panel (/play/actions).
+// (/play/cards), and Auto-stack's panel (/play/actions).
 
 const PRIYA = { name: "Priya Shah", color: "#b4467a" };
 const KAI = { name: "Kai Andersen", color: "#1f7a6b" };
@@ -305,12 +305,12 @@ const PANELS: {
 	{ label: "Rate limited", preview: { ok: false, reason: "limited" } },
 ];
 
-/** Group these' panel, for the actions gallery. */
+/** Auto-stack's panel, for the actions gallery. */
 export function GroupTheseGallery() {
 	const [doc] = useState(() => new Y.Doc());
 	return (
 		<section>
-			<h2>Group these</h2>
+			<h2>Auto-stack</h2>
 			<div className="gallery-grid actions-panels">
 				{PANELS.map(({ label, preview, cards, onlyCards }) => (
 					<figure key={label}>
@@ -319,7 +319,7 @@ export function GroupTheseGallery() {
 							data-static
 							data-wide
 							role="dialog"
-							aria-label={`Group these: ${label}`}
+							aria-label={`Auto-stack: ${label}`}
 						>
 							<GroupThese
 								doc={doc}

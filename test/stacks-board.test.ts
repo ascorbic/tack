@@ -1,7 +1,7 @@
 // Stacks' names (#73) on a real board in Miniflare, with a fake Workers AI:
 // suggestions are on by default and off with TACK_AI=off or without the AI
 // binding, a name a person gave a stack is never replaced, silent mode's
-// hidden text never reaches the model, and "Group these" answers editors
+// hidden text never reaches the model, and Auto-stack answers editors
 // alone.
 
 import type { Miniflare } from "miniflare";
@@ -192,7 +192,7 @@ describe("AI suggestions", () => {
 	});
 });
 
-describe("Group these", () => {
+describe("Auto-stack", () => {
 	it("proposes stacks to the editor who asked, and refuses viewers", async () => {
 		const id = await board();
 		const editor = await open(id, eddie);

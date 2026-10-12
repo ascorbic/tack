@@ -3,7 +3,7 @@ import type { ProposedStack } from "../../shared/stackEdits.ts";
 import type { StackMessage, StackRequest } from "../../shared/stackNamer.ts";
 
 // Stacks on the client (#73): what's this person's own (which stack they've
-// opened, a "Group these" proposal they're looking at) and what the board's
+// opened, an Auto-stack proposal they're looking at) and what the board's
 // server says (whether AI suggestions are on, and its answers). Opening a
 // stack is a way of looking, so it's never in the document: someone else's
 // stack stays a neat stack for you while they read theirs spread out.
@@ -39,7 +39,7 @@ export interface StackSnapshot {
 	ai: boolean | null;
 	/** The stack spread open here, if any: one at a time. */
 	open: string | null;
-	/** "Group these" stacks being previewed here, before they're made: the board marks their stickies. */
+	/** Auto-stack's stacks being previewed here, before they're made: the board marks their stickies. */
 	proposal: readonly ProposedStack[] | null;
 }
 
@@ -137,7 +137,7 @@ export function isStackMessage(message: { type?: unknown }): message is StackMes
 }
 
 /**
- * Why "Group these" didn’t, in words. `withheld` is how many cards were left
+ * Why Auto-stack didn’t, in words. `withheld` is how many cards were left
  * out because their titles can't be shared with everyone here: when there
  * are too few, that's likely why, and if that's all of the `asked`, it's
  * certainly why.

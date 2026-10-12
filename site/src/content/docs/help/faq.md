@@ -43,7 +43,7 @@ Yes, beside GitHub. Every instance reads public projects on gitlab.com, codeberg
 
 ## Does Tack use AI?
 
-Only where it helps and you can see it: naming [stacks](/boards/stacks/), grouping a selection into themes, and, when an editor asks, setting up a widget from a sentence, summarising a selection or drafting a decision. It runs on Workers AI in the instance's own Cloudflare account, reads only what the person asking can read, and shows everything before it goes on the board. An instance can turn it off. See [AI](/boards/ai/).
+Only where it helps and you can see it: naming [stacks](/boards/stacks/), sorting a selection or a section into named stacks (Auto-stack), and, when an editor asks, setting up a widget from a sentence, summarising a selection or drafting a decision. It runs on Workers AI in the instance's own Cloudflare account, reads only what the person asking can read, and shows everything before it goes on the board. An instance can turn it off. See [AI](/boards/ai/).
 
 ## Can I export a board?
 

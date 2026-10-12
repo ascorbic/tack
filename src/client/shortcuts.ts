@@ -448,10 +448,10 @@ export const SHORTCUTS: Shortcut[] = [
 	},
 	{
 		id: "groupThese",
-		label: "Group these into named stacks (AI)",
+		label: "Auto-stack (AI)",
 		group: "Arrange",
 		combos: [{ code: "KeyG", alt: true, shift: true }],
-		keywords: "group these stack cluster theme ai suggest sort",
+		keywords: "auto-stack autostack group these named stacks cluster theme ai suggest sort section",
 	},
 	{
 		id: "unstack",

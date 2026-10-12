@@ -261,7 +261,7 @@ export class Board extends YServer<Env> {
 	private awarenessTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Compacting very old documents, and keeping old copies of them out (#60). */
 	private compaction: BoardCompaction | null = null;
-	/** Stacks' suggested names and "Group these" (#73). */
+	/** Stacks' suggested names and Auto-stack (#73). */
 	private stacks: Stacks | null = null;
 
 	override async fetch(request: Request): Promise<Response> {

@@ -13,7 +13,7 @@ import { fixture } from "./fixtures.ts";
 // Stacks on /play (#73): `?scenario=stacks` seeds a planning session's
 // theming, issues and pull requests among the stickies, and
 // `SimulatedStacks` stands in for the board's server, naming stacks and
-// answering "Group these" with the same stand-in local dev uses
+// answering Auto-stack with the same stand-in local dev uses
 // (fakeStackAi.ts), in the browser. As the server does, it only names from
 // the titles of cards everyone could read (here, a public repository's), and
 // marks a stack of only private cards as one it can't name. Its
@@ -156,7 +156,7 @@ export function seedStacks(doc: Y.Doc): void {
 		];
 		const named = stackUp(doc, perf[0] as string, perf.slice(1));
 		if (named) setStackName(doc, named, "Big sites are slow");
-		// And one Group these made: its name's a suggestion until someone keeps it.
+		// And one Auto-stack made: its name's a suggestion until someone keeps it.
 		const onboarding = [
 			sticky(doc, "First-time contributors don't know where to start", "purple", 1080, 420, 3),
 			sticky(doc, "Newcomers bounce off the monorepo setup", "purple", 1100, 440, 0),
@@ -219,7 +219,7 @@ export class SimulatedStacks {
 		private readonly remote: RemoteAi | null = null,
 	) {}
 
-	/** Start naming, and answer the board's "Group these". Returns a function to stop. */
+	/** Start naming, and answer the board's Auto-stack. Returns a function to stop. */
 	install(): () => void {
 		const fake = this.remote ? withRemote(this.remote, fakeStackAi(200)) : fakeStackAi(600);
 		const slow = fakeStackAi(4000);

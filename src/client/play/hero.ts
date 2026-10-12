@@ -66,7 +66,7 @@ export function seedHero(doc: Y.Doc): void {
 		// Live cards: an issue with labels, and a pull request with CI running and a review asked for.
 		card(doc, issue, 32, 40);
 		card(doc, pull, 32, 212);
-		// A stack Group these made, its name a suggestion until someone keeps it.
+		// A stack Auto-stack made, its name a suggestion until someone keeps it.
 		const theme = [
 			sticky(doc, "CDN detection fails for custom domains", "pink", "kai", 320, 40),
 			sticky(doc, "Need a fallback when the CDN isn’t recognised", "blue", "tom", 320, 40),

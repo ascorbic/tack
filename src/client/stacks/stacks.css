@@ -786,7 +786,7 @@ button.stack-name:hover {
 	stroke: none;
 }
 
-/* "Group these" ------------------------------------------------------------ */
+/* Auto-stack -------------------------------------------------------------- */
 
 /* Each proposed stack's colour, in the panel: the section palette's ink,
    readable on any paper. On the board, Board sets --proposal itself. */
@@ -1105,7 +1105,7 @@ button.stack-name:hover {
 	position: absolute;
 }
 
-/* Group these: whether the cards selected with the stickies join in. */
+/* Auto-stack: whether the cards selected with the stickies join in. */
 .group-include {
 	display: flex;
 	align-items: center;
