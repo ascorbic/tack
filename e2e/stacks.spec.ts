@@ -402,7 +402,6 @@ test("issues and pull requests on their own are grouped, with nothing to tick", 
 	await expect(panel.getByRole("checkbox", { name: /Include cards/ })).toHaveCount(0);
 	await expect(page.locator(".react-flow__node.stack-proposed")).toHaveCount(3);
 	await expect(panel.getByText("2 cards stay where they are.")).toBeVisible();
-	await page.screenshot({ path: "/private/tmp/claude-501/group-cards/cards-only.png" });
 	const before = (await stacks(page)).length;
 	await panel.getByRole("button", { name: "Make the stack" }).click();
 	await expect.poll(async () => (await stacks(page)).length).toBe(before + 1);
@@ -433,7 +432,6 @@ test("Auto-stack on a section stacks what's loose in it, inside it, in one undo 
 	await expect(page.locator(".react-flow__node.stack-proposed")).toHaveCount(10);
 	await expect(panel.getByText("3 items stay where they are.")).toBeVisible();
 	await expect(panel).toContainText("in “What should 5.0 fix?”");
-	await page.screenshot({ path: "/private/tmp/claude-501/group-cards/section-preview.png" });
 	await panel.getByRole("button", { name: "Make 3 stacks" }).click();
 	await expect(panel).toHaveCount(0);
 	await expect.poll(async () => (await stacks(page)).length).toBe(before + 3);
@@ -441,7 +439,6 @@ test("Auto-stack on a section stacks what's loose in it, inside it, in one undo 
 	expect(made.filter((s) => s.parent === section?.id).length).toBeGreaterThanOrEqual(3);
 	await expect(sticky(page, "A logo?")).toBeVisible();
 	await expect(cardNode(page, "Dev server lags")).toBeVisible();
-	await page.screenshot({ path: "/private/tmp/claude-501/group-cards/section-made.png" });
 
 	await page.keyboard.press("ControlOrMeta+z");
 	await expect.poll(async () => (await stacks(page)).length).toBe(before);

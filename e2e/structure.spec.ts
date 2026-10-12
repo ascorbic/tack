@@ -298,7 +298,6 @@ test("a card dropped over a section's edge grows it, and undo takes both back", 
 		x: before.section.x + 34,
 		y: before.section.y + before.section.h - height / 2 - 20,
 	};
-	await page.screenshot({ path: "/private/tmp/claude-501/sections/grow-before.png" });
 	await drag(
 		page,
 		{ x: size.x + 40, y: size.y + 20 },
@@ -314,7 +313,6 @@ test("a card dropped over a section's edge grows it, and undo takes both back", 
 	expect(Math.abs(after.section.y + after.section.h - (bottom + 24))).toBeLessThanOrEqual(2);
 	// The edge glides there, rather than jumping.
 	await page.waitForTimeout(500);
-	await page.screenshot({ path: "/private/tmp/claude-501/sections/grow-after.png" });
 	expect(Math.abs((await box(later)).height - after.section.h * zoom)).toBeLessThanOrEqual(2);
 
 	await page.keyboard.press("ControlOrMeta+z");
@@ -331,7 +329,6 @@ test("Fit to contents snaps a section to what's in it, from the bar, a handle or
 	const before = (await boxes(page, "Now")).section;
 	const zoom = (await box(now)).width / before.w;
 	await now.locator(".section-title").click();
-	await page.screenshot({ path: "/private/tmp/claude-501/sections/fit-before.png" });
 
 	await page
 		.getByRole("toolbar", { name: "Stage changes" })
@@ -347,7 +344,6 @@ test("Fit to contents snaps a section to what's in it, from the bar, a handle or
 	expect(Math.abs(fitted.y + fitted.h - (260 + last.height / zoom + 24))).toBeLessThanOrEqual(2);
 	expect(fitted.h).toBeLessThan(before.h);
 	await page.waitForTimeout(500);
-	await page.screenshot({ path: "/private/tmp/claude-501/sections/fit-after.png" });
 
 	// One undo step.
 	await page.keyboard.press("ControlOrMeta+z");
