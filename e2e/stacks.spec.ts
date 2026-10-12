@@ -3,8 +3,12 @@ import { expect, openScenario, test } from "./fixtures.ts";
 
 // Stacks (#73) on the playground's theming board: dragging a sticky onto
 // another and holding makes a stack, named ✨ by the pretend server's
-// stand-in model; stacks open into a tray and gather back; "Group these"
-// previews stacks for a selection before making them.
+// stand-in model, drawn as a theme card (its name, count and first few
+// members, and only its name zoomed out); ✓ keeps a suggested name; stacks
+// open into a tray and gather back; issues and pull requests stack too, and
+// a stack of them becomes a parent issue with its issues as sub-issues;
+// "Group these" previews stacks for a selection (cards too, if asked) before
+// making them.
 
 interface Shape {
 	id: string;
@@ -28,11 +32,46 @@ function shapes(page: Page): Promise<Shape[]> {
 
 const stacks = async (page: Page) => (await shapes(page)).filter((s) => s.type === "stack");
 
+/** The board's staged changes. */
+function changes(page: Page): Promise<{ op: Record<string, unknown> }[]> {
+	return page.evaluate(() => {
+		const board = (window as unknown as { tackPlayground: { doc: import("yjs").Doc } })
+			.tackPlayground;
+		return [...board.doc.getMap("changes").values()].map(
+			(change) =>
+				(change as import("yjs").Map<unknown>).toJSON() as { op: Record<string, unknown> },
+		);
+	});
+}
+
 const sticky = (page: Page, text: string) =>
 	page.locator(".react-flow__node-sticky", { hasText: text }).first();
 
 const stackNode = (page: Page, name: string) =>
 	page.locator(".react-flow__node-stack", { hasText: name }).first();
+
+const cardNode = (page: Page, text: string) =>
+	page.locator(".react-flow__node-card", { hasText: text }).first();
+
+/** Spread a stack open (a click), selecting it: its actions are in the bar. */
+async function openStack(page: Page, name: string) {
+	await stackNode(page, name).locator(".stack-rows").click();
+	await expect(page.locator(".stack-tray")).toBeVisible();
+}
+
+/** Shift-click each of these, after clicking the first. */
+async function selectAll(page: Page, items: Locator[]) {
+	const [first, ...rest] = items;
+	if (!first) return;
+	const at = await centre(first);
+	await page.mouse.click(at.x, at.y);
+	await page.keyboard.down("Shift");
+	for (const item of rest) {
+		const next = await centre(item);
+		await page.mouse.click(next.x, next.y);
+	}
+	await page.keyboard.up("Shift");
+}
 
 async function centre(locator: Locator) {
 	const box = await locator.boundingBox();
@@ -108,7 +147,10 @@ test("a stack spreads into a tray when clicked, and Escape gathers it back", asy
 	const stack = stackNode(page, "Big sites are slow");
 	await expect(stack.locator(".stack-count")).toHaveText("3");
 	await expect(sticky(page, "Builds got 2x slower")).toHaveCount(0);
-	await stack.locator(".stack-top").click();
+	// A theme card: its name, and its first stickies a line each.
+	await expect(stack.locator(".stack-rows li")).toHaveCount(3);
+	await expect(stack.locator(".stack-rows")).toContainText("Builds got 2x slower");
+	await stack.locator(".stack-rows").click();
 	const tray = page.getByRole("group", { name: /Big sites are slow, 3 stickies, open/ });
 	await expect(tray).toBeVisible();
 	for (const text of ["Srcset generation", "Builds got 2x slower", "Dev server lags"]) {
@@ -127,7 +169,7 @@ test("dragging a sticky out of an open stack takes it out; a stack of one dissol
 	page,
 }) => {
 	const stack = stackNode(page, "Newcomer onboarding");
-	await stack.locator(".stack-top").click();
+	await stack.locator(".stack-rows").click();
 	await expect(
 		page.getByRole("group", { name: /Newcomer onboarding, 2 stickies, open/ }),
 	).toBeVisible();
@@ -150,7 +192,7 @@ test("dragging a sticky out of an open stack takes it out; a stack of one dissol
 
 test("a stack's name is a person's once they write one, and never replaced", async ({ page }) => {
 	const stack = stackNode(page, "Newcomer onboarding");
-	await stack.locator(".stack-name").dblclick();
+	await stack.locator(".stack-name").click();
 	const field = page.getByRole("textbox", { name: "Stack name" });
 	await field.fill("Getting started is hard");
 	await field.press("Enter");
@@ -215,9 +257,7 @@ test("Group these proposes named stacks, previewed on the board, made in one und
 test("a stack becomes a parent issue named after it, with its stickies as sub-issues", async ({
 	page,
 }) => {
-	await stackNode(page, "Big sites are slow")
-		.locator(".stack-label")
-		.click({ position: { x: 4, y: 4 } });
+	await openStack(page, "Big sites are slow");
 	const bar = page.getByRole("toolbar", { name: "Stage changes" });
 	await bar.getByRole("button", { name: /Make a parent issue from this stack/ }).click();
 	const panel = page.getByRole("dialog", { name: /Make a parent issue from this stack/ });
@@ -227,15 +267,106 @@ test("a stack becomes a parent issue named after it, with its stickies as sub-is
 	}
 });
 
+test("a stack of issues, a pull request and a sticky: its issues become sub-issues, the pull request left out", async ({
+	page,
+}) => {
+	const stack = stackNode(page, "Thin release notes");
+	// Its first few, a line each, then how many more.
+	await expect(stack.locator(".stack-count")).toHaveText("5");
+	await expect(stack.locator(".stack-rows")).toContainText("Upgrade notes for 5.0 are missing");
+	await expect(stack.locator(".stack-rows")).toContainText("#701");
+	await expect(stack.locator(".stack-more")).toHaveText("+2 more");
+	await openStack(page, "Thin release notes");
+	// Its bar's under the playground's panel here: the shortcut does the same.
+	await page.keyboard.press("Alt+Shift+KeyI");
+	const panel = page.getByRole("dialog", { name: /Make a parent issue from this stack/ });
+	await expect(panel.getByRole("textbox", { name: "Title" })).toHaveValue("Thin release notes");
+	const subs = panel.getByRole("list", { name: "Sub-issues" });
+	await expect(subs).toContainText("Upgrade notes for 5.0 are missing");
+	await expect(subs).toContainText("Write release notes for the 5.0 migration");
+	await expect(subs).not.toContainText("Changelog entries for the new loader API");
+	await expect(panel).toContainText("A pull request is left out: only issues can be sub-issues.");
+	await panel.getByRole("button", { name: /^Stage/ }).click();
+	await expect(panel).toHaveCount(0);
+	const staged = await changes(page);
+	const links = staged.filter((c) => c.op.kind === "item.subIssue");
+	// The issues already there are linked as they are; only the sticky's made.
+	const keys = links.flatMap((c) => {
+		const child = c.op.child as { key?: string };
+		return child.key ? [child.key] : [];
+	});
+	expect(keys.some((key) => key.endsWith("#701"))).toBe(true);
+	expect(keys.some((key) => key.endsWith("#712"))).toBe(false);
+	expect(staged.filter((c) => c.op.kind === "issue.create").map((c) => c.op.title)).toEqual(
+		expect.arrayContaining(["Thin release notes", "Upgrade notes for 5.0 are missing"]),
+	);
+});
+
+test("✓ keeps a suggested name, which then never changes", async ({ page }) => {
+	const stack = stackNode(page, "Newcomer onboarding");
+	await expect(stack.locator(".stack-spark")).toBeVisible();
+	await stack.hover();
+	await stack.getByRole("button", { name: "Keep “Newcomer onboarding” as its name" }).click();
+	await expect(stack.locator(".stack-spark")).toHaveCount(0);
+	await expect
+		.poll(async () => (await stacks(page)).find((s) => s.title === "Newcomer onboarding"))
+		.toBeTruthy();
+	await expect(stack.getByRole("button", { name: /^Keep/ })).toHaveCount(0);
+});
+
+test("a sticky and a card stack together", async ({ page }) => {
+	await selectAll(page, [sticky(page, "A logo?"), cardNode(page, "Dev server lags")]);
+	const before = (await stacks(page)).length;
+	await page
+		.getByRole("toolbar", { name: "Stage changes" })
+		.getByRole("button", { name: "Stack these" })
+		.click();
+	await expect.poll(async () => (await stacks(page)).length).toBe(before + 1);
+	const made = page.getByRole("group", { name: /a stack of 2 items/ });
+	await expect(made).toBeVisible();
+	await expect(made.locator(".stack-rows")).toContainText("#720");
+	await expect(made.locator(".stack-rows")).toContainText("A logo?");
+	await expect(cardNode(page, "Dev server lags")).toBeHidden();
+});
+
+test("zoomed out, a stack is its name and count", async ({ page }) => {
+	const stack = page.locator(".stack", { hasText: "Big sites are slow" }).first();
+	await expect(stack).not.toHaveAttribute("data-far", "true");
+	const out = page.getByRole("button", { name: "Zoom out" });
+	for (let i = 0; i < 4; i++) await out.click();
+	await expect(stack).toHaveAttribute("data-far", "true");
+	await expect(stack.locator(".stack-far-name")).toContainText("Big sites are slow");
+	await expect(stack.locator(".stack-far-count")).toHaveText("3");
+});
+
 test("Unstack lays a stack's stickies out where it was", async ({ page }) => {
-	await stackNode(page, "Big sites are slow")
-		.locator(".stack-label")
-		.click({ position: { x: 4, y: 4 } });
+	await openStack(page, "Big sites are slow");
 	await page.keyboard.press("Alt+KeyU");
 	await expect(stackNode(page, "Big sites are slow")).toHaveCount(0);
 	for (const text of ["Srcset generation", "Builds got 2x slower", "Dev server lags"]) {
 		await expect(sticky(page, text)).toBeVisible();
 	}
+});
+
+test("Group these leaves cards out unless asked to include them", async ({ page }) => {
+	await selectAll(page, [
+		sticky(page, "CI takes 25 minutes"),
+		sticky(page, "Flaky e2e on Windows"),
+		sticky(page, "Can't rerun one job"),
+		cardNode(page, "Dev server lags"),
+	]);
+	await page.keyboard.press("Alt+Shift+KeyG");
+	const panel = page.getByRole("dialog", { name: "Group these into named stacks" });
+	await expect(panel.getByRole("textbox", { name: "Name of stack 1" })).toHaveValue(
+		"Unreliable CI",
+	);
+	const include = panel.getByRole("checkbox", { name: /Include cards/ });
+	await expect(include).not.toBeChecked();
+	await expect(page.locator(".react-flow__node.stack-proposed")).toHaveCount(3);
+	await expect(panel.getByText("1 card stays where it is.")).toHaveCount(0);
+	// Asked in, the card's read too: it fits no theme here, so it stays.
+	await include.check();
+	await expect(panel.getByText("1 card stays where it is.")).toBeVisible();
 });
 
 test("with AI suggestions off, stacks are Untitled and there's no Group these", async ({

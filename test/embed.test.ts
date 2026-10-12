@@ -497,7 +497,13 @@ describe("drawing", () => {
 			[4, { type: "sticky", silent: "session", color: "blue" }],
 			[5, { type: "sticky", text: "Credit contributors", color: "green" }],
 		] as const) {
-			shapes.set(`sm${n}`, { x: 1012, y: 510, z: `b${3 + n}`, stack: "st", ...extra } as ShapeProps);
+			shapes.set(`sm${n}`, {
+				x: 1012,
+				y: 510,
+				z: `b${3 + n}`,
+				stack: "st",
+				...extra,
+			} as ShapeProps);
 		}
 		const scene = buildScene(
 			shapes,
