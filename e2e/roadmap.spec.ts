@@ -136,6 +136,9 @@ test("the dependency map shows what blocks what, and puts it on the board", asyn
 	expect(await connectors()).toBe(0);
 	await map.getByRole("button", { name: "Put the map on the board" }).click();
 	await expect.poll(connectors).toBe(11);
+	// What it laid out is selected, and the selection's bar sits above it:
+	// let go, as someone would, before asking again.
+	await page.keyboard.press("Escape");
 	await map.getByRole("button", { name: "Put the map on the board" }).click();
 	await page.waitForTimeout(300);
 	expect(await connectors()).toBe(11);
