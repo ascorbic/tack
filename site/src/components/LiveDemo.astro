@@ -152,7 +152,7 @@ const sizes = "(min-width: 72rem) 45rem, 100vw";
 				tryIt.hidden = true;
 				if (iframe) iframe.style.pointerEvents = "";
 				send({ type: "takeover" });
-				iframe?.focus();
+				iframe?.focus({ preventScroll: true });
 			});
 			return;
 		}

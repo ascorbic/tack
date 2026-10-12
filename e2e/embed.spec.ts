@@ -180,3 +180,34 @@ test("keeps nothing in the browser", async ({ page, context }) => {
 	await page.close();
 	expect(await kept()).toEqual(before);
 });
+
+test("a page with an embed playing below the fold stays where its reader left it", async ({
+	page,
+}) => {
+	// A page of this site with the embed just peeking in at the bottom, as the
+	// landing page has it, while the loop opens panels and dialogs that take focus.
+	await page.route("**/embed-host", (route) =>
+		route.fulfill({
+			contentType: "text/html",
+			body: `<!doctype html><html><body style="margin:0">
+				<p style="height:450px;margin:0">The page, being read.</p>
+				<iframe src="/play/embed?feature=push" width="960" height="600" title="Live demo"></iframe>
+				<p style="height:2000px">More of the page.</p>
+			</body></html>`,
+		}),
+	);
+	await page.goto("/embed-host");
+	const frame = page.frameLocator("iframe");
+	await expect(frame.locator(".embed")).toHaveAttribute("data-mode", "playing", {
+		timeout: 30_000,
+	});
+	// Through the panel, the push sheet and the cards landing.
+	const until = Date.now() + 14_000;
+	while (Date.now() < until) {
+		expect(await page.evaluate(() => scrollY)).toBe(0);
+		// Nor does the reader's focus go into the board.
+		expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("BODY");
+		await page.waitForTimeout(250);
+	}
+	await expect(frame.locator(".react-flow__node-card", { hasText: "#224" })).toBeVisible();
+});

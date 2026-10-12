@@ -2,6 +2,7 @@ import { THEME_STORAGE_KEY } from "../../theme.ts";
 import { initTheme, setThemePreference } from "../../useTheme.ts";
 import { startDemo } from "../start.ts";
 import { hearPage } from "./bridge.ts";
+import { keepThePageStill } from "./focus.ts";
 import { type Feature, isFeature } from "./loop.ts";
 
 /**
@@ -11,6 +12,7 @@ import { type Feature, isFeature } from "./loop.ts";
  */
 export function startEmbed(): void {
 	startDemo();
+	keepThePageStill();
 	const fetch = window.fetch;
 	window.fetch = (input, init) => {
 		const method = (
