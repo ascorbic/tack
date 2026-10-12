@@ -4,6 +4,7 @@
 import { LinkButton } from "@astrojs/starlight/components";
 import { HERO_NOTE, HERO_STICKY } from "../hero.ts";
 import BrandMark from "./BrandMark.astro";
+import CopyPrompt from "./CopyPrompt.astro";
 import Screenshot from "./Screenshot.astro";
 
 const { data } = Astro.locals.starlightRoute.entry;
@@ -28,6 +29,7 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 				</div>
 			)
 		}
+		<CopyPrompt class="tk-hero-prompt" />
 		<p id="tk-forges" class="tk-footnote">
 			<span aria-hidden="true">*</span> Or <a href="/self-hosting/forges/">GitLab, Codeberg or Tangled</a>.
 		</p>

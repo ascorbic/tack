@@ -1,0 +1,328 @@
+---
+// "Set up with your coding agent": a card that copies a prompt for a coding
+// agent in the reader's terminal, which points it at /setup.md (written by
+// scripts/agents.ts). On the landing page's first screen and the deploy page.
+//
+// Copying morphs the card ("Copied", then where to paste it) in place, over
+// text that's always laid out, so nothing moves. Screen readers hear it from
+// a live region. If the clipboard can't be written, the prompt shows, selected,
+// to copy by hand.
+import { SETUP_PROMPT } from "../agents/prompt.ts";
+
+interface Props {
+	class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<div class:list={["tk-prompt not-content", className]} data-tk-prompt>
+	<button
+		type="button"
+		class="tk-prompt-card"
+		data-prompt={SETUP_PROMPT}
+		aria-label="Copy a prompt to set up Tack with your coding agent"
+	>
+		<span class="tk-prompt-term" aria-hidden="true">
+			<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+				<path d="m4.5 6 4 4-4 4" />
+				<path class="tk-prompt-caret" d="M10.5 14.5h5" />
+			</svg>
+		</span>
+		<span class="tk-prompt-title" aria-hidden="true">Set up with your coding agent</span>
+		<span class="tk-prompt-action" aria-hidden="true">
+			<span class="tk-prompt-swap">
+				<span class="tk-prompt-idle">
+					<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+						<rect x="7" y="7" width="9.5" height="9.5" rx="2.2" />
+						<path d="M13 4.6v-.4A1.7 1.7 0 0 0 11.3 2.5H5.2a1.7 1.7 0 0 0-1.7 1.7v6.1A1.7 1.7 0 0 0 5.2 12h.4" stroke-linecap="round" />
+					</svg>
+					<span>Copy<span class="tk-prompt-wide"> prompt</span></span>
+				</span>
+				<span class="tk-prompt-done">
+					<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+						<path class="tk-prompt-tick" d="m4.5 10.5 3.6 3.6 7.4-8.2" pathLength="1" />
+					</svg>
+					Copied
+				</span>
+			</span>
+		</span>
+		<span class="tk-prompt-sub" aria-hidden="true">
+			<span class="tk-prompt-swap">
+				<span class="tk-prompt-idle">Forks, configures and deploys your own Tack</span>
+				<span class="tk-prompt-done">Paste it into Claude Code or any coding agent</span>
+			</span>
+		</span>
+	</button>
+	<span class="tk-prompt-status sr-only" role="status"></span>
+	<textarea class="tk-prompt-manual" readonly hidden rows="4" aria-label="The prompt, to copy by hand">{SETUP_PROMPT}</textarea>
+</div>
+
+<script>
+	// Copies the prompt; "Copied" for a few seconds, then back. If the
+	// clipboard can't be written (an insecure page, a denied permission), the
+	// prompt shows, selected, for copying by hand.
+	const COPIED_FOR = 4000;
+	for (const root of document.querySelectorAll<HTMLElement>("[data-tk-prompt]")) {
+		const card = root.querySelector<HTMLButtonElement>(".tk-prompt-card");
+		const status = root.querySelector<HTMLElement>(".tk-prompt-status");
+		const manual = root.querySelector<HTMLTextAreaElement>(".tk-prompt-manual");
+		if (!card || !status || !manual) continue;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		card.addEventListener("click", async () => {
+			clearTimeout(timer);
+			const prompt = card.dataset.prompt ?? "";
+			try {
+				if (!navigator.clipboard?.writeText) throw new Error("No clipboard");
+				await navigator.clipboard.writeText(prompt);
+			} catch {
+				root.dataset.state = "manual";
+				status.textContent = "Couldn’t copy the prompt. It’s selected below: copy it from there.";
+				manual.hidden = false;
+				manual.focus();
+				manual.select();
+				return;
+			}
+			manual.hidden = true;
+			// Restart the tick's animation if it's copied again while showing.
+			delete root.dataset.state;
+			void root.offsetWidth;
+			root.dataset.state = "copied";
+			status.textContent = "Prompt copied. Paste it into Claude Code or any coding agent.";
+			timer = setTimeout(() => {
+				delete root.dataset.state;
+				status.textContent = "";
+			}, COPIED_FOR);
+		});
+	}
+</script>
+
+<style>
+	.tk-prompt {
+		display: grid;
+		justify-items: start;
+		gap: 0.6rem;
+		max-width: 100%;
+	}
+
+	/* A card on the board: lifts a little when pointed at, presses when clicked. */
+	.tk-prompt-card {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		grid-template-areas:
+			"term title action"
+			"term sub sub";
+		align-items: center;
+		column-gap: 0.75rem;
+		row-gap: 0.1rem;
+		max-width: 100%;
+		margin: 0;
+		padding: 0.6rem 0.65rem 0.6rem 0.6rem;
+		border: 1px solid var(--tk-line-strong);
+		border-radius: 14px;
+		background: var(--tk-surface);
+		box-shadow: var(--tk-shadow-rest);
+		color: var(--tk-ink);
+		font: inherit;
+		text-align: start;
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+		transition:
+			transform var(--tk-t-base) var(--tk-ease-spring),
+			box-shadow var(--tk-t-base) var(--tk-ease-out),
+			border-color var(--tk-t-quick) var(--tk-ease-out);
+	}
+
+	.tk-prompt-card:hover {
+		transform: translateY(-1px) rotate(-0.4deg);
+		border-color: color-mix(in srgb, var(--tk-accent) 45%, var(--tk-line-strong));
+		box-shadow: var(--tk-shadow-lifted);
+	}
+
+	.tk-prompt-card:active {
+		transform: scale(0.985);
+		transition-duration: var(--tk-t-quick);
+	}
+
+	.tk-prompt-card:focus-visible {
+		outline: 2px solid var(--tk-accent);
+		outline-offset: 3px;
+	}
+
+	/* The terminal: a prompt and a caret, which blinks while it's pointed at. */
+	.tk-prompt-term {
+		grid-area: term;
+		align-self: center;
+		display: grid;
+		place-items: center;
+		width: 2.4rem;
+		height: 2.4rem;
+		border-radius: 10px;
+		background: var(--tk-ink);
+		color: var(--tk-surface);
+		box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
+	}
+
+	.tk-prompt-card:hover .tk-prompt-caret,
+	.tk-prompt-card:focus-visible .tk-prompt-caret {
+		animation: tk-prompt-blink 1.05s steps(1) infinite;
+	}
+
+	@keyframes tk-prompt-blink {
+		50% {
+			opacity: 0;
+		}
+	}
+
+	.tk-prompt-title {
+		grid-area: title;
+		font-size: var(--sl-text-sm);
+		font-weight: 620;
+		line-height: 1.3;
+		letter-spacing: -0.005em;
+		text-wrap: balance;
+	}
+
+	.tk-prompt-sub {
+		grid-area: sub;
+		color: var(--tk-muted);
+		font-size: var(--sl-text-xs);
+		line-height: 1.35;
+	}
+
+	/* "Copy prompt" and "Copied": a chip that goes green and ticks. */
+	.tk-prompt-action {
+		grid-area: action;
+		justify-self: end;
+		padding: 0.2rem 0.5rem;
+		border-radius: 999px;
+		background: var(--tk-chip);
+		color: var(--tk-ink-soft);
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		white-space: nowrap;
+		transition:
+			background-color var(--tk-t-base) var(--tk-ease-out),
+			color var(--tk-t-base) var(--tk-ease-out);
+	}
+
+	.tk-prompt-card:hover .tk-prompt-action {
+		background: var(--tk-accent-soft);
+		color: var(--tk-accent);
+	}
+
+	[data-state="copied"] .tk-prompt-card .tk-prompt-action {
+		background: color-mix(in srgb, var(--tk-open) 18%, transparent);
+		color: var(--tk-open);
+	}
+
+	/* Both states laid out in one place, so the card is always as wide as the
+	   wider, and swapping them moves nothing. */
+	.tk-prompt-swap {
+		display: inline-grid;
+	}
+
+	.tk-prompt-swap > * {
+		grid-area: 1 / 1;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		transition:
+			opacity var(--tk-t-base) var(--tk-ease-out),
+			transform var(--tk-t-settle) var(--tk-ease-spring),
+			filter var(--tk-t-base) var(--tk-ease-out);
+	}
+
+	.tk-prompt-action .tk-prompt-swap > * {
+		justify-content: center;
+	}
+
+	.tk-prompt-sub .tk-prompt-swap > * {
+		display: block;
+	}
+
+	.tk-prompt-done {
+		opacity: 0;
+		transform: translateY(0.45em);
+		filter: blur(2px);
+		visibility: hidden;
+	}
+
+	[data-state="copied"] .tk-prompt-idle {
+		opacity: 0;
+		transform: translateY(-0.45em);
+		filter: blur(2px);
+	}
+
+	[data-state="copied"] .tk-prompt-done {
+		opacity: 1;
+		transform: none;
+		filter: none;
+		visibility: visible;
+	}
+
+	.tk-prompt-tick {
+		stroke-dasharray: 1;
+		stroke-dashoffset: 1;
+	}
+
+	[data-state="copied"] .tk-prompt-tick {
+		animation: tk-prompt-tick var(--tk-t-settle) var(--tk-ease-out) 80ms forwards;
+	}
+
+	@keyframes tk-prompt-tick {
+		to {
+			stroke-dashoffset: 0;
+		}
+	}
+
+	/* The prompt itself, when it couldn't be copied. */
+	.tk-prompt-manual {
+		width: min(100%, 28rem);
+		padding: 0.6rem 0.75rem;
+		border: 1px solid var(--tk-line-strong);
+		border-radius: 10px;
+		background: var(--tk-surface-muted);
+		color: var(--tk-ink);
+		font-family: var(--tk-font-mono);
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		resize: none;
+		field-sizing: content;
+	}
+
+	.tk-prompt-manual[hidden] {
+		display: none;
+	}
+
+	/* Narrow: no terminal, and "Copy" alone, so the title keeps its line. */
+	@media (max-width: 30rem) {
+		.tk-prompt-card {
+			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-areas:
+				"title action"
+				"sub sub";
+			padding: 0.7rem 0.75rem 0.7rem 0.9rem;
+		}
+
+		.tk-prompt-term,
+		.tk-prompt-wide {
+			display: none;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tk-prompt-card:hover,
+		.tk-prompt-card:active {
+			transform: none;
+		}
+
+		.tk-prompt-card .tk-prompt-caret {
+			animation: none !important;
+		}
+
+		.tk-prompt-tick {
+			stroke-dashoffset: 0;
+		}
+	}
+</style>
