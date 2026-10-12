@@ -24,6 +24,13 @@
 	animation: actions-in var(--t-settle) var(--ease-spring) calc(140ms * var(--motion)) both;
 }
 
+/* It follows the board at once, but glides when it changes sides: from under
+   the selection to above it, or to pinned at the edge of the view when the
+   selection fills it (SelectionBar.tsx). */
+.selection-bar[data-gliding] {
+	transition: transform calc(240ms * var(--motion)) var(--ease-out);
+}
+
 @keyframes actions-in {
 	from {
 		opacity: 0;

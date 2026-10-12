@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 import {
 	type Box,
 	panIntoView,
+	panelSide,
+	placeBar,
 	placeBeside,
 	placePopover,
 } from "../src/client/actions/popoverPlacement.ts";
@@ -205,5 +207,92 @@ describe("panIntoView", () => {
 	it("shows the top of something taller than the room", () => {
 		const { dy } = panIntoView({ rect: box(100, -400, 280, 2000), bounds: canvas, obstacles: [] });
 		expect(-400 + dy).toBe(56 + 16);
+	});
+});
+
+describe("placeBar", () => {
+	// The canvas under the header, in its own pixels, with its chrome.
+	const canvas = box(0, 0, 1280, 745);
+	const dockOnCanvas = box(346, 671, 588, 56);
+	const chrome = [dockOnCanvas, box(15, 608, 32, 122)];
+	const size = { width: 410, height: 42 };
+	const place = (selection: Box, obstacles: Box[] = chrome) =>
+		placeBar({ selection, size, bounds: canvas, obstacles, below: 14, above: 100 });
+	// The lowest the bar goes where it's level with the dock.
+	const hi = dockOnCanvas.top - 12 - size.height;
+
+	it("goes under the selection, centred, when there's room", () => {
+		expect(place(box(400, 100, 300, 200))).toEqual({ side: "below", left: 345, top: 314 });
+	});
+
+	it("goes over it, clear of what's drawn above it, when there's no room below", () => {
+		expect(place(box(400, 450, 300, 200))).toEqual({ side: "above", left: 345, top: 308 });
+	});
+
+	it("pins just inside a selection that fills the view, under its title and tools", () => {
+		// A section fitted to the view: no room above it or below it.
+		expect(place(box(30, 48, 940, 590))).toEqual({ side: "top", left: 295, top: 60 });
+	});
+
+	it("pins to the top of the view when the selection's top edge is off it", () => {
+		expect(place(box(100, -400, 800, 2000))).toEqual({ side: "top", left: 295, top: 12 });
+	});
+
+	it("stays put while the board pans under it", () => {
+		const tops = new Set<number>();
+		for (let y = -100; y > -1200; y -= 7) tops.add(place(box(100, y, 800, 2000)).top);
+		expect([...tops]).toEqual([12]);
+	});
+
+	it("follows the selection continuously, jumping only where it changes side", () => {
+		let last = place(box(100, 300, 800, 2000));
+		const sides = [last.side];
+		for (let y = 300; y > -2200; y -= 3) {
+			const next = place(box(100, y, 800, 2000));
+			if (next.side === last.side) expect(Math.abs(next.top - last.top)).toBeLessThanOrEqual(3);
+			else sides.push(next.side);
+			last = next;
+		}
+		expect(sides).toEqual(["above", "top", "below", "top"]);
+	});
+
+	it("pins to the bottom while the selection is below the view, clear of the dock", () => {
+		expect(place(box(400, 900, 300, 200))).toEqual({ side: "bottom", left: 345, top: hi });
+	});
+
+	it("pins to the top while the selection is above the view", () => {
+		expect(place(box(400, -500, 300, 200)).top).toBe(12);
+	});
+
+	it("keeps clear of a vote's bar hanging from the top", () => {
+		const vote = box(440, 12, 400, 40);
+		expect(place(box(100, -400, 800, 2000), [...chrome, vote]).top).toBe(52 + 12);
+		// Not level with it, it needn't.
+		expect(place(box(-500, -400, 800, 2000), [...chrome, vote]).top).toBe(12);
+	});
+
+	it("keeps clear of only the chrome it's level with", () => {
+		const controls = box(15, 608, 32, 122);
+		// Over the zoom controls in the corner.
+		expect(place(box(-500, 900, 300, 200), [controls]).top).toBe(608 - 12 - size.height);
+		// Clear of them, it goes to the bottom of the canvas.
+		expect(place(box(400, 900, 300, 200), [controls]).top).toBe(745 - 12 - size.height);
+	});
+
+	it("stays in from the sides, and isn't held down by side panels", () => {
+		const panel = box(998, 15, 268, 715);
+		expect(place(box(-600, -400, 300, 2000), [panel]).left).toBe(12);
+		expect(place(box(1500, -400, 300, 2000), [panel])).toEqual({
+			side: "top",
+			left: 1280 - 12 - 410,
+			top: 12,
+		});
+	});
+
+	it("opens panels away from the edge it's pinned to", () => {
+		expect(panelSide("below")).toBe("below");
+		expect(panelSide("top")).toBe("below");
+		expect(panelSide("above")).toBe("above");
+		expect(panelSide("bottom")).toBe("above");
 	});
 });

@@ -265,3 +265,96 @@ export function panIntoView({
 	const dy = fit(rect.top, height, top, Math.max(top, bottom));
 	return { dx: Math.round(dx), dy: Math.round(dy) };
 }
+
+// --- The selection's bar -------------------------------------------------------
+//
+// The action bar goes under its selection, or over it when there's no room
+// below, and always wholly on the visible canvas: below its top edge and the
+// chrome hanging from it (a vote's bar, the timer), above the tool dock, and
+// in from the sides. When neither side of the selection is on screen (a
+// section as tall as the view, or taller), it's pinned just inside the
+// selection's top edge (clear of the title and tools drawn above it), and to
+// the top of the visible canvas once that edge is off screen; or to the
+// bottom while the whole selection is below the view. It follows the
+// selection continuously as the board pans, so it never jitters, and only
+// jumps where it changes side. Pure, so it's unit-tested; SelectionBar.tsx
+// measures and applies it.
+
+/** Where the bar is: beside its selection, or pinned to an edge of the canvas. */
+export type BarSide = "below" | "above" | "top" | "bottom";
+
+export interface BarInput {
+	/** The selection, on the canvas. */
+	selection: Box;
+	/** The bar's size. */
+	size: { width: number; height: number };
+	/** The visible canvas, in the same coordinates. */
+	bounds: Box;
+	/** Chrome over the canvas: what's level with the bar keeps it from the top or bottom. */
+	obstacles: readonly Box[];
+	/** Between the selection's bottom and the bar. */
+	below: number;
+	/** Between the selection's top and the bar, over what's drawn above it. */
+	above: number;
+	/** Kept clear around the bar. */
+	margin?: number;
+	/** How far inside the selection's top edge a bar pinned within it sits. */
+	inset?: number;
+}
+
+export interface BarPlacement {
+	side: BarSide;
+	/** The bar's top-left corner, in the same coordinates as the input. */
+	left: number;
+	top: number;
+}
+
+/** Which way the bar's panels open: away from the edge it's on. */
+export const panelSide = (side: BarSide): Side =>
+	side === "below" || side === "top" ? "below" : "above";
+
+export function placeBar({
+	selection,
+	size,
+	bounds,
+	obstacles,
+	below,
+	above,
+	margin = 12,
+	inset = 12,
+}: BarInput): BarPlacement {
+	const centre = (selection.left + selection.right) / 2 - size.width / 2;
+	const left = Math.round(
+		Math.max(bounds.left + margin, Math.min(centre, bounds.right - margin - size.width)),
+	);
+	// Chrome level with the bar: what's in the upper half of the canvas holds
+	// it down, what's in the lower half holds it up. Side panels (taller than
+	// half the canvas) are neither.
+	const middle = (bounds.top + bounds.bottom) / 2;
+	const half = (bounds.bottom - bounds.top) / 2;
+	let lo = bounds.top + margin;
+	let hi = bounds.bottom - margin - size.height;
+	for (const o of obstacles) {
+		if (o.bottom - o.top > half) continue;
+		if (!overlaps(left - margin, left + size.width + margin, o.left, o.right)) continue;
+		if ((o.top + o.bottom) / 2 < middle) lo = Math.max(lo, o.bottom + margin);
+		else hi = Math.min(hi, o.top - margin - size.height);
+	}
+	hi = Math.max(lo, hi);
+	const fits = (top: number) => top >= lo && top <= hi;
+	const place = (side: BarSide, top: number): BarPlacement => ({
+		side,
+		left,
+		top: Math.round(Math.min(Math.max(top, lo), hi)),
+	});
+
+	const under = selection.bottom + below;
+	const over = selection.top - above - size.height;
+	if (fits(under)) return place("below", under);
+	if (fits(over)) return place("above", over);
+	// Wholly below the view, or above it: pinned to that edge.
+	if (over > hi) return place("bottom", hi);
+	if (under < lo) return place("top", lo);
+	// Filling the view.
+	return place("top", selection.top + inset);
+}

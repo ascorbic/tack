@@ -1,4 +1,4 @@
-import { NodeToolbar, Position, useStore, useStoreApi } from "@xyflow/react";
+import { useStore, useStoreApi } from "@xyflow/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 import {
@@ -77,6 +77,7 @@ import {
 	StateMenu,
 } from "./pickers.tsx";
 import { Notice, Popover, PopoverHead } from "./Popover.tsx";
+import { SelectionBar } from "./SelectionBar.tsx";
 import {
 	type ActionCommand,
 	type ActionRequests,
@@ -123,9 +124,6 @@ type Size = { width: number; height: number };
 
 /** React Flow lifts selected shapes by 1000; the bar and its panels go above that. */
 const TOOLBAR_Z = 3000;
-
-/** Room the bar needs under the selection: itself, and the tool dock. */
-const ROOM_BELOW = 150;
 
 interface ActionBarProps {
 	doc: Y.Doc;
@@ -219,19 +217,10 @@ export function ActionBar(props: ActionBarProps) {
 	}, [doc, pairKey]);
 
 	// Under the selection, unless that's off the bottom of the canvas or under
-	// the tool dock: then above it, clear of the toolbars already there.
-	const bottom = useMemo(
-		() =>
-			Math.max(
-				...selected.map((n) => n.position.y + (props.sizeOf(n.id)?.height ?? n.height ?? 0)),
-			),
-		[selected, props.sizeOf],
-	);
-	const roomBelow = useStore(
-		(s) => s.height - (bottom * s.transform[2] + s.transform[1]) > ROOM_BELOW,
-	);
-	// Above, the bar also keeps clear of the marks on what's staged, which
-	// stay legible (and so tall) however far out the board is.
+	// the tool dock: then above it, clear of the toolbars already there; and
+	// always on screen (SelectionBar.tsx). Above, the bar also keeps clear of
+	// the marks on what's staged, which stay legible (and so tall) however far
+	// out the board is.
 	const changesUI = useChangesUI();
 	const staged = useChangeList(changesUI?.store ?? null);
 	const marked = useMemo(
@@ -1034,14 +1023,15 @@ export function ActionBar(props: ActionBarProps) {
 
 	const label = actions.find((a) => a.id === open)?.label ?? "";
 	return (
-		<NodeToolbar
-			nodeId={ids}
-			isVisible={!dragging && !typing}
-			position={roomBelow ? Position.Bottom : Position.Top}
-			offset={roomBelow ? 14 : aboveOffset}
+		<SelectionBar
+			ids={ids}
+			visible={!dragging && !typing}
+			below={14}
+			above={aboveOffset}
 			// Above every shape, including selected ones, even for sections,
 			// whose own stacking is far below everything else.
-			style={{ zIndex: TOOLBAR_Z }}
+			zIndex={TOOLBAR_Z}
+			bar={bar}
 		>
 			<div
 				ref={bar}
@@ -1076,7 +1066,6 @@ export function ActionBar(props: ActionBarProps) {
 				)}
 				{open && (
 					<Popover
-						prefer={roomBelow ? "below" : "above"}
 						label={label}
 						onClose={close}
 						wide={
@@ -1093,7 +1082,7 @@ export function ActionBar(props: ActionBarProps) {
 					</Popover>
 				)}
 			</div>
-		</NodeToolbar>
+		</SelectionBar>
 	);
 }
 
