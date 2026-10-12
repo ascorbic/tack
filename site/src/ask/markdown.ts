@@ -50,23 +50,27 @@ function link(text: string, rawHref: string): string {
 
 /** One line's inline Markdown: code, links, bold and italics. */
 export function inline(text: string): string {
-	return text
-		.split(/(`[^`]*`)/)
-		.map((part, i) => {
-			if (i % 2 === 1) return `<code>${escapeHtml(part.slice(1, -1))}</code>`;
-			return escapeHtml(part)
-				.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_, label, href) =>
-					link(label, href),
-				)
-				.replace(
-					/(^|[\s(])(https:\/\/[^\s<)]+[^\s<).,;:!?])/g,
-					(_, before, href) => `${before}${link(href, href)}`,
-				)
-				.replace(/\*\*(?=\S)(.+?)\*\*/g, "<strong>$1</strong>")
-				.replace(/__(?=\S)(.+?)__/g, "<strong>$1</strong>")
-				.replace(/(^|[^*\w])\*(?=\S)([^*]+?)\*(?!\*)/g, "$1<em>$2</em>");
-		})
-		.join("");
+	// Code spans first, set aside as placeholders, so emphasis can wrap them
+	// ("**Keep the name `tack`**") and nothing inside them is read as Markdown.
+	const code: string[] = [];
+	const marked = text
+		.replaceAll("\u0000", "")
+		.replace(/`([^`]*)`/g, (_, inner: string) => `\u0000${code.push(inner) - 1}\u0000`);
+	return escapeHtml(marked)
+		.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_, label, href) =>
+			link(label, href),
+		)
+		.replace(
+			/(^|[\s(])(https:\/\/[^\s<)\u0000]+[^\s<).,;:!?\u0000])/g,
+			(_, before, href) => `${before}${link(href, href)}`,
+		)
+		.replace(/\*\*(?=\S)(.+?)\*\*/g, "<strong>$1</strong>")
+		.replace(/__(?=\S)(.+?)__/g, "<strong>$1</strong>")
+		.replace(/(^|[^*\w])\*(?=\S)([^*]+?)\*(?!\*)/g, "$1<em>$2</em>")
+		.replace(
+			/\u0000(\d+)\u0000/g,
+			(_, i: string) => `<code>${escapeHtml(code[Number(i)] ?? "")}</code>`,
+		);
 }
 
 const BULLET = /^\s*[-*+]\s+(.*)$/;

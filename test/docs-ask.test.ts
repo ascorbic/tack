@@ -49,6 +49,15 @@ describe("the docs' Ask: rendering answers", () => {
 		expect(html).toContain("<ul><li><em>one</em></li><li>two</li></ul>");
 	});
 
+	it("lets emphasis wrap code, and reads nothing inside code as Markdown", () => {
+		expect(renderMarkdown("**Keep the name `tack`** for the Worker.")).toBe(
+			"<p><strong>Keep the name <code>tack</code></strong> for the Worker.</p>",
+		);
+		expect(renderMarkdown("Run `a **b** <i>` now")).toBe(
+			"<p>Run <code>a **b** &lt;i&gt;</code> now</p>",
+		);
+	});
+
 	it("draws half-written answers without throwing", () => {
 		expect(() => renderMarkdown("1. **Deploy\n```sh\npnpm run")).not.toThrow();
 		expect(renderMarkdown("```sh\npnpm run")).toContain("<pre><code>pnpm run</code></pre>");
