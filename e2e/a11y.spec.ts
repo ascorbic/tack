@@ -70,6 +70,7 @@ const GALLERIES = [
 
 const SCENARIOS = [
 	"planning",
+	"links",
 	"ai",
 	"retro",
 	"decisions",
