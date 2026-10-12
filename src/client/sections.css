@@ -122,6 +122,16 @@
 		scale var(--t-base) var(--ease-spring);
 }
 
+/* Growing to hold what's dropped in it, or fitting to what's in it: the
+   edges glide out (or in) rather than jump (useGlide in sections.tsx). Never
+   while it's being dragged, which must follow the pointer exactly. */
+.react-flow__node-section:not(.dragging):has(.section[data-gliding]) {
+	transition:
+		transform calc(320ms * var(--motion)) var(--ease-out),
+		width calc(320ms * var(--motion)) var(--ease-out),
+		height calc(320ms * var(--motion)) var(--ease-out);
+}
+
 /* Something just landed: a soft glow that fades as it settles. */
 .section-received {
 	position: absolute;

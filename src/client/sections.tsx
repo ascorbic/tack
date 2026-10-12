@@ -19,7 +19,7 @@ import {
 	resizeRect,
 } from "../shared/sections.ts";
 import { transactLocal, updateShapes } from "../shared/shapes.ts";
-import { addSection, readShapes, resizeSection } from "../shared/structure.ts";
+import { addSection, fitSection, readShapes, resizeSection } from "../shared/structure.ts";
 import { sectionSpot } from "../shared/placement.ts";
 import { sortOf } from "../shared/display.ts";
 import { DisplaySwitch, sortLabel } from "./display/DisplaySwitch.tsx";
@@ -77,6 +77,9 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 		lastCount.current = count;
 	}, [count]);
 
+	// Growing for what's dropped in it, or fitting to it: the edges glide.
+	const gliding = useGlide(`${shape.x},${shape.y},${shape.w},${shape.h}`);
+
 	const title = shape.title ?? "";
 	const color = (SECTION_COLORS as readonly string[]).includes(shape.color ?? "")
 		? shape.color
@@ -110,6 +113,7 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 			data-enter={enter}
 			data-silent={shape.silent ? true : undefined}
 			data-display={display}
+			data-gliding={gliding || undefined}
 		>
 			{listed && count === 0 && (
 				<span className="section-list-empty" aria-hidden="true">
@@ -196,6 +200,8 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 						})}
 						ui={ui}
 						onCommit={(rect) => transactLocal(doc, () => resizeSection(doc, id, rect, ui.sizeOf))}
+						// Double-click a handle: snap to what's in it, as Fit to contents does.
+						onDoubleClick={() => transactLocal(doc, () => fitSection(doc, id, ui.sizeOf))}
 					/>
 				))}
 		</div>
@@ -203,6 +209,29 @@ export const SectionNode = memo(function SectionNode({ id, data, selected }: Nod
 });
 
 export const sectionNodeTypes = { section: SectionNode };
+
+/** How long a section's edges glide to a size it didn't get from your hand (sections.css). */
+const GLIDE_MS = 320;
+
+/**
+ * True for a moment after `box` changes, so the change can be animated:
+ * set in the same render as the new size, since a transition has to be
+ * there when the size changes to play. Your own resizes land where the
+ * handle let go, so there's nothing for them to glide.
+ */
+function useGlide(box: string): boolean {
+	const last = useRef<{ box: string; at: number }>({ box, at: 0 });
+	if (last.current.box !== box) last.current = { box, at: performance.now() };
+	const since = performance.now() - last.current.at;
+	const gliding = since < scaledDuration(GLIDE_MS);
+	const [, settle] = useState(0);
+	useEffect(() => {
+		if (!gliding) return;
+		const timer = setTimeout(() => settle((n) => n + 1), scaledDuration(GLIDE_MS) - since + 16);
+		return () => clearTimeout(timer);
+	}, [gliding, box, since]);
+	return gliding;
+}
 
 /**
  * A selected section's colours and actions, beside its title: as many as
@@ -390,6 +419,7 @@ export function ResizeGrip({
 	min,
 	ui,
 	onCommit,
+	onDoubleClick,
 	className = "section-resize",
 }: {
 	id: string;
@@ -400,6 +430,7 @@ export function ResizeGrip({
 	min?: { w: number; h: number };
 	ui: SectionUI;
 	onCommit: (rect: Rect) => void;
+	onDoubleClick?: () => void;
 	className?: string;
 }) {
 	const flow = useReactFlow();
@@ -452,6 +483,13 @@ export function ResizeGrip({
 			data-handle={handle}
 			aria-hidden="true"
 			onPointerDown={onPointerDown}
+			onDoubleClick={
+				onDoubleClick &&
+				((event) => {
+					event.stopPropagation();
+					onDoubleClick();
+				})
+			}
 		/>
 	);
 }
