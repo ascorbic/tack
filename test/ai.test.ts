@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vite-plus/test";
 import {
+	AI_WIDGETS,
 	WIDGET_GUIDES,
 	checkWidget,
 	decisionBody,
@@ -28,14 +29,20 @@ import { card } from "./card-fixture.ts";
 
 describe("what the model is told about widgets", () => {
 	it("has a guide for every kind and every field", () => {
-		for (const definition of Object.values(WIDGETS)) {
+		for (const definition of AI_WIDGETS) {
 			const guide = WIDGET_GUIDES[definition.kind];
 			expect(guide, definition.kind).toBeDefined();
 			expect(Object.keys(guide!.fields).sort(), definition.kind).toEqual(
 				schemaFields(definition).sort(),
 			);
 		}
-		expect(Object.keys(WIDGET_GUIDES).sort()).toEqual(Object.keys(WIDGETS).sort());
+		expect(Object.keys(WIDGET_GUIDES).sort()).toEqual(AI_WIDGETS.map((d) => d.kind).sort());
+	});
+
+	it("never offers custom widgets (#66): their config is code", () => {
+		expect(Object.keys(WIDGETS)).toContain("custom");
+		expect(AI_WIDGETS.map((d) => d.kind)).not.toContain("custom");
+		expect(JSON.stringify(widgetFormat().schema)).not.toContain('"const":"custom"');
 	});
 
 	it("describes each kind's config as JSON Schema", () => {
@@ -59,7 +66,7 @@ describe("what the model is told about widgets", () => {
 		const kinds = (
 			format.schema as { properties: { widget: { anyOf: { properties: { kind: unknown } }[] } } }
 		).properties.widget.anyOf.map((option) => option.properties.kind);
-		expect(kinds).toEqual(Object.keys(WIDGETS).map((kind) => ({ const: kind })));
+		expect(kinds).toEqual(AI_WIDGETS.map(({ kind }) => ({ const: kind })));
 	});
 
 	it("tells it about the board, and fences the request", () => {
@@ -99,6 +106,9 @@ describe("checking a proposed widget", () => {
 			ok: false,
 			problems: [expect.stringContaining("isn't a widget kind")],
 		});
+		expect(
+			checkWidget({ widget: { kind: "custom", config: { code: "tack.render('hi')" } } }, host),
+		).toMatchObject({ ok: false, problems: [expect.stringContaining("isn't a widget kind")] });
 		const bad = checkWidget(
 			{
 				widget: {

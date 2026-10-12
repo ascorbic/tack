@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { CUSTOM_KIND } from "./customWidgets.ts";
 import { WIDGETS, widgetDefinition, widgetQueries } from "./widgetRegistry.ts";
 import type { WidgetDefinition } from "./widgets.ts";
 
@@ -415,6 +416,14 @@ function plain(text: string): string {
 
 // --- Widgets ----------------------------------------------------------------------
 
+/**
+ * The kinds the AI may propose: every kind but custom widgets (#66), whose
+ * config is code, which is never the model's to write.
+ */
+export const AI_WIDGETS = Object.values(WIDGETS).filter(
+	(definition) => definition.kind !== CUSTOM_KIND,
+);
+
 /** What the model needs to know about a widget kind, beyond its schema. */
 interface WidgetGuide {
 	/** When to pick it. */
@@ -605,7 +614,7 @@ export function widgetFormat(): AnswerFormat {
 					description: "One short sentence for the person: what the widget will show.",
 				},
 				widget: {
-					anyOf: Object.values(WIDGETS).map((definition) => ({
+					anyOf: AI_WIDGETS.map((definition) => ({
 						type: "object",
 						properties: {
 							kind: { const: definition.kind },
@@ -637,7 +646,7 @@ export interface WidgetContext {
 }
 
 export function widgetMessages(prompt: string, context: WidgetContext): ChatMessage[] {
-	const kinds = Object.values(WIDGETS).map((definition) => {
+	const kinds = AI_WIDGETS.map((definition) => {
 		const guide = WIDGET_GUIDES[definition.kind];
 		const fields = Object.entries(guide?.fields ?? {})
 			.map(([name, meaning]) => `  - ${name}: ${meaning}`)
@@ -705,11 +714,11 @@ export function checkWidget(raw: unknown, defaults: { host: string }): WidgetChe
 	const widget = answer?.widget && typeof answer.widget === "object" ? answer.widget : null;
 	const kind = (widget as { kind?: unknown } | null)?.kind;
 	const definition = widgetDefinition(kind);
-	if (!definition) {
+	if (!definition || definition.kind === CUSTOM_KIND) {
 		return {
 			ok: false,
 			problems: [
-				`“${String(kind)}” isn't a widget kind. Use one of ${Object.keys(WIDGETS).join(", ")}.`,
+				`“${String(kind)}” isn't a widget kind. Use one of ${AI_WIDGETS.map((d) => d.kind).join(", ")}.`,
 			],
 		};
 	}
