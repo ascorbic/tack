@@ -13,6 +13,7 @@ import {
 	type ThumbnailShape,
 } from "./boards.ts";
 import { LINK_CARD, linkHue, readPreview } from "./linkPreview.ts";
+import { imageSize } from "./images.ts";
 import { stackSize } from "./stacks.ts";
 import { shapesMap } from "./shapes.ts";
 
@@ -182,6 +183,12 @@ function shapeBox(props: Record<string, unknown>, cardTone: (ref: string) => str
 				...(sized ?? size),
 				tone: url && !unread ? String(linkHue(url)) : "",
 			};
+		}
+		case "image": {
+			// Where a picture is, never what it shows: the home page never loads
+			// a board's files, and the sketch has no room for them anyway.
+			const { w, h } = imageSize(props as { w?: number; h?: number });
+			return { kind: "image", x, y, width: w, height: h, tone: "" };
 		}
 		case "section":
 		case "frame":

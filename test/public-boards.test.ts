@@ -8,10 +8,12 @@
 
 import { type Miniflare, Response } from "miniflare";
 import type { Board } from "../src/server/board.ts";
+import { SVG_CSP } from "../src/server/securityHeaders.ts";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { sign } from "../src/server/forges/hmac.ts";
 import type { Card, MissingCard } from "../src/shared/cards.ts";
 import { stageChange } from "../src/shared/changes.ts";
+import { addImageShape } from "../src/shared/images.ts";
 import type { AuditEntry } from "../src/shared/push.ts";
 import { addShape, nextZ, shapesMap } from "../src/shared/shapes.ts";
 import type { SinceEvent } from "../src/shared/since.ts";
@@ -182,6 +184,34 @@ async function publicBoard() {
 	return { github, mf, alice, board, client };
 }
 
+// A real 1×1 PNG: an image, and its thumbnail.
+const PNG = Uint8Array.from(
+	atob(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+	),
+	(c) => c.charCodeAt(0),
+);
+
+/** Upload an image with its thumbnail, as the app does; its hash. */
+async function uploadImage(mf: Miniflare, cookie: string, board: string): Promise<string> {
+	const form = new FormData();
+	form.set("image", new Blob([PNG]), "image");
+	form.set("thumb", new Blob([PNG]), "thumb");
+	// Miniflare's fetch doesn't know Node's own FormData: send it as bytes.
+	const encoded = new globalThis.Response(form);
+	const response = await mf.dispatchFetch(`${ORIGIN}/api/boards/${board}/images`, {
+		method: "POST",
+		body: await encoded.arrayBuffer(),
+		headers: {
+			cookie,
+			origin: ORIGIN,
+			"content-type": encoded.headers.get("content-type") ?? "",
+		},
+	});
+	expect(response.status).toBe(201);
+	return ((await response.json()) as { hash: string }).hash;
+}
+
 function pngSize(bytes: Uint8Array): { width: number; height: number } {
 	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 	return { width: view.getUint32(16), height: view.getUint32(20) };
@@ -225,6 +255,40 @@ describe("board images", () => {
 		// Nonsense options are an error, not some other image.
 		expect((await get(mf, `/embed/${board.id}.svg?width=5`)).status).toBe(404);
 		expect((await get(mf, `/embed/${board.id}.svg?section=a&x=1`)).status).toBe(404);
+	}, 30_000);
+
+	it("draws images from their thumbnails, inline in the SVG", async () => {
+		const { mf, alice, board, client } = await publicBoard();
+		const before = (await get(mf, `/embed/${board.id}.svg`)).headers.get("etag");
+
+		const hash = await uploadImage(mf, alice, board.id);
+		addImageShape(client.doc, "picture", {
+			x: 0,
+			y: 420,
+			w: 240,
+			h: 160,
+			iw: 1,
+			ih: 1,
+			mime: "image/png",
+			image: hash,
+			alt: "The team",
+		});
+		await client.roundTrip();
+
+		const stub = await boardStub(mf, board.id);
+		const data = await (stub.embedData() as unknown as ReturnType<Board["embedData"]>);
+		expect(Object.keys(data.images)).toEqual([hash]);
+
+		const svg = await get(mf, `/embed/${board.id}.svg`);
+		expect(svg.status).toBe(200);
+		expect(svg.headers.get("etag")).not.toBe(before);
+		// Inline, so the SVG's policy lets it show and it loads nothing else.
+		expect(svg.headers.get("content-security-policy")).toBe(SVG_CSP);
+		const text = await svg.text();
+		expect(text).toContain('href="data:image/png;base64,');
+		expect(text).not.toMatch(/href="(?!data:|#)/);
+		// And as PNG, which resvg draws from the same SVG.
+		expect((await get(mf, `/embed/${board.id}.png`)).status).toBe(200);
 	}, 30_000);
 
 	it("draws nothing of any board that isn't public, and says no more than for one that isn't there", async () => {

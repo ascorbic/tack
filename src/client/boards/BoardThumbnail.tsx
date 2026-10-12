@@ -292,6 +292,37 @@ function Shape({ shape }: { shape: ThumbnailShape }) {
 				</g>
 			);
 		}
+		case "image": {
+			// A picture's place, not the picture: a muted block with a faint
+			// landscape, as the sketch never holds a board's files.
+			const side = Math.min(width, height);
+			const glyph = side * 0.42;
+			const gx = x + (width - glyph) / 2;
+			const gy = y + (height - glyph * 0.8) / 2;
+			return (
+				<g>
+					<rect
+						className="thumb-card"
+						x={x}
+						y={y}
+						width={width}
+						height={height}
+						rx={r}
+						style={{ fill: "var(--surface-muted)" }}
+					/>
+					<path
+						d={`M${gx} ${gy + glyph * 0.8}l${glyph * 0.36} ${-glyph * 0.42} ${glyph * 0.26} ${glyph * 0.24} ${glyph * 0.16} ${-glyph * 0.14} ${glyph * 0.22} ${glyph * 0.32}z`}
+						style={{ fill: "var(--line-strong)" }}
+					/>
+					<circle
+						cx={gx + glyph * 0.24}
+						cy={gy + glyph * 0.16}
+						r={glyph * 0.1}
+						style={{ fill: "var(--line-strong)" }}
+					/>
+				</g>
+			);
+		}
 		case "action": {
 			// A row with a checkbox.
 			const box = height * 0.28;

@@ -20,12 +20,17 @@
 // - Link cards are drawn from the preview in the document, which is board
 //   content like a sticky's text, but never with their images: the server
 //   fetches nothing to draw, so where a picture would be is the site's tint.
+// - Images are drawn from the small thumbnails their uploaders made, never
+//   their files, and only those the board hands over (`buildScene`'s
+//   `thumbs`); one without a thumbnail, or still uploading, is a quiet
+//   placeholder with its alt text.
 
 import type { Card, CardKind, CardState, MissingCard } from "./cards.ts";
 import { arrowHead, arrowTrim, readConnector, resolveEnds, routeConnector } from "./connectors.ts";
 import { layoutDisplays } from "./display.ts";
 import type { Point, Rect } from "./geometry.ts";
 import { LINK_CARD, linkHost, linkHue, linkLabel, readPreview } from "./linkPreview.ts";
+import { IMAGE_LIMITS, imageSize as imageBox, isImageHash } from "./images.ts";
 import { parseKey } from "./refs.ts";
 import { NOMINAL_SIZE, readStructure } from "./sections.ts";
 import type { ShapeProps } from "./shapes.ts";
@@ -74,6 +79,14 @@ export const EMBED = {
 	sectionPad: 24,
 	/** Shapes drawn, at most: beyond this the largest are kept. */
 	maxItems: 900,
+	/**
+	 * Image thumbnails a board hands over to be drawn, at most, largest
+	 * images first: the rest are placeholders. Every thumbnail is inlined in
+	 * the SVG, so this bounds the image's size and the board's reply.
+	 */
+	maxImages: 60,
+	/** And at most this many characters of thumbnail data URLs in all (about 3 MB). */
+	maxImageChars: 3_000_000,
 } as const;
 
 /** Link previews: the size social sites expect. */
@@ -275,6 +288,20 @@ export type SceneItem =
 	| { kind: "widget"; id: string; rect: Rect; label: string; title: string }
 	| SceneLink
 	| {
+			kind: "image";
+			id: string;
+			rect: Rect;
+			/** Its file's hash, null while it uploads: what an ETag hashes, rather than `src`. */
+			file: string | null;
+			/** Its thumbnail, a PNG or JPEG data URL; null draws a placeholder. */
+			src: string | null;
+			alt: string;
+			/** Show the alt text beneath it. */
+			caption: boolean;
+			/** Its corners' radius, in board units. */
+			radius: number;
+	  }
+	| {
 			kind: "stack";
 			id: string;
 			rect: Rect;
@@ -378,15 +405,25 @@ const SECTION_COLORS = new Set(["grey", "red", "orange", "yellow", "green", "blu
 const TEXT_PX: Record<string, number> = { s: 14, m: 20, l: 34, xl: 56 };
 const CONNECTOR_WIDTH = 2;
 
+/** An image shape's corners, as the board draws them (images.css). */
+const IMAGE_RADIUS = 10;
+/** How an image's caption is set beneath it, as the board does (images.css). */
+export const IMAGE_CAPTION = { size: 13, lineHeight: 1.4, gap: 8, lines: 3 } as const;
+
+/** Thumbnails an image of a board may draw, by file hash: PNG or JPEG data URLs. */
+export type SceneThumbs = Readonly<Record<string, string>>;
+
 /**
  * Lay out what an image of a board shows. `cards` must already be as an
  * anonymous viewer sees them: the scene trusts them, and only draws public
- * cards' details.
+ * cards' details. `thumbs` are the image thumbnails the board handed over;
+ * images without one are placeholders.
  */
 export function buildScene(
 	shapes: ReadonlyMap<string, ShapeProps>,
 	cards: ReadonlyMap<string, Entry>,
 	region: EmbedRegion,
+	thumbs: SceneThumbs = {},
 ): Scene {
 	const structure = readStructure(shapes);
 	const cardOf = (ref: string) => {
@@ -496,7 +533,7 @@ export function buildScene(
 		const item =
 			shape.type === "stack"
 				? stackItem(id, shape, rect, stacks.get(id) ?? [], shapes, cards)
-				: shapeItem(id, shape, rect, cards);
+				: shapeItem(id, shape, rect, cards, thumbs);
 		if (item) items.push(item);
 	}
 
@@ -644,6 +681,8 @@ function shapeBox(shape: ShapeProps, slot: Rect | undefined, list: Rect | undefi
 			};
 		case "widget":
 			return { x: shape.x, y: shape.y, ...widgetSize(shape) };
+		case "image":
+			return { x: shape.x, y: shape.y, ...imageBox(shape) };
 		case "text": {
 			const size = textSize(shape as unknown as Record<string, unknown>);
 			return { x: shape.x, y: shape.y, w: size.width, h: size.height };
@@ -664,8 +703,24 @@ function shapeItem(
 	shape: ShapeProps,
 	rect: Rect,
 	cards: ReadonlyMap<string, Entry>,
+	thumbs: SceneThumbs,
 ): SceneItem | null {
 	switch (shape.type) {
+		case "image": {
+			const file = isImageHash(shape.image) ? shape.image : null;
+			const thumb = file ? thumbs[file] : undefined;
+			const alt = imageAlt(shape);
+			return {
+				kind: "image",
+				id,
+				rect,
+				file,
+				src: thumb && THUMB_URL.test(thumb) ? thumb : null,
+				alt,
+				caption: shape.caption === true && alt !== "",
+				radius: IMAGE_RADIUS,
+			};
+		}
 		case "sticky": {
 			const faceDown = faceDownSticky(shape);
 			return {
@@ -827,6 +882,9 @@ function rowItem(
 			face: faceDown ? "hidden" : "sticky",
 		};
 	}
+	if (shape.type === "image") {
+		return { ...base, text: imageAlt(shape) || "Image", ref: null, tone: "", face: "other" };
+	}
 	const text =
 		shape.type === "decision" ? (shape.title ?? "") : shape.type === "widget" ? "" : shape.text;
 	return { ...base, text: clean(text ?? ""), ref: null, tone: "", face: "other" };
@@ -885,6 +943,17 @@ export function linkHeight(
 }
 
 /**
+ * What a thumbnail must be to be drawn: a PNG or JPEG data URL, base64,
+ * nothing else. The server only keeps those, but the scene is inlined in an
+ * SVG, so it never takes anything that could be more than a picture.
+ */
+const THUMB_URL = /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+function imageAlt(shape: ShapeProps): string {
+	return typeof shape.alt === "string" ? clean(shape.alt.slice(0, IMAGE_LIMITS.alt)) : "";
+}
+
+/**
  * Whether a sticky is face down: made in a silent session that hasn't been
  * revealed. Any mark at all counts, so a malformed one never shows text.
  */
@@ -936,6 +1005,11 @@ function itemBounds(item: SceneItem): Rect {
 		const { x, y, w, h } = item.rect;
 		return { x, y: y - SECTION_TITLE_ROOM, w, h: h + SECTION_TITLE_ROOM };
 	}
+	if (item.kind === "image" && item.caption) {
+		// Its caption hangs beneath it, outside its box.
+		const { x, y, w, h } = item.rect;
+		return { x, y, w, h: h + captionHeight(item.alt, w) };
+	}
 	if (item.kind !== "connector") return item.rect;
 	// Connectors: the bounds of the numbers in their path, generously.
 	const numbers = item.d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
@@ -950,6 +1024,14 @@ function itemBounds(item: SceneItem): Rect {
 		w: Math.max(...xs) - minX + 16,
 		h: Math.max(...ys) - minY + 16,
 	};
+}
+
+/** Roughly how much room an image's caption takes beneath it: up to three wrapped lines. */
+export function captionHeight(alt: string, width: number): number {
+	const { size, lineHeight, gap, lines: most } = IMAGE_CAPTION;
+	const perLine = Math.max(1, Math.floor(width / (size * 0.55)));
+	const lines = Math.min(most, Math.max(1, Math.ceil(alt.length / perLine)));
+	return gap + lines * size * lineHeight;
 }
 
 function boundsOfItems(items: SceneItem[]): Rect | null {

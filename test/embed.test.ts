@@ -25,6 +25,7 @@ import {
 } from "../src/shared/embed.ts";
 import { linkHue } from "../src/shared/linkPreview.ts";
 import type { ShapeProps } from "../src/shared/shapes.ts";
+import { sketch } from "../src/shared/thumbnail.ts";
 
 const PUBLIC_KEY = "github.com/ascorbic/cirrus#12";
 const PRIVATE_KEY = "github.com/acme/secret#5";
@@ -161,6 +162,45 @@ function cards(...entries: (Card | MissingCard)[]): Map<string, Card | MissingCa
 }
 
 const byId = (scene: Scene, id: string) => scene.items.find((item) => item.id === id);
+
+// A real 1×1 PNG, as a thumbnail's data URL: Satori reads its size.
+const THUMB =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+const HASH_A = "a".repeat(64);
+const HASH_B = "b".repeat(64);
+
+/** Images: one with a thumbnail and a caption, one without a thumbnail, one still uploading. */
+function imageBoard(): Map<string, ShapeProps> {
+	return new Map<string, ShapeProps>([
+		[
+			"i1",
+			{
+				type: "image",
+				x: 0,
+				y: 0,
+				w: 400,
+				h: 300,
+				z: "a0",
+				image: HASH_A,
+				mime: "image/png",
+				alt: "The launch 🚀 checklist",
+				caption: true,
+			},
+		],
+		["i2", { type: "image", x: 460, y: 0, w: 200, h: 200, z: "a1", image: HASH_B, alt: "A chart" }],
+		[
+			"i3",
+			{
+				type: "image",
+				x: 0,
+				y: 400,
+				z: "a2",
+				upload: { by: "Ada", client: 1, at: "2026-10-01T00:00:00Z" },
+				preview: "data:image/webp;base64,AAAA",
+			},
+		],
+	]);
+}
 
 describe("image addresses", () => {
 	it("read the options from the query, and refuse anything malformed", () => {
@@ -502,6 +542,62 @@ describe("the scene", () => {
 		expect(byId(scene, "s1")).toMatchObject({ kind: "section", display: true });
 	});
 
+	it("draws images from the thumbnails it's given, and placeholders for the rest", () => {
+		const scene = buildScene(imageBoard(), new Map(), { kind: "board" }, { [HASH_A]: THUMB });
+		expect(byId(scene, "i1")).toEqual({
+			kind: "image",
+			id: "i1",
+			rect: { x: 0, y: 0, w: 400, h: 300 },
+			file: HASH_A,
+			src: THUMB,
+			alt: "The launch checklist",
+			caption: true,
+			radius: 10,
+		});
+		// No thumbnail: a placeholder, with its alt text, but not as a caption it didn't ask for.
+		expect(byId(scene, "i2")).toMatchObject({
+			file: HASH_B,
+			src: null,
+			alt: "A chart",
+			caption: false,
+		});
+		// Still uploading: a placeholder at the default size, never its blurred preview.
+		expect(byId(scene, "i3")).toMatchObject({
+			file: null,
+			src: null,
+			rect: { x: 0, y: 400, w: 320, h: 240 },
+		});
+		expect(JSON.stringify(scene)).not.toContain("webp");
+		// The frame takes in a caption, beneath its image.
+		const captioned = buildScene(new Map([["i1", imageBoard().get("i1")!]]), new Map(), {
+			kind: "board",
+		});
+		expect(captioned.frame.y + captioned.frame.h).toBeGreaterThan(300 + EMBED.pad + 20);
+	});
+
+	it("never inlines a thumbnail that isn't a plain PNG or JPEG", () => {
+		for (const bad of [
+			"data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+			"https://example.com/a.png",
+			`${THUMB}"/><script>`,
+		]) {
+			const scene = buildScene(imageBoard(), new Map(), { kind: "board" }, { [HASH_A]: bad });
+			expect(byId(scene, "i1")).toMatchObject({ src: null });
+		}
+	});
+
+	it("shows an image in a list as a row of its alt text", () => {
+		const shapes = new Map<string, ShapeProps>([
+			[
+				"s1",
+				{ type: "section", x: 0, y: 0, w: 400, h: 400, z: "a0", title: "Refs", display: "list" },
+			],
+			["i1", { type: "image", x: 20, y: 40, w: 100, h: 80, z: "a1", parent: "s1", alt: "Mockup" }],
+		]);
+		const scene = buildScene(shapes, new Map(), { kind: "board" });
+		expect(byId(scene, "i1")).toMatchObject({ kind: "row", text: "Mockup", face: "other" });
+	});
+
 	it("keeps text the fonts can draw", () => {
 		expect(clean("Ship it 🚀 → café 日本  łódź")).toBe("Ship it -> café łódź");
 		expect(clean("  two \n lines ")).toBe("two\n lines");
@@ -678,6 +774,27 @@ describe("drawing", () => {
 		}
 	});
 
+	it("draws images inline, cropped to their boxes, with placeholders and captions", async () => {
+		const scene = buildScene(imageBoard(), new Map(), { kind: "board" }, { [HASH_A]: THUMB });
+		for (const theme of ["light", "dark"] as const) {
+			// Close up, zoomed out, and so far out the images are specks.
+			for (const width of [1200, 300]) {
+				const size = imageSize(scene.frame, width);
+				const svg = await render(drawScene(scene, { theme, ...size }), size.width, size.height);
+				// The thumbnail, inline: SVG embeds may load nothing else.
+				expect(svg).toContain(`href="${THUMB}"`);
+				expect(svg).not.toMatch(/href="(?!data:|#)/);
+			}
+		}
+		const specks = { ...scene, frame: { ...scene.frame, w: scene.frame.w * 60 } };
+		const svg = await render(
+			drawScene(specks, { theme: "light", width: 300, height: 40 }),
+			300,
+			40,
+		);
+		expect(svg).not.toContain(THUMB);
+	});
+
 	it("draws an empty board, and a section that's gone, with a note", async () => {
 		for (const scene of [
 			buildScene(new Map(), new Map(), { kind: "board" }),
@@ -691,5 +808,18 @@ describe("drawing", () => {
 			);
 			expect(svg.length).toBeGreaterThan(1000);
 		}
+	});
+});
+
+describe("home page sketches", () => {
+	it("draw images as blocks where they are, never what they show", () => {
+		const drawn = sketch([
+			{ id: "i1", type: "image", x: 0, y: 0, w: 400, h: 300, image: HASH_A, alt: "Secret" },
+			{ id: "i2", type: "image", x: 500, y: 0 },
+		]);
+		expect(drawn?.shapes.map((shape) => shape[0])).toEqual(["image", "image"]);
+		// The first is 400 wide, and the sketch's widest side is 1000 units for 820.
+		expect(drawn?.shapes[0]).toEqual(["image", 0, 0, 488, 366, ""]);
+		expect(JSON.stringify(drawn)).not.toContain(HASH_A);
 	});
 });

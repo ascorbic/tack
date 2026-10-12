@@ -101,7 +101,8 @@ import {
 	type StoredImage,
 	historyMentions,
 } from "./images.ts";
-import { imageRefs } from "../shared/images.ts";
+import { imageRefs, imageSize, isImageHash } from "../shared/images.ts";
+import { EMBED } from "../shared/embed.ts";
 import { realTime } from "./testClock.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
 import { configureForges } from "./forges/config.ts";
@@ -1597,14 +1598,17 @@ export class Board extends YServer<Env> {
 	// --- Board images (#57) --------------------------------------------------------
 
 	/**
-	 * What an image of the board draws: its shapes, and its cards exactly as
+	 * What an image of the board draws: its shapes, its cards exactly as
 	 * someone who isn't signed in gets them (anything from a repository that
-	 * isn't public is a bare placeholder). Waits a moment for cards on a
-	 * board that's just woken, unless `wait` is false.
+	 * isn't public is a bare placeholder), and its images' thumbnails, by
+	 * file hash (only public boards are drawn, so their images are public
+	 * anyway). Waits a moment for cards on a board that's just woken, unless
+	 * `wait` is false; leaves the thumbnails out if `images` is false.
 	 */
-	async embedData(options: { wait?: boolean } = {}): Promise<{
+	async embedData(options: { wait?: boolean; images?: boolean } = {}): Promise<{
 		shapes: [string, ShapeProps][];
 		cards: Entry[];
+		images: Record<string, string>;
 	}> {
 		if (options.wait !== false && this.syncing) {
 			await Promise.race([this.syncing, new Promise((resolve) => setTimeout(resolve, 2_000))]);
@@ -1612,7 +1616,44 @@ export class Board extends YServer<Env> {
 		const refs = cardRefs(this.document);
 		const entries = [...this.cards.values()].filter((entry) => refs.has(entry.key));
 		const cards = await this.visibleTo(null, entries);
-		return { shapes: [...readShapes(this.document)], cards };
+		const shapes = [...readShapes(this.document)];
+		return {
+			shapes,
+			cards,
+			images: options.images === false ? {} : this.embedThumbs(shapes),
+		};
+	}
+
+	/**
+	 * Thumbnails of the board's images, largest images first, within
+	 * `EMBED`'s limits: each is inlined in the SVG drawn, so a board of
+	 * hundreds of screenshots still makes an image of a sensible size. Those
+	 * left out are drawn as placeholders, and are the smallest on the board.
+	 */
+	private embedThumbs(shapes: readonly [string, ShapeProps][]): Record<string, string> {
+		const files = shapes
+			.flatMap(([, shape]) => {
+				if (shape.type !== "image" || !isImageHash(shape.image)) return [];
+				const { w, h } = imageSize(shape);
+				return [{ hash: shape.image, area: w * h }];
+			})
+			.sort((a, b) => b.area - a.area);
+		const out: Record<string, string> = {};
+		const seen = new Set<string>();
+		let count = 0;
+		let chars = 0;
+		for (const { hash } of files) {
+			if (count >= EMBED.maxImages) break;
+			if (seen.has(hash)) continue;
+			seen.add(hash);
+			const thumb = this.imageStore().thumbs([hash])[hash];
+			// One that doesn't fit leaves room for a smaller one that might.
+			if (!thumb || chars + thumb.length > EMBED.maxImageChars) continue;
+			out[hash] = thumb;
+			count++;
+			chars += thumb.length;
+		}
+		return out;
 	}
 
 	/**

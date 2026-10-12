@@ -13,7 +13,8 @@
 // src/shared/embed.ts for what that leaves out, and why.
 //
 // Images are drawn on the Worker (Satori, then resvg for PNG) from the
-// board's document and its cards, never in a browser. They're cached by
+// board's document, its cards and its images' thumbnails (inlined as data
+// URLs, so an SVG loads nothing), never in a browser. They're cached by
 // what they show: the ETag is a hash of the drawn scene and the options,
 // so an unchanged board answers `If-None-Match` with a 304 and a changed
 // one is drawn afresh, and drawn images are kept in the Cache API under
@@ -28,6 +29,7 @@ import {
 	type EmbedOptions,
 	OG_SIZE,
 	type Scene,
+	type SceneThumbs,
 	buildScene,
 	countBoard,
 	describeBoard,
@@ -41,6 +43,7 @@ import type { Board } from "../board.ts";
 import type { PublicBoard } from "../directory.ts";
 import { log } from "../log.ts";
 import { boards, directory } from "../namespaces.ts";
+import { SVG_CSP } from "../securityHeaders.ts";
 import { drawPreview, drawScene } from "./draw.ts";
 
 /** Bump when drawing changes, so cached images and ETags from before are dropped. */
@@ -117,8 +120,8 @@ async function image(
 	let scene: Scene;
 	let subtitle = "";
 	try {
-		const data = await boardData(env, id, true);
-		scene = buildScene(data.shapes, data.cards, options.region);
+		const data = await boardData(env, id, { wait: true, images: true });
+		scene = buildScene(data.shapes, data.cards, options.region, data.images);
 		if (kind === "og") {
 			scene = { ...scene, frame: previewFrame(scene.frame) };
 			subtitle = describeBoard(countBoard(data.shapes, data.cards));
@@ -143,7 +146,7 @@ async function image(
 		size,
 		title: board.title,
 		subtitle,
-		scene,
+		scene: etagScene(scene),
 	})}"`;
 	const headers = new Headers({
 		"content-type": TYPES[format],
@@ -151,8 +154,8 @@ async function image(
 		etag,
 		"access-control-allow-origin": "*",
 		"x-content-type-options": "nosniff",
-		// Satori's SVG has no scripts, and links nowhere: say so to browsers.
-		"content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+		// Satori's SVG has no scripts and links nowhere; its images are inline.
+		"content-security-policy": SVG_CSP,
 	});
 	if (matches(request.headers.get("if-none-match"), etag)) {
 		log.info("embed.served", { board: id, kind, format, status: 304, ms: Date.now() - started });
@@ -220,18 +223,34 @@ async function image(
 	return new Response(request.method === "HEAD" ? null : body, { status: 200, headers });
 }
 
-/** A board's shapes and cards, as someone signed out sees them. */
+/**
+ * A scene as its ETag hashes it: images by their file's hash and whether
+ * there's a thumbnail, not the thumbnail itself. A file's thumbnail never
+ * changes once it's there, and hashing megabytes of data URLs on every
+ * request (most of them answered 304) would cost more than the answer.
+ */
+function etagScene(scene: Scene): unknown {
+	return {
+		...scene,
+		items: scene.items.map((item) =>
+			item.kind === "image" ? { ...item, src: item.src !== null } : item,
+		),
+	};
+}
+
+/** A board's shapes, cards and image thumbnails, as someone signed out sees them. */
 async function boardData(
 	env: Env,
 	id: string,
-	wait: boolean,
-): Promise<{ shapes: Map<string, ShapeProps>; cards: Map<string, Entry> }> {
+	options: { wait: boolean; images: boolean },
+): Promise<{ shapes: Map<string, ShapeProps>; cards: Map<string, Entry>; images: SceneThumbs }> {
 	const stub = await getServerByName<Env, Board>(boards(env), id);
 	// The RPC types can't follow the document's open-ended shape properties.
-	const data = await (stub.embedData({ wait }) as unknown as ReturnType<Board["embedData"]>);
+	const data = await (stub.embedData(options) as unknown as ReturnType<Board["embedData"]>);
 	return {
 		shapes: new Map(data.shapes),
 		cards: new Map(data.cards.map((card) => [card.key, card])),
+		images: data.images ?? {},
 	};
 }
 
@@ -264,7 +283,8 @@ async function boardPage(request: Request, env: Env, id: string | null): Promise
 	}
 	let description = "A public board on Tack.";
 	try {
-		const data = await boardData(env, board.id, false);
+		// Only what's on it, for the description: no thumbnails.
+		const data = await boardData(env, board.id, { wait: false, images: false });
 		description = describeBoard(countBoard(data.shapes, data.cards));
 	} catch (error) {
 		log.warn("embed.preview.failed", { board: board.id, error });

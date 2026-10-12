@@ -9,6 +9,7 @@
 
 import {
 	type EmbedTheme,
+	IMAGE_CAPTION,
 	LINK_BAND,
 	type Scene,
 	type SceneCard,
@@ -204,6 +205,8 @@ function drawItem(item: Exclude<SceneItem, { kind: "connector" }>, ctx: Ctx): El
 			return action(item, ctx);
 		case "widget":
 			return widget(item, ctx);
+		case "image":
+			return image(item, ctx);
 		case "row":
 			return row(item, ctx);
 		case "stack":
@@ -796,6 +799,152 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 function dueLabel(due: string): string {
 	const [, month, day] = due.split("-").map(Number);
 	return `${MONTHS[(month ?? 1) - 1] ?? ""} ${day ?? ""}`.trim();
+}
+
+/** Below this many pixels a side, an image is a plain block: a picture that small says nothing. */
+const IMAGE_BLOCK_PX = 8;
+
+/**
+ * An image, as the board draws it: its thumbnail cropped to fill its box
+ * (object-fit: cover), a card's corners and shadow, and a hairline over the
+ * edge so a white picture on a light board, or a dark one on a dark board,
+ * still has one. Without a thumbnail (still uploading, or from before
+ * thumbnails) it's a quiet frame with a picture glyph and its alt text. Its
+ * caption hangs beneath it.
+ */
+function image(item: Extract<SceneItem, { kind: "image" }>, ctx: Ctx): El[] {
+	const { p, k } = ctx;
+	const at = place(item.rect, ctx);
+	const width = at.width as number;
+	const height = at.height as number;
+	const radius = Math.min(k(item.radius), Math.floor(Math.min(width, height) / 2));
+	const fill = { position: "absolute", left: 0, top: 0, width, height } as const;
+	const frame: Style = {
+		...at,
+		alignItems: "center",
+		justifyContent: "center",
+		flexDirection: "column",
+		overflow: "hidden",
+		borderRadius: radius,
+		background: p.surfaceMuted,
+		boxShadow: ctx.s > 0.3 ? p.shadow : "none",
+	};
+	const out: El[] = [];
+	if (Math.min(width, height) < IMAGE_BLOCK_PX) {
+		// Too small to show anything: a patch the colour of a line, as text becomes bars.
+		out.push(box({ ...frame, background: p.lineStrong, boxShadow: "none" }));
+	} else {
+		// Satori needs an image's size given, and crops it to cover the box itself.
+		const inside: (El | null)[] = item.src
+			? [
+					{
+						type: "img",
+						props: {
+							src: item.src,
+							width,
+							height,
+							style: { ...fill, objectFit: "cover", borderRadius: radius },
+						},
+					},
+				]
+			: imagePlaceholder(item, ctx, Math.min(width, height));
+		const hairline = box({
+			...fill,
+			borderRadius: radius,
+			border: `${Math.max(1, k(1))}px solid ${p.line}`,
+		});
+		out.push(box(frame, ...inside, hairline));
+	}
+	if (item.caption) {
+		const { size, lineHeight, gap, lines } = IMAGE_CAPTION;
+		const wrapped = Math.ceil((item.alt.length * size * 0.55) / Math.max(1, item.rect.w));
+		out.push(
+			box(
+				{
+					position: "absolute",
+					left: at.left as number,
+					top: k(item.rect.y + item.rect.h + gap - ctx.frame.y),
+					width,
+					justifyContent: "center",
+				},
+				legible(size, ctx)
+					? text(
+							{ fontSize: k(size), lineHeight, color: p.muted, textAlign: "center" },
+							item.alt,
+							lines,
+						)
+					: bars(ctx, size, Math.min(lines, Math.max(1, wrapped)), p.line),
+			),
+		);
+	}
+	return out;
+}
+
+/** An image without a thumbnail: a picture glyph, and what it shows when there's room. */
+function imagePlaceholder(
+	item: Extract<SceneItem, { kind: "image" }>,
+	ctx: Ctx,
+	side: number,
+): (El | null)[] {
+	const { p, k } = ctx;
+	const glyph = Math.max(6, Math.min(k(28), Math.round(side * 0.36)));
+	const roomy = item.alt && !item.caption && legible(12, ctx) && side >= k(72);
+	return [
+		pictureGlyph(glyph, p.muted),
+		roomy
+			? text(
+					{
+						marginTop: k(8),
+						padding: `0 ${k(12)}px`,
+						fontSize: k(12),
+						lineHeight: 1.35,
+						color: p.muted,
+						textAlign: "center",
+					},
+					item.alt,
+					2,
+				)
+			: null,
+	];
+}
+
+/** A framed landscape: a picture, as the board's image tool shows one. */
+function pictureGlyph(size: number, color: string): El {
+	return {
+		type: "svg",
+		props: {
+			width: size,
+			height: size,
+			viewBox: "0 0 16 16",
+			style: { opacity: 0.7, flexShrink: 0 },
+			children: [
+				{
+					type: "rect",
+					props: {
+						x: 1.75,
+						y: 2.75,
+						width: 12.5,
+						height: 10.5,
+						rx: 2,
+						fill: "none",
+						stroke: color,
+						strokeWidth: 1.4,
+					},
+				},
+				{ type: "circle", props: { cx: 5.6, cy: 6.4, r: 1.2, fill: color } },
+				{
+					type: "path",
+					props: {
+						d: "M2.5 11.8l3.4-3.3 2.6 2.4 2.2-1.9 2.8 2.6",
+						fill: "none",
+						stroke: color,
+						strokeWidth: 1.4,
+						strokeLinejoin: "round",
+					},
+				},
+			],
+		},
+	};
 }
 
 function widget(item: Extract<SceneItem, { kind: "widget" }>, ctx: Ctx): El {
