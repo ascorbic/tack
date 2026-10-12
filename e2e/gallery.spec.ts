@@ -66,11 +66,40 @@ test("every card state renders", async ({ page }) => {
 	}
 
 	// The first four cards, then three more PRs. Every PR with checks has a CI bar.
-	await expect(page.locator(".card.compact")).toHaveCount(7);
+	await expect(page.locator(".card.compact:not(.link-card)")).toHaveCount(7);
 	await expect(page.locator(".card.compact .ci-bar")).toHaveCount(6);
-	await expect(page.locator(".card[data-selected=true]")).toHaveCount(1);
+	await expect(page.locator(".card[data-selected=true]:not(.link-card)")).toHaveCount(1);
 	await expect(page.locator(".card.loading")).toHaveCount(1);
 	await expect(page.locator(".card.missing")).toHaveCount(8);
+});
+
+test("every link card state renders, without a broken image", async ({ page }) => {
+	const section = page.locator("section", {
+		has: page.getByRole("heading", { name: "Link cards" }),
+	});
+	const figure = (caption: string) =>
+		section.locator("figure", { has: page.locator("figcaption", { hasText: caption }) });
+	await expect(section.locator("figure")).toHaveCount(11);
+	await expect(figure("With an image").locator(".link-media[data-loaded]")).toHaveCount(1);
+	await expect(figure("Only an icon").locator(".link-tint .link-icon img")).toHaveCount(1);
+	await expect(figure("Only a title").locator(".link-initial")).toHaveCount(2);
+	await expect(figure("Loading").locator(".link-card")).toHaveAttribute("data-state", "loading");
+	await expect(figure("Not read yet").locator(".link-card")).toHaveAttribute(
+		"data-state",
+		"pending",
+	);
+	await expect(figure("Couldn’t be read").locator(".link-note")).toBeVisible();
+	await expect(figure("Won’t be read").locator(".link-globe")).toHaveCount(2);
+	await expect(section.locator(".link-card.compact")).toHaveCount(2);
+	// Every image that's drawn loaded: none is broken.
+	const broken = await section
+		.locator("img")
+		.evaluateAll(
+			(images) =>
+				(images as HTMLImageElement[]).filter((img) => img.complete && img.naturalWidth === 0)
+					.length,
+		);
+	expect(broken).toBe(0);
 });
 
 test("cards from other forges say how they're kept up to date", async ({ page }) => {

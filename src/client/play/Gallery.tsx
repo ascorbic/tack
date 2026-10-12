@@ -8,6 +8,9 @@ import type { ShapeFont, ShapeProps, TextSize } from "../../shared/shapes.ts";
 import type { Status } from "../activity.ts";
 import { STICKY_COLORS, type ShapeNode } from "../board.ts";
 import { CardView } from "../CardView.tsx";
+import type { LinkPreview } from "../../shared/linkPreview.ts";
+import { LinkView, type LinkViewProps } from "../links/LinkView.tsx";
+import { cannedPreview, playLinks } from "./links.ts";
 import { ConnectorSample } from "../connectors.tsx";
 import type { Chat } from "../chat.ts";
 import { CursorView } from "../Cursors.tsx";
@@ -282,6 +285,25 @@ const CONNECTORS: {
 	},
 ];
 
+/** Every link card state: read (`preview` absent: the canned page), and every other. */
+const LINK_GALLERY: ({
+	label: string;
+	url: string;
+	preview?: LinkPreview | null;
+} & Partial<Pick<LinkViewProps, "loading" | "selected" | "compact">>)[] = [
+	{ label: "With an image", url: "https://unpic.pics/" },
+	{ label: "Dark image", url: "https://emdashcms.com/" },
+	{ label: "Only an icon", url: "https://tack.social/docs/boards/link-cards" },
+	{ label: "Only a title", url: "https://tack.social/changelog.txt" },
+	{ label: "Selected", url: "https://github.com/ascorbic/cirrus", selected: true },
+	{ label: "Loading", url: "https://tack.social/docs/self-hosting", preview: null, loading: true },
+	{ label: "Not read yet", url: "https://emdashcms.com/blog/launch", preview: null },
+	{ label: "Couldn’t be read", url: "https://docs.emdashcms.invalid/guide" },
+	{ label: "Won’t be read", url: "http://192.168.1.20/admin" },
+	{ label: "Compact", url: "https://tack.social/", compact: true },
+	{ label: "Compact, no image", url: "https://tack.social/changelog.txt", compact: true },
+];
+
 /** Apply a plausible webhook-style change, to replay update animations. */
 function mutate(card: Card, round: number): Card {
 	const changes: Partial<Card>[] = [
@@ -512,6 +534,28 @@ function Sections({
 					{MISSING.map(({ label, card }) => (
 						<figure key={card.reason}>
 							<CardView card={card} cardKey={card.key} />
+							<figcaption>{label}</figcaption>
+						</figure>
+					))}
+				</div>
+			</section>
+
+			<section>
+				<h2>Link cards</h2>
+				<p className="gallery-note">
+					Any other web address, as its page’s preview: the image (or the site’s icon on its own
+					tint), the site, title, description and host. Images come through the instance, and one
+					that can’t be shown falls back to the tint, never a broken image.
+				</p>
+				<div className="gallery-grid">
+					{LINK_GALLERY.map(({ label, url, preview, ...props }) => (
+						<figure key={label}>
+							<LinkView
+								url={url}
+								preview={preview === undefined ? cannedPreview(url) : preview}
+								imageSrc={playLinks.imageSrc}
+								{...props}
+							/>
 							<figcaption>{label}</figcaption>
 						</figure>
 					))}

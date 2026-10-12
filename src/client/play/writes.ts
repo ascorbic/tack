@@ -19,6 +19,7 @@ import {
 	fixture,
 } from "./fixtures.ts";
 import { playAi } from "./ai.ts";
+import { playLinks } from "./links.ts";
 import { RELATED_CARDS, playRelated } from "./related.ts";
 
 // Writing back (M2) in the playground: a board to try the selection actions
@@ -89,6 +90,8 @@ export function playServices(): WriteServices {
 		related: playRelated,
 		// AI answers in the browser (#64), with modes the playground sets.
 		ai: playAi,
+		// Link cards' previews, canned and drawn in the browser: nothing's fetched.
+		links: playLinks,
 		// The card tool's search, over the playground's own cards.
 		async searchItems(host, q) {
 			await new Promise((resolve) => setTimeout(resolve, 300));

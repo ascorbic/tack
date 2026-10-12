@@ -18,6 +18,7 @@ import { seedInbox, seedRules } from "./automationScenarios.ts";
 import { seedActionItems, seedTemplate } from "./actionItems.ts";
 import { seedDecisions } from "./decisions.ts";
 import { seedLists } from "./displayScenarios.ts";
+import { seedLinks } from "./links.ts";
 import type { SimulatedFacilitator } from "./facilitation.ts";
 import { type SimulatedHistory, retroHistory } from "./history.ts";
 import { facilitateSilent, seedRetro, seedSilent, seedVote } from "./facilitationScenarios.ts";
@@ -512,6 +513,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"“Now” is a list and the backlog mini cards: hover a row for its card, drag to reorder or out onto the board, and switch modes from a selected section’s header.",
 		seed: seedLists,
+	},
+	links: {
+		name: "Link cards",
+		description:
+			"Web pages as cards with their previews: with an image, with only an icon or a title, one that couldn’t be read, one Tack won’t read, and one read as you watch. Paste or drop any address to add one (put [fail] in it to see it fail); words around an address keep it a sticky.",
+		seed: seedLinks,
 	},
 	connectors: {
 		name: "Connectors",

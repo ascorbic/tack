@@ -7,6 +7,7 @@ import { addSection } from "../../shared/structure.ts";
 import { addCard } from "../board.ts";
 import { makeChecks, pullDetails, reviewer } from "../play/ci.ts";
 import { LABELS, fixture as playFixture } from "../play/fixtures.ts";
+import { seedLink } from "../play/links.ts";
 
 // The boards the public demo starts from (#75): a planning session, a retro
 // and a triage, about the owner's own projects on the demo forge (`fake.tack`,
@@ -161,6 +162,8 @@ function seedPlanning(doc: Y.Doc): void {
 			};
 			sticky(doc, note, color, at, author, ideas);
 		});
+		// A page as a link card, its preview canned in the browser (play/links.ts): the demo never fetches one.
+		seedLink(doc, "https://tack.social/docs/boards/link-cards", { x: 30, y: 680 });
 
 		const next = addSection(
 			doc,

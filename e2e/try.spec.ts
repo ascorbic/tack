@@ -227,6 +227,26 @@ test("nothing can leave the browser: requests elsewhere are refused", async ({ p
 	await expect(page).toHaveURL(/\/play\/try/);
 });
 
+test("link cards read their previews in the browser, never from a server", async ({ page }) => {
+	const out = outbound(page);
+	const api: string[] = [];
+	page.on("request", (request) => {
+		if (new URL(request.url()).pathname.startsWith("/api/")) api.push(request.url());
+	});
+	await open(page);
+	await coach(page).getByRole("button", { name: "Skip tour" }).click();
+	await page.evaluate(() => {
+		const data = new DataTransfer();
+		data.setData("text/plain", "https://emdashcms.com");
+		window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true }));
+	});
+	const pasted = page.locator(".react-flow__node-link .link-card", { hasText: "EmDash" });
+	await expect(pasted).toHaveAttribute("data-state", "ok");
+	await expect(pasted.locator(".link-media[data-loaded]")).toHaveCount(1);
+	expect(api.filter((url) => url.includes("/unfurl") || url.includes("/links/"))).toEqual([]);
+	expect(out).toEqual([]);
+});
+
 test("the demo's AI answers: summarise a section", async ({ page }) => {
 	await open(page);
 	await coach(page).getByRole("button", { name: "Skip tour" }).click();
