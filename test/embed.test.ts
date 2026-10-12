@@ -267,7 +267,7 @@ describe("the scene", () => {
 			{ face: "card", card: { status: "private" } },
 			{
 				face: "card",
-				card: expect.objectContaining({ status: "ok", ref: "astro#12", state: "open" }),
+				card: expect.objectContaining({ status: "ok", ref: "cirrus#12", state: "open" }),
 			},
 			{ face: "sticky", tone: "yellow", text: "Note 4" },
 		]);
