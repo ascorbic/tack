@@ -4,6 +4,8 @@ A self-hosted, open source, git-native whiteboard for collaborative planning.
 
 Tack cards, issues and ideas to a shared board, change tack together, and say _tack_ to the people who got you there.
 
+[Try it in your browser](https://tack.social/try/), or read the docs at [tack.social](https://tack.social).
+
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ascorbic/tack)
 
 - **Live GitHub cards**: paste any issue or pull request link and it stays live via webhooks; lists and other widgets keep searches live
@@ -38,7 +40,7 @@ pnpm --filter site build   # build the docs, failing on broken links
 
 ## Self-hosting
 
-Tack runs as one Worker on your Cloudflare account, with a GitHub App you own. The docs site (`site/`, under Self-hosting) has the full guide; in short:
+Tack runs as one Worker on your Cloudflare account, with a GitHub App you own. [tack.social](https://tack.social/self-hosting/deploy/) has the full guide (its source is `site/`); in short:
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ascorbic/tack)
 
