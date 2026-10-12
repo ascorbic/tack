@@ -220,10 +220,10 @@ button.stack-name:hover {
 .stack-name-row[data-headline] .stack-name {
 	align-items: flex-start;
 	font-family: var(--font-display);
-	font-size: 20px;
-	font-weight: 640;
-	line-height: 25px;
-	letter-spacing: -0.02em;
+	font-size: 16px;
+	font-weight: 650;
+	line-height: 21px;
+	letter-spacing: -0.015em;
 }
 
 .stack-name-text {
@@ -427,9 +427,9 @@ button.stack-name:hover {
 .stack-name-input[data-headline] {
 	flex: 1;
 	font-family: var(--font-display);
-	font-size: 20px;
-	line-height: 25px;
-	letter-spacing: -0.02em;
+	font-size: 16px;
+	line-height: 21px;
+	letter-spacing: -0.015em;
 }
 
 /* Its first few members, a line each. */
@@ -657,8 +657,8 @@ button.stack-name:hover {
 	margin: 0;
 	padding: 3px 6px;
 	font-family: var(--font-display);
-	font-size: 18px;
-	line-height: 22px;
+	font-size: 16px;
+	line-height: 21px;
 	letter-spacing: -0.015em;
 }
 
@@ -666,8 +666,8 @@ button.stack-name:hover {
 	width: 260px;
 	margin: 0;
 	font-family: var(--font-display);
-	font-size: 18px;
-	line-height: 22px;
+	font-size: 16px;
+	line-height: 21px;
 }
 
 .stack-tray-count {
