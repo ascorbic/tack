@@ -132,20 +132,20 @@ test("the gallery shows embed and signed-out states", async ({ page }) => {
 	await expect(notice).toBeHidden();
 });
 
-test("the share dialog shows the board's link as a QR code, and folds it away", async ({
+test("the share dialog shows the board's link as a QR code, on a page of its own", async ({
 	page,
 }) => {
 	await publicBoard(page);
 	await page.getByRole("button", { name: /^Share/ }).click();
 	const dialog = page.getByRole("dialog");
-	const toggle = dialog.getByRole("button", { name: "Show a QR code for the link" });
-	await toggle.click();
-	const code = dialog.getByRole("img", { name: "QR code for this board's link" });
-	await expect(code).toBeVisible();
+	await dialog.getByRole("button", { name: "Show a QR code for the link" }).click();
+	// The QR page takes the dialog's place, rather than opening over it.
+	await expect(dialog.getByRole("heading", { name: /on a phone/ })).toBeVisible();
+	await expect(dialog.getByRole("img", { name: "QR code for this board's link" })).toBeVisible();
 	await expect(dialog.locator(".share-qr-link")).toContainText("/b/");
-	// Opening it keeps the footer's buttons in view.
-	await expect(dialog.getByRole("button", { name: "Hide the QR code" })).toBeInViewport();
-	await expect(dialog.getByRole("button", { name: "Copy link" })).toBeInViewport();
-	await dialog.getByRole("button", { name: "Hide the QR code" }).click();
-	await expect(code).toHaveCount(0);
+	await expect(dialog.getByRole("button", { name: "Copy link" })).toBeVisible();
+	await expect(dialog.locator(".share-members")).toHaveCount(0);
+	await dialog.getByRole("button", { name: "Back to sharing" }).click();
+	await expect(dialog.locator(".share-members")).toBeVisible();
+	await expect(dialog.getByRole("button", { name: "Show a QR code for the link" })).toBeFocused();
 });

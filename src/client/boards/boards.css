@@ -1878,69 +1878,108 @@
 }
 
 .share-foot {
-	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	margin-top: 18px;
 }
 
-/* The link as a QR code, for a phone across the table: a card that rises
-   from its button over the dialog, so nothing in the dialog moves. */
+/* The share dialog's QR page: the link as a code for a phone across the
+   table, big enough to scan from there. It slides in over the share page,
+   which slides back when you go back. */
+.share-qr-view {
+	animation: share-page-in var(--t-settle) var(--ease-spring);
+}
+
+/* Only coming back from the QR page, not on first opening. */
+.share[data-paged] {
+	animation: share-page-back var(--t-settle) var(--ease-spring);
+}
+
+@keyframes share-page-in {
+	from {
+		opacity: 0;
+		transform: translateX(24px);
+	}
+}
+
+@keyframes share-page-back {
+	from {
+		opacity: 0;
+		transform: translateX(-24px);
+	}
+}
+
+.share-back {
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	margin: -4px 0 -4px -6px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: none;
+	color: var(--ink-soft);
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.share-back:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.share-back svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
 .share-qr {
-	position: absolute;
-	right: 0;
-	bottom: calc(100% + 10px);
-	z-index: 2;
 	display: flex;
+	flex-direction: column;
 	align-items: center;
-	gap: 16px;
-	width: min(100%, 360px);
-	margin: 0;
-	padding: 14px;
+	gap: 14px;
+	margin: 4px 0 0;
+	padding: 22px 16px 18px;
 	border: 1px solid var(--line);
-	border-radius: 14px;
-	background: var(--surface);
-	box-shadow: var(--shadow-lifted);
-	animation: share-qr-in var(--t-settle) var(--ease-spring);
-	transform-origin: calc(100% - 140px) 100%;
+	border-radius: 16px;
+	background: var(--surface-muted);
 }
 
 .share-qr .qr-code {
-	flex: none;
-	width: 148px;
-	height: 148px;
-	border-radius: 10px;
+	width: min(240px, 70vw);
+	height: auto;
+	aspect-ratio: 1;
+	border-radius: 14px;
 	box-shadow:
 		0 0 0 1px var(--line),
 		var(--shadow-rest);
-}
-
-.share-qr figcaption {
-	display: flex;
-	min-width: 0;
-	flex-direction: column;
-	gap: 6px;
-	font-size: 13px;
-	color: var(--ink-soft);
-}
-
-.share-qr figcaption strong {
-	color: var(--ink);
-	font-size: 14px;
-	font-weight: 650;
+	animation: share-qr-in var(--t-settle) var(--ease-spring) 60ms backwards;
 }
 
 .share-qr-link {
+	max-width: 100%;
 	overflow-wrap: anywhere;
-	font-size: 12px;
+	text-align: center;
+	font-size: 12.5px;
 	color: var(--muted);
+}
+
+.share-qr-view .share-foot {
+	justify-content: center;
+}
+
+.share-qr-view .share-copy {
+	margin-left: 0;
 }
 
 @keyframes share-qr-in {
 	from {
 		opacity: 0;
-		transform: translateY(6px) scale(0.96);
+		transform: scale(0.94);
 	}
 }
 
@@ -1970,12 +2009,6 @@
 .share-qr-button:hover {
 	background: var(--hover);
 	color: var(--ink);
-}
-
-.share-qr-button[data-on] {
-	border-color: var(--accent);
-	background: var(--accent-soft);
-	color: var(--accent);
 }
 
 .share-qr-button:active {
@@ -2287,7 +2320,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.share-qr {
+	.share-qr .qr-code,
+	.share-qr-view,
+	.share[data-paged] {
 		animation: none;
 	}
 }

@@ -100,6 +100,10 @@ export function SharePanel({
 	const [fresh, setFresh] = useState<Set<string>>(new Set());
 	// Tack never emails anyone: after an invite, say who has to send the link.
 	const [sendLink, setSendLink] = useState(false);
+	// The link as a QR code: a page of the dialog of its own, not a pop-up over it.
+	const [qr, setQr] = useState(false);
+	// Been to the QR page and back: the share page slides back in.
+	const [paged, setPaged] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -192,8 +196,23 @@ export function SharePanel({
 		</span>
 	);
 
+	if (qr) {
+		return (
+			<QrView
+				board={board}
+				link={actions.link}
+				headingId={headingId}
+				onBack={() => {
+					setQr(false);
+					setPaged(true);
+				}}
+				onClose={onClose}
+			/>
+		);
+	}
+
 	return (
-		<div className="share" data-managing={board.canManage}>
+		<div className="share" data-managing={board.canManage} data-paged={paged || undefined}>
 			<header className="share-head">
 				<h2 id={headingId}>
 					Share <span className="share-title">“{board.title}”</span>
@@ -297,6 +316,7 @@ export function SharePanel({
 				link={actions.link}
 				sendLink={sendLink}
 				onCopied={() => setSendLink(false)}
+				onQr={() => setQr(true)}
 			/>
 		</div>
 	);
@@ -364,6 +384,7 @@ function ShareFoot({
 	link,
 	sendLink,
 	onCopied,
+	onQr,
 }: {
 	board: BoardInfo;
 	canLeave: boolean;
@@ -371,9 +392,9 @@ function ShareFoot({
 	link: string;
 	sendLink: boolean;
 	onCopied: () => void;
+	onQr: () => void;
 }) {
 	const [confirming, setConfirming] = useState(false);
-	const [qr, setQr] = useState(false);
 	const [leaving, setLeaving] = useState(false);
 	const stay = useRef<HTMLButtonElement>(null);
 	useEffect(() => {
@@ -421,15 +442,6 @@ function ShareFoot({
 
 	return (
 		<footer className="share-foot" data-send-link={sendLink || undefined}>
-			{qr && (
-				<figure className="share-qr" id="share-qr">
-					<QrCode value={link} label="QR code for this board's link" />
-					<figcaption>
-						<strong>Scan to open this board</strong>
-						<span className="share-qr-link mono">{link.replace(/^https?:\/\//, "")}</span>
-					</figcaption>
-				</figure>
-			)}
 			{sendLink ? (
 				<p className="share-hint" role="status">
 					Tack doesn’t email anyone. Copy the link and send it to them.
@@ -444,12 +456,10 @@ function ShareFoot({
 			<button
 				type="button"
 				className="share-qr-button"
-				aria-label={qr ? "Hide the QR code" : "Show a QR code for the link"}
-				data-tooltip={qr ? "Hide QR code" : "QR code"}
-				aria-expanded={qr}
-				aria-controls="share-qr"
-				data-on={qr || undefined}
-				onClick={() => setQr((on) => !on)}
+				aria-label="Show a QR code for the link"
+				data-tooltip="QR code"
+				data-qr-button=""
+				onClick={onQr}
 			>
 				<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
 					<rect x="2.5" y="2.5" width="4" height="4" rx="1" />
@@ -603,5 +613,69 @@ function CopyLink({
 			</span>
 			<span aria-live="polite">{copied ? "Link copied" : "Copy link"}</span>
 		</button>
+	);
+}
+
+/**
+ * The share dialog's QR page: the board's link as a code to scan from a
+ * phone across the table, big enough to scan from there, with the link
+ * written out and a way back.
+ */
+function QrView({
+	board,
+	link,
+	headingId,
+	onBack,
+	onClose,
+}: {
+	board: BoardInfo;
+	link: string;
+	headingId?: string;
+	onBack: () => void;
+	onClose?: () => void;
+}): ReactNode {
+	const back = useRef<HTMLButtonElement>(null);
+	useEffect(() => {
+		back.current?.focus();
+		// Back on the share page, focus goes where it came from.
+		return () => {
+			requestAnimationFrame(() =>
+				document.querySelector<HTMLElement>(".share [data-qr-button]")?.focus(),
+			);
+		};
+	}, []);
+	return (
+		<div className="share share-qr-view">
+			<header className="share-head">
+				<button
+					ref={back}
+					type="button"
+					className="share-back"
+					aria-label="Back to sharing"
+					onClick={onBack}
+				>
+					<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+						<path d="M9.5 3.5 5 8l4.5 4.5" />
+					</svg>
+				</button>
+				<h2 id={headingId}>
+					Open <span className="share-title">“{board.title}”</span> on a phone
+				</h2>
+				{onClose && (
+					<button type="button" className="share-close" aria-label="Close" onClick={onClose}>
+						<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+							<path d="M3 3l8 8M11 3l-8 8" />
+						</svg>
+					</button>
+				)}
+			</header>
+			<figure className="share-qr">
+				<QrCode value={link} label="QR code for this board's link" />
+				<figcaption className="share-qr-link mono">{link.replace(/^https?:\/\//, "")}</figcaption>
+			</figure>
+			<footer className="share-foot">
+				<CopyLink link={link} />
+			</footer>
+		</div>
 	);
 }
