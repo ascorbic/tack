@@ -8,7 +8,9 @@ import {
 	useLayoutEffect,
 	useMemo,
 	useState,
+	useSyncExternalStore,
 } from "react";
+import { previewStore } from "../display/Preview.tsx";
 import { scaledDuration } from "../motion.ts";
 import { type BarAnchor, BarAnchorContext, chromeWithin } from "./Popover.tsx";
 import { type BarSide, type Box, panelSide, placeBar } from "./popoverPlacement.ts";
@@ -20,6 +22,13 @@ import { type BarSide, type Box, panelSide, placeBar } from "./popoverPlacement.
 // following the board), at a position of our own. Its panels open away from
 // the edge it's pinned to (`BarAnchorContext`). Only this re-renders as the
 // board pans: what's inside is the same elements, so it's left alone.
+//
+// A row or mini card selected on its own pops its full card out beside it
+// (display/Preview.tsx): the bar goes with that, under it or over it, rather
+// than with the little thing it's the card of.
+
+/** Where the pinned pop-out sits: right of its row or mini card (Preview.tsx's offset). */
+const POP_OUT_GAP = 14;
 
 /** The selection's box on the canvas, in screen pixels from its corner. */
 function selectionOn(state: ReactFlowState, ids: readonly string[]): Box | null {
@@ -119,6 +128,46 @@ export function SelectionBar({
 	const canvas = useStore((state) => state.domNode);
 	const [size, setSize] = useState<{ width: number; height: number } | null>(null);
 	const [frame, setFrame] = useState<Frame | null>(null);
+	// The pinned pop-out's size, while there is one for this selection.
+	const hovered = useSyncExternalStore(previewStore.subscribe, previewStore.get);
+	const [popOut, setPopOut] = useState<{ width: number; height: number } | null>(null);
+	useLayoutEffect(() => {
+		if (!visible || list.length !== 1 || !canvas) {
+			setPopOut(null);
+			return;
+		}
+		let observer: ResizeObserver | null = null;
+		// Drawn in the same commit as the selection, or the next frame.
+		const frame = requestAnimationFrame(() => {
+			const el = canvas.ownerDocument.querySelector<HTMLElement>(".display-preview[data-pinned]");
+			if (!el) return setPopOut(null);
+			const measure = () =>
+				setPopOut((was) =>
+					was?.width === el.offsetWidth && was.height === el.offsetHeight
+						? was
+						: { width: el.offsetWidth, height: el.offsetHeight },
+				);
+			measure();
+			observer = new ResizeObserver(measure);
+			observer.observe(el);
+		});
+		return () => {
+			cancelAnimationFrame(frame);
+			observer?.disconnect();
+		};
+	}, [visible, list, canvas, hovered]);
+	const anchorBox = useMemo<Box | null>(
+		() =>
+			selection && popOut
+				? {
+						left: selection.right + POP_OUT_GAP,
+						top: selection.top,
+						right: selection.right + POP_OUT_GAP + popOut.width,
+						bottom: selection.top + popOut.height,
+					}
+				: selection,
+		[selection, popOut],
+	);
 	const shown = visible && selection !== null;
 
 	// The bar's size, and the canvas and its chrome: measured as the bar
@@ -150,9 +199,9 @@ export function SelectionBar({
 
 	const placement = useMemo(
 		() =>
-			selection && size && frame
+			anchorBox && size && frame
 				? placeBar({
-						selection,
+						selection: anchorBox,
 						size,
 						bounds: frame.bounds,
 						obstacles: frame.obstacles,
@@ -160,7 +209,7 @@ export function SelectionBar({
 						above,
 					})
 				: null,
-		[selection, size, frame, below, above],
+		[anchorBox, size, frame, below, above],
 	);
 
 	// Glide when it changes sides (the board moving under it never does): on
