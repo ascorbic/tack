@@ -37,8 +37,10 @@ function selectionOn(state: ReactFlowState, ids: readonly string[]): Box | null 
 		const node = state.nodeLookup.get(id);
 		if (!node) continue;
 		const { x, y } = node.internals.positionAbsolute;
-		const right = x + (node.measured.width ?? node.width ?? 0);
-		const bottom = y + (node.measured.height ?? node.height ?? 0);
+		// A size the board sets (a section drawn as a list or mini cards) is
+		// what's drawn; React Flow's measurement of it can lag behind.
+		const right = x + (node.width ?? node.measured.width ?? 0);
+		const bottom = y + (node.height ?? node.measured.height ?? 0);
 		box = box
 			? {
 					left: Math.min(box.left, x),

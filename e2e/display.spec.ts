@@ -215,3 +215,23 @@ test("a list sorts by state, and goes back to by hand when its rows are moved", 
 	await settled(page);
 	expect((await rowOrder(page)).slice(0, 3)).toEqual(["#412", "#377", "#418"]);
 });
+
+test("a section switched to mini cards keeps its bar just under it, not under the size it was", async ({
+	page,
+}) => {
+	await page.goto("/play?scenario=sections");
+	await expect(page.locator(".section-title").first()).toBeVisible({ timeout: 30_000 });
+	await page
+		.locator(".section-title", { hasText: "Next" })
+		.first()
+		.click({ position: { x: 12, y: 8 } });
+	await page.getByRole("radio", { name: "Mini cards" }).dispatchEvent("click");
+	const section = page.locator(".react-flow__node-section.selected");
+	const bar = page.getByRole("toolbar", { name: "Stage changes" });
+	await expect
+		.poll(async () => {
+			const [s, b] = [await section.boundingBox(), await bar.boundingBox()];
+			return s && b ? Math.round(b.y - (s.y + s.height)) : null;
+		})
+		.toBeLessThan(40);
+});
