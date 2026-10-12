@@ -28,12 +28,17 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 				</div>
 			)
 		}
+		<p id="tk-forges" class="tk-footnote">
+			<span aria-hidden="true">*</span> Or <a href="/self-hosting/forges/">GitLab, Codeberg or Tangled</a>.
+		</p>
 	</div>
 
 	<div class="tk-hero-board">
 		<Screenshot
 			name="hero"
 			eager
+			sizes="(min-width: 72rem) 52.5rem, calc(100vw - 2rem)"
+			widths={[840, 1280, 1680, 2400]}
 			alt="A Tack board: live issue and pull request cards with labels, CI and reviews, a stack of stickies and an issue with a suggested name, stickies from a planning session, a live list of open bugs and a milestone's progress, with three teammates' cursors on it, one saying “+1, docs first”."
 			class="tk-hero-shot"
 		/>
@@ -113,6 +118,30 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 		font-size: clamp(1.05rem, 0.9rem + 0.6vw, 1.3rem);
 		line-height: 1.55;
 		text-wrap: pretty;
+	}
+
+	.tk-hero-copy :global(.tk-footmark) {
+		margin-inline-start: 0.04em;
+		color: var(--tk-accent, var(--sl-color-accent));
+		font-size: 0.55em;
+		vertical-align: 0.75em;
+		text-decoration: none;
+	}
+
+	.tk-footnote {
+		margin: -0.35rem 0 0;
+		font-size: var(--sl-text-sm);
+		color: var(--tk-ink-soft);
+	}
+
+	.tk-footnote a {
+		color: inherit;
+		text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+		text-underline-offset: 0.2em;
+	}
+
+	.tk-footnote a:hover {
+		color: var(--tk-ink, var(--sl-color-white));
 	}
 
 	.tk-actions {
@@ -208,7 +237,9 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 		background: #6d5bd0;
 	}
 
+	/* Pinned by its tack: it turns about the pin, never lifts away. */
 	.tk-sticky-hero {
+		transform-origin: 50% 0.55rem;
 		width: 12.5rem;
 		right: -1.5rem;
 		bottom: -2.25rem;
@@ -218,12 +249,13 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 	}
 
 	.tk-sticky-hero:hover {
-		transform: rotate(-1deg) translateY(-3px);
+		transform: rotate(-2.5deg);
 	}
 
+	/* The tack's head sits in the paper, where the sticky turns about it. */
 	.tk-sticky-pin {
 		position: absolute;
-		top: -0.95rem;
+		top: 0;
 		left: 50%;
 		translate: -50% 0;
 	}

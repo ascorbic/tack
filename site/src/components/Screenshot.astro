@@ -12,20 +12,33 @@ interface Props {
 	eager?: boolean;
 	/** A phone's screen: shown narrow, with a phone's rounded corners. */
 	phone?: boolean;
+	/** How wide it shows, for the browser to pick a size: the default suits the docs' column. */
+	sizes?: string;
+	/** The sizes to make, up to the shot's own width. */
+	widths?: number[];
 	class?: string;
 }
 
 const shots = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*.webp", {
 	eager: true,
 });
-const { name, alt, caption, eager = false, phone = false, class: className } = Astro.props;
+const {
+	name,
+	alt,
+	caption,
+	eager = false,
+	phone = false,
+	sizes: shown,
+	widths: made,
+	class: className,
+} = Astro.props;
 const light = shots[`../assets/screenshots/${name}-light.webp`]?.default;
 const dark = shots[`../assets/screenshots/${name}-dark.webp`]?.default;
 if (!light || !dark) {
 	throw new Error(`No screenshot called “${name}”: run \`pnpm --filter site screenshots\``);
 }
-const widths = phone ? [360, 720, 1080] : [720, 1100, 1440, 2200];
-const sizes = phone ? "20rem" : "(min-width: 72rem) 45rem, 100vw";
+const widths = made ?? (phone ? [360, 720, 1080] : [720, 1100, 1440, 2200]);
+const sizes = shown ?? (phone ? "20rem" : "(min-width: 72rem) 45rem, 100vw");
 const loading = eager ? "eager" : "lazy";
 ---
 
