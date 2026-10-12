@@ -1,6 +1,8 @@
-// The site's link preview image, public/og.png: 1200 × 630, drawn in a
-// browser from the landing page's words, its sticky (src/hero.ts) and its
-// board's screenshot.
+// The link preview images, drawn in a browser from the landing page's words,
+// its sticky (src/hero.ts) and its board's screenshot: the site's,
+// public/og.png (1200 × 630), and the repository's social preview,
+// .github/social-preview.png (1280 × 640, GitHub's size; set it by hand in
+// the repository's Settings → General → Social preview).
 //
 //   pnpm --filter site og
 //
@@ -12,7 +14,15 @@ import path from "node:path";
 import { HERO_STICKY } from "../src/hero.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
-const out = path.join(root, "public/og.png");
+const IMAGES = [
+	{ out: path.join(root, "public/og.png"), width: 1200, height: 630, foot: "tack.social" },
+	{
+		out: path.join(root, "../.github/social-preview.png"),
+		width: 1280,
+		height: 640,
+		foot: "Free · Open source · Self-hosted · tack.social",
+	},
+];
 // Fonts and the board go in as data, since the page has no address to load them from.
 const font = async (pkg: string, file: string) =>
 	`data:font/woff2;base64,${(
@@ -22,7 +32,11 @@ const display = await font("bricolage-grotesque", "bricolage-grotesque-latin-wgh
 const ui = await font("geist", "geist-latin-wght-normal.woff2");
 const board = await readFile(path.join(root, "src/assets/screenshots/hero-light.webp"));
 
-const html = `<!doctype html>
+const page = ({ width, height, foot }: (typeof IMAGES)[number]) => {
+	// Wider than the site's: the same picture, given the extra room evenly.
+	const dx = (width - 1200) / 2;
+	const dy = (height - 630) / 2;
+	return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
@@ -38,7 +52,7 @@ const html = `<!doctype html>
 		font-weight: 100 900;
 	}
 	* { box-sizing: border-box; margin: 0; }
-	html, body { width: 1200px; height: 630px; overflow: hidden; }
+	html, body { width: ${width}px; height: ${height}px; overflow: hidden; }
 	body {
 		position: relative;
 		background:
@@ -49,8 +63,8 @@ const html = `<!doctype html>
 	}
 	.copy {
 		position: absolute;
-		left: 72px;
-		top: 64px;
+		left: ${72 + dx}px;
+		top: ${64 + dy}px;
 		width: 540px;
 		display: flex;
 		flex-direction: column;
@@ -83,16 +97,16 @@ const html = `<!doctype html>
 	}
 	.url {
 		position: absolute;
-		left: 72px;
-		bottom: 52px;
+		left: ${72 + dx}px;
+		bottom: ${52 + dy}px;
 		font-size: 24px;
 		font-weight: 600;
 		color: #3b4cca;
 	}
 	.board {
 		position: absolute;
-		left: 640px;
-		top: 92px;
+		left: ${640 + dx}px;
+		top: ${92 + dy}px;
 		width: 860px;
 		border-radius: 16px;
 		overflow: hidden;
@@ -104,8 +118,8 @@ const html = `<!doctype html>
 	.board img { display: block; width: 100%; }
 	.sticky {
 		position: absolute;
-		left: 600px;
-		top: 390px;
+		left: ${600 + dx}px;
+		top: ${390 + dy}px;
 		width: 232px;
 		padding: 22px 22px 20px;
 		border-radius: 3px 3px 3px 16px;
@@ -118,7 +132,8 @@ const html = `<!doctype html>
 		letter-spacing: -0.01em;
 		transform: rotate(3deg);
 	}
-	.sticky .pin { position: absolute; top: -20px; left: 50%; translate: -50% 0; }
+	/* The tack's head in the paper, as on the landing page's sticky. */
+	.sticky .pin { position: absolute; top: 0; left: 50%; translate: -50% 0; }
 	.sticky .pin svg { width: 40px; height: 40px; overflow: visible; }
 	.sticky .who {
 		margin-top: 14px;
@@ -138,16 +153,17 @@ const html = `<!doctype html>
 	<div class="copy">
 		<div class="brand">${mark(true)}<span class="wordmark">tack</span></div>
 		<h1>Plan on a board.<br /><em>Sync</em> to GitHub.</h1>
-		<p>Planning sessions for open source teams, on GitHub’s own data.</p>
+		<p>A live, multiplayer whiteboard full of your real issues and pull requests.</p>
 	</div>
 	<div class="sticky">
 		<span class="pin">${mark(false)}</span>
 		${HERO_STICKY}
 		<div class="who"><i></i>Priya</div>
 	</div>
-	<div class="url">tack.social</div>
+	<div class="url">${foot}</div>
 </body>
 </html>`;
+};
 
 /** The Tack mark (src/components/BrandMark.astro), or only its pin. */
 function mark(note: boolean): string {
@@ -167,9 +183,12 @@ function mark(note: boolean): string {
 }
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-await page.setContent(html, { waitUntil: "load" });
-await page.evaluate(() => document.fonts.ready);
-await page.screenshot({ path: out });
+for (const image of IMAGES) {
+	const tab = await browser.newPage({ viewport: { width: image.width, height: image.height } });
+	await tab.setContent(page(image), { waitUntil: "load" });
+	await tab.evaluate(() => document.fonts.ready);
+	await tab.screenshot({ path: image.out });
+	await tab.close();
+	console.log(`Wrote ${path.relative(root, image.out)}`);
+}
 await browser.close();
-console.log(`Wrote ${path.relative(root, out)}`);
