@@ -23,7 +23,7 @@ Tack understands:
 - the short form `owner/repo#12`
 - issues and merge requests on GitLab (`https://gitlab.com/group/project/-/issues/12`, `/-/merge_requests/34`, in groups as deep as they go), issues and pull requests on Codeberg (`https://codeberg.org/owner/repo/issues/12`, `/pulls/34`), and issues and pulls on Tangled (`https://tangled.org/handle/repo/issues/12`), plus any self-hosted GitLab or Forgejo your instance [is set up for](/self-hosting/forges/)
 
-Discussions, releases, milestones, commits and code links aren't cards. Pasting text that isn't only links makes a sticky instead, and a single link Tack can't show as a card says so: "Added as a sticky".
+Discussions, releases, milestones, commits and code links aren't cards: like any other web address, they become [link cards](/boards/link-cards/), with the page's preview. Pasting text that isn't only links makes a sticky instead.
 
 ## What a card shows
 
