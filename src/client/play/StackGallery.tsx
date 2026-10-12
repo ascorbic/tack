@@ -256,6 +256,11 @@ const PANELS: {
 			],
 		},
 	},
+	{
+		label: "Too few, once private cards are left out",
+		cards: true,
+		preview: { ok: false, reason: "too_few", withheld: 2 },
+	},
 	{ label: "The model failed", preview: { ok: false, reason: "failed" } },
 	{ label: "Rate limited", preview: { ok: false, reason: "limited" } },
 ];

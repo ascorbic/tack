@@ -330,7 +330,35 @@ describe("grouping", () => {
 			stacks: [{ name: "Everything", ids: ["a", "b", "c"] }],
 		});
 		expect(JSON.stringify(ai.grouped)).not.toContain("SECRET");
-		expect(await namer.group(["a", "b"])).toEqual({ ok: false, reason: "too_few" });
+		expect(await namer.group(["a", "b"])).toEqual({ ok: false, reason: "too_few", withheld: 0 });
+	});
+
+	it("says how many cards it left out when that leaves too few", async () => {
+		const ai = new FakeAi();
+		const doc = new Y.Doc();
+		const namer = new StackNamer({
+			doc,
+			ai: () => ai,
+			cardTitles: async () => new Map(),
+			setTimer: () => 0,
+			clearTimer: () => {},
+		});
+		addShape(doc, "a", { type: "sticky", text: "One", x: 0, y: 0, z: nextZ(doc) });
+		for (const n of [1, 2]) {
+			addShape(doc, `c${n}`, {
+				type: "card",
+				ref: `github.com/tack/tack#${n}`,
+				x: 0,
+				y: 0,
+				z: nextZ(doc),
+			});
+		}
+		expect(await namer.group(["a", "c1", "c2"])).toEqual({
+			ok: false,
+			reason: "too_few",
+			withheld: 2,
+		});
+		expect(ai.grouped).toHaveLength(0);
 	});
 
 	it("says why it can't", async () => {

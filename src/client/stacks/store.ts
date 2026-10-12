@@ -24,7 +24,12 @@ export type GroupAnswer =
 			/** Cards whose titles couldn't be shared with everyone here, so weren't asked about. */
 			withheld?: number;
 	  }
-	| { ok: false; reason: GroupFailure };
+	| {
+			ok: false;
+			reason: GroupFailure;
+			/** For too few: cards left out as their titles couldn't be shared (which may be why). */
+			withheld?: number;
+	  };
 
 /** How long to wait for an answer before saying it didn't come. */
 const GROUP_TIMEOUT_MS = 30_000;
@@ -97,7 +102,7 @@ class StackStore {
 		waiting.resolve(
 			message.type === "stack-groups"
 				? { ok: true, stacks: message.stacks, withheld: message.withheld }
-				: { ok: false, reason: message.reason },
+				: { ok: false, reason: message.reason, withheld: message.withheld },
 		);
 	}
 
@@ -131,12 +136,22 @@ export function isStackMessage(message: { type?: unknown }): message is StackMes
 	);
 }
 
-/** Why "Group these" didn't, in words. */
-export function groupFailure(reason: GroupFailure): string {
+/**
+ * Why "Group these" didn't, in words. `withheld` is how many cards were left
+ * out because their titles can't be shared with everyone here: when there
+ * are too few, that's likely why.
+ */
+export function groupFailure(reason: GroupFailure, withheld = 0): string {
 	switch (reason) {
 		case "off":
 			return "AI suggestions are off on this Tack, so there’s nothing to ask: stack them up by hand";
 		case "too_few":
+			if (withheld === 1) {
+				return "Too few to group: a card was left out, as its title can’t be shared with everyone on this board. Select at least three stickies (or cards) with something to read";
+			}
+			if (withheld > 1) {
+				return `Too few to group: ${withheld} cards were left out, as their titles can’t be shared with everyone on this board. Select at least three stickies (or cards) with something to read`;
+			}
 			return "Select at least three stickies (or cards) with something to read";
 		case "limited":
 			return "That’s a lot of asking: try again in a minute";

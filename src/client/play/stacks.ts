@@ -243,7 +243,14 @@ export class SimulatedStacks {
 									stacks: outcome.stacks,
 									withheld: outcome.withheld,
 								}
-							: { type: "stack-group-failed", request: request.request, reason: outcome.reason },
+							: {
+									type: "stack-group-failed",
+									request: request.request,
+									reason: outcome.reason,
+									...(outcome.reason === "too_few" && outcome.withheld > 0
+										? { withheld: outcome.withheld }
+										: {}),
+								},
 					),
 				);
 			},

@@ -141,6 +141,8 @@ export type StackMessage =
 			type: "stack-group-failed";
 			request: string;
 			reason: "off" | "too_few" | "limited" | "failed" | "not_editor";
+			/** For `too_few`: cards left out as their titles couldn't be shared (which may be why). */
+			withheld?: number;
 	  };
 
 export function isStackRequest(value: unknown): value is StackRequest {
@@ -158,7 +160,8 @@ export function isStackRequest(value: unknown): value is StackRequest {
 
 export type GroupOutcome =
 	| { ok: true; stacks: ProposedStack[]; ms: number; withheld: number }
-	| { ok: false; reason: "off" | "too_few" | "limited" | "failed" };
+	| { ok: false; reason: "too_few"; withheld: number }
+	| { ok: false; reason: "off" | "limited" | "failed" };
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 	return new Promise((resolve, reject) => {
@@ -421,7 +424,7 @@ export class StackNamer {
 			}
 			if (items.length >= GROUP_LIMIT) break;
 		}
-		if (items.length < 3) return { ok: false, reason: "too_few" };
+		if (items.length < 3) return { ok: false, reason: "too_few", withheld };
 		const ai = await this.options.ai();
 		if (!ai) return { ok: false, reason: "off" };
 		if (!this.budget.take(this.now(), GROUP_COST)) {

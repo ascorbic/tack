@@ -169,7 +169,7 @@ export function GroupThese({
 					<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
 				)}
 				<Notice tone={answer.reason === "failed" ? "error" : "warn"}>
-					{groupFailure(answer.reason)}
+					{groupFailure(answer.reason, answer.withheld)}
 				</Notice>
 				<footer className="action-foot">
 					<button type="button" className="action-secondary" onClick={onClose}>

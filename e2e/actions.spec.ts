@@ -463,13 +463,17 @@ test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
 	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
-	// 27, and Group these' five (#73), one with cards included.
-	await expect(page.locator(".action-popover")).toHaveCount(32);
+	// 27, and Group these' six (#73), one with cards included.
+	await expect(page.locator(".action-popover")).toHaveCount(33);
 	await expect(
 		page
 			.getByRole("dialog", { name: "Group these: Cards included" })
 			.getByRole("checkbox", { name: /Include cards/ }),
 	).toBeChecked();
+	// Too few to group once the cards whose titles can't be shared are left out: it says so.
+	await expect(
+		page.getByRole("dialog", { name: "Group these: Too few, once private cards are left out" }),
+	).toContainText("2 cards were left out, as their titles can’t be shared");
 	// Parent issues over what already has one: add to it, move them, or leave them.
 	const already = page.locator("figure", { hasText: "Already a parent issue" });
 	await expect(already.getByText("#5 and #6 are already sub-issues of #4 Resizing.")).toBeVisible();
