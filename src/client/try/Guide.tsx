@@ -135,8 +135,8 @@ function copyFor(step: StepId, scenario: TryScenario): StepCopy {
 				title: "Turn the stack into issues",
 				body: (
 					<>
-						Select the stack, then <b>Parent issue</b> in the bar under it: an issue for the stack,
-						with its stickies as sub-issues. They’re only staged, so nothing’s sent yet.
+						Select the stack, then <b>Make parent issue</b> in the bar under it: an issue for the
+						stack, with its stickies as sub-issues. They’re only staged, so nothing’s sent yet.
 					</>
 				),
 			};

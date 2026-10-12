@@ -39,7 +39,7 @@ Select stickies, then **Make issue** (or **Make N issues**).
 
 ## Parent issue
 
-Select a section on its own (**Parent issue**), or several stickies and cards, then <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd>. A [stack](/boards/stacks/) on its own works too: its name is the title, its stickies and issues the sub-issues (pull requests are left out), and it spreads out as its stickies become cards.
+Select a section on its own (**Make parent issue**), or several stickies and cards, then <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>I</kbd>. A [stack](/boards/stacks/) on its own works too: its name is the title, its stickies and issues the sub-issues (pull requests are left out), and it spreads out as its stickies become cards.
 
 - **Title**: the section's title, to start with.
 - **Repository**: the one most of the cards are in.

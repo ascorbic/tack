@@ -312,7 +312,7 @@ export function ActionBar(props: ActionBarProps) {
 				id: "parentIssue",
 				label: onlySection ? "Make a parent issue from this section" : "Make a parent issue",
 				icon: <ParentIcon />,
-				text: onlySection || clustered ? "Parent issue" : undefined,
+				text: onlySection || clustered ? "Make parent issue" : undefined,
 				unavailable: onlySection ? undefined : faceDown,
 			});
 		}
@@ -353,7 +353,7 @@ export function ActionBar(props: ActionBarProps) {
 				id: "parentIssue",
 				label: "Make a parent issue from this stack, what’s in it as sub-issues",
 				icon: <ParentIcon />,
-				text: "Parent issue",
+				text: "Make parent issue",
 				unavailable: members.some((id) => shapes.get(id)?.silent)
 					? "Face down until the reveal: reveal first to make issues"
 					: undefined,

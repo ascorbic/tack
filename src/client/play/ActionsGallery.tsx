@@ -103,7 +103,7 @@ const BARS: { label: string; actions: Action[]; open?: string; install?: boolean
 				id: "parentIssue",
 				label: "Make a parent issue from this section",
 				icon: <ParentIcon />,
-				text: "Parent issue",
+				text: "Make parent issue",
 			},
 		],
 	},

@@ -42,7 +42,7 @@ Cards selected with the stickies stay out of it unless you tick **Include cards*
 
 ## Making issues from a stack
 
-Select a stack and choose **Parent issue**: its name is the parent issue's title, and what's in it becomes its sub-issues. Its stickies become new issues; issues already in it are linked as they are. Pull requests can't be sub-issues, so they're left out, and the panel says so. When the push lands, the stack spreads out and its stickies turn into their cards, with the parent's card above them. See [Built-in actions](/writing-back/actions/).
+Select a stack and choose **Make parent issue**: its name is the parent issue's title, and what's in it becomes its sub-issues. Its stickies become new issues; issues already in it are linked as they are. Pull requests can't be sub-issues, so they're left out, and the panel says so. When the push lands, the stack spreads out and its stickies turn into their cards, with the parent's card above them. See [Built-in actions](/writing-back/actions/).
 
 ## Silent mode
 
