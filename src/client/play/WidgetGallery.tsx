@@ -18,9 +18,12 @@ import { type DropPreview, type ListStatus, ListView } from "../widgets/ListView
 import { planDrop } from "../widgets/match.ts";
 import { WidgetPicker } from "../widgets/WidgetPicker.tsx";
 import "../widgets/widgets.css";
-import { LABELS } from "./fixtures.ts";
+import { ServicesContext } from "../actions/services.ts";
+import { DISCUSSIONS, LABELS, MORE_DISCUSSIONS } from "./fixtures.ts";
 import { RoadmapGallery } from "./RoadmapGallery.tsx";
 import { REPO, WIDGET_CARDS } from "./widgets.ts";
+import { playServices } from "./writes.ts";
+import { sortResults } from "../../shared/search.ts";
 
 // Every widget state (#37, #38, #39), for the gallery: a list not set up,
 // loading, live, refreshing, stale, empty, every kind of error, cards
@@ -58,7 +61,39 @@ interface Sample {
 	h?: number;
 }
 
+const TOP_IDEAS = `repo:${REPO} is:discussion is:open category:Ideas`;
+const ALL_DISCUSSIONS = [...MORE_DISCUSSIONS, ...DISCUSSIONS];
+const topIdeas = sortResults(
+	ALL_DISCUSSIONS.filter(
+		(card) => card.state === "open" && card.discussion?.category.name === "Ideas",
+	),
+	{ q: TOP_IDEAS, sort: "top" },
+);
+
+/** One of each: answered, resolved, outdated, locked, unanswered. */
+const EVERY_STATE = ["#526", "#483", "#485", "#487", "#488", "#484", "#482"].flatMap((item) =>
+	ALL_DISCUSSIONS.filter((card) => card.item === item),
+);
+
 const SAMPLES: Sample[] = [
+	{
+		label: "Discussions: the most upvoted ideas",
+		q: TOP_IDEAS,
+		title: "Top ideas",
+		status: { kind: "ready", result: result(topIdeas), at: NOW - 2 * MIN, stale: false },
+		onBoard: [topIdeas[1]?.key ?? ""],
+	},
+	{
+		label: "Discussions: answered, resolved, outdated, locked",
+		q: `repo:${REPO} is:discussion`,
+		title: "Discussions",
+		status: {
+			kind: "ready",
+			result: result(EVERY_STATE, 14),
+			at: NOW,
+			stale: false,
+		},
+	},
 	{ label: "Not set up", q: "", status: { kind: "unconfigured" }, selected: true },
 	{ label: "Loading", q: BUGS, title: "Open bugs", status: { kind: "loading" } },
 	{
@@ -216,6 +251,14 @@ export default function WidgetGallery() {
 		q: BUGS,
 		title: "Open bugs",
 	});
+	const [discussionConfig, setDiscussionConfig] = useState<ListConfig>({
+		...listWidget.defaults,
+		host: "fake.tack",
+		q: TOP_IDEAS,
+		title: "Top ideas",
+		sort: "top",
+	});
+	const [services] = useState(playServices);
 	const doc = useDropDoc();
 	const [toasts] = useState(() => new ToastStore());
 	useState(() => {
@@ -356,6 +399,31 @@ export default function WidgetGallery() {
 						/>
 						<figcaption>A new list: ready-made searches</figcaption>
 					</figure>
+					<ServicesContext.Provider value={services}>
+						<figure data-state="config-discussions">
+							<ListConfigPanel
+								config={discussionConfig}
+								suggestedRepo={REPO}
+								onChange={(changes) => setDiscussionConfig((c) => ({ ...c, ...changes }))}
+								onClose={() => {}}
+							/>
+							<figcaption>Discussions mode: the controls write the search</figcaption>
+						</figure>
+						<figure data-state="config-discussions-qa">
+							<ListConfigPanel
+								config={{
+									...discussionConfig,
+									title: "",
+									sort: "updated",
+									q: `repo:${REPO} is:discussion category:"Q&A" is:open is:unanswered label:provider`,
+								}}
+								suggestedRepo={REPO}
+								onChange={() => {}}
+								onClose={() => {}}
+							/>
+							<figcaption>A category that takes answers, and a label</figcaption>
+						</figure>
+					</ServicesContext.Provider>
 					<figure data-state="config-schema">
 						<SchemaConfigPanel
 							title="List"

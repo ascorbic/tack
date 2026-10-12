@@ -302,7 +302,7 @@ test("a search in plain words gets a suggestion of what it meant", async ({ page
 test("the gallery shows every widget state", async ({ page }) => {
 	await page.goto("/play/widgets");
 	await expect(page.getByRole("heading", { name: "Widgets", exact: true })).toBeVisible();
-	await expect(page.locator(".widget-list")).toHaveCount(19);
+	await expect(page.locator(".widget-list")).toHaveCount(21);
 	for (const text of [
 		"What should this list show?",
 		"Nothing matches, yet",
@@ -321,7 +321,14 @@ test("the gallery shows every widget state", async ({ page }) => {
 	const listPanels = page.locator(
 		'section:has(> h2:text-is("Setting up")), section:has(> h2:text-is("Drop to match"))',
 	);
-	await expect(listPanels.locator(".widget-config")).toHaveCount(7);
+	await expect(listPanels.locator(".widget-config")).toHaveCount(9);
+	// Discussions: their rows count votes, and the panel has their mode.
+	await expect(page.locator(".widget-row-upvotes").first()).toBeVisible();
+	await expect(
+		page.locator('[data-state="config-discussions"] [role="radio"][aria-checked="true"]', {
+			hasText: "Discussions",
+		}),
+	).toBeVisible();
 	await page.getByRole("button", { name: "Simulate an update" }).click();
 	await expect(
 		page.locator('[data-state="live-update"] .widget-row[data-motion="enter"]'),

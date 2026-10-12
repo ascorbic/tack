@@ -30,7 +30,7 @@ import { seedAi } from "./ai.ts";
 import { UNPIC, PEOPLE, failChange, stageAs } from "./push.ts";
 import { seedRoadmap } from "./roadmap.ts";
 import { seedStacks } from "./stacks.ts";
-import { seedTracking, seedWidgets } from "./widgets.ts";
+import { seedDiscussions, seedTracking, seedWidgets } from "./widgets.ts";
 import { seedCustom } from "./custom.ts";
 import { heroPeople, seedHero } from "./hero.ts";
 import { seedImages } from "./images.tsx";
@@ -602,6 +602,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"Live lists of a fake repository: drag rows out as cards, hover to find them, drop cards on a list to stage what makes them match, then push.",
 		seed: seedWidgets,
+	},
+	discussions: {
+		name: "Discussions lists",
+		description:
+			"Lists of a fake repository's discussions: its most upvoted ideas, unanswered questions and announcements. Edit one to try Discussions mode (category, answered, open or closed, labels, Top), or switch “Open bugs” over to it.",
+		seed: seedDiscussions,
 	},
 	roadmap: {
 		name: "Timeline, release and dependencies",

@@ -1,12 +1,18 @@
 import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { type CustomSearch, customQueryOf } from "../../shared/customWidgets.ts";
-import { matchSearch, parseSearch } from "../../shared/search.ts";
+import { matchSearch, parseSearch, sortResults } from "../../shared/search.ts";
 import { addShape, nextZ, shapesMap } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
 import { boardQueryContext } from "../../shared/widgetContext.ts";
 import { widgetPreviewId } from "../../shared/ai.ts";
-import { addWidget, widgetFollowUps, widgetQueries } from "../../shared/widgetRegistry.ts";
+import { setDisplay } from "../../shared/display.ts";
+import {
+	type ListSort,
+	addWidget,
+	widgetFollowUps,
+	widgetQueries,
+} from "../../shared/widgetRegistry.ts";
 import type {
 	QueryError,
 	QueryResult,
@@ -18,7 +24,7 @@ import type {
 import { cardStore } from "../cardStore.ts";
 import { type WidgetTransport, widgetStore } from "../widgets/store.ts";
 import { PEOPLE, makeChecks, pullDetails } from "./ci.ts";
-import { DISCUSSIONS, LABELS, fixture } from "./fixtures.ts";
+import { DISCUSSIONS, LABELS, MORE_DISCUSSIONS, fixture } from "./fixtures.ts";
 import { MILESTONE, TEAM, VIEWER_REVIEWER, kindCards } from "./kindFixtures.ts";
 import { RELEASE_PULLS, relatedOf, releaseOf, stampTimes } from "./roadmap.ts";
 
@@ -194,7 +200,13 @@ export function addWidgetCard(card: Card): void {
 export const KIND_CARDS: Card[] = kindCards(Date.now());
 
 /** Everything the fake repository has to search. */
-const searchable = () => [...WIDGET_CARDS, ...RELEASE_PULLS, ...KIND_CARDS, ...DISCUSSIONS];
+const searchable = () => [
+	...WIDGET_CARDS,
+	...RELEASE_PULLS,
+	...KIND_CARDS,
+	...DISCUSSIONS,
+	...MORE_DISCUSSIONS,
+];
 export const searchableCards = searchable;
 
 export interface SimulatedWidgetOptions {
@@ -420,22 +432,10 @@ export class SimulatedWidgets implements WidgetTransport {
 		// Items without a milestone on their card have none.
 		const milestoneOf = (card: Card) =>
 			card.milestone === undefined ? null : (card.milestone?.title ?? null);
-		const sortKey = (card: Card): string | number =>
-			query.sort === "created"
-				? (card.createdAt ?? card.updatedAt)
-				: query.sort === "comments"
-					? card.comments
-					: query.sort === "reactions"
-						? card.reactions
-						: card.updatedAt;
-		const direction = query.order === "asc" ? 1 : -1;
-		const items = this.items()
-			.filter((card) => matchSearch(card, parsed, { viewer, milestoneOf }) === "yes")
-			.sort((a, b) => {
-				const x = sortKey(a);
-				const y = sortKey(b);
-				return x === y ? 0 : (x < y ? -1 : 1) * direction;
-			});
+		const items = sortResults(
+			this.items().filter((card) => matchSearch(card, parsed, { viewer, milestoneOf }) === "yes"),
+			{ ...query, sort: query.sort ?? "updated" },
+		);
 		return { kind: "search", total: items.length, items: items.slice(0, limit) };
 	}
 }
@@ -508,4 +508,66 @@ export function seedTracking(doc: Y.Doc): void {
 		z: nextZ(doc),
 		parent: null,
 	});
+}
+
+/**
+ * Lists in Discussions mode over the fake repository: its most upvoted
+ * ideas, unanswered questions and latest announcements, an issues list to
+ * switch over, and discussions on the board as a section's rows and as
+ * mini cards.
+ */
+export function seedDiscussions(doc: Y.Doc): void {
+	for (const card of searchable()) cardStore.set(card);
+	const host = "fake.tack";
+	const list = (
+		x: number,
+		y: number,
+		h: number,
+		config: { title: string; q: string; sort: ListSort },
+	): string => {
+		const id = addWidget(doc, "list", { x, y }, { host, limit: 30, ...config });
+		shapesMap(doc).get(id)?.set("h", h);
+		return id;
+	};
+	list(40, 40, 520, {
+		title: "Top ideas",
+		q: `repo:${REPO} is:discussion is:open category:Ideas`,
+		sort: "top",
+	});
+	list(440, 40, 300, {
+		title: "Unanswered questions",
+		q: `repo:${REPO} is:discussion is:open is:unanswered`,
+		sort: "updated",
+	});
+	list(440, 380, 220, {
+		title: "Recent announcements",
+		q: `repo:${REPO} is:discussion category:Announcements`,
+		sort: "created",
+	});
+	list(840, 40, 520, { title: "Open bugs", q: `repo:${REPO} is:open label:bug`, sort: "updated" });
+	const rows = addSection(
+		doc,
+		{ x: 40, y: 700, w: 520, h: 300 },
+		{ title: "Shortlist", color: "blue" },
+	);
+	const minis = addSection(
+		doc,
+		{ x: 600, y: 700, w: 640, h: 300 },
+		{ title: "Asked and answered", color: "green" },
+	);
+	const place = (item: string, x: number, y: number, parent: string) =>
+		addShape(doc, crypto.randomUUID(), {
+			type: "card",
+			ref: `fake.tack/${REPO}${item}`,
+			x,
+			y,
+			z: nextZ(doc),
+			parent,
+		});
+	["#521", "#523", "#520", "#482"].forEach((item, i) => place(item, 70, 740 + i * 60, rows));
+	["#483", "#526", "#484", "#525"].forEach((item, i) =>
+		place(item, 630 + (i % 2) * 290, 740 + Math.floor(i / 2) * 200, minis),
+	);
+	setDisplay(doc, [rows], "list");
+	setDisplay(doc, [minis], "mini");
 }

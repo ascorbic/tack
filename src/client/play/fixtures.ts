@@ -1,4 +1,5 @@
 import type { Card, DiscussionCategory, DiscussionDetails } from "../../shared/cards.ts";
+import type { RepoDiscussionCategory } from "../../shared/push.ts";
 import { itemKey } from "../../shared/refs.ts";
 import { PEOPLE, makeChecks, pullDetails, reviewer } from "./ci.ts";
 
@@ -266,7 +267,18 @@ export const CATEGORIES = {
 	ideas: { name: "Ideas", emoji: "💡", answerable: false },
 	showAndTell: { name: "Show and tell", emoji: "🙌", answerable: false },
 	announcements: { name: "Announcements", emoji: "📣", answerable: false },
+	general: { name: "General", emoji: "💬", answerable: false },
 } satisfies Record<string, DiscussionCategory>;
+
+/** The fake repository's categories, as GitHub lists them, with what each is for. */
+export const REPO_CATEGORIES: RepoDiscussionCategory[] = [
+	{ ...CATEGORIES.announcements, description: "Updates from the maintainers" },
+	{ ...CATEGORIES.general, description: "Chat about anything and everything" },
+	{ ...CATEGORIES.ideas, description: "Share ideas for new features" },
+	{ ...CATEGORIES.qa, description: "Ask the community for help" },
+	{ ...CATEGORIES.rfcs, description: "Proposals for bigger changes" },
+	{ ...CATEGORIES.showAndTell, description: "Show off something you've made" },
+];
 
 /** A discussion on the fake forge: its own kind of card, with its category and upvotes. */
 export function discussion(
@@ -365,6 +377,119 @@ export const DISCUSSIONS: Card[] = [
 			reactions: 52,
 		},
 		{ category: CATEGORIES.announcements, upvotes: 41, locked: true },
+	),
+];
+
+const AGO = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+
+/**
+ * More of acme/unpic's discussions, for lists in Discussions mode: open
+ * ideas with votes out of step with their age (so Top, Newest and Recently
+ * active each read differently), questions answered and not, and the
+ * latest announcements.
+ */
+export const MORE_DISCUSSIONS: Card[] = [
+	discussion(
+		{
+			item: "#520",
+			title: "A focal point picker in the docs playground",
+			labels: [LABELS.docs],
+			author: PEOPLE.jo,
+			comments: 12,
+			createdAt: AGO(40),
+			updatedAt: AGO(2),
+		},
+		{ category: CATEGORIES.ideas, upvotes: 57 },
+	),
+	discussion(
+		{
+			item: "#521",
+			title: "Blurhash placeholders out of the box",
+			labels: [LABELS.enhancement],
+			author: PEOPLE.tom,
+			comments: 23,
+			createdAt: AGO(65),
+			updatedAt: AGO(6),
+		},
+		{ category: CATEGORIES.ideas, upvotes: 83 },
+	),
+	discussion(
+		{
+			item: "#522",
+			title: "Art direction: different crops per breakpoint",
+			author: PEOPLE.priya,
+			comments: 4,
+			createdAt: AGO(3),
+			updatedAt: AGO(0.2),
+		},
+		{ category: CATEGORIES.ideas, upvotes: 9 },
+	),
+	discussion(
+		{
+			item: "#523",
+			title: "A Vite plugin that rewrites <img> at build time",
+			labels: [LABELS.enhancement],
+			author: PEOPLE.kai,
+			comments: 31,
+			createdAt: AGO(20),
+			updatedAt: AGO(1),
+		},
+		{ category: CATEGORIES.ideas, upvotes: 64 },
+	),
+	discussion(
+		{
+			item: "#524",
+			title: "Detect the CDN from a custom domain's DNS",
+			labels: [LABELS.provider],
+			author: PEOPLE.jo,
+			comments: 2,
+			createdAt: AGO(9),
+			updatedAt: AGO(4),
+		},
+		{ category: CATEGORIES.ideas, upvotes: 15 },
+	),
+	discussion(
+		{
+			item: "#525",
+			title: "Does unpic work with images behind a signed URL?",
+			author: PEOPLE.priya,
+			comments: 3,
+			createdAt: AGO(1.5),
+			updatedAt: AGO(0.4),
+		},
+		{ category: CATEGORIES.qa, upvotes: 6 },
+	),
+	discussion(
+		{
+			item: "#526",
+			title: "Why are my srcset widths different on Netlify?",
+			labels: [LABELS.provider],
+			author: PEOPLE.kai,
+			comments: 7,
+			createdAt: AGO(12),
+			updatedAt: AGO(5),
+		},
+		{
+			category: CATEGORIES.qa,
+			upvotes: 11,
+			answered: true,
+			answer: {
+				url: "https://fake.tack/acme/unpic/discussions/526#discussioncomment-2",
+				author: "tom",
+				chosenAt: AGO(5),
+			},
+		},
+	),
+	discussion(
+		{
+			item: "#527",
+			title: "Office hours, every other Thursday",
+			author: PEOPLE.tom,
+			comments: 5,
+			createdAt: AGO(4),
+			updatedAt: AGO(3),
+		},
+		{ category: CATEGORIES.announcements, upvotes: 19 },
 	),
 ];
 

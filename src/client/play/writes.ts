@@ -17,6 +17,7 @@ import {
 	LABELS,
 	PLANNING_CARDS,
 	PULL_GALLERY,
+	REPO_CATEGORIES,
 	fixture,
 } from "./fixtures.ts";
 import { playAi } from "./ai.ts";
@@ -82,6 +83,11 @@ export function playServices(): WriteServices {
 			// A little latency, so the loading states get seen.
 			await new Promise((resolve) => setTimeout(resolve, 250));
 			return fakeMeta(repo);
+		},
+		// Every fake repository has acme/unpic's categories.
+		async discussionCategories(repo) {
+			await new Promise((resolve) => setTimeout(resolve, 200));
+			return fakeMeta(repo) ? REPO_CATEGORIES : null;
 		},
 		async uploadSnapshot(png) {
 			await new Promise((resolve) => setTimeout(resolve, 400));
