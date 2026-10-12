@@ -334,3 +334,22 @@ test("you can see when someone's following you", async ({ page }) => {
 	await page.getByRole("button", { name: "Follow me (toggle)" }).click();
 	await expect(page.getByLabel("People here").getByRole("status")).toHaveCount(0);
 });
+
+test("the landing page's board: cards, a stack, widgets and stickies on one screen", async ({
+	page,
+}) => {
+	await openScenario(page, "hero");
+	await expect(page.locator(".react-flow__node-card")).toHaveCount(2);
+	await expect(page.locator(".card.loading")).toHaveCount(0);
+	await expect(page.locator(".card[data-state]")).toHaveCount(2);
+	await expect(page.locator(".react-flow__node-sticky")).toHaveCount(2);
+	await expect(page.locator(".react-flow__node-widget")).toHaveCount(2);
+	await expect(page.locator(".react-flow__node-widget", { hasText: "Open bugs" })).toContainText(
+		"6 matches",
+	);
+	const stack = page.locator(".react-flow__node-stack");
+	await expect(stack).toContainText("Custom domain detection");
+	// The namer keeps the suggestion: it was made from everything in the stack.
+	await page.waitForTimeout(1500);
+	await expect(stack).toContainText("Custom domain detection");
+});

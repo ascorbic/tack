@@ -31,6 +31,7 @@ import { seedRoadmap } from "./roadmap.ts";
 import { seedStacks } from "./stacks.ts";
 import { seedTracking, seedWidgets } from "./widgets.ts";
 import { seedCustom } from "./custom.ts";
+import { seedHero } from "./hero.ts";
 
 export interface Scenario {
 	name: string;
@@ -658,6 +659,12 @@ export const SCENARIOS: Record<string, Scenario> = {
 		name: "Template: Incident review",
 		description: "A board made from the Incident review template.",
 		seed: seedTemplate("tack:incident"),
+	},
+	hero: {
+		name: "Landing page",
+		description:
+			"The landing page's first screenshot: live cards with CI, a stack with a ✨ suggested name, a live list, a milestone and stickies, on one screen at 1200 × 750.",
+		seed: seedHero,
 	},
 	empty: {
 		name: "Empty",
