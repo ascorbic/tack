@@ -1,16 +1,74 @@
 import type * as Y from "yjs";
+import type { Card } from "../../shared/cards.ts";
 import { fakeStackAi } from "../../shared/fakeStackAi.ts";
 import { addShape, nextZ, readShape, shapesMap } from "../../shared/shapes.ts";
 import { applyGrouping, setStackName, stackUp } from "../../shared/stackEdits.ts";
 import { type StackAi, StackNamer } from "../../shared/stackNamer.ts";
 import { addSection, readShapes } from "../../shared/structure.ts";
+import { cardStore } from "../cardStore.ts";
 import { stackStore } from "../stacks/store.ts";
+import { fixture } from "./fixtures.ts";
 
 // Stacks on /play (#73): `?scenario=stacks` seeds a planning session's
-// theming, and `SimulatedStacks` stands in for the board's server, naming
-// stacks and answering "Group these" with the same stand-in local dev uses
-// (fakeStackAi.ts), in the browser. Its mode is the playground's "AI
-// suggestions" switch: on, slow, failing or off.
+// theming, issues and pull requests among the stickies, and
+// `SimulatedStacks` stands in for the board's server, naming stacks and
+// answering "Group these" with the same stand-in local dev uses
+// (fakeStackAi.ts), in the browser. As the server does, it only names from
+// the titles of cards everyone could read (here, a public repository's). Its
+// mode is the playground's "AI suggestions" switch: on, slow, failing or off.
+
+const REPO = "ascorbic/unpic";
+
+/** Issues and pull requests on the theming board: one from a private repository. */
+export const STACK_CARDS: Card[] = [
+	fixture({
+		repo: REPO,
+		item: "#701",
+		title: "Write release notes for the 5.0 migration",
+		visibility: "public",
+	}),
+	fixture({
+		repo: REPO,
+		item: "#712",
+		kind: "pull",
+		title: "Changelog entries for the new loader API",
+		visibility: "public",
+	}),
+	fixture({
+		repo: REPO,
+		item: "#688",
+		title: "Version notes skip breaking changes",
+		state: "closed",
+		stateReason: "completed",
+		visibility: "public",
+	}),
+	fixture({
+		repo: REPO,
+		item: "#720",
+		title: "Dev server lags with large image folders",
+		visibility: "public",
+	}),
+	fixture({
+		repo: REPO,
+		item: "#722",
+		kind: "pull",
+		title: "perf: cache srcset results between builds",
+		state: "merged",
+		visibility: "public",
+	}),
+	fixture({
+		repo: "ascorbic/tack-internal",
+		item: "#9",
+		title: "Embargoed: the 5.0 launch date",
+		visibility: "private",
+	}),
+];
+
+function card(doc: Y.Doc, item: Card, x: number, y: number): string {
+	const id = crypto.randomUUID();
+	addShape(doc, id, { type: "card", ref: item.key, x, y, z: nextZ(doc) });
+	return id;
+}
 
 export type StackAiMode = "on" | "slow" | "failing" | "off";
 
@@ -50,8 +108,20 @@ function sticky(doc: Y.Doc, text: string, color: string, x: number, y: number, i
 	return id;
 }
 
-/** A theming session: stickies to sort, a stack someone named, and one with a suggested name. */
+/**
+ * A theming session: stickies and cards to sort, a stack someone named, one
+ * with a suggested name, and one of stickies, issues and a pull request.
+ */
 export function seedStacks(doc: Y.Doc): void {
+	for (const item of STACK_CARDS) cardStore.set(item);
+	const [notes, loader, versions, lags, srcset, embargo] = STACK_CARDS as [
+		Card,
+		Card,
+		Card,
+		Card,
+		Card,
+		Card,
+	];
 	doc.transact(() => {
 		LOOSE.forEach(([text, color], i) => {
 			const column = i % 4;
@@ -74,10 +144,24 @@ export function seedStacks(doc: Y.Doc): void {
 			sticky(doc, "Newcomers bounce off the monorepo setup", "purple", 1100, 440, 0),
 		];
 		applyGrouping(doc, [{ name: "Newcomer onboarding", ids: onboarding, at: { x: 1068, y: 410 } }]);
+		// Stickies, issues and a pull request about the same thing: named from
+		// all of them, but for the private one, which only counts.
+		// The first at the bottom, the sticky on top.
+		const release = [
+			card(doc, embargo, 1300, 650),
+			card(doc, versions, 1300, 650),
+			card(doc, loader, 1300, 650),
+			card(doc, notes, 1300, 650),
+			sticky(doc, "Upgrade notes for 5.0 are missing", "green", 1300, 650, 1),
+		];
+		stackUp(doc, release[0] as string, release.slice(1));
+		// Loose cards, to drag onto a stack.
+		card(doc, lags, 40, 760);
+		card(doc, srcset, 330, 760);
 		// Around it all, taking it in.
 		addSection(
 			doc,
-			{ x: 0, y: 0, w: 1500, h: 900 },
+			{ x: 0, y: 0, w: 1580, h: 920 },
 			{ title: "What should 5.0 fix?", color: "blue" },
 		);
 	});
@@ -99,6 +183,17 @@ export class SimulatedStacks {
 		};
 		this.namer = new StackNamer({
 			doc: this.doc,
+			// As the server: only titles everyone on the board could read.
+			cardTitles: async (refs) => {
+				const out = new Map<string, string>();
+				for (const ref of refs) {
+					const entry = cardStore.get(ref);
+					if (entry && !("missing" in entry) && entry.visibility === "public") {
+						out.set(ref, entry.title);
+					}
+				}
+				return out;
+			},
 			ai: () =>
 				this.mode === "off"
 					? null
@@ -113,15 +208,18 @@ export class SimulatedStacks {
 		stackStore.setAi(this.mode !== "off");
 		stackStore.channel = {
 			send: (request) => {
-				void this.namer
-					?.group(request.ids)
-					.then((outcome) =>
-						stackStore.apply(
-							outcome.ok
-								? { type: "stack-groups", request: request.request, stacks: outcome.stacks }
-								: { type: "stack-group-failed", request: request.request, reason: outcome.reason },
-						),
-					);
+				void this.namer?.group(request.ids).then((outcome) =>
+					stackStore.apply(
+						outcome.ok
+							? {
+									type: "stack-groups",
+									request: request.request,
+									stacks: outcome.stacks,
+									withheld: outcome.withheld,
+								}
+							: { type: "stack-group-failed", request: request.request, reason: outcome.reason },
+					),
+				);
 			},
 		};
 		return () => {
