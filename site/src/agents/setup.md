@@ -1,6 +1,6 @@
 # Set up your own Tack
 
-> Instructions for a coding agent (Claude Code, Codex, Cursor or another) working in the user's terminal. Served at {{site}}/setup.md, and built from the self-hosting docs with every command and link checked against them.
+> Instructions for a coding agent working in the user's terminal. Served at {{site}}/setup.md, and built from the self-hosting docs with every command and link checked against them.
 
 Tack is an open source, self-hosted whiteboard for planning on GitHub's own data: live issue and pull request cards on a shared board, with what's decided pushed back to GitHub as one reviewed batch. Every instance is someone's own: one Cloudflare Worker on their Cloudflare account, with a GitHub App they own.
 
