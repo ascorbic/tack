@@ -245,15 +245,6 @@ export interface FieldError {
 	message?: string;
 }
 
-async function graphql<T>(
-	token: string,
-	name: string,
-	query: string,
-	variables: Record<string, unknown>,
-): Promise<T> {
-	return (await graphqlWithErrors<T>(token, name, query, variables)).data;
-}
-
 /**
  * Whether GitHub refused a field because the token's app lacks a
  * permission (`Resource not accessible by integration`), as an install
