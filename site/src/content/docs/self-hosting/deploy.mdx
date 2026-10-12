@@ -6,6 +6,7 @@ sidebar:
 ---
 
 import { Steps } from "@astrojs/starlight/components";
+import CopyPrompt from "../../../components/CopyPrompt.astro";
 
 Tack runs as **one Cloudflare Worker** on your account, with a **GitHub App you own**. There's no hosted Tack: every instance is someone's own. Getting one running takes about fifteen minutes: deploy it, give it a secret, then let `/setup` walk you through the rest.
 
@@ -14,6 +15,16 @@ You'll need:
 - a Cloudflare account
 - a GitHub account (and, if your team's repositories belong to an organisation, to be able to create GitHub Apps for it)
 - to deploy from your machine instead of the button: Node.js 22 or later and pnpm 10
+
+## Set up with a coding agent
+
+A coding agent in your terminal, like Claude Code, can do the terminal half of this page for you. Copy this prompt and paste it in:
+
+<CopyPrompt />
+
+It points the agent at [tack.social/setup.md](https://tack.social/setup.md), instructions for agents made from these docs. It checks what you have installed, forks Tack with `gh` if you have it, then configures and deploys it [from your machine](#deploy-from-your-machine), asking you about the choices along the way. It stops and hands over whenever a step needs you in a browser: creating the [GitHub App](/self-hosting/github-app/) on `/setup`, installing it on your repositories and accepting its permissions, and saving `TACK_SECRET` somewhere safe.
+
+Agents can find every page of these docs as Markdown from [tack.social/llms.txt](https://tack.social/llms.txt).
 
 ## What gets deployed
 
@@ -54,7 +65,7 @@ Everything is declared in [`cloudflare.config.ts`](https://github.com/ascorbic/t
 ### The button's limits
 
 - **It makes a copy, not a fork.** The new repository isn't linked to `ascorbic/tack` on GitHub, so taking a new version is pulling it in yourself: see [Upgrading](/self-hosting/upgrades/).
-- **The Worker is called `tack`.** `cf` deploys the name in `cloudflare.config.ts`, not the one in the button's form. To use another, change `name` and each Durable Object binding's `worker` in `cloudflare.config.ts`, then run `pnpm run wrangler-config` (below) and push.
+- **The Worker is called `tack`.** `cf` deploys the name in `cloudflare.config.ts`, not the one in the button's form. To use another, change `NAME` in `cloudflare.config.ts` (the Durable Objects follow it), then run `pnpm run wrangler-config` (below) and push.
 - **It reads `wrangler.jsonc`.** The button only reads a Wrangler configuration to see what a Worker needs, so the repository has one, generated from `cloudflare.config.ts` by `pnpm run wrangler-config`. Nothing else uses it, and Tack's tests fail if it's out of date. Don't edit it by hand.
 - **It asks for `TACK_SECRET` only.** The optional secrets can be added later, in the dashboard.
 - **From a fork**: the button works from any public repository on GitHub or GitLab. To deploy your own fork (with your changes), point the button's `url` at it: `https://deploy.workers.cloudflare.com/?url=https://github.com/<you>/tack`.

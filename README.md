@@ -60,6 +60,8 @@ rm .env.secrets
 
 Later deploys are just `pnpm run deploy`, or connect the Worker to Workers Builds. Upgrading is pulling from `ascorbic/tack` and deploying: boards and storage migrate themselves when they next load.
 
+Or have a coding agent set it up: point it at [tack.social/setup.md](https://tack.social/setup.md), which forks, configures and deploys Tack from your terminal and stops for the steps you do in a browser.
+
 Previews (and any instance without `TACK_SECRET`) have no sign-in: boards work anonymously.
 
 ### Local development
