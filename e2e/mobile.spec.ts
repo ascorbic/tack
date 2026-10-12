@@ -1,3 +1,4 @@
+import { deflateSync } from "node:zlib";
 import { type Locator, type Page, devices } from "@playwright/test";
 import { expect, openScenario, settleCanvas, test } from "./fixtures.ts";
 
@@ -260,6 +261,63 @@ test.describe("on a phone", () => {
 		await pad.getByRole("button", { name: "Close" }).tap();
 		await expect(pad).toHaveCount(0);
 		await expect(sticky(page, "Ship the phone view")).toBeInViewport();
+	});
+
+	/** A PNG of one colour, made here: a photo to pick. */
+	function solidPng(width: number, height: number): Buffer {
+		const crc = (bytes: Buffer) => {
+			let c = ~0;
+			for (const byte of bytes) {
+				c ^= byte;
+				for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+			}
+			return ~c >>> 0;
+		};
+		const chunk = (type: string, data: Buffer) => {
+			const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+			const out = Buffer.alloc(body.length + 8);
+			out.writeUInt32BE(data.length, 0);
+			body.copy(out, 4);
+			out.writeUInt32BE(crc(body), body.length + 4);
+			return out;
+		};
+		const header = Buffer.alloc(13);
+		header.writeUInt32BE(width, 0);
+		header.writeUInt32BE(height, 4);
+		header.set([8, 2, 0, 0, 0], 8);
+		const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, 0x3b)]);
+		const pixels = deflateSync(Buffer.concat(Array.from({ length: height }, () => row)));
+		return Buffer.concat([
+			Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+			chunk("IHDR", header),
+			chunk("IDAT", pixels),
+			chunk("IEND", Buffer.alloc(0)),
+		]);
+	}
+
+	test("the + adds a photo, which opens in its sheet", async ({ page }) => {
+		await openScenario(page, "retro");
+		await page.getByRole("button", { name: "Add a sticky" }).tap();
+		const pad = page.getByRole("dialog", { name: "New sticky" });
+		const chooser = page.waitForEvent("filechooser");
+		await pad.getByText("Photo").tap();
+		// A tiny PNG, as if from the camera roll.
+		await (
+			await chooser
+		).setFiles({
+			name: "photo.png",
+			mimeType: "image/png",
+			buffer: solidPng(400, 300),
+		});
+		// Off the pad, to watch it arrive.
+		await expect(pad).toHaveCount(0);
+		const image = page.locator(".react-flow__node-image");
+		await expect(
+			image.locator(".image-node[data-state='ready']:not([data-uploading])"),
+		).toHaveCount(1, { timeout: 10_000 });
+		await image.tap();
+		const sheet = page.getByRole("dialog", { name: "Shape" });
+		await expect(sheet.locator(".phone-sheet-image .image-file")).toBeVisible();
 	});
 
 	test("pinch zooms, and one or two fingers pan, without opening anything", async ({ page }) => {

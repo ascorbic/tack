@@ -69,6 +69,7 @@ const GALLERIES = [
 ];
 
 const SCENARIOS = [
+	"images",
 	"planning",
 	"links",
 	"ai",

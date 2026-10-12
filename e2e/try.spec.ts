@@ -328,3 +328,43 @@ test("when the real AI is busy, the stand-in answers, and says so quietly", asyn
 	});
 	expect(asked).toBe(1);
 });
+
+test("a pasted image stays in this browser, across a reload, and nothing's sent", async ({
+	page,
+}) => {
+	const left = outbound(page);
+	const api: string[] = [];
+	page.on("request", (request) => {
+		if (new URL(request.url()).pathname.startsWith("/api/")) api.push(request.url());
+	});
+	await open(page);
+	await coach(page).getByRole("button", { name: "Skip tour" }).click();
+	await page.evaluate(async () => {
+		const canvas = document.createElement("canvas");
+		canvas.width = 640;
+		canvas.height = 400;
+		const g = canvas.getContext("2d") as CanvasRenderingContext2D;
+		g.fillStyle = "#1f7a6b";
+		g.fillRect(0, 0, 640, 400);
+		const blob = await new Promise<Blob>((resolve) =>
+			canvas.toBlob((b) => resolve(b as Blob), "image/png"),
+		);
+		const data = new DataTransfer();
+		data.items.add(new File([blob], "shot.png", { type: "image/png" }));
+		document
+			.querySelector(".react-flow")
+			?.dispatchEvent(
+				new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+			);
+	});
+	const ready = page.locator(".image-node[data-state='ready']:not([data-uploading])");
+	await expect(ready).toHaveCount(1, { timeout: 10_000 });
+	await expect(ready.locator(".image-file")).toHaveAttribute("src", /^blob:/);
+	// Saved a moment after the change; the file's in IndexedDB.
+	await page.waitForTimeout(800);
+	await page.reload();
+	await settleCanvas(page);
+	await expect(ready).toHaveCount(1, { timeout: 10_000 });
+	expect(api).toEqual([]);
+	expect(left).toEqual([]);
+});

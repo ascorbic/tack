@@ -1293,7 +1293,10 @@ export function Board({
 		by: user.name,
 		toasts,
 		sizeOf: boxSize,
-		select: (ids) => setSelected(new Set(ids)),
+		// A phone has no selection: what's added is just there.
+		select: (ids) => {
+			if (!phone) setSelected(new Set(ids));
+		},
 		readOnly,
 		centre: () =>
 			flow.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }),
