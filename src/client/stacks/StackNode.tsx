@@ -10,7 +10,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import { isMissing } from "../../shared/cards.ts";
+import { isMissing, kindName } from "../../shared/cards.ts";
 import { linkHost, linkHue, linkText, readPreview } from "../../shared/linkPreview.ts";
 import { setStackName } from "../../shared/stackEdits.ts";
 import {
@@ -25,7 +25,7 @@ import {
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { isFresh, type ShapeNode } from "../board.ts";
-import { StateIcon } from "../CardView.tsx";
+import { StateIcon, cardTone } from "../CardView.tsx";
 import { ServicesContext } from "../actions/services.ts";
 import { SiteIcon } from "../links/LinkView.tsx";
 import { useCard } from "../cardStore.ts";
@@ -359,11 +359,8 @@ function CardExcerpt({ id, shape }: { id: string; shape: ShapeProps }) {
 		);
 	}
 	return (
-		<span className="stack-row" data-kind="card" data-state={card.state}>
-			<span
-				className="state-icon stack-state"
-				title={card.kind === "pull" ? "Pull request" : "Issue"}
-			>
+		<span className="stack-row" data-kind="card" {...cardTone(card)}>
+			<span className="state-icon stack-state" title={kindName(card.kind)}>
 				<StateIcon card={card} size={13} />
 			</span>
 			<span className="stack-ref">{card.item}</span>

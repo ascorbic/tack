@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import type { Card } from "./cards.ts";
+import { type Card, kindNoun } from "./cards.ts";
 import { DEFAULT_HOST } from "./refs.ts";
 import type { SearchQuery, WidgetDefinition, WidgetQuery } from "./widgets.ts";
 
@@ -185,7 +185,7 @@ export function pingComment(card: Card, now: number): string {
 			? [`@${card.author.login}`]
 			: [];
 	const who = people.length ? `${people.join(" ")}: ` : "";
-	const thing = card.kind === "pull" ? "pull request" : "issue";
+	const thing = kindNoun(card.kind);
 	const quiet = quietText(idleDays(card, now));
 	return `${who}this ${thing} has been quiet for ${quiet}. Is it still something we want? If not, we'll close it as not planned.`;
 }

@@ -20,7 +20,7 @@ import { linkHost, linkHue, linkText, readPreview } from "../../shared/linkPrevi
 import { ServicesContext } from "../actions/services.ts";
 import { SiteIcon } from "../links/LinkView.tsx";
 import { type ShapeNode, isFresh, setStickyText, takeFocus } from "../board.ts";
-import { StateIcon, stateLabel } from "../CardView.tsx";
+import { StateIcon, cardTone, stateLabel } from "../CardView.tsx";
 import { useCard } from "../cardStore.ts";
 import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { StampRow, VoteDots, stampShape } from "../facilitation/Marks.tsx";
@@ -159,6 +159,7 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 		"data-unavailable": unavailable || undefined,
 		"data-unmatched": shape.unmatched ? true : undefined,
 		"aria-label": card ? `${item} ${card.title}, ${stateLabel(card)}` : `${repoName(key)}${item}`,
+		...(card ? cardTone(card) : {}),
 	};
 
 	if (kind === "mini") {
@@ -208,6 +209,16 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 			<span className="display-title">
 				{loading ? <span className="display-skeleton" /> : title}
 			</span>
+			{tier === "full" && card?.discussion?.category.emoji && (
+				<span
+					className="display-category"
+					title={`Category: ${card.discussion.category.name}`}
+					aria-label={`Category: ${card.discussion.category.name}`}
+					role="img"
+				>
+					{card.discussion.category.emoji}
+				</span>
+			)}
 			{tier === "full" && labels.length > 0 && (
 				<span className="display-label-dots" aria-label={labels.map((l) => l.name).join(", ")}>
 					{labels.slice(0, 4).map((label) => (
@@ -229,7 +240,7 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 					aria-label={`CI ${ci}`}
 				/>
 			)}
-			{tier === "full" && card && state !== "open" && (
+			{tier === "full" && card && (state !== "open" || card.discussion?.answered) && (
 				<span className="display-chip">{stateLabel(card)}</span>
 			)}
 			{tier === "full" && card && card.assignees.length > 0 && (

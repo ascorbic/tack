@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
-import type { Card } from "../../shared/cards.ts";
+import { type Card, kindNoun } from "../../shared/cards.ts";
 import {
 	type ExpandPlan,
 	GROUP_LABEL,
@@ -297,8 +297,8 @@ export function RelatedPanelView({
 			<div className="related-panel">
 				{head}
 				<p className="related-empty">
-					Nothing’s linked to {source.kind === "pull" ? "this pull request" : "this issue"} yet: no
-					parent, sub-issues, dependencies or pull requests.
+					Nothing’s linked to this {kindNoun(source.kind)} yet: no parent, sub-issues, dependencies
+					or pull requests.
 				</p>
 			</div>
 		);

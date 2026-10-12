@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { type Card, type MissingCard, isMissing } from "../shared/cards.ts";
+import {
+	type Card,
+	type DiscussionCategory,
+	type MissingCard,
+	isMissing,
+} from "../shared/cards.ts";
 import { forgeForHost, forgeName, sentenceCase } from "../shared/refs.ts";
 import { cardStore } from "./cardStore.ts";
 import { type Entrance, entranceStyle } from "./entering.ts";
@@ -19,12 +24,64 @@ const STATE_LABEL: Record<Card["state"], string> = {
 	draft: "Draft",
 };
 
+/** A discussion's reasons for closing, as GitHub shows them. */
+const DISCUSSION_CLOSED: Record<string, string> = {
+	resolved: "Resolved",
+	outdated: "Outdated",
+	duplicate: "Duplicate",
+};
+
 export function stateLabel(card: Card): string {
+	if (card.kind === "discussion") {
+		if (card.state === "closed") return DISCUSSION_CLOSED[card.stateReason ?? ""] ?? "Closed";
+		return card.discussion?.answered ? "Answered" : "Open";
+	}
 	if (card.state === "closed" && card.stateReason === "not_planned") return "Not planned";
 	return STATE_LABEL[card.state];
 }
 
+/**
+ * What tints a card: its state, and for discussions whether it's answered
+ * (green, with a tick) and why it closed (resolved is done, like a closed
+ * issue; outdated and duplicate are set aside, in grey).
+ */
+export function cardTone(card: Card): {
+	"data-state": Card["state"];
+	"data-item": Card["kind"];
+	"data-answered"?: true;
+	"data-reason"?: string;
+} {
+	return {
+		"data-state": card.state,
+		"data-item": card.kind,
+		...(card.discussion?.answered && card.state === "open" ? { "data-answered": true } : {}),
+		...(card.stateReason ? { "data-reason": card.stateReason } : {}),
+	};
+}
+
+/** A speech bubble: a discussion, with a tick once it's answered or resolved. */
+function DiscussionIcon({ card, size }: { card: Card; size: number }) {
+	const done = card.state === "open" ? card.discussion?.answered : card.stateReason === "resolved";
+	return (
+		<svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" data-discussion>
+			<path d="M2.75 3.25h10.5a.5.5 0 0 1 .5.5v6.5a.5.5 0 0 1-.5.5H8l-3.25 2.5v-2.5h-2a.5.5 0 0 1-.5-.5v-6.5a.5.5 0 0 1 .5-.5z" />
+			{done ? (
+				<path className="discussion-tick" d="M5.6 7.1l1.7 1.7 3.2-3.4" />
+			) : card.state === "closed" ? (
+				<path d="M5.75 7h4.5" />
+			) : (
+				<>
+					<circle cx="5.6" cy="7" r="0.9" className="fill" />
+					<circle cx="8" cy="7" r="0.9" className="fill" />
+					<circle cx="10.4" cy="7" r="0.9" className="fill" />
+				</>
+			)}
+		</svg>
+	);
+}
+
 export function StateIcon({ card, size = 14 }: { card: Card; size?: number }) {
+	if (card.kind === "discussion") return <DiscussionIcon card={card} size={size} />;
 	if (card.kind === "pull") {
 		return (
 			<svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
@@ -58,7 +115,15 @@ export function StateIcon({ card, size = 14 }: { card: Card; size?: number }) {
 	);
 }
 
-type Field = "title" | "state" | "labels" | "comments" | "assignees" | "repo";
+type Field =
+	| "title"
+	| "state"
+	| "labels"
+	| "comments"
+	| "assignees"
+	| "repo"
+	| "upvotes"
+	| "category";
 
 interface Changes {
 	/** How many times each field has changed since mount. */
@@ -84,8 +149,17 @@ function useChanges(card: Card): Changes {
 		if (before === card || before.key !== card.key) return;
 		const fields: Field[] = [];
 		if (before.title !== card.title) fields.push("title");
-		if (before.state !== card.state || before.stateReason !== card.stateReason)
+		if (
+			before.state !== card.state ||
+			before.stateReason !== card.stateReason ||
+			// Answered is a discussion's state, as far as the card's concerned.
+			!!before.discussion?.answered !== !!card.discussion?.answered
+		)
 			fields.push("state");
+		if ((before.discussion?.upvotes ?? 0) !== (card.discussion?.upvotes ?? 0))
+			fields.push("upvotes");
+		if (before.discussion?.category.name !== card.discussion?.category.name)
+			fields.push("category");
 		if (before.comments !== card.comments) fields.push("comments");
 		const oldLabels = new Set(before.labels.map((l) => l.name));
 		const added = new Set(card.labels.map((l) => l.name).filter((name) => !oldLabels.has(name)));
@@ -183,6 +257,9 @@ function LiveCard({
 	const title = anim("title", "t");
 	const comments = anim("comments", "m");
 	const repo = anim("repo", "r");
+	const upvotes = anim("upvotes", "u");
+	const category = anim("category", "g");
+	const discussion = card.discussion;
 	const repoName = card.repo.split("/").at(-1);
 	const checks = card.pull?.checks;
 	const liveness = useLiveness(card.live);
@@ -211,7 +288,7 @@ function LiveCard({
 		return (
 			<article
 				className="card compact"
-				data-state={card.state}
+				{...cardTone(card)}
 				data-ci={checks?.state}
 				data-selected={selected}
 				{...arrival(enter, entrance)}
@@ -233,7 +310,7 @@ function LiveCard({
 	return (
 		<article
 			className="card"
-			data-state={card.state}
+			{...cardTone(card)}
 			data-selected={selected}
 			{...arrival(enter, entrance)}
 			data-live={card.live === false ? "false" : undefined}
@@ -250,7 +327,23 @@ function LiveCard({
 					</span>{" "}
 					{card.item}
 				</span>
-				<span className="chip state" key={`c${state.key}`} data-pop={state.on}>
+				<span
+					className="chip state"
+					key={`c${state.key}`}
+					data-pop={state.on}
+					title={answeredBy(card)}
+				>
+					{discussion?.answered && card.state === "open" && (
+						<svg
+							className="answered-tick"
+							width="11"
+							height="11"
+							viewBox="0 0 12 12"
+							aria-hidden="true"
+						>
+							<path d="M2.75 6.25 5 8.5l4.25-4.75" />
+						</svg>
+					)}
 					{stateLabel(card)}
 				</span>
 				{card.url && (
@@ -281,9 +374,16 @@ function LiveCard({
 					{card.title}
 				</span>
 			</a>
-			{card.labels.length > 0 && (
+			{(card.labels.length > 0 || discussion) && (
 				<div className="labels">
-					{card.labels.slice(0, 4).map((label) => (
+					{discussion && (
+						<CategoryChip
+							category={discussion.category}
+							key={`g${category.key}`}
+							flash={category.on}
+						/>
+					)}
+					{card.labels.slice(0, discussion ? 3 : 4).map((label) => (
 						<span
 							key={label.name}
 							className="chip label"
@@ -310,12 +410,38 @@ function LiveCard({
 						))}
 					</span>
 				)}
+				{discussion && card.author && (
+					// Discussions have no assignees: whoever started it stands in.
+					<span className="avatars" title={`Started by ${card.author.login}`}>
+						<img src={card.author.avatarUrl} alt={card.author.login} draggable={false} />
+					</span>
+				)}
+				{discussion?.upvotes !== undefined && (
+					<span
+						className="count upvotes"
+						key={upvotes.key}
+						data-tick={upvotes.on}
+						title={`${discussion.upvotes} ${discussion.upvotes === 1 ? "upvote" : "upvotes"}`}
+					>
+						<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+							<path d="M8 3.25 3.5 8.5h3v4.25h3V8.5h3z" />
+						</svg>
+						<span className="visually-hidden">Upvotes: </span>
+						{discussion.upvotes}
+					</span>
+				)}
 				<span className="count" key={comments.key} data-tick={comments.on}>
 					<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
 						<path d="M2.5 3h11v7.5H7l-3 2.5v-2.5H2.5z" />
 					</svg>
 					{card.comments}
 				</span>
+				{discussion?.locked && (
+					<span className="count" title="Locked: only people who can write here can comment">
+						<LockIcon />
+						<span className="visually-hidden">Locked</span>
+					</span>
+				)}
 				{card.reactions > 0 && (
 					<span className="count">
 						<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
@@ -329,6 +455,48 @@ function LiveCard({
 			</div>
 			{unmatched && <UnmatchedBand unmatched={unmatched} card={card} />}
 		</article>
+	);
+}
+
+/** Who answered a discussion, for the Answered chip's tooltip. */
+function answeredBy(card: Card): string | undefined {
+	const answer = card.discussion?.answer;
+	if (!card.discussion?.answered || card.state !== "open") return undefined;
+	return answer?.author ? `Answered by ${answer.author}` : "An answer has been chosen";
+}
+
+/** A discussion's category, as GitHub shows it: its emoji, then its name. */
+export function CategoryChip({
+	category,
+	flash,
+}: {
+	category: DiscussionCategory;
+	flash?: boolean;
+}) {
+	if (!category.name) return null;
+	return (
+		<span
+			className="chip category"
+			data-new={flash || undefined}
+			title={`Category: ${category.name}`}
+		>
+			{category.emoji ? (
+				<span className="category-emoji" aria-hidden="true">
+					{category.emoji}
+				</span>
+			) : (
+				<svg
+					className="category-bubble"
+					width="11"
+					height="11"
+					viewBox="0 0 16 16"
+					aria-hidden="true"
+				>
+					<path d="M2.5 3h11v7.5H7l-3 2.5v-2.5H2.5z" />
+				</svg>
+			)}
+			{category.name}
+		</span>
 	);
 }
 
@@ -525,6 +693,30 @@ function PrivateCardView({ card, selected }: { card: MissingCard; selected?: boo
 
 function MissingCardView({ card, selected }: { card: MissingCard; selected?: boolean }) {
 	if (card.reason === "private") return <PrivateCardView card={card} selected={selected} />;
+	if (card.permission === "discussions") {
+		// An install from before Tack read discussions: its owner accepts the new permission.
+		const repo = repoOfKey(card.key);
+		return (
+			<article className="card missing" data-selected={selected} data-permission="discussions">
+				<div className="card-head">
+					<span className="state-icon">
+						<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+							<path d="M2.5 3h11v7.5H7l-3 2.5v-2.5H2.5z" />
+						</svg>
+					</span>
+					<span className="mono">{card.key.split("/").slice(1).join("/")}</span>
+				</div>
+				<div className="missing-message">
+					If this is a discussion, Tack can’t read it yet: the app on{" "}
+					<span className="mono">{repo}</span> needs the Discussions permission, which an owner of{" "}
+					<span className="mono">{repo.split("/")[0]}</span> can accept on GitHub.
+				</div>
+				<a className="card-action nodrag" href={installUrl()}>
+					Review permissions
+				</a>
+			</article>
+		);
+	}
 	// Couldn't read the repository, and the app isn't on it: it may be private.
 	const installable =
 		card.installed === false && (card.reason === "not_found" || card.reason === "forbidden");

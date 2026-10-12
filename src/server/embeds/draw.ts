@@ -485,10 +485,29 @@ function card(rect: Rect, data: SceneCard, ctx: Ctx): El {
 			stateLabel(data),
 		),
 	);
+	// A discussion's category leads its labels, quietly.
+	const category =
+		data.category &&
+		text(
+			{
+				marginRight: k(4),
+				fontSize: k(11),
+				fontWeight: 600,
+				color: p.muted,
+				background: p.chip,
+				borderRadius: k(10),
+				padding: `${k(1)}px ${k(7)}px`,
+				whiteSpace: "nowrap",
+				maxWidth: k(120),
+				textOverflow: "ellipsis",
+			},
+			data.category,
+		);
 	const labels =
-		data.labels.length > 0 &&
+		(data.labels.length > 0 || category) &&
 		box(
 			{ marginTop: "auto", flexWrap: "nowrap", overflow: "hidden" },
+			category || null,
 			...data.labels.map((label) => {
 				const bg = `#${/^[0-9a-f]{6}$/i.test(label.color) ? label.color : "cccccc"}`;
 				return text(
@@ -514,21 +533,42 @@ function card(rect: Rect, data: SceneCard, ctx: Ctx): El {
 		text(
 			{ fontSize: k(15), lineHeight: 1.3, fontWeight: 600, color: p.ink, width: "100%" },
 			data.title,
-			data.labels.length > 0 ? 2 : 3,
+			labels ? 2 : 3,
 		),
 		labels || null,
 	);
 }
 
 function stateLabel(data: Extract<SceneCard, { status: "ok" }>): string {
+	if (data.answered) return "Answered";
 	if (data.state === "merged") return "Merged";
 	if (data.state === "draft") return "Draft";
 	if (data.state === "closed") return "Closed";
 	return "Open";
 }
 
+/** A discussion's speech bubble, with a tick once it's answered. */
+function discussionGlyph(answered: boolean, color: string, size: number): El {
+	const stroke = { fill: "none", stroke: color, strokeWidth: 1.5 };
+	return {
+		type: "svg",
+		props: {
+			width: size,
+			height: size,
+			viewBox: "0 0 16 16",
+			children: [
+				{ type: "path", props: { d: "M2.5 3h11v7.5H7.5L4.5 13v-2.5h-2z", ...stroke } },
+				answered
+					? { type: "path", props: { d: "M5.6 6.9l1.6 1.6 3.2-3.3", ...stroke } }
+					: { type: "path", props: { d: "M5.5 6.75h5", ...stroke } },
+			],
+		},
+	};
+}
+
 /** An issue's ring or a pull request's branch, in its state's colour. */
 function stateGlyph(data: Extract<SceneCard, { status: "ok" }>, color: string, size: number): El {
+	if (data.kind === "discussion") return discussionGlyph(!!data.answered, color, size);
 	const children =
 		data.kind === "pull"
 			? [

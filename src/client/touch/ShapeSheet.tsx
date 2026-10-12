@@ -7,7 +7,7 @@ import { type CommentThread, anchorAt, isVisible, starter } from "../../shared/c
 import { voterKey } from "../../shared/decisions.ts";
 import { excerpt } from "../../shared/comments.ts";
 import type { ShapeNode } from "../board.ts";
-import { CardView, StateIcon } from "../CardView.tsx";
+import { CardView, StateIcon, cardTone } from "../CardView.tsx";
 import { useCard } from "../cardStore.ts";
 import { relativeTime } from "../boards/api.ts";
 import { Composer } from "../comments/Composer.tsx";
@@ -22,7 +22,7 @@ import type { User } from "../presence.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import { silentOf } from "../../shared/silent.ts";
 import { countMembers, stackName } from "../../shared/stacks.ts";
-import { isMissing } from "../../shared/cards.ts";
+import { isMissing, kindName } from "../../shared/cards.ts";
 import { linkText, readPreview } from "../../shared/linkPreview.ts";
 import { ServicesContext } from "../actions/services.ts";
 import { LinkView } from "../links/LinkView.tsx";
@@ -68,7 +68,7 @@ export function ShapeHeading({ node }: { node: ShapeNode }) {
 	let detail: string | null = null;
 	if (shape.type === "card" && card && !("missing" in card)) {
 		// The card says which, just below.
-		kind = card.kind === "pull" ? "Pull request" : "Issue";
+		kind = kindName(card.kind);
 	} else if (shape.type === "sticky" || shape.type === "decision") {
 		detail = shape.author?.name ?? null;
 	} else if (shape.type === "section") {
@@ -284,8 +284,8 @@ function StackCardItem({ cardRef, index }: { cardRef: string; index: number }) {
 		);
 	}
 	return (
-		<li className="phone-sheet-stack-item" data-kind="card" data-state={card.state} style={style}>
-			<span className="state-icon" title={card.kind === "pull" ? "Pull request" : "Issue"}>
+		<li className="phone-sheet-stack-item" data-kind="card" {...cardTone(card)} style={style}>
+			<span className="state-icon" title={kindName(card.kind)}>
 				<StateIcon card={card} size={15} />
 			</span>
 			<span className="phone-sheet-stack-ref">{card.item}</span> {card.title}

@@ -51,6 +51,8 @@ const PAIRS: [string, string, string][] = [
 	["open", "open-bg", "open state chip"],
 	["merged", "merged-bg", "merged state chip"],
 	["closed", "closed-bg", "draft state chip"],
+	["discussion", "discussion-bg", "open discussion chip"],
+	["discussion", "surface", "discussion icons and upvotes"],
 	["fail-ink", "surface", "failing checks summary"],
 	["fail-ink", "fail-bg", "failing check names, conflicts, changes requested"],
 	["pending-ink", "surface", "running checks summary"],

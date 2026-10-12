@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import type { Card } from "../../shared/cards.ts";
-import { StateIcon } from "../CardView.tsx";
+import { StateIcon, cardTone } from "../CardView.tsx";
 import { scaledDuration } from "../motion.ts";
 import type { RowProps } from "./host.tsx";
 import { ExternalIcon, PinIcon } from "./icons.tsx";
@@ -101,7 +101,7 @@ export function ItemRow({
 	return (
 		<li
 			className={`widget-row nodrag nopan${className ? ` ${className}` : ""}`}
-			data-state={card.state}
+			{...cardTone(card)}
 			data-motion={motion}
 			data-linked={rows.linked === card.key || undefined}
 			data-on-board={onBoard || undefined}

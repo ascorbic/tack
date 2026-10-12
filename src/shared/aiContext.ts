@@ -1,5 +1,5 @@
 import type * as Y from "yjs";
-import type { Card } from "./cards.ts";
+import { type Card, kindNoun } from "./cards.ts";
 import { boardOrder, type Placed } from "./a11y.ts";
 import { searchScopeOf } from "./addCards.ts";
 import { AI_ITEMS_MAX, type AiItem, type AiLeftOut, type WidgetContext } from "./ai.ts";
@@ -143,7 +143,7 @@ function itemOf(shape: ShapeProps, cardFor: CardFor, leftOut: AiLeftOut): AiItem
 
 /** A card in a line: `owner/repo#12 (open issue; bug, docs) Its title`. */
 export function cardLine(card: Card): string {
-	const kind = card.kind === "pull" ? "pull request" : "issue";
+	const kind = kindNoun(card.kind);
 	const labels = card.labels.map((label) => label.name).slice(0, 6);
 	const details = [`${card.state} ${kind}`, ...(labels.length > 0 ? [labels.join(", ")] : [])];
 	return `${card.repo}${card.item} (${details.join("; ")}) ${card.title}`;

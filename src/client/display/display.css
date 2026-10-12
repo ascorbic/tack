@@ -217,6 +217,13 @@
 	animation: shimmer calc(1400ms * var(--motion)) linear infinite;
 }
 
+/* A discussion's category, as its emoji: enough to tell an RFC from a question. */
+.display-category {
+	flex: none;
+	font-size: 12px;
+	line-height: 1;
+}
+
 .display-label-dots {
 	flex: none;
 	display: inline-flex;

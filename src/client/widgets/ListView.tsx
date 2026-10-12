@@ -11,7 +11,7 @@ import type { MatchStep } from "../../shared/search.ts";
 import { mightMiss } from "../../shared/queryHelp.ts";
 import { mentionsMe, parseSearch } from "../../shared/search.ts";
 import type { QueryError, SearchResult } from "../../shared/widgets.ts";
-import { StateIcon } from "../CardView.tsx";
+import { StateIcon, cardTone } from "../CardView.tsx";
 import {
 	Count,
 	PersonalChip,
@@ -317,7 +317,7 @@ function Row({
 	return (
 		<li
 			className="widget-row nodrag nopan"
-			data-state={card.state}
+			{...cardTone(card)}
 			data-motion={motion}
 			data-linked={linked || undefined}
 			data-on-board={onBoard || undefined}

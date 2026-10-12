@@ -21,7 +21,7 @@
 //   content like a sticky's text, but never with their images: the server
 //   fetches nothing to draw, so where a picture would be is the site's tint.
 
-import type { Card, CardState, MissingCard } from "./cards.ts";
+import type { Card, CardKind, CardState, MissingCard } from "./cards.ts";
 import { arrowHead, arrowTrim, readConnector, resolveEnds, routeConnector } from "./connectors.ts";
 import { layoutDisplays } from "./display.ts";
 import type { Point, Rect } from "./geometry.ts";
@@ -217,7 +217,11 @@ export type SceneCard =
 			status: "ok";
 			/** `repo#123`: the repository's own name and the item. */
 			ref: string;
-			kind: "issue" | "pull";
+			kind: CardKind;
+			/** Discussions: an answer has been chosen. */
+			answered?: boolean;
+			/** Discussions: the category's name. */
+			category?: string;
 			title: string;
 			state: CardState;
 			labels: { name: string; color: string }[];
@@ -904,6 +908,14 @@ function sceneCard(ref: string | undefined, cards: ReadonlyMap<string, Entry>): 
 		status: "ok",
 		ref: `${entry.repo.split("/").pop()}${entry.item}`,
 		kind: entry.kind,
+		...(entry.discussion
+			? {
+					answered: entry.discussion.answered,
+					...(entry.discussion.category.name
+						? { category: clean(entry.discussion.category.name) }
+						: {}),
+				}
+			: {}),
 		title: clean(entry.title),
 		state: entry.state,
 		labels: entry.labels

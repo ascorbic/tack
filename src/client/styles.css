@@ -48,6 +48,9 @@
 	--merged-bg: #f0e8fb;
 	--closed: #4a4f56;
 	--closed-bg: #ecebe4;
+	/* Discussions: a blue of their own, so a speech bubble reads apart from an issue at a glance. */
+	--discussion: #1d5fb0;
+	--discussion-bg: #e3edfa;
 
 	/* Sticky paper, and the ink written on it. Stickies stay light in both
 	   themes, like paper on a dark desk, so their ink stays dark. */
@@ -154,6 +157,8 @@
 	--merged-bg: #2b2342;
 	--closed: #b3b8bf;
 	--closed-bg: #2b2d32;
+	--discussion: #8cbcff;
+	--discussion-bg: #1b2a40;
 
 	--pass: #3fb950;
 	--fail: #f0524a;
@@ -1208,6 +1213,149 @@ button.primary:hover {
 .card[data-state="draft"] {
 	--state: var(--closed);
 	--state-bg: var(--closed-bg);
+}
+
+/* Discussions: blue while open, green with a tick once answered, done
+   (purple) when resolved, and set aside (grey) as outdated or duplicate. */
+.card[data-item="discussion"][data-state="open"] {
+	--state: var(--discussion);
+	--state-bg: var(--discussion-bg);
+}
+
+.card[data-item="discussion"][data-answered="true"] {
+	--state: var(--open);
+	--state-bg: var(--open-bg);
+}
+
+.card[data-item="discussion"][data-state="closed"]:is(
+		[data-reason="outdated"],
+		[data-reason="duplicate"]
+	) {
+	--state: var(--closed);
+	--state-bg: var(--closed-bg);
+}
+
+/* Rows, mini cards, results and sheets tint a discussion as its card does. */
+:is(
+		.display-item,
+		.widget-row,
+		.stack-row,
+		.card-result,
+		.sheet-item
+	)[data-item="discussion"][data-state="open"] {
+	--state: var(--discussion);
+	--state-bg: var(--discussion-bg);
+}
+
+:is(
+		.display-item,
+		.widget-row,
+		.stack-row,
+		.card-result,
+		.sheet-item
+	)[data-item="discussion"][data-answered="true"] {
+	--state: var(--open);
+	--state-bg: var(--open-bg);
+}
+
+:is(
+		.display-item,
+		.widget-row,
+		.stack-row,
+		.card-result,
+		.sheet-item
+	)[data-item="discussion"][data-state="closed"] {
+	--state: var(--merged);
+	--state-bg: var(--merged-bg);
+}
+
+:is(
+		.display-item,
+		.widget-row,
+		.stack-row,
+		.card-result,
+		.sheet-item
+	)[data-item="discussion"][data-state="closed"]:is(
+		[data-reason="outdated"],
+		[data-reason="duplicate"]
+	) {
+	--state: var(--closed);
+	--state-bg: var(--closed-bg);
+}
+
+.card-result[data-item="discussion"][data-state] .state-icon {
+	color: var(--state);
+}
+
+.card .chip.state {
+	gap: 3px;
+}
+
+.answered-tick {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	margin-left: -2px;
+}
+
+/* The tick draws itself in when an answer's chosen (the chip pops too). */
+.chip.state[data-pop="true"] .answered-tick path,
+.state-icon[data-pop="true"] .discussion-tick {
+	stroke-dasharray: 12;
+	animation: tick-draw var(--t-settle) var(--ease-settle) both;
+	animation-delay: calc(80ms * var(--motion));
+}
+
+@keyframes tick-draw {
+	from {
+		stroke-dashoffset: 12;
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+.state-icon svg[data-discussion] {
+	stroke-linejoin: round;
+}
+
+/* A discussion's category leads its labels: emoji and name, quietly. */
+.chip.category {
+	gap: 4px;
+	padding-left: 6px;
+	background: var(--chip);
+	color: var(--ink-soft);
+	box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.chip.category[data-new] {
+	animation: label-in var(--t-settle) var(--ease-spring);
+}
+
+.category-emoji {
+	font-size: 11.5px;
+	line-height: 1;
+	/* Emoji fonts sit high beside text. */
+	transform: translateY(0.5px);
+}
+
+.category-bubble {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linejoin: round;
+}
+
+.card[data-item="discussion"] .count.upvotes {
+	color: var(--discussion);
+	font-weight: 600;
+}
+
+.card[data-item="discussion"] .count.upvotes svg {
+	fill: currentColor;
+	stroke: none;
 }
 
 .card .state-icon,
@@ -2953,6 +3101,64 @@ a.card-title {
 	background: var(--open-bg);
 	color: var(--open);
 	animation: pop-in var(--t-settle) var(--ease-spring);
+}
+
+/* A discussion in the results: its category's emoji, and whether it's answered. */
+.card-result-category {
+	flex: none;
+	font-size: 13px;
+	line-height: 1;
+}
+
+.card-result-answered {
+	flex: none;
+	padding: 2px 7px;
+	border-radius: 999px;
+	background: var(--open-bg);
+	color: var(--open);
+	font-size: 11px;
+	font-weight: 560;
+}
+
+/* Which kinds the search finds: a quiet segmented row under the results. */
+.card-kinds {
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: 9px;
+	background: var(--well);
+	align-self: flex-start;
+}
+
+.card-kind {
+	padding: 3px 9px;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12px;
+	font-weight: 560;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		box-shadow var(--t-quick) var(--ease-out);
+}
+
+.card-kind:hover {
+	color: var(--ink);
+}
+
+.card-kind[aria-pressed="true"] {
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: var(--shadow-rest);
+}
+
+.card-kind:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
 }
 
 .card-status {

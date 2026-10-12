@@ -89,6 +89,12 @@ export function kindNoun(kind: CardKind): string {
 	return kind === "pull" ? "pull request" : kind;
 }
 
+/** A kind of item as a label: `Issue`, `Pull request`, `Discussion`. */
+export function kindName(kind: CardKind): string {
+	const noun = kindNoun(kind);
+	return noun.charAt(0).toUpperCase() + noun.slice(1);
+}
+
 /** A discussion's category, as GitHub shows it: `🙏 Q&A`. */
 export interface DiscussionCategory {
 	name: string;
