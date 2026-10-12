@@ -407,6 +407,13 @@ describe("the weeks going by", () => {
 });
 
 describe("stopping", () => {
+	// Weeks of digests have gone by: sessions (30 days) may have run out,
+	// depending on when in the week this runs. Sign in again, as people would.
+	beforeAll(async () => {
+		alice = await signInWithGitHub(mf, github, ALICE);
+		bob = await signInWithGitHub(mf, github, BOB);
+	});
+
 	it("stops with one click from an email, without signing in", async () => {
 		const last = mail.to("alice@example.com").at(-1)!;
 		const header = last.headers?.["List-Unsubscribe"] ?? "";
