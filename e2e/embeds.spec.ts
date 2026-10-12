@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import type { BoardInfo } from "../src/shared/boards.ts";
-import { expect, settleCanvas, test } from "./fixtures.ts";
+import { allowClipboard, expect, settleCanvas, test } from "./fixtures.ts";
 
 // Public boards outside Tack (#56, #57), against the dev server: Copy embed
 // from Share, picking a part of the board on the canvas, the images it
@@ -39,9 +39,9 @@ async function publicBoard(page: Page): Promise<BoardInfo> {
 
 test("copies an embed of the whole board, or a part picked on the canvas", async ({
 	page,
-	context,
+	browserName,
 }) => {
-	await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+	await allowClipboard(page, browserName);
 	const board = await publicBoard(page);
 
 	await page.getByRole("button", { name: /^Share/ }).click();

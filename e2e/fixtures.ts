@@ -27,6 +27,39 @@ export const test = base.extend<{ pageErrors: Error[] }>({
 
 export { expect };
 
+/**
+ * Let the page read back what it copies. Chromium has permissions for the
+ * clipboard; WebKit doesn't know them (and would ask a person before
+ * reading), so there each page gets a clipboard of its own that keeps text.
+ */
+export async function allowClipboard(page: Page, browserName: string): Promise<void> {
+	if (browserName === "chromium") {
+		await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+		return;
+	}
+	await page.addInitScript(() => {
+		let text = "";
+		const clipboard = {
+			writeText: async (value: string) => {
+				text = String(value);
+			},
+			readText: async () => text,
+			write: async (items: ClipboardItem[]) => {
+				for (const item of items) {
+					if (item.types.includes("text/plain")) {
+						text = await (await item.getType("text/plain")).text();
+					}
+				}
+			},
+			read: async () => [new ClipboardItem({ "text/plain": new Blob([text]) })],
+		};
+		Object.defineProperty(Navigator.prototype, "clipboard", {
+			configurable: true,
+			get: () => clipboard,
+		});
+	});
+}
+
 /** Open a /play scenario and wait for its board to render. */
 export async function openScenario(page: Page, scenario: string): Promise<void> {
 	await page.goto(`/play?scenario=${scenario}`);
@@ -68,9 +101,10 @@ export async function settleCanvas(page: Page): Promise<void> {
 /** A node's position in flow coordinates, from React Flow's transform. */
 export async function nodePosition(node: Locator): Promise<{ x: number; y: number }> {
 	const transform = await node.evaluate((el) => (el as HTMLElement).style.transform);
-	const match = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(transform);
+	// Safari writes translate(x, 0) as translate(x).
+	const match = /translate\(\s*(-?[\d.e+-]+)px(?:,\s*(-?[\d.e+-]+)px)?\)/.exec(transform);
 	if (!match) throw new Error(`No translate in "${transform}"`);
-	return { x: Number(match[1]), y: Number(match[2]) };
+	return { x: Number(match[1]), y: Number(match[2] ?? 0) };
 }
 
 /** Drag with real pointer events, in small steps as a person would. */
