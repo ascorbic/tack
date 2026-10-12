@@ -1,11 +1,20 @@
 import { type Locator, type Page, test as base, expect } from "@playwright/test";
 
+/**
+ * Not an error: the browser's notice that a ResizeObserver callback changed
+ * a size it'll report next frame. Safari reports it as an uncaught error
+ * where Chromium keeps quiet, so it's let through, and only this message.
+ */
+const RESIZE_OBSERVER_NOTICE = "ResizeObserver loop completed with undelivered notifications.";
+
 /** Fails any test whose page throws an uncaught error. */
 export const test = base.extend<{ pageErrors: Error[] }>({
 	pageErrors: [
 		async ({ page }, use) => {
 			const errors: Error[] = [];
-			page.on("pageerror", (error) => errors.push(error));
+			page.on("pageerror", (error) => {
+				if (error.message !== RESIZE_OBSERVER_NOTICE) errors.push(error);
+			});
 			await use(errors);
 			expect(
 				errors.map((error) => error.message),
