@@ -74,7 +74,7 @@ const PRIVATE: { label: string; card: MissingCard }[] = [
 const FORGE_HIDDEN: { label: string; card: MissingCard }[] = [
 	{
 		label: "GitLab: a confidential issue",
-		card: { key: "gitlab.com/inkscape/inkscape#4600", missing: true, reason: "forbidden" },
+		card: { key: "gitlab.com/ascorbic/cirrus#4600", missing: true, reason: "forbidden" },
 	},
 	{
 		label: "Codeberg: a private repository",

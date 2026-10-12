@@ -337,8 +337,8 @@ function elsewhere(
 export const FORGE_GALLERY: { label: string; card: Card }[] = [
 	{
 		label: "GitLab issue: Tack can push, no webhook yet",
-		card: elsewhere("gitlab", "gitlab.com", "inkscape/inkscape", "#4512", "-/issues", {
-			title: "Snap to guides ignores rotated objects",
+		card: elsewhere("gitlab", "gitlab.com", "ascorbic/cirrus", "#4512", "-/issues", {
+			title: "Blob uploads over 50 MB fail with a 413",
 			labels: [LABELS.bug],
 			comments: 6,
 			reactions: 3,
@@ -350,9 +350,9 @@ export const FORGE_GALLERY: { label: string; card: Card }[] = [
 	},
 	{
 		label: "GitLab merge request, live: its pipeline and reviewers",
-		card: elsewhere("gitlab", "gitlab.com", "inkscape/inkscape", "!7021", "-/merge_requests", {
+		card: elsewhere("gitlab", "gitlab.com", "ascorbic/cirrus", "!7021", "-/merge_requests", {
 			kind: "pull",
-			title: "Rotate snapping candidates with their object",
+			title: "Stream blob uploads to R2",
 			comments: 4,
 			live: true,
 			writable: true,
@@ -366,9 +366,9 @@ export const FORGE_GALLERY: { label: string; card: Card }[] = [
 	},
 	{
 		label: "Codeberg pull request: read-only, checked while open",
-		card: elsewhere("forgejo", "codeberg.org", "forgejo/forgejo", "#7", "pulls", {
+		card: elsewhere("forgejo", "codeberg.org", "ascorbic/emdash", "#7", "pulls", {
 			kind: "pull",
-			title: "Show a repository's licence on its home page",
+			title: "Document the image plugin's options",
 			comments: 2,
 			live: false,
 			writable: false,
@@ -378,10 +378,10 @@ export const FORGE_GALLERY: { label: string; card: Card }[] = [
 	},
 	{
 		label: "Tangled issue: read-only, no webhooks",
-		card: elsewhere("tangled", "tangled.org", "tangled.org/core", "#775", "issues", {
-			title: "Spindle logs stop streaming after a reconnect",
+		card: elsewhere("tangled", "tangled.org", "mk.gg/tack", "#775", "issues", {
+			title: "Cursors linger after a reconnect",
 			comments: 5,
-			author: { login: "anirudh.fi", avatarUrl: "" },
+			author: { login: "mk.gg", avatarUrl: "" },
 			live: false,
 			writable: false,
 			visibility: "public",

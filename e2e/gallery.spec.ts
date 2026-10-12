@@ -332,7 +332,7 @@ test.describe("boards gallery", () => {
 			"Updates while open · Tack can push",
 		);
 		await expect(
-			repos.locator("li", { hasText: "codeberg.org/forgejo/forgejo" }),
+			repos.locator("li", { hasText: "codeberg.org/ascorbic/emdash" }),
 		).not.toContainText("Install");
 
 		// View only, and View only signed out on a public board, which says to sign in.

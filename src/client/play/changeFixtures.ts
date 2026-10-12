@@ -173,12 +173,12 @@ export function someStaged(): PendingChange[] {
  * aren't turned on.
  */
 export function otherForges(): PendingChange[] {
-	const gitlab = "gitlab.com/inkscape/inkscape";
+	const gitlab = "gitlab.com/ascorbic/cirrus";
 	return [
-		change({ kind: "issue.create", repo: gitlab, title: "Snap rotated guides" }, "ascorbic"),
+		change({ kind: "issue.create", repo: gitlab, title: "Stream large blob uploads" }, "ascorbic"),
 		change({ kind: "item.labels", target: { key: `${gitlab}#4512` }, add: ["bug"] }, "ascorbic"),
 		change(
-			{ kind: "item.comment", target: { key: "codeberg.org/forgejo/forgejo#7" }, body: "Planned" },
+			{ kind: "item.comment", target: { key: "codeberg.org/ascorbic/emdash#7" }, body: "Planned" },
 			"ascorbic",
 		),
 	];

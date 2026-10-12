@@ -39,7 +39,7 @@ import type {
 
 // Forgejo (Codeberg, and Gitea, which shares its API), #65. Issues and pull
 // requests share numbers, so keys are like GitHub's:
-// `codeberg.org/forgejo/forgejo#7`. Reads use the instance's token for the
+// `codeberg.org/ascorbic/emdash#7`. Reads use the instance's token for the
 // host, or none (public repositories only); never a viewer's GitHub token.
 // Webhooks are set up by hand, on a repository or an organisation, pointing
 // at `/webhooks/forgejo` with the host's secret (see config.ts).

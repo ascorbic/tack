@@ -6,8 +6,8 @@
 // (Tangled numbers issues and pulls separately). Examples:
 //   github.com/ascorbic/unpic#100
 //   gitlab.com/group/subgroup/project!12
-//   codeberg.org/forgejo/forgejo#7
-//   tangled.org/tangled.org/core#775
+//   codeberg.org/ascorbic/emdash#7
+//   tangled.org/mk.gg/tack#775
 
 export type ForgeId = "github" | "fake" | "gitlab" | "forgejo" | "tangled";
 

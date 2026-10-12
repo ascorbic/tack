@@ -21,10 +21,10 @@ afterEach(() => setForgeHosts(DEFAULT_FORGE_HOSTS));
 
 describe("links to other forges", () => {
 	it("reads GitLab's issues, merge requests and work items, in nested groups", () => {
-		expect(parseRef("https://gitlab.com/inkscape/inkscape/-/issues/4512")).toEqual({
+		expect(parseRef("https://gitlab.com/ascorbic/cirrus/-/issues/4512")).toEqual({
 			forge: "gitlab",
 			host: "gitlab.com",
-			repo: "inkscape/inkscape",
+			repo: "ascorbic/cirrus",
 			item: "#4512",
 		});
 		expect(parseRef("gitlab.com/group/sub/project/-/merge_requests/12/diffs")).toEqual({
@@ -39,22 +39,22 @@ describe("links to other forges", () => {
 	});
 
 	it("reads Forgejo's and Codeberg's issues and pull requests, which share numbers", () => {
-		expect(parseRef("https://codeberg.org/forgejo/forgejo/pulls/7/files")).toEqual({
+		expect(parseRef("https://codeberg.org/ascorbic/emdash/pulls/7/files")).toEqual({
 			forge: "forgejo",
 			host: "codeberg.org",
-			repo: "forgejo/forgejo",
+			repo: "ascorbic/emdash",
 			item: "#7",
 		});
-		expect(parseRef("codeberg.org/forgejo/forgejo/issues/8")?.item).toBe("#8");
+		expect(parseRef("codeberg.org/ascorbic/emdash/issues/8")?.item).toBe("#8");
 		// A repository's page isn't an item.
-		expect(parseRef("https://codeberg.org/forgejo/forgejo/7")).toBeNull();
+		expect(parseRef("https://codeberg.org/ascorbic/emdash/7")).toBeNull();
 	});
 
 	it("reads Tangled's issues and pulls, numbered separately, at its old host too", () => {
-		expect(parseRef("https://tangled.org/tangled.org/core/issues/775")).toEqual({
+		expect(parseRef("https://tangled.org/mk.gg/tack/issues/775")).toEqual({
 			forge: "tangled",
 			host: "tangled.org",
-			repo: "tangled.org/core",
+			repo: "mk.gg/tack",
 			item: "#775",
 		});
 		expect(parseRef("https://tangled.sh/@alice.example/knotty/pulls/3")).toEqual({
@@ -66,9 +66,9 @@ describe("links to other forges", () => {
 	});
 
 	it("keeps GitHub's links as they were", () => {
-		expect(parseRef("https://github.com/withastro/astro/pull/5/files")?.item).toBe("#5");
-		expect(parseRef("https://github.com/withastro/astro/5")).toBeNull();
-		expect(parseRef("withastro/astro#5")?.host).toBe("github.com");
+		expect(parseRef("https://github.com/emdash-cms/emdash/pull/5/files")?.item).toBe("#5");
+		expect(parseRef("https://github.com/emdash-cms/emdash/5")).toBeNull();
+		expect(parseRef("emdash-cms/emdash#5")?.host).toBe("github.com");
 	});
 
 	it("reads a self-hosted forge's links only once the instance serves it", () => {
