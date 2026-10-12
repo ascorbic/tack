@@ -48,6 +48,15 @@ function tryHeaders(): Plugin {
 	};
 }
 
+/**
+ * The demo's AI (#75): the docs site's Worker (src/demoAi/), answering
+ * `POST /try/api/ai` beside the site's static files. `vp build --mode try-ai`
+ * bundles it into one module, dist/try-ai/index.js, which the docs build
+ * deploys (site/scripts/build-output.ts).
+ */
+const TRY_AI_ENTRY = here("./src/demoAi/index.ts");
+const TRY_AI_OUT = here("./dist/try-ai");
+
 export default defineConfig(({ mode }) => ({
 	// Tests run in Node against the built Worker in Miniflare (see
 	// test/harness.ts), so the Cloudflare plugin is only for dev and build. The
@@ -56,13 +65,31 @@ export default defineConfig(({ mode }) => ({
 		? []
 		: mode === "try"
 			? [react(), tryHeaders()]
-			: [react(), cloudflare({ inspectorPort: false }), securityHeaders()],
+			: mode === "try-ai"
+				? []
+				: [react(), cloudflare({ inspectorPort: false }), securityHeaders()],
 	// The demo: its own page, served from /try/, with no public files.
 	...(mode === "try" && {
 		root: TRY_ROOT,
 		base: "/try/",
 		publicDir: false,
 		build: { outDir: TRY_OUT, emptyOutDir: true },
+	}),
+	// The demo's AI: a Worker module, everything bundled in.
+	...(mode === "try-ai" && {
+		publicDir: false,
+		resolve: { conditions: ["workerd", "worker", "browser"] },
+		ssr: { target: "webworker" as const, noExternal: true },
+		build: {
+			ssr: TRY_AI_ENTRY,
+			outDir: TRY_AI_OUT,
+			emptyOutDir: true,
+			target: "es2022",
+			rollupOptions: {
+				external: [/^cloudflare:/],
+				output: { entryFileNames: "index.js" },
+			},
+		},
 	}),
 	test: {
 		globalSetup: "./test/global-setup.ts",
