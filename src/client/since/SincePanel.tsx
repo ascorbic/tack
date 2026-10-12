@@ -483,7 +483,7 @@ export function ActivityGlyph({ kind }: { kind: CardActivity["kind"] }) {
 				</>
 			) : kind === "ci_failing" ? (
 				<path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
-			) : kind === "ci_passing" || kind === "approved" ? (
+			) : kind === "ci_passing" || kind === "approved" || kind === "answered" ? (
 				<path d="M3.5 8.5l3 3 6-7" />
 			) : kind === "changes_requested" ? (
 				<>

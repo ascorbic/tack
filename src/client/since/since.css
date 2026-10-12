@@ -381,7 +381,8 @@ li[data-open] > .since-person .comment-icon {
 
 .since-glyph[data-kind="reopened"],
 .since-glyph[data-kind="ci_passing"],
-.since-glyph[data-kind="approved"] {
+.since-glyph[data-kind="approved"],
+.since-glyph[data-kind="answered"] {
 	background: var(--open-bg);
 	color: var(--open);
 }
@@ -412,6 +413,7 @@ li[data-open] > .since-person .comment-icon {
 
 .since-activity[data-kind="ci_passing"],
 .since-activity[data-kind="approved"],
+.since-activity[data-kind="answered"],
 .since-activity[data-kind="reopened"] {
 	color: var(--open);
 }

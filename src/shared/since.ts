@@ -41,7 +41,9 @@ export type CardActivityKind =
 	| "ci_failing"
 	| "ci_passing"
 	| "approved"
-	| "changes_requested";
+	| "changes_requested"
+	/** A discussion had an answer chosen. */
+	| "answered";
 
 /** Something that happened on GitHub to a card on the board. */
 export interface CardActivity {
@@ -152,6 +154,8 @@ export interface CardSnapshot {
 	ci: string;
 	/** Review decision, or "". */
 	review: string;
+	/** Discussions: whether an answer's chosen. Absent in older snapshots, and for everything else. */
+	answered?: boolean;
 }
 
 export function snapshotOf(card: Card): CardSnapshot {
@@ -160,11 +164,18 @@ export function snapshotOf(card: Card): CardSnapshot {
 		comments: card.comments,
 		ci: card.pull?.checks?.state ?? "",
 		review: card.pull?.review ?? "",
+		...(card.discussion ? { answered: card.discussion.answered } : {}),
 	};
 }
 
 export function sameSnapshot(a: CardSnapshot, b: CardSnapshot): boolean {
-	return a.state === b.state && a.comments === b.comments && a.ci === b.ci && a.review === b.review;
+	return (
+		a.state === b.state &&
+		a.comments === b.comments &&
+		a.ci === b.ci &&
+		a.review === b.review &&
+		!!a.answered === !!b.answered
+	);
 }
 
 /**
@@ -209,6 +220,9 @@ export function cardActivity(
 		(after.review === "approved" || after.review === "changes_requested")
 	) {
 		out.push({ key, kind: after.review, at: when((s) => s.review === after.review) });
+	}
+	if (after.answered && !before.answered) {
+		out.push({ key, kind: "answered", at: when((s) => !!s.answered) });
 	}
 	return out;
 }
@@ -342,6 +356,7 @@ const CARD_WORDS: Record<CardActivityKind, string> = {
 	ci_passing: "CI passing",
 	approved: "approved",
 	changes_requested: "changes requested",
+	answered: "answered",
 };
 
 /** A card's activity in words: "merged", "3 new comments". */

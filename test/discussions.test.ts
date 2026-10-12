@@ -6,7 +6,12 @@
 import type { Request } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { Card } from "../src/shared/cards.ts";
+import * as Y from "yjs";
+import { stageComments, stageTriage } from "../src/shared/actions.ts";
+import { listChanges } from "../src/shared/changes.ts";
 import { reflects } from "../src/shared/confirm.ts";
+import { cardActivity, sameSnapshot, snapshotOf } from "../src/shared/since.ts";
+import { summarize } from "../src/client/changes/describe.ts";
 import {
 	matchSearch,
 	parseSearch,
@@ -439,6 +444,57 @@ describe("against GitHub", () => {
 			).toMatchObject({ ok: false });
 			expect(github.discussion(REPO_ID, 41)?.closed).toBeFalsy();
 		});
+	});
+});
+
+describe("staging from a discussion's card", () => {
+	const stager = { name: "Alice", login: "alice" };
+	const key = `${KEY}#41`;
+
+	it("writes labels, closing and backlinks as a discussion's, and leaves out what discussions lack", () => {
+		const doc = new Y.Doc();
+		const target = { key, discussion: true };
+		stageTriage(doc, [target], { kind: "item.labels", add: ["rfc"] }, stager);
+		stageTriage(
+			doc,
+			[target],
+			{ kind: "item.state", state: "closed", reason: "not_planned" },
+			stager,
+		);
+		stageTriage(doc, [target], { kind: "item.milestone", milestone: "v1" }, stager);
+		stageTriage(doc, [target], { kind: "item.assignees", add: ["kai"] }, stager);
+		stageComments(doc, [{ key, body: "On the board", discussion: true }], stager);
+		const ops = listChanges(doc).map((change) => change.op);
+		expect(ops).toEqual([
+			{ kind: "item.labels", target: { key }, add: ["rfc"], discussion: true },
+			{
+				kind: "item.state",
+				target: { key },
+				state: "closed",
+				reason: "not_planned",
+				discussion: true,
+			},
+			{ kind: "item.comment", target: { key }, body: "On the board", discussion: true },
+		]);
+		expect(ops.map((op) => summarize(op))).toEqual([
+			"Add rfc to #41",
+			"Close discussion #41 as outdated",
+			"Comment on #41",
+		]);
+	});
+});
+
+describe("since you were here", () => {
+	it("says when a discussion was answered", () => {
+		const open = normaliseGqlDiscussion(gqlDiscussion());
+		const answered = normaliseGqlDiscussion(
+			gqlDiscussion({ answer: { url: "u", author: { login: "jo" } }, answerChosenAt: T0 }),
+		);
+		const before = snapshotOf(open);
+		expect(sameSnapshot(before, snapshotOf(answered))).toBe(false);
+		expect(cardActivity(`${KEY}#41`, before, [{ at: 5, snapshot: snapshotOf(answered) }])).toEqual([
+			{ key: `${KEY}#41`, kind: "answered", at: 5 },
+		]);
 	});
 });
 
