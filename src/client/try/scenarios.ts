@@ -72,6 +72,18 @@ function text(doc: Y.Doc, value: string, size: TextSize, x: number, y: number, f
 	});
 }
 
+/**
+ * The board's title and a line under it, above its sections (which start at
+ * y = 0). Section titles grow against the zoom to stay readable, about 32px
+ * tall on screen, so the line ends about 215 above them: clear of them down
+ * to about 15%, below where any of these boards opens on a phone (18% at
+ * the least, the retro on a 375px screen).
+ */
+function heading(doc: Y.Doc, title: string, lede: string) {
+	text(doc, title, "xl", 0, -330);
+	text(doc, lede, "m", 4, -246);
+}
+
 /** A little untidy, as stickies are after people have been at them. */
 const jitter = (i: number, by = 9) => ((i * 37) % (by * 2 + 1)) - by;
 
@@ -118,8 +130,7 @@ const PLANNING_CARDS: Card[] = [
 
 function seedPlanning(doc: Y.Doc): void {
 	doc.transact(() => {
-		text(doc, "Tack 1.0 planning", "xl", 0, -170);
-		text(doc, "Sort the ideas, vote on what's next, push what we decide.", "s", 4, -92);
+		heading(doc, "Tack 1.0 planning", "Sort the ideas, vote on what's next, push what we decide.");
 		const ideas = addSection(
 			doc,
 			{ x: 0, y: 0, w: 900, h: 620 },
@@ -198,8 +209,7 @@ const RETRO_CARDS: Card[] = [
 
 function seedRetro(doc: Y.Doc): void {
 	doc.transact(() => {
-		text(doc, "Sprint 12 retro", "xl", 0, -170);
-		text(doc, "Write it down, stack what's alike, vote on what to change.", "s", 4, -92);
+		heading(doc, "Sprint 12 retro", "Write it down, stack what's alike, vote on what to change.");
 		const columns = [
 			{ title: "Went well", color: "green", x: 0 },
 			{ title: "To improve", color: "red", x: 660 },
@@ -275,8 +285,7 @@ const TRIAGE_CARDS: Card[] = TRIAGE.map(({ item, title, labels }, i) =>
 
 function seedTriage(doc: Y.Doc): void {
 	doc.transact(() => {
-		text(doc, "unpic triage", "xl", 0, -170);
-		text(doc, "New this week: what's a bug, what's next, and what we heard.", "s", 4, -92);
+		heading(doc, "unpic triage", "New this week: what's a bug, what's next, and what we heard.");
 		const inbox = addSection(
 			doc,
 			{ x: 0, y: 0, w: 940, h: 600 },
