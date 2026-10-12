@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-Select something and the bar under the selection offers what you can do with it. Every action only **stages** changes: nothing is written until someone [pushes](/writing-back/pushing/). Each panel says so: "Not written until pushed."
+Select something and the bar under the selection offers what you can do with it. It's above the selection when there's no room below, and it never leaves the screen: select a section bigger than the view and the bar stays at the top of it as you move around. Every action only **stages** changes: nothing is written until someone [pushes](/writing-back/pushing/). Each panel says so: "Not written until pushed."
 
 Actions only appear for what the repository's forge supports. Ones that can't do anything say why instead of opening: "Tack can't write to these yet: install the app" for repositories without the [GitHub App](/self-hosting/github-app/), "Nobody can be assigned in acme/app", "Merged pull requests can't be closed or reopened".
 
