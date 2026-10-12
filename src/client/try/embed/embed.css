@@ -8,18 +8,41 @@
 	display: none;
 }
 
-.embed .app {
-	height: 100dvh;
-}
-
-/* The frame never scrolls: the toolbar waiting below it (and a dialog
-   opening) would otherwise leave room to, and the board would slide up,
-   cutting off its foot. */
+/* Exactly the frame, measured from the frame itself: viewport units in a
+   frame aren't the frame's in every browser (Safari's can be the page's),
+   which would push the board's foot, and the corner, out of sight. */
 html:has(.embed),
-html:has(.embed) body {
+html:has(.embed) body,
+html:has(.embed) #root {
 	height: 100%;
+	margin: 0;
+	/* The frame never scrolls: the toolbar waiting below it (and a dialog
+	   opening) would otherwise leave room to, cutting off its foot. */
 	overflow: hidden;
 	overscroll-behavior: none;
+}
+
+.embed {
+	position: relative;
+	height: 100%;
+}
+
+.embed .app {
+	height: 100%;
+}
+
+/* Pinned to the frame's own corner, whatever the board inside measures. */
+.embed .embed-corner {
+	position: fixed;
+}
+
+/* Once it's yours the toolbar rises along the foot: the way to the full
+   demo moves up out of its way, to the top right. */
+.embed[data-mode="yours"] .embed-corner {
+	top: 14px;
+	right: 14px;
+	bottom: auto;
+	left: auto;
 }
 
 /* The toolbar rises in when the board's yours. */
