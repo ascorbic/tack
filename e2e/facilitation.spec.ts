@@ -74,7 +74,16 @@ test.describe("facilitating a retro", () => {
 		const stamp = page.getByRole("button", { name: /^❤️ 1: .*\(including you\)/ });
 		await expect(stamp).toBeVisible();
 		await expect(stamp).toHaveAttribute("aria-pressed", "true");
-		// Inside the sticky's bottom-right corner, not spilling onto the next shape.
+		// Inside the sticky's bottom-right corner, not spilling onto the next shape,
+		// once it's landed: it springs in, and overshoots on the way.
+		await page.evaluate(() =>
+			Promise.all(
+				document
+					.getAnimations()
+					.filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+					.map((animation) => animation.finished.catch(() => {})),
+			),
+		);
 		const [mark, shape] = [(await stamp.boundingBox())!, (await note.boundingBox())!];
 		expect(mark.y + mark.height).toBeLessThanOrEqual(shape.y + shape.height);
 		expect(mark.x + mark.width).toBeLessThanOrEqual(shape.x + shape.width);
