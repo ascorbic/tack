@@ -13,8 +13,7 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 <div class="tk-hero">
 	<div class="tk-hero-copy">
 		<p class="tk-kicker">
-			<span class="tk-kicker-dot" aria-hidden="true"></span>
-			Open source · Self-hosted on Cloudflare · MIT
+			Free • Open source • Self-hosted
 		</p>
 		<h1 id="_top" data-page-title set:html={title} />
 		{tagline && <p class="tk-tagline" set:html={tagline} />}
@@ -83,26 +82,6 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 		color: var(--tk-ink-soft);
 		font-size: var(--sl-text-xs);
 		font-weight: 550;
-	}
-
-	.tk-kicker-dot {
-		width: 0.5rem;
-		height: 0.5rem;
-		border-radius: 50%;
-		background: var(--tk-open);
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--tk-open) 25%, transparent);
-		animation: tk-live 2.4s var(--tk-ease-out) infinite;
-	}
-
-	@keyframes tk-live {
-		0%,
-		60%,
-		100% {
-			box-shadow: 0 0 0 3px color-mix(in srgb, var(--tk-open) 25%, transparent);
-		}
-		30% {
-			box-shadow: 0 0 0 6px color-mix(in srgb, var(--tk-open) 0%, transparent);
-		}
 	}
 
 	h1 {
@@ -363,7 +342,6 @@ const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.tk-kicker-dot,
 		.tk-sticky,
 		.tk-hero-board :global(.tk-shot) {
 			animation: none;

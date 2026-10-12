@@ -11,7 +11,7 @@ const og = [
 	{
 		property: "og:image:alt",
 		content:
-			"Tack: plan on a board, push to GitHub. A board of live issue and pull request cards, a stack, a live list and stickies.",
+			"Tack: plan on a board, sync to GitHub. A board of live issue and pull request cards, a stack, a live list and stickies.",
 	},
 	{ name: "twitter:image", content: `${site}/og.png` },
 ];

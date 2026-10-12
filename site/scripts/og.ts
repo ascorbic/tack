@@ -137,7 +137,7 @@ const html = `<!doctype html>
 	<div class="board"><img src="data:image/webp;base64,${board.toString("base64")}" /></div>
 	<div class="copy">
 		<div class="brand">${mark(true)}<span class="wordmark">tack</span></div>
-		<h1>Plan on a board.<br /><em>Push</em> to GitHub.</h1>
+		<h1>Plan on a board.<br /><em>Sync</em> to GitHub.</h1>
 		<p>Planning sessions for open source teams, on GitHub’s own data.</p>
 	</div>
 	<div class="sticky">
