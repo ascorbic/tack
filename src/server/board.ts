@@ -73,7 +73,8 @@ import {
 	migrateBoard,
 } from "../shared/schema.ts";
 import { readShapes } from "../shared/structure.ts";
-import { type ShapeProps, cardRefs, shapesMap } from "../shared/shapes.ts";
+import { type ShapeProps, cardRefs, readShape, shapesMap } from "../shared/shapes.ts";
+import { linkAssets } from "../shared/linkPreview.ts";
 import type { WidgetRequest } from "../shared/widgets.ts";
 import { type Policy, type VisitorKey, roleFor } from "./boards/access.ts";
 import { boardThumbnail } from "../shared/thumbnail.ts";
@@ -1548,6 +1549,20 @@ export class Board extends YServer<Env> {
 		const entries = [...this.cards.values()].filter((entry) => refs.has(entry.key));
 		const cards = await this.visibleTo(null, entries);
 		return { shapes: [...readShapes(this.document)], cards };
+	}
+
+	/**
+	 * Whether a link card on the board shows this image (its preview image or
+	 * icon): the image proxy only fetches what a board has on it, so it's
+	 * never an open proxy, even for strangers on public boards. RPC only,
+	 * from src/server/links/routes.ts, which has checked they can open it.
+	 */
+	async showsLinkAsset(src: string): Promise<boolean> {
+		for (const shape of shapesMap(this.document).values()) {
+			if (shape.get("type") !== "link") continue;
+			if (linkAssets(readShape(shape)).includes(src)) return true;
+		}
+		return false;
 	}
 
 	/**

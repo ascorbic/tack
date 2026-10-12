@@ -206,6 +206,25 @@ const ROWS: Row[] = [
 			call(a, "GET", `/api/boards/${privateBoard}/related?key=fake.tack/acme/app%231`),
 	},
 	{
+		// Reading a page for a link card: editors, signed in. A private address is
+		// refused without fetching anything, so the answer is a `blocked` preview.
+		route: "POST /api/boards/:id/unfurl",
+		allowed: privateEditors,
+		request: (a) =>
+			call(a, "POST", `/api/boards/${privateBoard}/unfurl`, { url: "http://127.0.0.1/" }),
+	},
+	{
+		// Without an address: whoever can open it gets past the check to a 400.
+		route: "GET /api/boards/:id/links/image (private)",
+		allowed: privateReaders,
+		request: (a) => call(a, "GET", `/api/boards/${privateBoard}/links/image?src=`),
+	},
+	{
+		route: "GET /api/boards/:id/links/image (public)",
+		allowed: everyone,
+		request: (a) => call(a, "GET", `/api/boards/${publicBoard}/links/image?src=`),
+	},
+	{
 		route: "POST /api/boards/:id/push",
 		allowed: privateEditors,
 		request: (a) => call(a, "POST", `/api/boards/${privateBoard}/push`, { ids: [], as: "app" }),

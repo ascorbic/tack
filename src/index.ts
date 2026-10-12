@@ -14,6 +14,7 @@ import { handleNotifications } from "./server/notifications.ts";
 import { handlePush } from "./server/push/routes.ts";
 import { handleHistory } from "./server/history.ts";
 import { handleItemSearch } from "./server/itemSearch.ts";
+import { handleLinks } from "./server/links/routes.ts";
 import { handleRelated } from "./server/related.ts";
 import { handleSnapshots } from "./server/snapshots.ts";
 import { handleWebhook } from "./server/webhooks.ts";
@@ -75,6 +76,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 	// Searching for issues and pull requests to add, as the viewer (the card tool).
 	const search = await handleItemSearch(request, env);
 	if (search) return search;
+
+	// Link cards: reading a page's preview, and the images link cards show.
+	const links = await handleLinks(request, env, ctx);
+	if (links) return links;
 
 	// AI: a widget from a description, summaries and drafted decisions (#64).
 	const ai = await handleAi(request, env);
