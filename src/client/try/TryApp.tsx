@@ -237,19 +237,31 @@ function TryBoard({
 
 	// Cards from real forges (an issue's URL pasted in): the demo reads nothing
 	// beyond its pretend one, so they say so, rather than loading for ever.
+	// Whatever else answered for them first ("unsupported", from an older
+	// visit's board), and whenever something answers later.
 	useEffect(() => {
 		const shapes = shapesMap(sim.doc);
+		const demo = (ref: string) => {
+			if (ref.startsWith("fake.tack/")) return;
+			const entry = cardStore.get(ref);
+			if (entry && "missing" in entry && entry.reason === "demo") return;
+			cardStore.set({ key: ref, missing: true, reason: "demo" });
+		};
 		const mark = () => {
 			for (const shape of shapes.values()) {
 				const ref = shape.get("ref");
-				if (shape.get("type") !== "card" || typeof ref !== "string") continue;
-				if (ref.startsWith("fake.tack/") || cardStore.get(ref)) continue;
-				cardStore.set({ key: ref, missing: true, reason: "demo" });
+				if (shape.get("type") === "card" && typeof ref === "string") demo(ref);
 			}
 		};
 		mark();
 		shapes.observeDeep(mark);
-		return () => shapes.unobserveDeep(mark);
+		const unsubscribe = cardStore.subscribeAll((key) => {
+			if (!key.startsWith("fake.tack/")) demo(key);
+		});
+		return () => {
+			shapes.unobserveDeep(mark);
+			unsubscribe();
+		};
 	}, [sim]);
 
 	// Kept in this browser: saved a moment after each change, and on leaving.
