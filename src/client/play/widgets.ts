@@ -18,7 +18,7 @@ import type {
 import { cardStore } from "../cardStore.ts";
 import { type WidgetTransport, widgetStore } from "../widgets/store.ts";
 import { PEOPLE, makeChecks, pullDetails } from "./ci.ts";
-import { LABELS, fixture } from "./fixtures.ts";
+import { DISCUSSIONS, LABELS, fixture } from "./fixtures.ts";
 import { MILESTONE, TEAM, VIEWER_REVIEWER, kindCards } from "./kindFixtures.ts";
 import { RELEASE_PULLS, relatedOf, releaseOf, stampTimes } from "./roadmap.ts";
 
@@ -194,7 +194,7 @@ export function addWidgetCard(card: Card): void {
 export const KIND_CARDS: Card[] = kindCards(Date.now());
 
 /** Everything the fake repository has to search. */
-const searchable = () => [...WIDGET_CARDS, ...RELEASE_PULLS, ...KIND_CARDS];
+const searchable = () => [...WIDGET_CARDS, ...RELEASE_PULLS, ...KIND_CARDS, ...DISCUSSIONS];
 export const searchableCards = searchable;
 
 export interface SimulatedWidgetOptions {

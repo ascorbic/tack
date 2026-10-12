@@ -50,6 +50,7 @@ describe("inbox starting points", () => {
 			"Needs triage",
 			"Open pull requests",
 			"Good first issues",
+			"Unanswered questions",
 		]);
 		expect(inboxSuggestions("acme/app", "Help wanted", ["help wanted"])[0]?.q).toBe(
 			'repo:acme/app is:open label:"help wanted"',
@@ -58,6 +59,12 @@ describe("inbox starting points", () => {
 
 	it("uses the same ready-made searches as lists, under the same names", () => {
 		const names = inboxSuggestions("acme/app", "Later", ["bug"]).map((s) => s.label);
-		expect(names).toEqual(["Open bugs", "Needs triage", "Open pull requests", "Good first issues"]);
+		expect(names).toEqual([
+			"Open bugs",
+			"Needs triage",
+			"Open pull requests",
+			"Good first issues",
+			"Unanswered questions",
+		]);
 	});
 });

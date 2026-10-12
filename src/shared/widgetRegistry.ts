@@ -113,6 +113,11 @@ export const LIST_PRESETS: ListPreset[] = [
 		q: (repo) => `repo:${repo} is:open label:"good first issue"`,
 	},
 	{
+		label: "Unanswered questions",
+		title: "Unanswered questions",
+		q: (repo) => `repo:${repo} is:discussion is:open is:unanswered`,
+	},
+	{
 		label: "Assigned to me",
 		title: "Assigned to me",
 		q: () => "is:open assignee:@me",

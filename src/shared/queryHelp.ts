@@ -34,6 +34,8 @@ const WORDS: Record<string, string> = {
 	issues: "is:issue",
 	pr: "is:pr",
 	prs: "is:pr",
+	discussion: "is:discussion",
+	discussions: "is:discussion",
 	unassigned: "no:assignee",
 	unlabelled: "no:label",
 	unlabeled: "no:label",
