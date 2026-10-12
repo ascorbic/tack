@@ -24,6 +24,26 @@ test.beforeEach(async ({ page }) => {
 	await page.evaluate(() => document.fonts.ready);
 });
 
+test("stacks are theme cards: stickies, issues and pull requests a line each, or only a name far out", async ({
+	page,
+}) => {
+	const stacks = page.locator("section").filter({
+		has: page.getByRole("heading", { name: "Stacks", exact: true }),
+	});
+	const figure = (caption: string) => stacks.locator("figure", { hasText: caption });
+	const mixed = figure("Issues, a pull request and stickies");
+	await expect(mixed.locator(".stack-count")).toHaveText("6");
+	await expect(mixed.locator(".stack-rows .stack-row")).toHaveCount(3);
+	await expect(mixed.locator(".stack-more")).toHaveText("+3 more");
+	await expect(mixed.locator(".stack-row[data-kind=card]")).toHaveCount(2);
+	await expect(figure("one of them private")).toContainText("Private item");
+	await expect(figure("✓ keeps it").getByRole("button", { name: /^Keep/ })).toBeVisible();
+	await expect(figure("Zoomed out: its name").locator(".stack")).toHaveAttribute(
+		"data-far",
+		"true",
+	);
+});
+
 test("every card state renders", async ({ page }) => {
 	const cards = page.locator("section", { hasText: /^Cards/ }).locator("figure");
 	await expect(cards).toHaveCount(CARDS.length);
@@ -449,10 +469,15 @@ test("every row and mini card state renders", async ({ page }) => {
 		page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
 	const rows = section("Rows");
 	const minis = section("Mini cards");
-	await expect(rows.locator("figure")).toHaveCount(18);
-	await expect(minis.locator("figure")).toHaveCount(18);
-	await expect(rows.locator(".display-row")).toHaveCount(18);
-	await expect(minis.locator(".display-mini")).toHaveCount(18);
+	await expect(rows.locator("figure")).toHaveCount(20);
+	await expect(minis.locator("figure")).toHaveCount(20);
+	await expect(rows.locator(".display-row")).toHaveCount(20);
+	await expect(minis.locator(".display-mini")).toHaveCount(20);
+	// A stack's row: its name, and what it holds.
+	await expect(rows.locator("figure[data-state=stack-suggested] .display-chip")).toHaveText(
+		"5 items",
+	);
+	await expect(rows.locator("figure[data-state=stack] .display-chip")).toHaveText("3 stickies");
 	for (const state of ["open", "merged", "draft", "closed"]) {
 		await expect(rows.locator(`figure[data-state=${state}] .display-row`)).toHaveAttribute(
 			"data-state",

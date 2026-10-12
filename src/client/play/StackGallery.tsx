@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import * as Y from "yjs";
+import type { Card, MissingCard } from "../../shared/cards.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { STICKY, openLayout } from "../../shared/stacks.ts";
+import { cardStore } from "../cardStore.ts";
 import { StickyView } from "../StickyNode.tsx";
 import { GroupThese } from "../stacks/GroupThese.tsx";
 import { StackPapers } from "../stacks/StackNode.tsx";
 import type { GroupAnswer } from "../stacks/store.ts";
 import type { StackView } from "../stacks/view.ts";
+import { STACK_CARDS } from "./stacks.ts";
 
-// Stacks (#73) for the galleries: every state of the stack on the board
+// Stacks (#73) for the galleries: every state of the stack's theme card on
+// the board, issues and pull requests in it too, close up and zoomed out
 // (/play/cards), and Group these' panel (/play/actions).
 
 const PRIYA = { name: "Priya Shah", color: "#b4467a" };
@@ -24,6 +28,29 @@ const CI = [
 	note("ci1", "CI takes 25 minutes on a good day", "pink", KAI),
 	note("ci2", "Flaky e2e on Windows", "pink", TOM),
 	note("ci3", "Can't rerun one job in the build", "yellow"),
+];
+
+/** An item that can't be shown: from a repository this person can't read. */
+const HIDDEN_CARD: MissingCard = {
+	key: "fake.tack/ascorbic/tack-internal#3",
+	missing: true,
+	reason: "private",
+};
+
+const [notesCard, loaderCard, versionsCard, , srcsetCard] = STACK_CARDS;
+
+const item = (id: string, entry: Card | MissingCard | undefined) => ({
+	id,
+	shape: { type: "card", ref: entry?.key ?? "", x: 0, y: 0, z: "a0" } as ShapeProps,
+});
+
+const RELEASE = [
+	note("r1", "Release notes are thin", "green"),
+	item("r2", notesCard),
+	item("r3", loaderCard),
+	note("r4", "Breaking changes buried in commits, not the release notes", "green", KAI),
+	item("r5", versionsCard),
+	note("r6", "Changelog doesn't credit contributors", "green", TOM),
 ];
 
 const stack = (props: Partial<ShapeProps> = {}): ShapeProps => ({
@@ -48,6 +75,7 @@ interface Sample {
 	view: StackView;
 	selected?: boolean;
 	naming?: boolean;
+	far?: boolean;
 }
 
 const SAMPLES: Sample[] = [
@@ -57,11 +85,22 @@ const SAMPLES: Sample[] = [
 		view: view(CI),
 	},
 	{
-		label: "A suggested name, selected (Keep makes it theirs)",
+		label: "A suggested name, selected (✓ keeps it)",
 		shape: stack({ suggested: { title: "Unreliable CI", hash: "x" } }),
 		view: view(CI),
 		selected: true,
 		naming: true,
+	},
+	{
+		label: "Issues, a pull request and stickies, +N more",
+		shape: stack({ suggested: { title: "Release notes", hash: "x" } }),
+		view: view(RELEASE),
+		naming: true,
+	},
+	{
+		label: "Only cards, one of them private",
+		shape: stack({ title: "Big sites are slow" }),
+		view: view([item("p1", srcsetCard), item("p2", HIDDEN_CARD), item("p3", notesCard)]),
 	},
 	{
 		label: "Being named",
@@ -76,7 +115,7 @@ const SAMPLES: Sample[] = [
 		selected: true,
 	},
 	{
-		label: "A sticky held over it",
+		label: "Something held over it",
 		shape: stack({ title: "Unreliable CI" }),
 		view: view(CI, { receiving: true }),
 	},
@@ -98,10 +137,25 @@ const SAMPLES: Sample[] = [
 		}),
 		view: view([note("l1", "No reply for weeks", "green"), note("l2", "Bots only", "green", TOM)]),
 	},
+	{
+		label: "Zoomed out: its name and count",
+		shape: stack({ suggested: { title: "Release notes", hash: "x" } }),
+		view: view(RELEASE),
+		far: true,
+	},
+	{
+		label: "Zoomed out, untitled",
+		shape: stack(),
+		view: view(CI),
+		far: true,
+	},
 ];
 
 /** The stack shape's states, for the cards gallery. */
 export function StackGallery() {
+	useMemo(() => {
+		for (const entry of [...STACK_CARDS, HIDDEN_CARD]) cardStore.set(entry);
+	}, []);
 	const layout = openLayout({ x: 0, y: 0 }, ["a", "b", "c"]);
 	const left = Math.min(...[...layout.slots.values()].map((slot) => slot.x), layout.tray.x);
 	const top = layout.tray.y;
@@ -117,6 +171,7 @@ export function StackGallery() {
 							view={sample.view}
 							selected={sample.selected}
 							naming={sample.naming}
+							far={sample.far}
 							editable
 						/>
 						<figcaption>{sample.label}</figcaption>
@@ -168,7 +223,17 @@ const NOTES = [
 	{ id: "f", text: "A logo?", color: "blue" },
 ];
 
-const PANELS: { label: string; preview: GroupAnswer | "thinking" }[] = [
+const CARDS = [notesCard, loaderCard].flatMap((card) =>
+	card && "title" in card
+		? [{ id: card.item, text: card.title, ref: card.item, state: card.state }]
+		: [],
+);
+
+const PANELS: {
+	label: string;
+	preview: GroupAnswer | "thinking";
+	cards?: boolean;
+}[] = [
 	{ label: "Reading the stickies", preview: "thinking" },
 	{
 		label: "Proposed stacks",
@@ -176,6 +241,17 @@ const PANELS: { label: string; preview: GroupAnswer | "thinking" }[] = [
 			ok: true,
 			stacks: [
 				{ name: "Hard-to-find docs", ids: ["a", "b", "c"] },
+				{ name: "Unreliable CI", ids: ["d", "e"] },
+			],
+		},
+	},
+	{
+		label: "Cards included",
+		cards: true,
+		preview: {
+			ok: true,
+			stacks: [
+				{ name: "Release notes", ids: ["#701", "#712"] },
 				{ name: "Unreliable CI", ids: ["d", "e"] },
 			],
 		},
@@ -191,7 +267,7 @@ export function GroupTheseGallery() {
 		<section>
 			<h2>Group these</h2>
 			<div className="gallery-grid actions-panels">
-				{PANELS.map(({ label, preview }) => (
+				{PANELS.map(({ label, preview, cards }) => (
 					<figure key={label}>
 						<div
 							className="action-popover"
@@ -203,6 +279,8 @@ export function GroupTheseGallery() {
 							<GroupThese
 								doc={doc}
 								stickies={NOTES}
+								cards={CARDS}
+								initialCards={cards}
 								preview={preview}
 								onMade={() => {}}
 								onClose={() => {}}
