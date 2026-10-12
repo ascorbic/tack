@@ -6,8 +6,6 @@
 // selection actions and the write-back dialog call, pushed through
 // `POST /api/boards/:id/push` by someone signed in through (fake) GitHub,
 // written by the real GitHub adapter, and confirmed by webhooks.
-//
-// docs/m2-exit.md is the same session by hand, against real GitHub.
 
 import type { Miniflare } from "miniflare";
 import { afterEach, expect, it } from "vite-plus/test";

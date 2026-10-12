@@ -1,8 +1,8 @@
 import type { Person } from "./auth.ts";
 
 // The board index, membership and visibility: types shared by the server's
-// `/api/boards` routes and the client. Boards are independent of repos (see
-// docs/plan.md, principle 8): membership decides who can open and edit a
+// `/api/boards` routes and the client. Boards are independent of repos (a board
+// can hold items from any repo): membership decides who can open and edit a
 // board, and never grants access to repo data.
 
 /** What someone can do on a board. Owners also manage it: sharing, visibility, archiving. */

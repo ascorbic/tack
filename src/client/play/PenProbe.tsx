@@ -10,7 +10,7 @@ import {
 } from "../../shared/geometry.ts";
 import "./probe.css";
 
-// The React Flow probe's pen prototype (see docs/react-flow-probe.md): pen
+// A pen prototype from probing React Flow's limits: pen
 // strokes on our own SVG layer inside the viewport, with our own hit
 // testing rather than the DOM's. Strokes live in their own map in the
 // playground's document; this isn't part of the board schema yet.

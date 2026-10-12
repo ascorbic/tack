@@ -2,7 +2,7 @@ import type * as v from "valibot";
 import type { Card, MissingCard } from "./cards.ts";
 import type { CustomQueryRequest } from "./customWidgets.ts";
 
-// Widgets (docs/plan.md, M3): live views of forge data on the board.
+// Widgets: live views of forge data on the board.
 //
 // A widget is a shape (`type: "widget"`) with a `widget` kind and a `config`
 // that the kind's Valibot schema validates. The config is in the document,

@@ -3,8 +3,8 @@ import { issueFromText } from "./issueText.ts";
 import { LOCAL_ORIGIN, shapesMap } from "./shapes.ts";
 
 // Pending changes: writes to the forge that people stage on a board and then
-// push as a batch (docs/plan.md, M2). Moving things on a board never changes
-// GitHub; only these do.
+// push as a batch. Moving things on a board never changes GitHub; only these
+// do.
 //
 // Changes live in the board's Yjs document under `changes` (one Y.Map per
 // change, keyed by id), so everyone on the board sees them, and staging,

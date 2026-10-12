@@ -57,8 +57,7 @@ import "./connectors.css";
 // Connectors live on our own SVG layer inside the React Flow viewport rather
 // than as React Flow edges: edges need a node at both ends and attach to
 // fixed handles, while connectors here can end anywhere, attach anywhere on
-// a shape's outline, and be picked up and re-attached. See
-// docs/react-flow-probe.md.
+// a shape's outline, and be picked up and re-attached.
 
 const STROKE = 2;
 /** Screen pixels within which an end pins to a shape's outline. */

@@ -73,7 +73,7 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `src/shared/digests.ts` — weekly digests (#68), pure: settings and the schedule in the owner's time zone (`nextDigestAt`, `weekKey`), the week's digest from the change log, card history, pushes and the document (`buildWeeklyDigest`), and its words (`digestTitle`, `digestMarkdown`)
 - `src/client/` — React + React Flow canvas (own `tsconfig.json` with DOM types); `index.html` at the repo root is its entry
 - `src/client/undo.ts` — undo and redo with `Y.UndoManager`, tracking only this client's changes. **Every local document write must go through `transactLocal(doc, fn)`** (origin `LOCAL_ORIGIN`, `"local"`), or it can't be undone; changes from other people, the server and seeding are never undone. One transaction is one undo step
-- `src/client/sections.tsx`, `src/client/connectors.tsx`, `src/client/canvasStructure.ts` — sections (React Flow nodes, containment through a stored `parent` key) and connectors (our own SVG layer inside the viewport); see `docs/react-flow-probe.md`
+- `src/client/sections.tsx`, `src/client/connectors.tsx`, `src/client/canvasStructure.ts` — sections (React Flow nodes, containment through a stored `parent` key) and connectors (our own SVG layer inside the viewport): React Flow keeps the box-shaped nodes, while connectors, strokes, containment, geometry and hit testing are ours
 - `src/client/Minimap.tsx` — the minimap, which steps aside (fades and lets the pointer through) while the pointer reaches for something under it, a drag comes near it, or a selected shape, toolbar or popover overlaps it (#71). Popovers keep clear of the chrome fixed over the canvas (`CHROME` in `src/client/actions/Popover.tsx`: React Flow's panels, the tool dock and anything marked `data-chrome`; placed by `popoverPlacement.ts`, unit-tested), so mark any new panel that floats over the canvas with `data-chrome`
 - `src/client/fitting.ts`, `src/client/ZoomControls.tsx` — opening a board shows all of it (`Board`'s `fitOnLoad`, on for every live board), or where you left it in this browser (`rememberView`, per board in localStorage, used while something's still in view there); an empty board never moves the view. Every fit (opening, ⇧1, ⇧2) keeps clear of the tool dock and minimap (`fitBoxes`, from document bounds, so shapes React Flow hasn't drawn count). The zoom controls show the level, which opens a menu of the zoom shortcuts and the minimap switch (`useMinimapPreference`, in localStorage); the minimap waits until the board has something on it
 - `src/client/useInsideCanvas.ts` — keeps a toolbar floating over the canvas (arrange, shape and connector toolbars) inside it near its edges, by setting `--clamp-x`/`--clamp-y`, which the toolbar's styles add to its `translate` (so whatever places it is left alone). Use it for any new toolbar anchored to shapes. Placing with a click (`sectionSpot`) and tidying (`slideClear`) find free space with `src/shared/placement.ts`, as automation does
@@ -114,12 +114,9 @@ Tack: a GitHub-native collaborative whiteboard for open source planning, built a
 - `scripts/send-webhook.ts` — send a signed webhook to a local dev server (reads `GITHUB_WEBHOOK_SECRET` from `.dev.vars`)
 - `scripts/load-test.ts` — many simulated people on one board (one Durable Object), against a dev server or (`--worker`) the built Worker in Miniflare; see "Load" below
 - `scripts/wrangler-config.ts` — writes `wrangler.jsonc` from `cloudflare.config.ts` (`pnpm run wrangler-config`), with the `@cloudflare/config` converter `cf` itself uses, for the Deploy to Cloudflare button; `test/wrangler-config.test.ts` fails when they differ
-- `docs/spike.md` — spike findings: performance, Yjs growth, design decisions
 - `docs/github-data.md` — how cards are keyed, fetched (batched GraphQL) and kept fresh, and how renamed repositories keep working
 - `docs/security-review.md` — the security review (#60): what was checked, what was found and fixed, and what's left
 - `docs/accessibility.md` — the accessibility audit (#61): how it's checked, what was found and fixed, and what's left
-- `docs/m2-exit.md` — the M2 exit (#36) by hand: one session against real GitHub on a test repository, its prerequisites, and what to check afterwards
-- `docs/react-flow-probe.md` — what stays React Flow's (box-shaped nodes) and what's on our own layers (connectors, strokes) and in our own code (containment, geometry, hit testing)
 - `test/` — Vitest tests in Node. Integration tests run the built Worker in Miniflare (`test/harness.ts`); `test/global-setup.ts` builds it first
 - `e2e/` — Playwright smoke tests over the `/play` workbench and the real dev server, with their own config (`e2e/playwright.config.ts`)
 - `src/demoAi/` — the docs site's Worker code (`tack-docs`): the public demo's AI, `POST /try/api/ai` (`handler.ts`), and its daily budget (`budget.ts`, `DemoBudget`). See "The demo's AI" below
@@ -429,7 +426,7 @@ GitHub Discussions are cards like issues and pull requests (`kind: "discussion"`
 
 ## Staged changes and pushing
 
-What's staged follows the board, and each push is its pusher's own (docs/ux-review/writeback.md):
+What's staged follows the board, and each push is its pusher's own:
 
 - **Staged issues follow their stickies.** An `issue.create` that replaces a sticky reads its title and body from the sticky until it's pushed (`followSticky` in `src/shared/changes.ts`; the push plan reads it too), and is marked `drift` (`edited`, `deleted`, `empty`) for the panel and sheet. Deleting a shape unstages what was made from it and what refers to that, in the same undo step. Words edited in the push sheet go back onto the sticky (`editStagedIssue`).
 - **Inclusion is per push, not shared.** `PushSession.leftOut` is this person's choice in the push sheet; nothing about it is in the document. Changes to repositories without the app are left out by default, once each (`useUnwritableLeftOut`, `leaveOutByDefault`): a choice made by hand always wins.

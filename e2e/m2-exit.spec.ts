@@ -7,8 +7,7 @@ import { expect, settleCanvas, test } from "./fixtures.ts";
 // the push sheet, then backlink every card and push again. The board's
 // repository is on the fake forge (fake.tack), whose writes succeed without
 // GitHub, so the whole flow runs locally; test/m2-exit.test.ts is the same
-// session through the real GitHub adapter, and docs/m2-exit.md the manual
-// run against GitHub itself.
+// session through the real GitHub adapter.
 
 test.use({ reducedMotion: "reduce" });
 

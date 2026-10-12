@@ -4,7 +4,7 @@
 // it can merge with copies that saw the entry. Saves already re-encode the
 // whole state (garbage-collecting deleted content), but the tombstones
 // themselves stay: every moved shape, retyped title and deleted sticky over
-// a board's life (docs/spike.md measured ~10 bytes per position write). On
+// a board's life (about 10 bytes per position write). On
 // a board used for years they can come to outweigh what's on it.
 //
 // The only way to drop them is to rebuild the document: a fresh one with
