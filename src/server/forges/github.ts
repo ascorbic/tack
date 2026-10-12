@@ -37,6 +37,7 @@ import type {
 	RepoIdentity,
 	WebhookResult,
 } from "./types.ts";
+import { categoryEmoji } from "./github-emoji.ts";
 import { digestOf } from "./hmac.ts";
 import { forgeFetch, rateLimitOf } from "./rateLimit.ts";
 
@@ -80,6 +81,30 @@ export interface GitHubIssueLike {
 	parent_issue_url?: string | null;
 }
 
+/** A discussion as `discussion` and `discussion_comment` webhooks carry it. */
+export interface GitHubDiscussionLike {
+	number: number;
+	title: string;
+	html_url: string;
+	node_id?: string;
+	/** `locked`, `converting` and `transferring` are passing states of an open one. */
+	state?: string;
+	state_reason?: string | null;
+	locked?: boolean;
+	comments?: number;
+	created_at?: string;
+	updated_at: string;
+	closed_at?: string | null;
+	answer_html_url?: string | null;
+	answer_chosen_at?: string | null;
+	answer_chosen_by?: { login: string } | null;
+	category?: { name: string; emoji?: string | null; is_answerable?: boolean } | null;
+	user?: { login: string; avatar_url: string } | null;
+	labels?: { name?: string; color?: string }[];
+	reactions?: { total_count?: number; "+1"?: number };
+	repository_url?: string;
+}
+
 interface GitHubRepository {
 	id: number;
 	node_id?: string;
@@ -104,7 +129,78 @@ interface WebhookPayload {
 	/** `sub_issues` events: the sub-issue and its repository. */
 	sub_issue?: GitHubIssueLike;
 	sub_issue_repo?: GitHubRepository;
+	/** `discussion` and `discussion_comment` events. */
+	discussion?: GitHubDiscussionLike;
+	/** `discussion` answered: the comment chosen. */
+	answer?: { html_url?: string; user?: { login: string } | null } | null;
 }
+
+/**
+ * A discussion's card from a webhook payload. Payloads don't count upvotes
+ * or give the category's emoji as more than a shortcode, so `upvotes` is
+ * left out (the `Repo` keeps the last full fetch's) and a refetch follows.
+ */
+export function normaliseDiscussion(
+	repo: string,
+	discussion: GitHubDiscussionLike,
+	answer?: WebhookPayload["answer"],
+): Card {
+	const item = `#${discussion.number}`;
+	const name = repoFromUrl(discussion.repository_url) ?? repo.toLowerCase();
+	const closed = discussion.state === "closed";
+	const answerUrl = discussion.answer_html_url ?? answer?.html_url ?? null;
+	const answered = Boolean(answerUrl || discussion.answer_chosen_at);
+	return {
+		key: itemKey({ host: HOST, repo: name, item }),
+		forge: "github",
+		host: HOST,
+		repo: name,
+		item,
+		kind: "discussion",
+		title: discussion.title,
+		state: closed ? "closed" : "open",
+		stateReason:
+			closed && discussion.state_reason && discussion.state_reason !== "reopened"
+				? discussion.state_reason.toLowerCase()
+				: null,
+		labels: (discussion.labels ?? []).flatMap((label) =>
+			label.name ? [{ name: label.name, color: label.color ?? "cccccc" }] : [],
+		),
+		assignees: [],
+		author: discussion.user
+			? { login: discussion.user.login, avatarUrl: discussion.user.avatar_url }
+			: null,
+		comments: discussion.comments ?? 0,
+		reactions: discussion.reactions?.total_count ?? 0,
+		...(typeof discussion.reactions?.["+1"] === "number"
+			? { thumbsUp: { count: discussion.reactions["+1"] } }
+			: {}),
+		url: discussion.html_url,
+		updatedAt: discussion.updated_at,
+		...(discussion.created_at ? { createdAt: discussion.created_at } : {}),
+		...(discussion.closed_at !== undefined ? { closedAt: discussion.closed_at } : {}),
+		...(discussion.node_id ? { nodeId: discussion.node_id } : {}),
+		discussion: {
+			category: {
+				name: discussion.category?.name ?? "",
+				emoji: categoryEmoji(null, discussion.category?.emoji),
+				answerable: discussion.category?.is_answerable ?? false,
+			},
+			answered,
+			answer: answered
+				? {
+						url: answerUrl ?? discussion.html_url,
+						author: answer?.user?.login ?? null,
+						chosenAt: discussion.answer_chosen_at ?? null,
+					}
+				: null,
+			locked: discussion.locked ?? discussion.state === "locked",
+		},
+	};
+}
+
+/** Discussion deliveries that mean the discussion isn't in this repository any more. */
+const DISCUSSION_GONE = new Set(["deleted", "transferred"]);
 
 /** The `owner/repo` part of an API or web URL, if it has one. */
 function repoFromUrl(url: string | undefined): string | null {
@@ -396,6 +492,14 @@ function refetchFor(event: string, payload: WebhookPayload) {
 				? repoFromUrl(sub?.repository_url) === payload.repository?.full_name.toLowerCase()
 				: payload.sub_issue_repo.id === payload.repository?.id;
 		if (sub && own) items.add(`#${sub.number}`);
+	} else if (
+		(event === "discussion" || event === "discussion_comment") &&
+		payload.discussion &&
+		!DISCUSSION_GONE.has(payload.action ?? "")
+	) {
+		// Payloads don't count upvotes, or give a category's emoji as more than
+		// a shortcode: a full read fills them in.
+		items.add(`#${payload.discussion.number}`);
 	}
 	return items.size + commits.size > 0 ? { items: [...items], commits: [...commits] } : undefined;
 }
@@ -592,6 +696,16 @@ export const github: ForgeAdapter = {
 			const found = mentionsIn(text, { host: HOST, repo: pull.repo, self: pull.key });
 			if (found.length > 0) mentions[pull.key] = found;
 		}
+		// Discussions, and comments on them (which change their count). A
+		// deleted or transferred one is gone from here: its card says so.
+		const gone: string[] = [];
+		if ((event === "discussion" || event === "discussion_comment") && payload.discussion) {
+			if (event === "discussion" && DISCUSSION_GONE.has(payload.action ?? "")) {
+				gone.push(`#${payload.discussion.number}`);
+			} else {
+				cards.push(normaliseDiscussion(repo.name, payload.discussion, payload.answer));
+			}
+		}
 
 		return {
 			type: "delivery",
@@ -604,6 +718,7 @@ export const github: ForgeAdapter = {
 				payload: body,
 				cards,
 				refetch: refetchFor(event, payload),
+				...(gone.length > 0 ? { gone } : {}),
 				...(Object.keys(mentions).length > 0 ? { mentions } : {}),
 			},
 		};

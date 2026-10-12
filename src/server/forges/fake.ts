@@ -1,7 +1,7 @@
 import type { Card } from "../../shared/cards.ts";
 import type { OperationKind } from "../../shared/changes.ts";
 import { itemKey, itemOf, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
-import { matchSearch, parseSearch, searchScope } from "../../shared/search.ts";
+import { matchSearch, parseSearch, searchKind, searchScope } from "../../shared/search.ts";
 import type { RelatedResult } from "../../shared/widgets.ts";
 import type { ApplyResult, ForgeAdapter } from "./types.ts";
 
@@ -53,13 +53,80 @@ function createdNumber(kind: "issue" | "pull"): number {
  * `fakeRelated`). Items `apply` made have none.
  */
 export function fakeParent(n: number): number | null {
-	if (n >= CREATED_FROM || !isIssue(n)) return null;
+	if (n >= CREATED_FROM || isFakeDiscussion(n) || !isIssue(n)) return null;
 	const parent = Math.floor(n / 10);
 	return parent >= 1 && isIssue(parent) ? parent : null;
 }
 
 const fakeTitle = (n: number) =>
 	`Synthetic card ${n}: a reasonably long title so it wraps onto two lines`;
+
+/**
+ * Discussions on the fake forge: numbers from `DISCUSSIONS_FROM` to just
+ * below `CREATED_FROM` (as on GitHub, they share the repository's numbers
+ * with its issues and pull requests). Their category, answer and state go
+ * round by number, so every kind shows up among the first few.
+ */
+export const DISCUSSIONS_FROM = 90_000;
+
+export function isFakeDiscussion(n: number): boolean {
+	return n >= DISCUSSIONS_FROM && n < CREATED_FROM;
+}
+
+const CATEGORIES = [
+	{ name: "Ideas", emoji: "💡", answerable: false },
+	{ name: "Q&A", emoji: "🙏", answerable: true },
+	{ name: "RFCs", emoji: "📝", answerable: false },
+	{ name: "Announcements", emoji: "📣", answerable: false },
+	{ name: "General", emoji: "💬", answerable: false },
+	{ name: "Show and tell", emoji: "🙌", answerable: false },
+];
+
+const DISCUSSION_TITLES = [
+	"RFC: a plugin API for image providers",
+	"How do I set a default quality for every image?",
+	"Ideas for the 6.0 release",
+	"Should we drop the CommonJS build?",
+	"Show and tell: a gallery built with Tack",
+	"Why does the CDN detection run on every request?",
+];
+
+function fakeDiscussion(
+	common: Pick<
+		Card,
+		"key" | "forge" | "host" | "repo" | "item" | "assignees" | "author" | "url" | "updatedAt"
+	>,
+	n: number,
+): Card {
+	const i = n - DISCUSSIONS_FROM;
+	const category = CATEGORIES[i % CATEGORIES.length] ?? CATEGORIES[0]!;
+	const closed = i % 7 === 6;
+	const answered = category.answerable && i % 2 === 1;
+	return {
+		...common,
+		url: `https://fake.tack/${common.repo}/discussions/${n}`,
+		kind: "discussion",
+		title: DISCUSSION_TITLES[i % DISCUSSION_TITLES.length] ?? fakeTitle(n),
+		state: closed ? "closed" : "open",
+		stateReason: closed ? "resolved" : null,
+		labels: i % 3 === 0 ? [] : LABELS.slice(1, 1 + (i % 3)),
+		comments: (i * 7) % 23,
+		reactions: i % 5,
+		discussion: {
+			category,
+			answered,
+			answer: answered
+				? {
+						url: `https://fake.tack/${common.repo}/discussions/${n}#discussioncomment-${n}`,
+						author: "kai",
+						chosenAt: new Date(0).toISOString(),
+					}
+				: null,
+			upvotes: (i * 5) % 31,
+			locked: i % 11 === 10,
+		},
+	};
+}
 
 export function fakeCard(repo: string, n: number): Card {
 	const item = `#${n}`;
@@ -90,6 +157,7 @@ export function fakeCard(repo: string, n: number): Card {
 			reactions: 0,
 		};
 	}
+	if (isFakeDiscussion(n)) return fakeDiscussion(common, n);
 	const state = STATES[n % STATES.length] ?? "open";
 	const parent = fakeParent(n);
 	const kind = state === "merged" || state === "draft" ? "pull" : "issue";
@@ -246,11 +314,27 @@ export const fake: ForgeAdapter = {
 				message: "The fake forge only searches within repositories: add repo:owner/name.",
 			};
 		}
+		// Discussions answer searches that ask for them, and the card tool's, which take either kind.
+		const kind = searchKind(parsed);
+		const discussions = kind === "discussion" || (kind === null && query.anyKind);
+		const withDiscussions = discussions ? parseSearch(`${query.q} is:discussion`) : parsed;
 		const items = repos
-			.flatMap((repo) =>
-				Array.from({ length: FAKE_SEARCH_ITEMS }, (_, i) => fakeCard(repo, FAKE_SEARCH_ITEMS - i)),
-			)
-			.filter((card) => matchSearch(card, parsed, { viewer: auth?.viewer }) === "yes");
+			.flatMap((repo) => [
+				...Array.from({ length: FAKE_SEARCH_ITEMS }, (_, i) =>
+					fakeCard(repo, FAKE_SEARCH_ITEMS - i),
+				),
+				...(discussions
+					? Array.from({ length: FAKE_SEARCH_DISCUSSIONS }, (_, i) =>
+							fakeCard(repo, DISCUSSIONS_FROM + 1 + i),
+						)
+					: []),
+			])
+			.filter(
+				(card) =>
+					matchSearch(card, card.kind === "discussion" ? withDiscussions : parsed, {
+						viewer: auth?.viewer,
+					}) === "yes",
+			);
 		return {
 			kind: "search",
 			total: items.length,
@@ -281,6 +365,8 @@ export function fakeRelated(repo: string, n: number): RelatedResult {
 		linkedPulls: [],
 		cards: [],
 	};
+	// Discussions aren't linked to anything.
+	if (isFakeDiscussion(n)) return result;
 	const numbers = new Set<number>();
 	const add = (list: string[], m: number) => {
 		list.push(key(m));
@@ -307,3 +393,6 @@ export function fakeRelated(repo: string, n: number): RelatedResult {
 
 /** How many items each fake repository has, for searching. */
 export const FAKE_SEARCH_ITEMS = 30;
+
+/** How many discussions each fake repository has, for searching: one of each category. */
+export const FAKE_SEARCH_DISCUSSIONS = 6;

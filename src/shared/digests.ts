@@ -11,6 +11,7 @@
 // Discussion only gets cards from repositories known to be public (or the
 // Discussion's own repository), an email only what its reader can read.
 
+import type { CardKind } from "./cards.ts";
 import { daysBetween, describeDue, dueState } from "./actionItems.ts";
 import { quote } from "./commands.ts";
 import { statusOf } from "./decisions.ts";
@@ -384,7 +385,7 @@ export interface DigestItem {
 	ref: string;
 	title: string;
 	url: string;
-	kind: "issue" | "pull";
+	kind: CardKind;
 	/** What happened, in words: "merged", "3 new comments". */
 	activity: string[];
 }
@@ -427,9 +428,7 @@ export interface DigestInput {
 	/** Card activity since `from`, only for cards this audience may read. */
 	cards: CardActivity[];
 	/** A card on the board, if this audience may read it. */
-	card: (
-		key: string,
-	) => { title: string; url: string; kind: "issue" | "pull"; state: string } | null;
+	card: (key: string) => { title: string; url: string; kind: CardKind; state: string } | null;
 	pushes: PushDigest[];
 }
 

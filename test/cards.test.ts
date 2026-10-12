@@ -43,7 +43,27 @@ describe("parseRef", () => {
 		expect(parseRef("https://fake.tack/stress/cards/3")).toEqual(fake);
 		// On GitHub a bare number is some other page.
 		expect(parseRef("https://github.com/ascorbic/unpic/3")).toBeNull();
-		expect(parseRef("https://github.com/ascorbic/unpic/discussions/3")).toBeNull();
+	});
+
+	it("parses discussions, which share their repository's numbers with issues and pull requests", () => {
+		const rfc = { forge: "github", host: "github.com", repo: "ascorbic/unpic", item: "#3" };
+		expect(parseRef("https://github.com/ascorbic/unpic/discussions/3")).toEqual(rfc);
+		expect(parseRef("github.com/ascorbic/unpic/discussions/3#discussioncomment-12")).toEqual(rfc);
+		expect(parseRef("https://github.com/ascorbic/unpic/discussions/3?sort=top")).toEqual(rfc);
+		// The test forge's discussions link the same way.
+		expect(parseRef("https://fake.tack/acme/unpic/discussions/90001")).toEqual({
+			forge: "fake",
+			host: "fake.tack",
+			repo: "acme/unpic",
+			item: "#90001",
+		});
+		// A repository's discussions, or a category, aren't one discussion.
+		expect(parseRef("https://github.com/ascorbic/unpic/discussions")).toBeNull();
+		expect(parseRef("https://github.com/ascorbic/unpic/discussions/categories/ideas")).toBeNull();
+		// Other forges have no discussions: their links stay links.
+		expect(parseRef("https://gitlab.com/ascorbic/cirrus/-/discussions/3")).toBeNull();
+		expect(parseRef("https://codeberg.org/ascorbic/emdash/discussions/3")).toBeNull();
+		expect(parseRef("https://tangled.org/mk.gg/tack/discussions/3")).toBeNull();
 	});
 
 	it("rejects unknown hosts and junk", () => {

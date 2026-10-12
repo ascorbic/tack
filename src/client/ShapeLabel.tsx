@@ -86,6 +86,7 @@ function cardWords(card: NonNullable<ReturnType<typeof useCard>>): CardWords {
 		title: card.title,
 		state: card.state,
 		kind: card.kind,
+		...(card.discussion?.answered ? { answered: true } : {}),
 	};
 }
 

@@ -34,6 +34,12 @@ export interface SearchQuery {
 	order?: "asc" | "desc";
 	/** At most this many results. Defaults to 50, at most 100. */
 	limit?: number;
+	/**
+	 * Find discussions too when the search doesn't say which kind it's for
+	 * (`searchKind`): the card tool does. Widgets don't, as on GitHub, where
+	 * only `is:discussion` searches discussions.
+	 */
+	anyKind?: boolean;
 }
 
 /** Items related to one item: sub-issues, parent, blocking and linked PRs. */

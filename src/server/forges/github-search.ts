@@ -1,14 +1,17 @@
 import { plainSearchError } from "../../shared/queryHelp.ts";
 import type { Card } from "../../shared/cards.ts";
-import { mentionsMe } from "../../shared/search.ts";
+import { mentionsMe, parseSearch, searchKind, withoutDiscussionType } from "../../shared/search.ts";
 import type { QueryError, SearchQuery, SearchResult } from "../../shared/widgets.ts";
 import { type GitHubIssueLike, normaliseIssue } from "./github.ts";
 import {
+	DISCUSSION_FRAGMENT,
 	FRAGMENTS,
+	type GqlDiscussion,
 	type GqlIssue,
 	type GqlItem,
 	type GqlPull,
 	ITEM,
+	normaliseGqlDiscussion,
 	normaliseGqlIssue,
 	normaliseGqlPull,
 } from "./github-graphql.ts";
@@ -43,6 +46,21 @@ const SEARCH = `query TackSearch($q: String!, $first: Int!) {
 	}
 }
 ${FRAGMENTS}`;
+
+// Discussions are a search of their own on GitHub (`type: DISCUSSION`), with
+// their own count. `is:discussion` isn't a qualifier GitHub knows: it's how
+// a Tack search asks for this one, and is taken out before it's sent.
+const DISCUSSION_SEARCH = `query TackSearch($q: String!, $first: Int!) {
+	search(query: $q, type: DISCUSSION, first: $first) {
+		issueCount: discussionCount
+		nodes {
+			__typename
+			...TackDiscussion
+			... on Discussion { repository { isPrivate } }
+		}
+	}
+}
+${DISCUSSION_FRAGMENT}`;
 
 type SearchNode = GqlItem & { repository?: { nameWithOwner: string; isPrivate?: boolean } };
 
@@ -102,13 +120,43 @@ export async function searchGitHub(
 	}
 	const limit = Math.min(Math.max(1, Math.round(query.limit ?? DEFAULT_LIMIT)), MAX_LIMIT);
 	const token = auth?.token || env.GITHUB_TOKEN || null;
-	return token ? await searchGraphQL(q, limit, token) : await searchRest(q, limit, query);
+	const kind = searchKind(parseSearch(q));
+	if (kind === "discussion") {
+		// Only GraphQL searches discussions, and it always takes a token.
+		if (!token) return error("signed_out", "Sign in to search GitHub's discussions.");
+		return searchGraphQL(withoutDiscussionType(q), limit, token, "discussions");
+	}
+	if (!token) return searchRest(q, limit, query);
+	if (kind === "issues" || !query.anyKind) return searchGraphQL(q, limit, token, "issues");
+	// Either kind (the card tool): both searches, their best matches taken in turn.
+	const [issues, discussions] = await Promise.all([
+		searchGraphQL(q, limit, token, "issues"),
+		searchGraphQL(q, limit, token, "discussions"),
+	]);
+	if (issues.kind === "error") return issues;
+	if (discussions.kind === "error") return issues;
+	return {
+		kind: "search",
+		total: issues.total + discussions.total,
+		items: alternate(issues.items, discussions.items).slice(0, limit),
+	};
+}
+
+/** Two lists' items taken in turn, so neither crowds the other out. */
+function alternate<T>(a: T[], b: T[]): T[] {
+	const out: T[] = [];
+	for (let i = 0; i < Math.max(a.length, b.length); i++) {
+		if (i < a.length) out.push(a[i] as T);
+		if (i < b.length) out.push(b[i] as T);
+	}
+	return out;
 }
 
 async function searchGraphQL(
 	q: string,
 	limit: number,
 	token: string,
+	kind: "issues" | "discussions",
 ): Promise<SearchResult | QueryError> {
 	let response: Response;
 	try {
@@ -116,7 +164,7 @@ async function searchGraphQL(
 			method: "POST",
 			headers: { ...headers(token), "content-type": "application/json" },
 			body: JSON.stringify({
-				query: SEARCH,
+				query: kind === "discussions" ? DISCUSSION_SEARCH : SEARCH,
 				variables: { q, first: limit },
 				operationName: "TackSearch",
 			}),
@@ -157,7 +205,9 @@ async function searchGraphQL(
 				? normaliseGqlIssue(node as GqlIssue)
 				: node.__typename === "PullRequest"
 					? normaliseGqlPull(node as GqlPull)
-					: null;
+					: node.__typename === "Discussion"
+						? normaliseGqlDiscussion(node as GqlDiscussion)
+						: null;
 		if (!card) continue;
 		// Unknown visibility counts as private, so only viewers who can read it see it.
 		items.push({ ...card, visibility: isPrivate === false ? "public" : "private" });

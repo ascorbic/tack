@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { getServerByName } from "partyserver";
-import { type Card, isMissing, type MissingCard } from "../shared/cards.ts";
+import { type Card, type DiscussionDetails, isMissing, type MissingCard } from "../shared/cards.ts";
 import type { ItemMention } from "../shared/mentions.ts";
 import { itemKey, itemOf, parseKey, repoKeyOf } from "../shared/refs.ts";
 import type { RepoActivity } from "../shared/rules.ts";
@@ -424,7 +424,11 @@ export class Repo extends DurableObject<Env> {
 			if (existing && existing.updatedAt > card.updatedAt) stale.push(card.key);
 			else fresh.push(card);
 		}
-		const updated = this.apply(fresh);
+		// Gone from here (a discussion deleted or transferred): missing, for whoever has it.
+		const gone = (delivery.gone ?? []).map((item) =>
+			missing({ ...delivery.repo, repo: delivery.repo.name, item }, "not_found"),
+		);
+		const updated = this.apply([...fresh, ...gone]);
 		const refetching = await this.scheduleRefetch(delivery.refetch);
 
 		const now = Date.now();
@@ -1092,6 +1096,29 @@ function dedupe(entries: Entry[]): Entry[] {
  * CI rollup, review decision or linked issues). Keep the fuller details
  * until the debounced refetch replaces them, rather than flickering.
  */
+/**
+ * Discussion payloads don't count upvotes, name a category's emoji only by
+ * shortcode, and say who chose an answer but not who wrote it: keep what
+ * the last full fetch said until the refetch that follows replaces it.
+ */
+function keepDiscussion(before: DiscussionDetails, after: DiscussionDetails): DiscussionDetails {
+	const sameCategory = before.category.name === after.category.name;
+	const sameAnswer = after.answer && before.answer?.url === after.answer.url;
+	return {
+		...after,
+		...(after.upvotes === undefined && before.upvotes !== undefined
+			? { upvotes: before.upvotes }
+			: {}),
+		category: {
+			...after.category,
+			emoji: after.category.emoji ?? (sameCategory ? before.category.emoji : null),
+		},
+		...(sameAnswer && after.answer && !after.answer.author
+			? { answer: { ...after.answer, author: before.answer?.author ?? null } }
+			: {}),
+	};
+}
+
 function keepDetails(existing: Card, incoming: Card): Card {
 	let card =
 		incoming.nodeId || !existing.nodeId ? incoming : { ...incoming, nodeId: existing.nodeId };
@@ -1111,6 +1138,8 @@ function keepDetails(existing: Card, incoming: Card): Card {
 	) {
 		card = { ...card, parent: existing.parent };
 	}
+	if (card.discussion && existing.discussion)
+		card = { ...card, discussion: keepDiscussion(existing.discussion, card.discussion) };
 	const before = existing.pull;
 	const after = incoming.pull;
 	if (!before || !after || after.detail !== "basic" || before.detail !== "full") return card;

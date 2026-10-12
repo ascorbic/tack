@@ -68,6 +68,11 @@ export interface Delivery {
 	/** Items this delivery changed, already normalised. */
 	cards: Card[];
 	/**
+	 * Items this delivery says are gone from the repository (`#12`): a
+	 * discussion deleted or transferred. Their cards become missing.
+	 */
+	gone?: string[];
+	/**
 	 * Items whose derived state (CI, reviews, mergeability) changed in ways
 	 * the payload can't describe. They're refetched after a short debounce,
 	 * so a burst of CI events costs one fetch.

@@ -212,14 +212,19 @@ const LINK_RE = /^(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+(?::\d{1,5})?)\/([^?#\s]
  * repository and the forge-native item reference. GitHub's pages always say
  * which kind (a bare number is a repository's subpath); the test forge's
  * own shape (`fake.tack/o/r/1`) works as well as GitHub's, so it demos the same.
+ * GitHub's discussions share their repository's numbers with its issues and
+ * pull requests, so `/discussions/12` is `#12` like the rest; no other forge
+ * has them, so their paths leave `/discussions/` alone.
  */
 const PAGE_PATHS: Record<ForgeId, (path: string) => { repo: string; item: string } | null> = {
 	github: (path) => {
-		const m = /^([\w.-]+\/[\w.-]+)\/(?:issues|pulls?)\/(\d+)(?:\/.*)?$/i.exec(path);
+		const m = /^([\w.-]+\/[\w.-]+)\/(?:issues|pulls?|discussions)\/(\d+)(?:\/.*)?$/i.exec(path);
 		return m ? { repo: m[1] ?? "", item: `#${m[2]}` } : null;
 	},
 	fake: (path) => {
-		const m = /^([\w.-]+\/[\w.-]+)\/(?:(?:issues|pulls?)\/)?(\d+)(?:\/.*)?$/i.exec(path);
+		const m = /^([\w.-]+\/[\w.-]+)\/(?:(?:issues|pulls?|discussions)\/)?(\d+)(?:\/.*)?$/i.exec(
+			path,
+		);
 		return m ? { repo: m[1] ?? "", item: `#${m[2]}` } : null;
 	},
 	// Forgejo and Gitea: `/owner/repo/issues/7`, `/owner/repo/pulls/7/files`.

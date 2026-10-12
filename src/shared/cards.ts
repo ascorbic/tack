@@ -14,10 +14,19 @@ export interface Card {
 	repo: string;
 	/** Forge-native reference, e.g. `#100` or `!12`. */
 	item: string;
-	kind: "issue" | "pull";
+	/**
+	 * Issues, pull requests and GitHub Discussions, which share their
+	 * repository's numbers (`#123` is exactly one of them), so a key never
+	 * says which: the forge does.
+	 */
+	kind: CardKind;
 	title: string;
+	/** Discussions are only ever open or closed: answered is `discussion.answered`. */
 	state: CardState;
-	/** Why it was closed, where the forge says: completed, not_planned, duplicate. */
+	/**
+	 * Why it was closed, where the forge says: completed, not_planned,
+	 * duplicate; for discussions resolved, outdated, duplicate.
+	 */
 	stateReason: string | null;
 	labels: { name: string; color: string }[];
 	assignees: { login: string; avatarUrl: string }[];
@@ -56,6 +65,8 @@ export interface Card {
 	nodeId?: string;
 	/** Review and CI state, for pull requests. */
 	pull?: PullDetails;
+	/** Category, answer, upvotes and lock, for discussions. */
+	discussion?: DiscussionDetails;
 	/**
 	 * Whether updates arrive as they happen (the app is installed, so
 	 * webhooks flow), rather than being checked for while someone's looking.
@@ -69,6 +80,38 @@ export interface Card {
 	 * private: the server only sends it to viewers who can read the repository.
 	 */
 	visibility?: "public" | "private";
+}
+
+export type CardKind = "issue" | "pull" | "discussion";
+
+/** What copy calls a kind of item, mid-sentence: `issue`, `pull request`, `discussion`. */
+export function kindNoun(kind: CardKind): string {
+	return kind === "pull" ? "pull request" : kind;
+}
+
+/** A discussion's category, as GitHub shows it: `🙏 Q&A`. */
+export interface DiscussionCategory {
+	name: string;
+	/** The category's emoji as text (`🙏`), or null when it couldn't be told. */
+	emoji: string | null;
+	/** Whether discussions in it take an answer (Q&A, and categories like it). */
+	answerable: boolean;
+}
+
+/** What a discussion has beyond an issue: GitHub Discussions only. */
+export interface DiscussionDetails {
+	category: DiscussionCategory;
+	/** An answer has been chosen. */
+	answered: boolean;
+	/** The chosen answer: a link to it, who wrote it, when it was chosen. */
+	answer?: { url: string; author: string | null; chosenAt: string | null } | null;
+	/**
+	 * Upvotes, where the forge said: GraphQL does; webhook payloads don't,
+	 * so the `Repo` keeps the last full fetch's (`keepDetails`).
+	 */
+	upvotes?: number;
+	/** Locked: only people who can write to the repository can comment. */
+	locked: boolean;
 }
 
 export interface CardParent {
@@ -168,6 +211,12 @@ export interface MissingCard {
 	key: string;
 	missing: true;
 	reason: "not_found" | "forbidden" | "unsupported" | "error" | "private";
+	/**
+	 * What the app would need to read it, when that's why: an install from
+	 * before Tack read Discussions can't see a discussion until its owner
+	 * accepts the new permission.
+	 */
+	permission?: "discussions";
 	/**
 	 * For repositories that couldn't be read: whether the app is installed
 	 * on it. If it isn't, the repository may be private, and installing the

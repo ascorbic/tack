@@ -1,6 +1,6 @@
 import { generateNKeysBetween } from "fractional-indexing";
 import type * as Y from "yjs";
-import type { CardState } from "./cards.ts";
+import type { CardKind, CardState } from "./cards.ts";
 import { type Point, type Rect, contains } from "./geometry.ts";
 import { isStacked, stackName } from "./stacks.ts";
 import { PLACE_GAP, spotInSection } from "./placement.ts";
@@ -94,7 +94,7 @@ export interface DisplayLayout {
 export interface SortableCard {
 	state: CardState;
 	title: string;
-	kind: "issue" | "pull";
+	kind: CardKind;
 }
 
 export interface LayoutOptions {

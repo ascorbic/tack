@@ -149,6 +149,7 @@ describe("setup", () => {
 				"status",
 				"workflow_run",
 				"discussion",
+				"discussion_comment",
 				"repository",
 			]),
 		);

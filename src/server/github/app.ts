@@ -66,7 +66,8 @@ const PERMISSIONS = {
 // `issue_comment` is for comment commands (#58): apps set up before it was
 // added need it turned on in the app's settings, as do `sub_issues` (which
 // parent issue each card has), without which cards catch up on their next
-// full fetch.
+// full fetch. `discussion` and `discussion_comment` keep discussions' cards live;
+// apps set up before Tack read them need `discussion_comment` turned on.
 const EVENTS = [
 	"issues",
 	"issue_comment",
@@ -78,6 +79,7 @@ const EVENTS = [
 	"status",
 	"workflow_run",
 	"discussion",
+	"discussion_comment",
 	"repository",
 ];
 

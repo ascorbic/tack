@@ -1,4 +1,4 @@
-// Searching for issues and pull requests to put on a board, for the card
+// Searching for issues, pull requests and discussions to put on a board, for the card
 // tool (C):
 //
 //   GET /api/boards/:id/search?host=github.com&q=repo:o/r migration   a `SearchResult`, or a `QueryError`
@@ -77,7 +77,14 @@ export async function handleItemSearch(request: Request, env: Env): Promise<Resp
 	let result: SearchResult | QueryError;
 	try {
 		result = await adapter.search(
-			{ kind: "search", host, q: limited ? `${q} is:public` : q, limit: ITEM_SEARCH_LIMIT },
+			{
+				kind: "search",
+				host,
+				q: limited ? `${q} is:public` : q,
+				limit: ITEM_SEARCH_LIMIT,
+				// Issues, pull requests and discussions alike, unless it says which.
+				anyKind: true,
+			},
 			env,
 			{ token, ...(viewer && token ? { viewer: viewer.login } : {}) },
 		);

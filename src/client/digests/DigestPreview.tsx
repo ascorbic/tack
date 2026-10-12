@@ -78,7 +78,7 @@ export function DigestPreview({ digest, label }: { digest: WeeklyDigest; label?:
 						"On GitHub",
 						digest.items.map((item) => (
 							<li key={item.key} className="digest-row">
-								<Glyph kind={item.kind === "pull" ? "pull" : "issue"} />
+								<Glyph kind={item.kind} />
 								<span>
 									<a href={safeUrl(item.url)} target="_blank" rel="noreferrer">
 										{item.title}
@@ -179,7 +179,7 @@ function hue(name: string): number {
 function Glyph({
 	kind,
 }: {
-	kind: "decision" | "done" | "new" | "overdue" | "issue" | "pull" | "push";
+	kind: "decision" | "done" | "new" | "overdue" | "issue" | "pull" | "discussion" | "push";
 }) {
 	const paths: Record<typeof kind, ReactNode> = {
 		decision: <path d="M8 2.5 13.5 8 8 13.5 2.5 8Z" />,
@@ -205,6 +205,7 @@ function Glyph({
 				<path d="M4.5 5.5v5M11.5 10.5V7a2 2 0 0 0-2-2H7.5" />
 			</>
 		),
+		discussion: <path d="M3 3.5h7.5v5H7l-2.5 2v-2H3zM10.5 6H13v5h-1.5v1.8L9.5 11H7" />,
 		push: <path d="M8 13V3.5M4.5 7 8 3.5 11.5 7" />,
 	};
 	return (

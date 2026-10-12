@@ -11,6 +11,7 @@ import {
 } from "../../shared/cards.ts";
 import { itemKey } from "../../shared/refs.ts";
 import type { RepoIdentity } from "./types.ts";
+import { categoryEmoji } from "./github-emoji.ts";
 import { forgeFetch, graphqlRateLimited, noteBodyLimit } from "./rateLimit.ts";
 
 // Batched reads from GitHub's GraphQL API. Known items are refetched by node
@@ -90,6 +91,32 @@ fragment TackPull on PullRequest {${COMMON}
 }`;
 
 export const ITEM = "__typename ...TackIssue ...TackPull";
+
+// Discussions share their repository's numbers with issues and pull requests,
+// but not `issueOrPullRequest`: new ones are asked for as `discussion(number:)`
+// beside it, and known ones by node id like the rest. `stateReason` is aliased
+// as Issue's is a different enum. A document may only define fragments it
+// uses, so this one goes only where `ANY_ITEM` or the discussion search does.
+export const DISCUSSION_FRAGMENT = `
+fragment TackDiscussion on Discussion {
+	id number title url updatedAt createdAt closedAt
+	repository { nameWithOwner }
+	author { login avatarUrl }
+	labels(first: 10) { nodes { name color } }
+	comments { totalCount }
+	reactions { totalCount }
+	thumbsUp: reactions(content: THUMBS_UP, first: 50) { totalCount nodes { user { login } } }
+	discussionClosed: closed
+	discussionStateReason: stateReason
+	locked
+	upvoteCount
+	category { name emoji emojiHTML isAnswerable }
+	answer { url author { login } }
+	answerChosenAt
+}`;
+
+/** Any item, where a node may be a discussion too. */
+export const ANY_ITEM = `${ITEM} ...TackDiscussion`;
 
 // --- Response shapes --------------------------------------------------------
 
@@ -183,7 +210,18 @@ export interface GqlPull extends Common {
 	commits: { nodes: ({ commit: { statusCheckRollup: Rollup | null } } | null)[] };
 }
 
-export type GqlItem = GqlIssue | GqlPull | { __typename: string };
+export interface GqlDiscussion extends Omit<Common, "assignees" | "milestone"> {
+	__typename: "Discussion";
+	discussionClosed: boolean;
+	discussionStateReason: "RESOLVED" | "OUTDATED" | "DUPLICATE" | "REOPENED" | null;
+	locked: boolean;
+	upvoteCount: number;
+	category: { name: string; emoji: string; emojiHTML?: string | null; isAnswerable: boolean };
+	answer: { url: string; author: { login: string } | null } | null;
+	answerChosenAt: string | null;
+}
+
+export type GqlItem = GqlIssue | GqlPull | GqlDiscussion | { __typename: string };
 
 interface Freshness {
 	__typename: string;
@@ -191,6 +229,7 @@ interface Freshness {
 	updatedAt?: string;
 	headRefOid?: string;
 	mergeable?: GqlPull["mergeable"];
+	upvoteCount?: number;
 	commits?: { nodes: ({ commit: { statusCheckRollup: Rollup | null } } | null)[] };
 }
 
@@ -199,12 +238,41 @@ interface Freshness {
 /** The request itself failed (auth, rate limits, outages), as opposed to missing items. */
 export class GraphQLUnavailable extends Error {}
 
+/** An error GraphQL answered alongside data: which field it was about, and what kind. */
+export interface FieldError {
+	type?: string;
+	path?: (string | number)[];
+	message?: string;
+}
+
 async function graphql<T>(
 	token: string,
 	name: string,
 	query: string,
 	variables: Record<string, unknown>,
 ): Promise<T> {
+	return (await graphqlWithErrors<T>(token, name, query, variables)).data;
+}
+
+/**
+ * Whether GitHub refused a field because the token's app lacks a
+ * permission (`Resource not accessible by integration`), as an install
+ * from before Tack read Discussions does for a discussion.
+ */
+function forbidden(errors: FieldError[], ...path: (string | number)[]): boolean {
+	return errors.some(
+		(error) =>
+			(error.type === "FORBIDDEN" || /not accessible by integration/i.test(error.message ?? "")) &&
+			path.every((part, i) => error.path?.[i] === part),
+	);
+}
+
+async function graphqlWithErrors<T>(
+	token: string,
+	name: string,
+	query: string,
+	variables: Record<string, unknown>,
+): Promise<{ data: T; errors: FieldError[] }> {
 	let response: Response;
 	try {
 		response = await forgeFetch(ENDPOINT, {
@@ -220,7 +288,7 @@ async function graphql<T>(
 		throw new GraphQLUnavailable(String(error));
 	}
 	if (!response.ok) throw new GraphQLUnavailable(`GraphQL ${response.status}`);
-	const body = await response.json<{ data?: T | null; errors?: { type?: string }[] }>();
+	const body = await response.json<{ data?: T | null; errors?: FieldError[] }>();
 	if (graphqlRateLimited(body.errors)) {
 		// Remembered, so the REST fallback with the same token doesn't call either.
 		noteBodyLimit(`Bearer ${token}`, response, ENDPOINT);
@@ -229,7 +297,7 @@ async function graphql<T>(
 	// Missing nodes come back as nulls with NOT_FOUND errors alongside the
 	// data. Only a response with no data at all means the request failed.
 	if (!body.data) throw new GraphQLUnavailable(`GraphQL errors: ${JSON.stringify(body.errors)}`);
-	return body.data;
+	return { data: body.data, errors: body.errors ?? [] };
 }
 
 function chunks<T>(list: T[], size: number): T[][] {
@@ -265,15 +333,17 @@ export async function fetchItemsGraphQL(
 		const variables: Record<string, unknown> = {};
 		if (byId.length > 0) {
 			params.push("$ids: [ID!]!");
-			fields.push(`nodes(ids: $ids) { ${ITEM} }`);
+			fields.push(`nodes(ids: $ids) { ${ANY_ITEM} }`);
 			variables.ids = byId.map((r) => r.nodeId);
 		}
 		if (byNumber.length > 0) {
+			// A number is an issue, a pull request or a discussion: ask for both
+			// sides, and one of them answers.
 			const aliases = byNumber
-				.map(
-					(r) =>
-						`i${r.item.slice(1)}: issueOrPullRequest(number: ${Number(r.item.slice(1))}) { ${ITEM} }`,
-				)
+				.map((r) => {
+					const n = Number(r.item.slice(1));
+					return `i${n}: issueOrPullRequest(number: ${n}) { ${ITEM} }\nd${n}: discussion(number: ${n}) { ...TackDiscussion }`;
+				})
 				.join("\n");
 			// The repository's node id survives renames; its name may not.
 			if (repo.nodeId) {
@@ -288,23 +358,43 @@ export async function fetchItemsGraphQL(
 			}
 		}
 
-		const query = `query TackItems(${params.join(", ")}) {\n${fields.join("\n")}\n}\n${FRAGMENTS}`;
-		const data = await graphql<{
+		const query = `query TackItems(${params.join(", ")}) {\n${fields.join("\n")}\n}\n${FRAGMENTS}\n${DISCUSSION_FRAGMENT}`;
+		const { data, errors } = await graphqlWithErrors<{
 			nodes?: (GqlItem | null)[];
 			repo?: Record<string, GqlItem | null> | null;
 		}>(token, "TackItems", query, variables);
 
 		byId.forEach((request, i) => {
-			results.set(request.item, toCard(data.nodes?.[i], request.item, repo.name));
-		});
-		for (const request of byNumber) {
+			const node = data.nodes?.[i];
 			results.set(
 				request.item,
-				toCard(data.repo?.[`i${request.item.slice(1)}`], request.item, repo.name),
+				!node && forbidden(errors, "nodes", i)
+					? needsDiscussions(request.item, repo.name)
+					: toCard(node, request.item, repo.name),
+			);
+		});
+		for (const request of byNumber) {
+			const n = request.item.slice(1);
+			const found = data.repo?.[`i${n}`] ?? data.repo?.[`d${n}`];
+			// Not an issue or pull request, and the app can't look for a discussion.
+			const blind = !found && forbidden(errors, "repo", `d${n}`);
+			results.set(
+				request.item,
+				blind ? needsDiscussions(request.item, repo.name) : toCard(found, request.item, repo.name),
 			);
 		}
 	}
 	return results;
+}
+
+/** An item the app can't read for want of the Discussions permission. */
+function needsDiscussions(item: string, repo: string): MissingCard {
+	return {
+		key: itemKey({ host: HOST, repo, item }),
+		missing: true,
+		reason: "forbidden",
+		permission: "discussions",
+	};
 }
 
 /**
@@ -332,14 +422,20 @@ export async function staleItemsGraphQL(
 			commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 1) {${COUNTS}
 			} } } } }
 		}
+		... on Discussion { id updatedAt upvoteCount }
 	}
 }`;
 	for (const batch of chunks(known, FRESHNESS_BATCH)) {
-		const data = await graphql<{ nodes: (Freshness | null)[] }>(token, "TackFreshness", query, {
-			ids: batch.map((card) => card.nodeId),
-		});
+		const { data, errors } = await graphqlWithErrors<{ nodes: (Freshness | null)[] }>(
+			token,
+			"TackFreshness",
+			query,
+			{ ids: batch.map((card) => card.nodeId) },
+		);
 		batch.forEach((card, i) => {
 			const node = data.nodes[i];
+			// Refused (an app without the Discussions permission) isn't gone.
+			if (!node && forbidden(errors, "nodes", i)) return;
 			if (!node?.updatedAt) gone.push(card);
 			else if (isStale(card, node)) stale.push(card);
 		});
@@ -349,6 +445,10 @@ export async function staleItemsGraphQL(
 
 function isStale(card: Card, node: Freshness): boolean {
 	if (node.updatedAt !== card.updatedAt) return true;
+	// Upvotes don't touch `updatedAt`.
+	if (node.__typename === "Discussion") {
+		return node.upvoteCount !== undefined && node.upvoteCount !== card.discussion?.upvotes;
+	}
 	if (node.__typename !== "PullRequest") return false;
 	const pull = card.pull;
 	if (!pull || pull.detail !== "full") return true;
@@ -374,10 +474,15 @@ function toCard(node: GqlItem | null | undefined, item: string, repo: string): C
 	if (!node) return { key, missing: true, reason: "not_found" };
 	if (node.__typename === "Issue") return normaliseGqlIssue(node as GqlIssue);
 	if (node.__typename === "PullRequest") return normaliseGqlPull(node as GqlPull);
+	if (node.__typename === "Discussion") return normaliseGqlDiscussion(node as GqlDiscussion);
 	return { key, missing: true, reason: "unsupported" };
 }
 
-function base(node: Common): Omit<Card, "kind" | "state" | "stateReason"> {
+/** What every kind of item has; discussions have no assignees or milestone. */
+type GqlBase = Omit<Common, "assignees" | "milestone"> &
+	Partial<Pick<Common, "assignees" | "milestone">>;
+
+function base(node: GqlBase): Omit<Card, "kind" | "state" | "stateReason"> {
 	const repo = node.repository.nameWithOwner.toLowerCase();
 	const item = `#${node.number}`;
 	return {
@@ -388,7 +493,10 @@ function base(node: Common): Omit<Card, "kind" | "state" | "stateReason"> {
 		item,
 		title: node.title,
 		labels: node.labels.nodes.map((label) => ({ name: label.name, color: label.color })),
-		assignees: node.assignees.nodes.map((a) => ({ login: a.login, avatarUrl: a.avatarUrl })),
+		assignees: (node.assignees?.nodes ?? []).map((a) => ({
+			login: a.login,
+			avatarUrl: a.avatarUrl,
+		})),
 		author: node.author ? { login: node.author.login, avatarUrl: node.author.avatarUrl } : null,
 		comments: node.comments.totalCount,
 		reactions: node.reactions.totalCount,
@@ -414,6 +522,35 @@ function base(node: Common): Omit<Card, "kind" | "state" | "stateReason"> {
 				}
 			: {}),
 		nodeId: node.id,
+	};
+}
+
+export function normaliseGqlDiscussion(node: GqlDiscussion): Card {
+	const answer = node.answer;
+	return {
+		...base(node),
+		kind: "discussion",
+		state: node.discussionClosed ? "closed" : "open",
+		// Reopened is how it came to be open, not why it was closed.
+		stateReason:
+			node.discussionClosed &&
+			node.discussionStateReason &&
+			node.discussionStateReason !== "REOPENED"
+				? node.discussionStateReason.toLowerCase()
+				: null,
+		discussion: {
+			category: {
+				name: node.category.name,
+				emoji: categoryEmoji(node.category.emojiHTML, node.category.emoji),
+				answerable: node.category.isAnswerable,
+			},
+			answered: answer !== null || node.answerChosenAt !== null,
+			answer: answer
+				? { url: answer.url, author: answer.author?.login ?? null, chosenAt: node.answerChosenAt }
+				: null,
+			upvotes: node.upvoteCount,
+			locked: node.locked,
+		},
 	};
 }
 

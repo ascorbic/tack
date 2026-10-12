@@ -94,6 +94,40 @@ export function searchScope(parsed: ParsedSearch): { repos: string[]; owners: st
 	return { repos: [...repos], owners: [...owners] };
 }
 
+/**
+ * Which kind of item a search is for, as GitHub tells its two searches
+ * apart: `discussion` (`is:discussion`, `type:discussion`), `issues` (issues
+ * and pull requests: the default, and `is:issue`, `is:pr` and the like), or
+ * null when it doesn't say, which for widgets and rules means issues and
+ * pull requests, as on GitHub, and for the card tool means either.
+ */
+export function searchKind(parsed: ParsedSearch): "discussion" | "issues" | null {
+	let kind: "discussion" | "issues" | null = null;
+	for (const term of parsed.terms) {
+		if (term.negated || (term.key !== "is" && term.key !== "type")) continue;
+		const value = lower(term.value);
+		if (value === "discussion") return "discussion";
+		if (["issue", "pr", "pull-request", "merged", "unmerged", "draft"].includes(value)) {
+			kind = "issues";
+		}
+	}
+	return kind;
+}
+
+/** A search without its `is:discussion` and `type:discussion`, for GitHub's discussion search. */
+export function withoutDiscussionType(q: string): string {
+	const parsed = parseSearch(q);
+	return parsed.terms
+		.filter(
+			(term) =>
+				term.negated ||
+				(term.key !== "is" && term.key !== "type") ||
+				lower(term.value) !== "discussion",
+		)
+		.map((term) => term.raw)
+		.join(" ");
+}
+
 /** Whether a search mentions `@me`, so means something different to each person. */
 export function mentionsMe(q: string): boolean {
 	return /(^|[\s:,])@me\b/i.test(q);
@@ -140,6 +174,7 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 	const assignees = card.assignees.map((a) => lower(a.login));
 	const owner = lower(card.repo.split("/")[0] ?? "");
 	const isPull = card.kind === "pull";
+	const isDiscussion = card.kind === "discussion";
 	const open = card.state === "open" || card.state === "draft";
 	switch (term.key) {
 		case null: {
@@ -156,8 +191,13 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 			return values.includes(owner) ? "yes" : "no";
 		case "type":
 			if (values.includes("pr") || values.includes("pull-request")) return isPull ? "yes" : "no";
-			if (values.includes("issue")) return isPull ? "no" : "yes";
+			if (values.includes("issue")) return card.kind === "issue" ? "yes" : "no";
+			if (values.includes("discussion")) return isDiscussion ? "yes" : "no";
 			return "unknown";
+		case "category": {
+			const category = card.discussion?.category.name;
+			return category && values.includes(lower(category)) ? "yes" : "no";
+		}
 		case "state":
 			if (values.includes("open")) return open ? "yes" : "no";
 			if (values.includes("closed")) return open ? "no" : "yes";
@@ -169,10 +209,20 @@ function termVerdict(card: Card, term: SearchTerm, context: MatchContext): Verdi
 				case "closed":
 					return open ? "no" : "yes";
 				case "issue":
-					return isPull ? "no" : "yes";
+					return card.kind === "issue" ? "yes" : "no";
 				case "pr":
 				case "pull-request":
 					return isPull ? "yes" : "no";
+				case "discussion":
+					return isDiscussion ? "yes" : "no";
+				case "answered":
+					return card.discussion?.answered ? "yes" : "no";
+				case "unanswered":
+					return isDiscussion && !card.discussion?.answered ? "yes" : "no";
+				case "locked":
+					return card.discussion?.locked ? "yes" : isDiscussion ? "no" : "unknown";
+				case "unlocked":
+					return isDiscussion ? (card.discussion?.locked ? "no" : "yes") : "unknown";
 				case "merged":
 					return card.state === "merged" ? "yes" : "no";
 				case "unmerged":
@@ -353,6 +403,10 @@ function verdict(card: Card, term: SearchTerm, context: MatchContext): Verdict {
  * `unknown` (the word may be in its body), never a match.
  */
 export function matchSearch(card: Card, parsed: ParsedSearch, context: MatchContext = {}): Verdict {
+	// GitHub searches discussions apart from issues and pull requests: only
+	// a search that asks for them finds them, so rules and inboxes written
+	// before Tack read discussions go on matching what they did.
+	if (card.kind === "discussion" && searchKind(parsed) !== "discussion") return "no";
 	let unknown = false;
 	// Several `repo:` qualifiers search each of them, as on GitHub: any one will do.
 	let repos: Verdict | null = null;
@@ -482,11 +536,25 @@ function cannot(card: Card, term: SearchTerm, context: MatchContext): string {
 			return `This list only shows items owned by ${alternatives(term).join(" or ")}.`;
 		case "type":
 		case "is":
-			if (["issue", "pr", "pull-request"].includes(lower(value))) {
-				const wants = lower(value) === "issue" ? "issues" : "pull requests";
+			if (["issue", "pr", "pull-request", "discussion"].includes(lower(value))) {
+				const wants =
+					lower(value) === "issue"
+						? "issues"
+						: lower(value) === "discussion"
+							? "discussions"
+							: "pull requests";
+				const is =
+					card.kind === "pull"
+						? "a pull request"
+						: card.kind === "issue"
+							? "an issue"
+							: "a discussion";
 				return term.negated
 					? `This list leaves out ${wants}.`
-					: `This list only shows ${wants}, and ${name} is ${card.kind === "pull" ? "a pull request" : "an issue"}.`;
+					: `This list only shows ${wants}, and ${name} is ${is}.`;
+			}
+			if (lower(value) === "answered" || lower(value) === "unanswered") {
+				return `Tack can't choose a discussion's answer.`;
 			}
 			if (lower(value) === "merged" || lower(value) === "unmerged") {
 				return `Tack can't merge pull requests, or unmerge them.`;
@@ -544,6 +612,14 @@ export function planMatch(
 		return {
 			status: "impossible",
 			reasons: [`This list searches ${context.host}, and ${card.repo}${card.item} isn't there.`],
+		};
+	}
+	if (card.kind === "discussion" && searchKind(parsed) !== "discussion") {
+		return {
+			status: "impossible",
+			reasons: [
+				`This list shows issues and pull requests, and ${card.repo}${card.item} is a discussion.`,
+			],
 		};
 	}
 

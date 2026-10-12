@@ -1,4 +1,4 @@
-import { type CardState } from "./cards.ts";
+import { type CardKind, type CardState, kindNoun } from "./cards.ts";
 import { readingOrder } from "./display.ts";
 import { linkText } from "./linkPreview.ts";
 import type { ShapeProps, ShapeType } from "./shapes.ts";
@@ -199,7 +199,9 @@ export interface CardWords {
 	repo?: string;
 	title?: string;
 	state?: CardState;
-	kind?: "issue" | "pull";
+	kind?: CardKind;
+	/** A discussion with an answer chosen. */
+	answered?: boolean;
 	missing?: boolean;
 }
 
@@ -290,8 +292,8 @@ export function describeShape(
 			else if (card?.title) parts.push(`${name}: ${clip(card.title)}`);
 			else parts.push(name || key || "loading");
 			if (card?.state) {
-				const kind = card.kind === "pull" ? "pull request" : "issue";
-				parts.push(`${STATE_WORDS[card.state]} ${kind}`);
+				const kind = kindNoun(card.kind ?? "issue");
+				parts.push(`${card.answered ? "answered" : STATE_WORDS[card.state]} ${kind}`);
 			}
 			break;
 		}
