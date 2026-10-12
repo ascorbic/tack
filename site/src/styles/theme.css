@@ -362,3 +362,10 @@ header.header {
 ::selection {
 	background: var(--tk-accent-soft);
 }
+
+/* The hero's board and sticky run off the edge on purpose: never a sideways
+   scroll for it. `clip`, not `hidden`, so the header can still stick. */
+html,
+body {
+	overflow-x: clip;
+}
