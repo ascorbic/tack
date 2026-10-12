@@ -53,7 +53,7 @@ for (let attempt = 0; ; attempt++) {
 	}
 	const advice =
 		"Its own sync, every 6 hours, will pick up the changes; to start one now: " +
-		"`CLOUDFLARE_ACCOUNT_ID=… pnpm --filter site run reindex`.";
+		"`pnpm --filter site run reindex`.";
 	console.error(output.trim());
 	if (afterDeploy)
 		done(0, `Warning: the docs deployed, but AI Search's sync didn't start. ${advice}`);
