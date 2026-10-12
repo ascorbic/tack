@@ -33,7 +33,7 @@ const LOOSE_X = 28 + COLUMN + 44;
 
 export const stacksLoop: Loop = {
 	title: "Stacks: stickies stacked by hand and grouped into named themes",
-	// Room under the stickies for Group these to open below them, clear of its preview.
+	// Room under the stickies for Auto-stack to open below them, clear of its preview.
 	frame: { x: -34, y: -58, w: 1570, h: 981 },
 	cards: [],
 	cast: ["kai", "priya"],
@@ -74,15 +74,15 @@ export const stacksLoop: Loop = {
 		await d.until(() => stackNamed(stage.doc));
 		await d.wait(500);
 
-		// The rest: a box round them, and Group these.
+		// The rest: a box round them, and Auto-stack.
 		const ids = LOOSE.map(([text]) => stage.find(text));
 		await kai.marquee({ x: LOOSE_X - 24, y: 44, w: 6 * COLUMN + 8, h: 214 }, 1000);
 		stage.select(ids);
-		const group = await stage.element(() => stage.button("Group these into named stacks"));
+		const group = await stage.element(() => stage.button(/^Auto-stack: sort these/));
 		if (!group) return;
 		await d.wait(200);
 		await kai.click(group, 600);
-		const make = await stage.element(() => stage.button(/^Make \d+ stacks?/));
+		const make = await stage.element(() => stage.button(/^Make (\d+ stacks|the stack)/));
 		if (!make) return;
 		// The proposal, previewed on the board: Kai looks it over.
 		await kai.moveOnto(stage.find(LOOSE[1]![0]), 0.6, 0.45, 700);

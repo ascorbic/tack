@@ -38,7 +38,7 @@ async function loops(page: Page, n: number) {
 	});
 }
 
-test("stacks: a sticky stacked by hand names itself, then Group these makes themes", async ({
+test("stacks: a sticky stacked by hand names itself, then Auto-stack makes themes", async ({
 	page,
 }) => {
 	const asked = askedTheAi(page);
@@ -51,7 +51,7 @@ test("stacks: a sticky stacked by hand names itself, then Group these makes them
 	await expect(page.getByText("Live demo · click to try it")).toBeVisible();
 
 	await expect(page.getByText("Unreliable CI").first()).toBeVisible({ timeout: 20_000 });
-	await expect(page.getByRole("dialog", { name: "Group these into named stacks" })).toBeVisible({
+	await expect(page.getByRole("dialog", { name: /^Auto-stack/ })).toBeVisible({
 		timeout: 20_000,
 	});
 	await expect(page.getByText("Hard-to-find docs").first()).toBeVisible({ timeout: 20_000 });
