@@ -11,7 +11,7 @@ No. Nothing you do to the layout touches GitHub. Only [pushing](/writing-back/pu
 
 ## Is there a hosted Tack I can use?
 
-No. Tack is self-hosted only for now: [deploy your own](/self-hosting/deploy/) on Cloudflare. To see it first, [try it in your browser](/try/): a board with pretend teammates and a pretend forge, where nothing leaves your browser.
+No. Tack is self-hosted only for now: [deploy your own](/self-hosting/deploy/) on Cloudflare. To see it first, [try it in your browser](/try/): a board with pretend teammates and a pretend forge, where nothing leaves your browser except what you ask the AI to read.
 
 ## Can I use it with repositories I don't own?
 

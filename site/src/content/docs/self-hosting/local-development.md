@@ -43,7 +43,7 @@ node scripts/send-webhook.ts issues payload.json
 ## Without GitHub at all
 
 - **The playground**, `/play`, runs a board entirely in your browser, with simulated people and simulated GitHub events, and slow-motion and reduced-motion switches. `?scenario=` picks a board: `planning`, `triage`, `retro`, `silent`, `vote`, `push`, `writes`, `inbox`, `rules`, `widgets`, `roadmap`, `tracking`, `comments`, `since` and more. Galleries of every state are at `/play/cards`, `/play/changes`, `/play/widgets` and others. The playground isn't in production builds.
-- **The demo**, as at [tack.social/try](/try/): the app's dev server serves it at `/play/try`, and `vp dev --mode try` serves it alone at `/try/`.
+- **The demo**, as at [tack.social/try](/try/): the app's dev server serves it at `/play/try`, and `vp dev --mode try` serves it alone at `/try/`. Both use the AI stand-in; on tack.social it asks Workers AI through the docs site's Worker first (`?ai=offline` skips it).
 - **The test forge**, `fake.tack`, is a pretend GitHub: cards like `fake.tack/acme/app#12` load without a network, and the whole push flow works against it.
 
 ## Tests
