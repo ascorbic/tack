@@ -1,0 +1,8 @@
+# The docs for coding agents (scripts/agents.ts): each page as Markdown,
+# /setup.md, and the llms.txt index.
+/*.md
+  Content-Type: text/markdown; charset=utf-8
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+/llms-full.txt
+  Content-Type: text/plain; charset=utf-8

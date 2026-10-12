@@ -7,7 +7,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "astro dev",
-		"build": "astro build && node scripts/try.ts && node scripts/build-output.ts",
+		"build": "astro build && node scripts/agents.ts && node scripts/try.ts && node scripts/build-output.ts",
 		"preview": "astro preview",
 		"deploy": "pnpm run build && cf deploy --prebuilt && node scripts/reindex.ts --after-deploy",
 		"reindex": "node scripts/reindex.ts",
@@ -29,6 +29,13 @@
 		"@cloudflare/build-output-utils": "0.9.0",
 		"@cloudflare/config": "0.24.1",
 		"@playwright/test": "1.64.0",
-		"cf": "1.0.0-beta.14"
+		"@types/hast": "3.0.5",
+		"@types/mdast": "4.0.4",
+		"cf": "1.0.0-beta.14",
+		"hast-util-from-html": "2.0.3",
+		"hast-util-select": "6.0.4",
+		"hast-util-to-mdast": "10.1.2",
+		"mdast-util-gfm": "3.1.0",
+		"mdast-util-to-markdown": "2.2.0"
 	}
 }
