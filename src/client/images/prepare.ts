@@ -225,7 +225,7 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Prom
 }
 
 /** A thumbnail the server's renderer can draw: PNG if anything's see-through, else JPEG. */
-async function thumbnail(
+export async function thumbnail(
 	source: CanvasImageSource,
 	width: number,
 	height: number,

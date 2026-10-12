@@ -2,16 +2,19 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 import {
 	type ExportOmissions,
+	type ExportedImage,
 	exportBoard,
 	exportFileName,
-	serialiseExport,
 	summariseExport,
 } from "../../shared/boardExport.ts";
+import { describeBytes } from "../../shared/images.ts";
 import { Modal } from "../boards/Modal.tsx";
 import { cardStore } from "../cardStore.ts";
+import { useImages } from "../images/service.ts";
 import { SHORTCUTS, isApplePlatform, matchesCombo } from "../shortcuts.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import { groundColor } from "./image.ts";
+import { exportParts, gatherImages, imageHashes } from "./imageFiles.ts";
 import { SCALES, imageSize } from "./scope.ts";
 import { type ExportFormat, boardTitle, download, exportUI, useExportRequest } from "./store.ts";
 import type { BoardExporter, Drawn, ExportScope } from "./useBoardExport.ts";
@@ -21,7 +24,8 @@ import "./export.css";
 // Export (#59): the board, or what's selected, as a PNG or SVG, and the
 // whole board as JSON to import elsewhere. Opened with ⌘⇧E or from the
 // board's menu. Images show a preview as they'll come out, and say how big
-// they'll be; JSON says what it holds and what it leaves out.
+// they'll be; JSON says what it holds and what it leaves out, and carries
+// the files its image shapes show (fetched from the board as it's chosen).
 
 const FORMATS: { format: ExportFormat; label: string; hint: string }[] = [
 	{ format: "png", label: "PNG", hint: "An image, for docs, slides and chat" },
@@ -127,6 +131,11 @@ type Preview =
 	| { status: "ready"; drawn: Drawn; url: string }
 	| { status: "failed"; message: string };
 
+/** A JSON export's image files: fetched when JSON's chosen, for the file to carry. */
+type Files =
+	| { status: "fetching"; done: number; total: number }
+	| { status: "ready"; images: ExportedImage[]; missing: number };
+
 function ExportPanel({
 	doc,
 	exporter,
@@ -217,8 +226,49 @@ function ExportPanel({
 				return !(card && "missing" in card && card.reason === "private");
 			},
 		});
-		return { data, omitted, text: serialiseExport(data), summary: summariseExport(data) };
+		return { data, omitted, summary: summariseExport(data) };
 	}, [doc, format, title]);
+
+	// Its image shapes' files, fetched from the board for the file to carry.
+	const images = useImages();
+	const total = useMemo(() => (json ? imageHashes(json.data).length : 0), [json]);
+	const [fetched, setFetched] = useState<{ of: unknown; files: Files } | null>(null);
+	// Until they're fetched for this export, they're being fetched: never a file without them.
+	const files = useMemo<Files>(
+		() =>
+			total === 0 || !images
+				? { status: "ready", images: [], missing: total }
+				: fetched && fetched.of === json?.data
+					? fetched.files
+					: { status: "fetching", done: 0, total },
+		[total, images, fetched, json],
+	);
+	useEffect(() => {
+		if (!json || total === 0 || !images) return;
+		const abort = new AbortController();
+		const of = json.data;
+		void gatherImages(of, images, {
+			signal: abort.signal,
+			onProgress: (done) => {
+				if (!abort.signal.aborted) setFetched({ of, files: { status: "fetching", done, total } });
+			},
+		}).then(({ images: found, missing }) => {
+			if (!abort.signal.aborted) {
+				setFetched({ of, files: { status: "ready", images: found, missing: missing.length } });
+			}
+		});
+		return () => abort.abort();
+	}, [json, total, images]);
+
+	// The file, in pieces: the images' base64 never joins one enormous string.
+	const file = useMemo(() => {
+		if (!json || files.status !== "ready") return null;
+		const parts = exportParts(
+			files.images.length ? { ...json.data, images: files.images } : json.data,
+		);
+		return { parts, bytes: parts.reduce((sum, part) => sum + part.length, 0) };
+	}, [json, files]);
+	const gathering = json !== null && files.status === "fetching";
 
 	const imageName = (extension: string) =>
 		exportFileName(scope === "selection" ? `${title} selection` : title, extension);
@@ -226,9 +276,12 @@ function ExportPanel({
 	const save = async () => {
 		setError(null);
 		if (format === "json") {
-			if (!json) return;
-			download(new Blob([json.text], { type: "application/json" }), exportFileName(title, "json"));
-			toasts.show({ message: `Exported “${title}” as JSON` });
+			if (!file) return;
+			download(new Blob(file.parts, { type: "application/json" }), exportFileName(title, "json"));
+			const included = files.status === "ready" ? files.images.length : 0;
+			toasts.show({
+				message: `Exported “${title}” as JSON${included ? `, with ${plural(included, "image")}` : ""}`,
+			});
 			onClose();
 			return;
 		}
@@ -251,7 +304,8 @@ function ExportPanel({
 		setError(null);
 		try {
 			if (json) {
-				await navigator.clipboard.writeText(json.text);
+				if (!file) return;
+				await navigator.clipboard.writeText(file.parts.join(""));
 				toasts.show({ message: "Copied the board’s JSON" });
 				onClose();
 				return;
@@ -356,7 +410,12 @@ function ExportPanel({
 				</>
 			) : (
 				json && (
-					<JsonSummary summary={json.summary} omitted={json.omitted} bytes={json.text.length} />
+					<JsonSummary
+						summary={json.summary}
+						omitted={json.omitted}
+						files={files}
+						bytes={file?.bytes ?? null}
+					/>
 				)
 			)}
 
@@ -373,7 +432,7 @@ function ExportPanel({
 					<button
 						type="button"
 						className="export-copy"
-						disabled={busy !== null || (image && preview.status === "failed")}
+						disabled={busy !== null || gathering || (image && preview.status === "failed")}
 						aria-busy={busy === "copy"}
 						onClick={() => void copy()}
 					>
@@ -383,14 +442,14 @@ function ExportPanel({
 				<button
 					type="button"
 					className="primary new-board-create"
-					disabled={busy !== null || (image && preview.status === "failed")}
-					aria-busy={busy === "download"}
+					disabled={busy !== null || gathering || (image && preview.status === "failed")}
+					aria-busy={busy === "download" || gathering}
 					onClick={() => void save()}
 				>
-					{busy === "download" ? (
+					{busy === "download" || gathering ? (
 						<>
 							<span className="new-board-spinner" aria-hidden="true" />
-							Drawing…
+							{gathering ? "Gathering images…" : "Drawing…"}
 						</>
 					) : (
 						<>
@@ -440,16 +499,20 @@ const NOUNS: Record<string, [string, string]> = {
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
 	stack: ["stack", "stacks"],
+	image: ["image", "images"],
 };
 
 function JsonSummary({
 	summary,
 	omitted,
+	files,
 	bytes,
 }: {
 	summary: ReturnType<typeof summariseExport>;
 	omitted: ExportOmissions;
-	bytes: number;
+	files: Files;
+	/** The file's size, once its images are in. */
+	bytes: number | null;
 }) {
 	const counts = Object.entries(NOUNS).flatMap(([type, [one, many]]) => {
 		const n = summary.counts[type as keyof typeof summary.counts] ?? 0;
@@ -457,13 +520,13 @@ function JsonSummary({
 	});
 	if (summary.rules) counts.push(plural(summary.rules, "rule"));
 	if (summary.prepared) counts.push(plural(summary.prepared, "prepared step"));
-	const kb = Math.max(1, Math.round(bytes / 1024));
 	return (
 		<div className="export-json">
 			<p className="export-json-counts">
 				{counts.length ? counts.join(" · ") : "Nothing on the board yet"}
-				<span className="export-json-size"> · {number.format(kb)} KB</span>
+				<span className="export-json-size"> · {bytes === null ? "…" : describeBytes(bytes)}</span>
 			</p>
+			<ImagesNote files={files} />
 			<ul className="export-json-notes">
 				<li>
 					Comments, history, votes, stamps and staged changes stay here: they’re people’s own, or
@@ -483,6 +546,44 @@ function JsonSummary({
 				)}
 				<li>To make a board from it, choose New board on the home page, then Import a board.</li>
 			</ul>
+		</div>
+	);
+}
+
+/** The board's images in the file: a bar while they're fetched, then how many went in. */
+function ImagesNote({ files }: { files: Files }) {
+	if (files.status === "fetching") {
+		return (
+			<div className="export-json-images" data-status="fetching" role="status">
+				<span>
+					Gathering images… {number.format(files.done)} of {number.format(files.total)}
+				</span>
+				<span className="export-json-images-bar" aria-hidden="true">
+					<span
+						style={
+							{ "--progress": files.total ? files.done / files.total : 0 } as React.CSSProperties
+						}
+					/>
+				</span>
+			</div>
+		);
+	}
+	const { images, missing } = files;
+	if (images.length === 0 && missing === 0) return null;
+	return (
+		<div className="export-json-images" data-status="ready" role="status">
+			{images.length > 0 && (
+				<span>
+					{plural(images.length, "image")} {images.length === 1 ? "goes" : "go"} in the file too, so
+					the board comes back whole.
+				</span>
+			)}
+			{missing > 0 && (
+				<span className="export-json-images-missing">
+					{plural(missing, "image")} couldn’t be fetched, so {missing === 1 ? "it’ll" : "they’ll"}{" "}
+					show as unavailable on a board made from it.
+				</span>
+			)}
 		</div>
 	);
 }

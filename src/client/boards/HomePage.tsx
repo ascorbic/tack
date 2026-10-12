@@ -15,8 +15,16 @@ import { AccountMenu, SignInButton } from "../auth/AccountMenu.tsx";
 import { personUser, useMe } from "../auth/me.ts";
 import { BrandMark } from "../BrandMark.tsx";
 import { NotificationsButton } from "../comments/Notifications.tsx";
+import { describeImportError, splitImages } from "../../shared/boardExport.ts";
 import { importApi } from "../export/api.ts";
-import { takeFlash } from "../flash.ts";
+import {
+	describeUploadFailures,
+	importProgress,
+	thumbnailOf,
+	uploadImages,
+} from "../export/imageFiles.ts";
+import { setFlash, takeFlash } from "../flash.ts";
+import { liveImages } from "../images/service.ts";
 import { scaledDuration } from "../motion.ts";
 import { localUser, type User } from "../presence.ts";
 import { ThemeToggle } from "../ThemeToggle.tsx";
@@ -133,12 +141,25 @@ export function HomeRoute() {
 		setCreateError(null);
 		if (request.visibility) rememberAccess(login, request.visibility);
 		if (request.imported) {
+			// The board goes first, without its images' files (the server takes
+			// 4 MB at most); then each file is uploaded to the board it made.
+			const { board, images } = splitImages(request.imported);
+			importProgress.set(null);
 			const imported = await importApi.create({
-				board: request.imported,
+				board,
 				...(request.title ? { title: request.title } : {}),
 				...(request.visibility ? { visibility: request.visibility } : {}),
 			});
 			if (imported.ok) {
+				if (images.length) {
+					const { total, failures } = await uploadImages(
+						board,
+						images,
+						liveImages(imported.value.id),
+						{ thumbnail: thumbnailOf, onProgress: (progress) => importProgress.set(progress) },
+					);
+					if (failures.length) setFlash({ message: describeUploadFailures(failures, total) });
+				}
 				location.assign(`${boardPath(imported.value)}?new=1`);
 				return;
 			}
@@ -146,7 +167,7 @@ export function HomeRoute() {
 			setCreateError(
 				imported.message ??
 					(imported.error === "too_large"
-						? "That’s too big to import: boards up to 4 MB can be."
+						? describeImportError({ reason: "too_large" })
 						: imported.error === "offline"
 							? "Couldn’t reach Tack just now. Try again?"
 							: "Couldn’t import the board. Try again?"),

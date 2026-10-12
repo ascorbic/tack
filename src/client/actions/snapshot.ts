@@ -126,6 +126,44 @@ export function stage(
 	return { copy, dispose: () => root.remove() };
 }
 
+const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+/**
+ * Wait for the board's images (image shapes' files) to load or fail, for at
+ * most `ms`. One still loading is see-through, fading in once it's loaded
+ * (`.image-file[data-loaded]`), so a copy taken too soon would draw a hole:
+ * shapes that were off screen until a moment ago (drawing turns culling
+ * off) have only just started. One that fails draws as unavailable, and
+ * one that takes longer is drawn as it is: neither stops the drawing.
+ * modern-screenshot then inlines each file it draws, fetched again from
+ * the browser's cache (same-origin, or a `blob:` URL in the playground).
+ */
+export async function imagesLoaded(root: ParentNode, ms = 5000): Promise<void> {
+	const pending = [...root.querySelectorAll<HTMLImageElement>("img.image-file:not([data-loaded])")];
+	if (pending.length === 0) return;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	await Promise.race([
+		Promise.all(
+			pending
+				.filter((image) => !image.complete)
+				.map(
+					(image) =>
+						new Promise<void>((resolve) => {
+							image.addEventListener("load", () => resolve(), { once: true });
+							image.addEventListener("error", () => resolve(), { once: true });
+						}),
+				),
+		),
+		new Promise<void>((resolve) => {
+			timer = setTimeout(resolve, ms);
+		}),
+	]);
+	clearTimeout(timer);
+	// Each says it's loaded (or broken) when React next renders.
+	await frame();
+	await frame();
+}
+
 /** The image's longest side, in CSS pixels, before device scaling. */
 const TARGET_SIDE = 1400;
 
@@ -208,6 +246,7 @@ export async function renderSnapshot(request: SnapshotRequest): Promise<Blob> {
 		if (import.meta.env.DEV) Object.assign(window, { tackSnapshotDom: clone.outerHTML });
 	};
 
+	await imagesLoaded(viewport);
 	const { copy, dispose } = stage(viewport, request.flow, { width, height });
 	try {
 		const maxScale = SNAPSHOT_MAX_SIDE / Math.max(width, height);

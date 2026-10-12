@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { Download, Page } from "@playwright/test";
 import { readBoardExport } from "../src/shared/boardExport.ts";
@@ -121,6 +122,12 @@ test.describe("exporting from the playground", () => {
 
 test.describe.serial("importing and backing up a real board", () => {
 	const login = `e2e-export-${run}`;
+	// A one-pixel PNG, carried in the file as an export carries its images.
+	const pixel = Buffer.from(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+		"base64",
+	);
+	const hash = createHash("sha256").update(pixel).digest("hex");
 	const board = {
 		format: "tack.board",
 		version: 1,
@@ -139,9 +146,24 @@ test.describe.serial("importing and backing up a real board", () => {
 				from: { x: 0, y: 0, shape: "b" },
 				to: { x: 0, y: 0, shape: "c" },
 			},
+			{
+				id: "i",
+				type: "image",
+				x: 720,
+				y: 280,
+				w: 160,
+				h: 160,
+				iw: 1,
+				ih: 1,
+				mime: "image/png",
+				image: hash,
+				alt: "A single pixel",
+				parent: null,
+			},
 		],
 		rules: [],
 		prepared: [],
+		images: [{ hash, type: "image/png", data: pixel.toString("base64") }],
 	};
 
 	test("import a board from pasted JSON", async ({ page }) => {
@@ -164,7 +186,35 @@ test.describe.serial("importing and backing up a real board", () => {
 		await expect(page.locator(".react-flow__node-sticky")).toHaveCount(2, { timeout: 15_000 });
 		await expect(page.locator(".react-flow__node-card")).toHaveCount(1);
 		await expect(page.locator(".react-flow__node-section")).toContainText("Went well");
+		// Its image's file was uploaded to the new board as it was, under the same hash.
+		await expect(page.locator(".react-flow__node-image .image-file[data-loaded]")).toHaveAttribute(
+			"src",
+			new RegExp(`/images/${hash}$`),
+			{ timeout: 15_000 },
+		);
 		await settleCanvas(page);
+
+		// And it goes out again with the board's JSON.
+		const dialog = await openExport(page);
+		await dialog.getByRole("radio", { name: "JSON" }).click();
+		await expect(dialog).toContainText("1 image goes in the file too");
+		const [json] = await Promise.all([
+			page.waitForEvent("download"),
+			dialog.getByRole("button", { name: "Download JSON" }).click(),
+		]);
+		const read = readBoardExport((await saved(json)).toString());
+		expect(read.ok && read.data.images).toEqual([board.images[0]]);
+		// An SVG of the board carries the image, inlined.
+		await expect(dialog).toBeHidden();
+		const again = await openExport(page);
+		await again.getByRole("radio", { name: "SVG" }).click();
+		const [svg] = await Promise.all([
+			page.waitForEvent("download"),
+			again.getByRole("button", { name: "Download SVG" }).click(),
+		]);
+		const text = (await saved(svg)).toString();
+		expect(text).toContain("image-file");
+		expect(text).toContain(`data:image/png;base64,${pixel.toString("base64")}`);
 	});
 
 	test("back it up to a branch, from the board's menu", async ({ page }) => {

@@ -360,6 +360,41 @@
 	font-weight: 500;
 }
 
+/* The board's images going into the file: a bar that fills, then a word on how many. */
+.export-json-images {
+	display: grid;
+	gap: 6px;
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	line-height: 1.45;
+	font-variant-numeric: tabular-nums;
+	animation: export-preview-in var(--t-settle) var(--ease-spring);
+}
+
+.export-json-images-missing {
+	color: var(--pending-ink);
+}
+
+.export-json-images-bar,
+.import-progress-bar {
+	position: relative;
+	height: 4px;
+	overflow: hidden;
+	border-radius: 999px;
+	background: var(--line);
+}
+
+.export-json-images-bar > span,
+.import-progress-bar > span {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background: var(--accent);
+	transform-origin: 0 50%;
+	transform: scaleX(var(--progress, 0));
+	transition: transform var(--t-base) var(--ease-out);
+}
+
 .export-json-notes {
 	display: grid;
 	gap: 6px;
@@ -687,6 +722,24 @@
 .import-tile:hover .template-thumb svg,
 .import-tile[aria-selected="true"] .template-thumb svg {
 	transform: translateY(-3px);
+}
+
+/* A file without its images' files: said before the board's made, not after. */
+.import-note {
+	margin: 10px 0 0;
+	padding: 8px 10px;
+	border-radius: 9px;
+	background: var(--pending-bg);
+	color: var(--pending-ink);
+	font-size: 12.5px;
+	line-height: 1.45;
+}
+
+/* Under the actions while its images upload: a hairline that fills. */
+.import-progress-bar {
+	display: block;
+	margin-top: -6px;
+	animation: export-preview-in var(--t-settle) var(--ease-spring);
 }
 
 @media (max-width: 520px) {

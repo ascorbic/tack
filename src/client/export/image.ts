@@ -1,5 +1,5 @@
 import { domToBlob, domToForeignObjectSvg } from "modern-screenshot";
-import { CHROME, stage, themeColor } from "../actions/snapshot.ts";
+import { CHROME, imagesLoaded, stage, themeColor } from "../actions/snapshot.ts";
 import type { Rect } from "../snapping.ts";
 
 // Drawing the board as an image to export (#59), with the snapshot renderer
@@ -10,7 +10,12 @@ import type { Rect } from "../snapping.ts";
 //
 // An export is the board's content, so what's only someone's, or only now,
 // stays out besides the usual chrome: comment pins, what's new rings,
-// inbox trays, stamps and dots, history's marks.
+// inbox trays, stamps and dots, history's marks, uploads' progress.
+//
+// Image shapes draw their files: same-origin `<img>`s (`blob:` URLs in the
+// playground), waited for, then inlined by modern-screenshot, so an SVG
+// carries them too. A file that won't load draws as unavailable (or, if
+// fetching it again fails, transparent): it never stops an export.
 
 export const EXPORT_CHROME = [
 	CHROME,
@@ -21,6 +26,9 @@ export const EXPORT_CHROME = [
 	".replay-marks",
 	".history-restore-bar",
 	".display-preview",
+	// An image still uploading draws as its blurred stand-in, without whose upload it is.
+	".image-progress",
+	".image-badge",
 ].join(",");
 
 export type ImageFormat = "png" | "svg";
@@ -62,6 +70,8 @@ export async function renderImage(request: ImageRequest): Promise<Blob> {
 		return connector === null || only.has(connector);
 	};
 
+	// Image shapes drawn as they are, not mid-load (see `imagesLoaded`).
+	await imagesLoaded(viewport);
 	const { copy, dispose } = stage(viewport, request.flow, { width, height });
 	const options = {
 		width,

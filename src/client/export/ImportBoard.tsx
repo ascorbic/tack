@@ -7,12 +7,15 @@ import {
 } from "../../shared/boardExport.ts";
 import { sketch } from "../../shared/thumbnail.ts";
 import { BoardThumbnail } from "../boards/BoardThumbnail.tsx";
+import { imageHashes, useImportProgress } from "./imageFiles.ts";
 import "./export.css";
 
 // Importing a board (#59), in the New board picker: a file exported from
 // Tack (Export, or a backup on GitHub), dropped, chosen or pasted, checked
 // in the browser with the same reading the server uses, and previewed
-// before a board is made from it.
+// before a board is made from it. Its images' files, if it carries them,
+// are uploaded once the board's made (the home page does it), and the
+// button says how far that's got.
 
 const NOUNS: Record<string, [string, string]> = {
 	section: ["section", "sections"],
@@ -24,6 +27,7 @@ const NOUNS: Record<string, [string, string]> = {
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
 	stack: ["stack", "stacks"],
+	image: ["image", "images"],
 };
 
 function counted(n: number, [one, many]: [string, string]): string {
@@ -55,6 +59,8 @@ export function ImportDetails({
 	const input = useRef<HTMLInputElement>(null);
 	const titleId = useId();
 	const pasteId = useId();
+	const progress = useImportProgress();
+	const uploading = creating && progress && progress.total > 0 ? progress : null;
 
 	const read = (text: string, name: string) => {
 		const result = readBoardExport(text);
@@ -155,6 +161,9 @@ export function ImportDetails({
 	}
 
 	const summary = summariseExport(file.data);
+	// Files its image shapes name that it doesn't carry (a backup never does).
+	const carried = new Set(file.data.images?.map((image) => image.hash));
+	const uncarried = imageHashes(file.data).filter((hash) => !carried.has(hash)).length;
 	const chips = Object.entries(NOUNS).flatMap(([type, nouns]) => {
 		const n = summary.counts[type as keyof typeof summary.counts] ?? 0;
 		return n > 0
@@ -200,6 +209,15 @@ export function ImportDetails({
 					</li>
 				)}
 			</ul>
+			{uncarried > 0 && (
+				<p className="import-note">
+					{uncarried === 1
+						? "One image’s file isn’t in it"
+						: `${uncarried} images’ files aren’t in it`}
+					{file.data.images?.length ? "" : " (backups leave them out)"}, so{" "}
+					{uncarried === 1 ? "it’ll" : "they’ll"} show as unavailable.
+				</p>
+			)}
 			<form
 				className="new-board-form"
 				onSubmit={(event) => {
@@ -239,7 +257,9 @@ export function ImportDetails({
 							{creating ? (
 								<>
 									<span className="new-board-spinner" aria-hidden="true" />
-									Importing…
+									{uploading
+										? `Uploading ${Math.min(uploading.done + 1, uploading.total)} of ${uploading.total} ${uploading.total === 1 ? "image" : "images"}…`
+										: "Importing…"}
 								</>
 							) : (
 								"Import board"
@@ -247,6 +267,18 @@ export function ImportDetails({
 						</button>
 					</span>
 				</div>
+				{uploading && (
+					<span
+						className="import-progress-bar"
+						role="progressbar"
+						aria-label="Uploading its images"
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-valuenow={Math.round(uploading.fraction * 100)}
+					>
+						<span style={{ "--progress": uploading.fraction } as React.CSSProperties} />
+					</span>
+				)}
 			</form>
 		</aside>
 	);
