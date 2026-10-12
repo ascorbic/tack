@@ -38,3 +38,12 @@ describe("the demo forge", () => {
 		expect(forgeName("github.com")).toBe("GitHub");
 	});
 });
+
+describe("the demo's cards", () => {
+	it("are all public, so the stand-in namer can name stacks of them", async () => {
+		const { TRY_SCENARIOS } = await import("../src/client/try/scenarios.ts");
+		const cards = Object.values(TRY_SCENARIOS).flatMap((scenario) => scenario.cards);
+		expect(cards.length).toBeGreaterThan(0);
+		expect(cards.filter((card) => card.visibility !== "public")).toEqual([]);
+	});
+});

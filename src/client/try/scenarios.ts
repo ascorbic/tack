@@ -6,7 +6,7 @@ import { type ShapeFont, type TextSize, addShape, nextZ } from "../../shared/sha
 import { addSection } from "../../shared/structure.ts";
 import { addCard } from "../board.ts";
 import { makeChecks, pullDetails, reviewer } from "../play/ci.ts";
-import { LABELS, fixture } from "../play/fixtures.ts";
+import { LABELS, fixture as playFixture } from "../play/fixtures.ts";
 
 // The boards the public demo starts from (#75): a planning session, a retro
 // and a triage, about the owner's own projects on the demo forge (`fake.tack`,
@@ -86,6 +86,14 @@ function heading(doc: Y.Doc, title: string, lede: string) {
 
 /** A little untidy, as stickies are after people have been at them. */
 const jitter = (i: number, by = 9) => ((i * 37) % (by * 2 + 1)) - by;
+
+/**
+ * The demo's cards: all from public repositories on the pretend forge, so the
+ * stand-in namer can read their titles, as the server would.
+ */
+function fixture(overrides: Parameters<typeof playFixture>[0]): Card {
+	return playFixture({ visibility: "public", ...overrides });
+}
 
 // Planning ------------------------------------------------------------------------
 
