@@ -151,6 +151,273 @@
 	display: none;
 }
 
+/* A section's bar ------------------------------------------------------------
+   A section on its own has one bar: Colour | Display | Facilitate | Actions,
+   with what doesn't fit in a "…" menu at its end (SectionBar.tsx). */
+
+.bar-divider {
+	flex: none;
+	align-self: center;
+	width: 1px;
+	height: 20px;
+	margin: 0 4px;
+	border-radius: 1px;
+	background: var(--line);
+}
+
+/* Its icon-only buttons say what they are when hovered, as the bar's do. */
+.selection-actions[data-section] .selection-action:not([data-text]) {
+	padding: 0 7px;
+}
+
+.bar-menu-anchor {
+	position: relative;
+	display: inline-flex;
+	flex: none;
+}
+
+/* A menu's own button doesn't need its tooltip while the menu's open. */
+.selection-actions [aria-expanded="true"]::after {
+	display: none;
+}
+
+.selection-action.bar-colour {
+	gap: 5px;
+	padding: 0 7px 0 8px;
+}
+
+.bar-colour-dot {
+	flex: none;
+	width: 16px;
+	height: 16px;
+	border: 1.5px solid var(--section-edge);
+	border-radius: 50%;
+	background: var(--section-title);
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.bar-colour:hover .bar-colour-dot {
+	transform: scale(1.1);
+}
+
+.bar-chevron {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: rotate var(--t-base) var(--ease-spring);
+}
+
+[aria-expanded="true"] > .bar-chevron {
+	rotate: 180deg;
+}
+
+/* A menu from the bar: under its button, or over it when the bar's panels
+   open upwards (BarMenu.tsx). Opaque, as the popovers are. */
+.bar-menu {
+	position: absolute;
+	top: calc(100% + 10px);
+	left: -4px;
+	z-index: 5;
+	display: grid;
+	padding: 5px;
+	border-radius: 13px;
+	border: 1px solid var(--line);
+	background: var(--surface);
+	box-shadow: var(--shadow-lifted);
+	color: var(--ink);
+	transform-origin: 16px 0;
+	animation: bar-menu-in var(--t-base) var(--ease-spring);
+}
+
+.bar-menu[data-side="above"] {
+	top: auto;
+	bottom: calc(100% + 10px);
+	transform-origin: 16px 100%;
+	animation-name: bar-menu-in-above;
+}
+
+.bar-menu[data-align="end"] {
+	left: auto;
+	right: -4px;
+	transform-origin-x: calc(100% - 16px);
+}
+
+@keyframes bar-menu-in {
+	from {
+		opacity: 0;
+		scale: 0.94;
+		translate: 0 -4px;
+	}
+}
+
+@keyframes bar-menu-in-above {
+	from {
+		opacity: 0;
+		scale: 0.94;
+		translate: 0 4px;
+	}
+}
+
+/* The colours, in a row. */
+.bar-menu.bar-swatches {
+	grid-auto-flow: column;
+	gap: 4px;
+	padding: 7px;
+	border-radius: 999px;
+}
+
+.bar-swatch {
+	position: relative;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 1.5px solid var(--section-edge);
+	border-radius: 50%;
+	background: var(--section-title);
+	cursor: pointer;
+	transition: transform var(--t-quick) var(--ease-out);
+}
+
+.bar-swatch:hover {
+	transform: scale(1.15);
+}
+
+.bar-swatch:active {
+	transform: scale(0.94);
+}
+
+.bar-swatch[aria-checked="true"] {
+	box-shadow:
+		0 0 0 2px var(--surface),
+		0 0 0 3.5px var(--section-ink);
+}
+
+.bar-swatch:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+}
+
+/* What didn't fit. */
+.bar-menu.bar-more {
+	min-width: 210px;
+}
+
+.bar-more-item {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	height: 34px;
+	padding: 0 14px 0 9px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink-soft);
+	font-size: 13px;
+	font-weight: 580;
+	text-align: left;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out);
+}
+
+.bar-more-item[data-text] {
+	color: var(--accent);
+	font-weight: 620;
+}
+
+.bar-more-item:is(:hover, :focus-visible):not([aria-disabled="true"]) {
+	background: var(--hover);
+	color: var(--ink);
+	outline: none;
+}
+
+.bar-more-item[data-text]:is(:hover, :focus-visible):not([aria-disabled="true"]) {
+	background: var(--accent-soft);
+	color: var(--accent-hover);
+}
+
+.bar-more-item[aria-disabled="true"] {
+	color: var(--muted);
+	cursor: default;
+}
+
+.bar-more-item[aria-disabled="true"]:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
+}
+
+/* A rule between its groups. */
+.bar-more-item[data-ruled] {
+	margin-top: 9px;
+}
+
+.bar-more-item[data-ruled]::before {
+	content: "";
+	position: absolute;
+	top: -5px;
+	left: 8px;
+	right: 8px;
+	height: 1px;
+	background: var(--line);
+}
+
+/* The display switch and the sort sit flat in the bar. */
+.selection-actions .display-switch {
+	gap: 2px;
+	animation: none;
+}
+
+.selection-actions .display-modes {
+	--mode-w: 32px;
+	--mode-h: 28px;
+	--mode-pad: 2px;
+	border: 0;
+	border-radius: 10px;
+	background: var(--well);
+	box-shadow: none;
+}
+
+.selection-actions .display-mode::after {
+	top: calc(100% + 12px);
+	bottom: auto;
+	transform: translate(-50%, -4px);
+}
+
+.selection-actions .display-mode:hover::after {
+	transform: translate(-50%, 0);
+}
+
+.selection-actions .display-sort-button {
+	height: 32px;
+	padding: 0 9px 0 8px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	box-shadow: none;
+	font-size: 12.5px;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.selection-actions .display-sort-button:hover,
+.selection-actions .display-sort-button[aria-expanded="true"] {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.selection-actions :is(.display-sort-button, .bar-more-button):focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
+}
+
 .selection-actions-install {
 	padding: 0 10px 0 6px;
 	color: var(--accent);
@@ -1657,6 +1924,11 @@ button.issue-preview-body[aria-expanded="true"] {
 	display: grid;
 	justify-items: start;
 	gap: 10px;
+}
+
+/* A section's bar is wider: a row of its own. */
+.actions-gallery .actions-bars figure:has(.selection-actions[data-section]) {
+	grid-column: 1 / -1;
 }
 
 .gallery-blocked {

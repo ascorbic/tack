@@ -911,29 +911,6 @@
 	animation: inbox-pop var(--t-settle) var(--ease-spring);
 }
 
-.section-make-inbox {
-	display: inline-flex;
-	align-items: center;
-	gap: 5px;
-	padding: 4px 9px 4px 7px;
-	border-radius: 11px;
-	border: 1px solid var(--line);
-	background: var(--chrome-strong);
-	box-shadow: var(--shadow-hover);
-	color: var(--ink-soft);
-	font-size: 12px;
-	font-weight: 560;
-	white-space: nowrap;
-	pointer-events: auto;
-	cursor: pointer;
-	animation: section-tray-in var(--t-settle) var(--ease-spring);
-}
-
-.section-make-inbox:hover {
-	color: var(--accent);
-	border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
 /* The gallery (/play/inbox) ---------------------------------------------- */
 
 .inbox-gallery .inbox-gallery-trays {

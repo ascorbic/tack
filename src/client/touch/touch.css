@@ -1147,6 +1147,21 @@
 	height: 44px;
 }
 
+.app[data-touch]:not([data-phone]) .selection-actions .display-modes {
+	--mode-w: 44px;
+	--mode-h: 40px;
+}
+
+.app[data-touch]:not([data-phone]) .selection-actions .display-sort-button,
+.app[data-touch]:not([data-phone]) .bar-more-item {
+	height: 44px;
+}
+
+.app[data-touch]:not([data-phone]) .bar-swatch {
+	width: 32px;
+	height: 32px;
+}
+
 .app[data-touch]:not([data-phone]) .shape-toolbar-option {
 	min-width: 40px;
 	height: 40px;

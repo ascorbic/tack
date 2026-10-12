@@ -118,19 +118,24 @@ test("a section placed with a click lands in free space, and takes nothing from 
 	}
 });
 
-test("a selected section's tools stay within its width, clear of the next section's title", async ({
+test("sections selected together keep their colours within their width, clear of the next section's title", async ({
 	page,
 }) => {
 	await openScenario(page, "sections");
-	// Room above the sections for a second row of tools.
+	// Room above the sections for a second row of colours.
 	await page.mouse.move(600, 400);
 	await page.mouse.wheel(0, -160);
 	await settleCanvas(page);
 	const now = section(page, "Now");
+	// On its own, its tools are in its bar (e2e/section-bar.spec.ts), not its header.
 	await now.locator(".section-title").click();
+	await expect(now.locator(".section-header button")).toHaveCount(0);
+	await section(page, "Next")
+		.locator(".section-title")
+		.click({ modifiers: ["Shift"] });
 	const edge = await box(now);
 	const buttons = now.locator(".section-header button");
-	await expect(buttons.filter({ hasText: "Make inbox" })).toBeVisible();
+	await expect(buttons.first()).toBeVisible();
 	for (const button of await buttons.all()) {
 		const at = await box(button);
 		expect(at.x + at.width).toBeLessThanOrEqual(edge.x + edge.width + 1);
@@ -330,9 +335,14 @@ test("Fit to contents snaps a section to what's in it, from the bar, a handle or
 	const zoom = (await box(now)).width / before.w;
 	await now.locator(".section-title").click();
 
+	// Small on screen, the section's bar has Fit in its "…" menu.
 	await page
 		.getByRole("toolbar", { name: "Stage changes" })
-		.getByRole("button", { name: "Fit to contents" })
+		.getByRole("button", { name: "More", exact: true })
+		.click();
+	await page
+		.getByRole("menu", { name: "More for this section" })
+		.getByRole("menuitem", { name: "Fit to contents" })
 		.click();
 	await expect.poll(async () => (await boxes(page, "Now")).section).not.toEqual(before);
 	const fitted = (await boxes(page, "Now")).section;

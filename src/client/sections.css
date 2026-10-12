@@ -267,14 +267,15 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* A selected section's colours and actions wrap within the section's width,
-   upwards into a row above the title, rather than reaching over the title
-   of the section beside it. */
+/* The colours of a section selected with other things wrap within the
+   section's width, upwards into a row above the title, rather than reaching
+   over the title of the section beside it. (On its own, a section's tools
+   are in its bar: actions.css.) */
 .section-tools {
 	display: contents;
 }
 
-/* Colours for a selected section, beside its title. */
+/* Colours for a section selected with others, beside its title. */
 .section-colors {
 	display: flex;
 	flex: none;

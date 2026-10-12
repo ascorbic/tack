@@ -8,7 +8,6 @@ import {
 	parseSession,
 	silentSections,
 } from "../../shared/silent.ts";
-import { DecisionContext } from "../decisions/context.ts";
 import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { initials } from "../People.tsx";
 import type { ToastStore } from "../Toasts.tsx";
@@ -24,25 +23,6 @@ export function startSilent(section: string, by: { name: string; color: string }
 
 export function revealSilent(session: string): void {
 	facilitation.send({ type: "silent-reveal", session });
-}
-
-/** "Silent" in the header of a section selected on its own. */
-export function SilentButton({ id }: { id: string }) {
-	const { user } = useContext(DecisionContext);
-	return (
-		<button
-			type="button"
-			className="section-silent-start nodrag nopan"
-			title="Everyone writes on their own: stickies stay face down until you reveal them"
-			onClick={(event) => {
-				event.stopPropagation();
-				if (user) startSilent(id, user);
-			}}
-		>
-			<HushIcon size={14} />
-			Silent mode
-		</button>
-	);
 }
 
 /** Face-down stickies in a session, kept current. */

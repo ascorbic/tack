@@ -82,26 +82,12 @@ export function useVoteUI() {
 	return useSyncExternalStore(voteUI.subscribe, voteUI.get);
 }
 
-/** "Vote" in the header of a section selected on its own, unless it has a vote open. */
-export function VoteButton({ id }: { id: string }) {
+/** Whether a vote is open on this section now: one at a time per section. */
+export function useVoteOpen(id: string | null): boolean {
 	const doc = useContext(DocContext);
 	const votes = useVotes(doc ?? NO_DOC);
 	const now = useServerNow(30_000);
-	if (votes.some((vote) => vote.scope === id && isOpen(vote, now))) return null;
-	return (
-		<button
-			type="button"
-			className="section-vote-start nodrag nopan"
-			title="Dot vote on what’s in this section"
-			onClick={(event) => {
-				event.stopPropagation();
-				voteUI.start(id);
-			}}
-		>
-			<DotsIcon size={14} />
-			Vote
-		</button>
-	);
+	return id !== null && votes.some((vote) => vote.scope === id && isOpen(vote, now));
 }
 
 function sectionTitle(doc: Y.Doc, id: string | null): string {

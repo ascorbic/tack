@@ -1,5 +1,13 @@
 import { useStore, useStoreApi } from "@xyflow/react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+	Fragment,
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import type * as Y from "yjs";
 import {
 	type ChildInput,
@@ -28,7 +36,8 @@ import type { Rect } from "../snapping.ts";
 import type { RepoMeta } from "../../shared/push.ts";
 import { DEFAULT_HOST, parseRepoKey, repoKeyOf } from "../../shared/refs.ts";
 import { descendantsOf, readStructure } from "../../shared/sections.ts";
-import { readShape, shapesMap } from "../../shared/shapes.ts";
+import { readShape, shapesMap, updateShapes } from "../../shared/shapes.ts";
+import { SECTION_COLORS, type SectionColor } from "../../shared/sections.ts";
 import { type ShapeNode, setStickyText } from "../board.ts";
 import { textFromIssue } from "../../shared/issueText.ts";
 import { installUrl } from "../CardView.tsx";
@@ -78,6 +87,13 @@ import {
 } from "./pickers.tsx";
 import { Notice, Popover, PopoverHead } from "./Popover.tsx";
 import { SelectionBar } from "./SelectionBar.tsx";
+import { type BarEntry, BarDivider, MoreMenu, SectionColour, useOverflow } from "./SectionBar.tsx";
+import { DisplaySwitch } from "../display/DisplaySwitch.tsx";
+import { startSilent } from "../facilitation/Silent.tsx";
+import { useVoteOpen, voteUI } from "../facilitation/Votes.tsx";
+import { DotsIcon, HushIcon } from "../facilitation/icons.tsx";
+import { TrayIcon } from "../inbox/icons.tsx";
+import { inboxUI } from "../inbox/useTray.ts";
 import {
 	type ActionCommand,
 	type ActionRequests,
@@ -125,6 +141,13 @@ type Size = { width: number; height: number };
 /** React Flow lifts selected shapes by 1000; the bar and its panels go above that. */
 const TOOLBAR_Z = 3000;
 
+/**
+ * The least a lone section's bar may be across before what doesn't fit goes in
+ * its "…" menu, however small the section is on screen; it's never wider
+ * than the canvas.
+ */
+const SECTION_BAR_MIN = 560;
+
 interface ActionBarProps {
 	doc: Y.Doc;
 	/** The selected nodes (connectors have their own toolbar). */
@@ -151,6 +174,8 @@ export interface Action {
 	quiet?: boolean;
 	/** Why it can't be done, if it can't. */
 	unavailable?: string;
+	/** What its tooltip says, when that's more than its name. */
+	tooltip?: string;
 }
 
 /** What the AI can read in a selection (#64). */
@@ -225,6 +250,17 @@ export function ActionBar(props: ActionBarProps) {
 		return a && b ? connectorBetween(doc, a, b) : null;
 	}, [doc, pairKey]);
 
+	// A section on its own, drawn as one (not a group in a list): one bar for
+	// its own tools (colour, display, facilitation) and what it can become,
+	// over its title, above every shape.
+	const lone =
+		selected.length === 1 &&
+		selected[0]?.data.shape.type === "section" &&
+		selected[0].data.display !== "group"
+			? selected[0]
+			: undefined;
+	const voteOpen = useVoteOpen(lone?.id ?? null);
+
 	// Under the selection, unless that's off the bottom of the canvas or under
 	// the tool dock: then above it, clear of the toolbars already there; and
 	// always on screen (SelectionBar.tsx). Above, the bar also keeps clear of
@@ -245,13 +281,20 @@ export function ActionBar(props: ActionBarProps) {
 		s.transform[2] < MARK_DOT_ZOOM ? 0 : Math.round(Math.max(0.8, s.transform[2]) * 20) / 20,
 	);
 	const markRoom = marked ? (markZoom === 0 ? 22 : Math.ceil(40 * markZoom)) : 0;
-	const aboveOffset =
-		18 +
-		markRoom +
-		(selected.length >= 2 ? 52 : 0) +
-		(stickies.length + stacks.length + others.length > 0 ? 52 : 0) +
-		// A section's title row, and the row of its tools that can wrap above it.
-		(sections.length === 1 && selected.length === 1 ? 82 : 0);
+	// A section's title stays the same size on screen when zoomed out, and
+	// grows with the board when zoomed in (sections.css, --unzoom).
+	const titleZoom = useStore((s) => {
+		const zoom = s.transform[2];
+		return Math.round(zoom * Math.min(10, Math.max(1, 1 / zoom)) * 20) / 20;
+	});
+	const aboveOffset = lone
+		? 10 + Math.ceil(SECTION_TITLE * titleZoom) + markRoom
+		: 18 +
+			markRoom +
+			(selected.length >= 2 ? 52 : 0) +
+			(stickies.length + stacks.length + others.length > 0 ? 52 : 0) +
+			// A section's title row, and the row of its tools that can wrap above it.
+			(sections.length === 1 && selected.length === 1 ? 82 : 0);
 
 	// Cards in repositories Tack can't write to (no app) can't be changed.
 	// Merged pull requests can still be labelled, assigned and commented on,
@@ -615,6 +658,25 @@ export function ActionBar(props: ActionBarProps) {
 		[requests, actions],
 	);
 
+	/** An action from the bar, or from its "…" menu (`from`: its button, to come back to). */
+	function runAction(
+		action: Action,
+		event: React.MouseEvent<HTMLElement>,
+		from: HTMLElement | null = null,
+	) {
+		if (action.unavailable) return;
+		// From the keyboard (no pointer): come back here when the panel closes.
+		returnTo.current =
+			from instanceof HTMLButtonElement
+				? from
+				: event.detail === 0 && event.currentTarget instanceof HTMLButtonElement
+					? event.currentTarget
+					: null;
+		const run = immediate[action.id];
+		if (run) run();
+		else setOpen((was) => (was === action.id ? null : action.id));
+	}
+
 	const close = () => {
 		setOpen(null);
 		// Opened from the keyboard: back to the button it came from.
@@ -659,7 +721,91 @@ export function ActionBar(props: ActionBarProps) {
 		return () => window.removeEventListener("keydown", onKey);
 	}, [idsKey, dragging, current]);
 	useEffect(() => setCurrent(0), [idsKey]);
-	if (actions.length === 0) return null;
+	// One tab stop in the bar, wherever the keyboard last was in it.
+	useLayoutEffect(() => {
+		const items = focusableActions(bar.current);
+		const stop = Math.min(current, items.length - 1);
+		items.forEach((item, i) => {
+			item.tabIndex = i === stop ? 0 : -1;
+		});
+	});
+
+	// A lone section's bar: its facilitation, then what it can become, as
+	// many as fit, and the rest in a "…" menu at the end.
+	const more = useRef<HTMLButtonElement>(null);
+	const loneShape = lone?.data.shape;
+	const entries: BarEntry[] = [];
+	if (lone && loneShape) {
+		if (!loneShape.silent) {
+			entries.push({
+				key: "startSilent",
+				group: "facilitate",
+				action: {
+					id: "startSilent",
+					label: "Silent mode",
+					tooltip: "Silent mode: everyone writes face down until the reveal",
+					icon: <HushIcon size={16} />,
+				},
+				pressed: false,
+				run: () => startSilent(lone.id, user),
+			});
+		}
+		if (!voteOpen) {
+			entries.push({
+				key: "startVote",
+				group: "facilitate",
+				action: {
+					id: "startVote",
+					label: "Vote",
+					tooltip: "Dot vote on what’s in it",
+					icon: <DotsIcon size={16} />,
+				},
+				pressed: false,
+				run: () => voteUI.start(lone.id),
+			});
+		}
+		if (!loneShape.inbox) {
+			entries.push({
+				key: "makeInbox",
+				group: "facilitate",
+				action: {
+					id: "makeInbox",
+					label: "Make inbox",
+					tooltip: "Make inbox: collect new matches for a search here",
+					icon: <TrayIcon size={16} />,
+				},
+				pressed: false,
+				run: () => inboxUI.edit(lone.id),
+			});
+		}
+		actions.forEach((action, i) =>
+			entries.push({
+				key: `${action.id}-${i}`,
+				group: "actions",
+				action,
+				pressed: open === action.id,
+				run: (event, from) => runAction(action, event, from),
+			}),
+		);
+	}
+	const paneWidth = useStore((s) => s.width);
+	const loneId = lone?.id;
+	const loneWidth = useStore((s) => {
+		const node = loneId ? s.nodeLookup.get(loneId) : undefined;
+		return node ? Math.round((node.width ?? node.measured.width ?? 0) * s.transform[2]) : 0;
+	});
+	const shown = useOverflow(
+		bar,
+		entries.map((entry) => entry.key),
+		[
+			...entries.map((e) => `${e.key}:${e.action.text ?? ""}:${e.action.unavailable ? 1 : 0}`),
+			loneShape?.display ?? "",
+			loneShape ? JSON.stringify(loneShape.sort ?? null) : "",
+		].join("|"),
+		lone ? Math.min(paneWidth - 24, Math.max(loneWidth, SECTION_BAR_MIN)) : null,
+	);
+
+	if (actions.length === 0 && !lone) return null;
 
 	/** The selected shape the bar is about, to go back to from the bar. */
 	const shapeElement = () =>
@@ -671,8 +817,10 @@ export function ActionBar(props: ActionBarProps) {
 
 	const onBarKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
 		const target = event.target as HTMLElement;
-		// Keys inside an open panel are the panel's.
-		if (!target.classList.contains("selection-action")) return;
+		// Keys inside an open panel or menu are its own.
+		if (!target.hasAttribute("data-bar-item") || target.closest(".action-popover, .bar-menu")) {
+			return;
+		}
 		const buttons = focusableActions(bar.current);
 		const at = buttons.indexOf(target as HTMLButtonElement);
 		const move = (to: number) => {
@@ -1065,6 +1213,7 @@ export function ActionBar(props: ActionBarProps) {
 			visible={!dragging && !typing}
 			below={14}
 			above={aboveOffset}
+			prefer={lone ? "above" : "below"}
 			// Above every shape, including selected ones, even for sections,
 			// whose own stacking is far below everything else.
 			zIndex={TOOLBAR_Z}
@@ -1077,25 +1226,35 @@ export function ActionBar(props: ActionBarProps) {
 				aria-label="Stage changes"
 				aria-orientation="horizontal"
 				data-open={open ?? undefined}
+				data-section={lone ? true : undefined}
 				onKeyDown={onBarKey}
+				// Tab comes back to whichever item the keyboard or pointer was last on.
+				onFocus={(event) => {
+					const at = focusableActions(bar.current).findIndex(
+						(item) => item === (event.target as Element),
+					);
+					if (at >= 0) setCurrent(at);
+				}}
 			>
-				{actions.map((action, i) => (
-					<ActionButton
-						key={`${action.id}-${i}`}
-						action={action}
-						pressed={open === action.id}
-						tabStop={i === Math.min(current, actions.length - 1)}
-						onClick={(event) => {
-							setCurrent(i);
-							if (action.unavailable) return;
-							// From the keyboard (no pointer): come back here when the panel closes.
-							returnTo.current = event.detail === 0 ? event.currentTarget : null;
-							const run = immediate[action.id];
-							if (run) run();
-							else setOpen((was) => (was === action.id ? null : action.id));
-						}}
+				{lone && loneShape ? (
+					<LoneSection
+						id={lone.id}
+						shape={loneShape}
+						doc={doc}
+						entries={entries}
+						shown={shown}
+						more={more}
 					/>
-				))}
+				) : (
+					actions.map((action, i) => (
+						<ActionButton
+							key={`${action.id}-${i}`}
+							action={action}
+							pressed={open === action.id}
+							onClick={(event) => runAction(action, event)}
+						/>
+					))
+				)}
 				{allUnwritable && (
 					<a className="selection-actions-install" href={installUrl()}>
 						Install the app
@@ -1125,19 +1284,80 @@ export function ActionBar(props: ActionBarProps) {
 
 /** The bar's buttons, in order. Unavailable ones too: their tooltip says why. */
 function focusableActions(bar: HTMLElement | null): HTMLButtonElement[] {
-	return bar ? [...bar.querySelectorAll<HTMLButtonElement>(":scope > .selection-action")] : [];
+	return bar
+		? [...bar.querySelectorAll<HTMLButtonElement>("[data-bar-item]")].filter(
+				(item) => !item.closest(".action-popover, .bar-menu"),
+			)
+		: [];
+}
+
+/** How tall a section's title is over it, on screen at 100% (sections.css). */
+const SECTION_TITLE = 32;
+
+/**
+ * A lone section's tools and actions in its bar: Colour | Display |
+ * Facilitate | Actions, with what doesn't fit in a "…" menu at the end.
+ */
+function LoneSection({
+	id,
+	shape,
+	doc,
+	entries,
+	shown,
+	more,
+}: {
+	id: string;
+	shape: ShapeNode["data"]["shape"];
+	doc: Y.Doc;
+	entries: BarEntry[];
+	shown: number;
+	more: React.RefObject<HTMLButtonElement | null>;
+}) {
+	const color = (SECTION_COLORS as readonly string[]).includes(shape.color ?? "")
+		? (shape.color as SectionColor)
+		: "grey";
+	const visible = entries.slice(0, shown);
+	const hidden = entries.slice(shown);
+	const groups = (["facilitate", "actions"] as const)
+		.map((group) => visible.filter((entry) => entry.group === group))
+		.filter((group) => group.length > 0);
+	return (
+		<>
+			<SectionColour color={color} onColor={(next) => updateShapes(doc, [id], { color: next })} />
+			<BarDivider />
+			<DisplaySwitch id={id} shape={shape} />
+			{groups.map((group) => (
+				<Fragment key={group[0]?.group}>
+					<BarDivider />
+					{group.map((entry) => (
+						<ActionButton
+							key={entry.key}
+							action={entry.action}
+							pressed={entry.pressed}
+							overflow={entry.key}
+							onClick={(event) => entry.run(event, null)}
+						/>
+					))}
+				</Fragment>
+			))}
+			{hidden.length > 0 && <MoreMenu entries={hidden} buttonRef={more} />}
+		</>
+	);
 }
 
 export function ActionButton({
 	action,
 	pressed,
 	tabStop = true,
+	overflow,
 	onClick,
 }: {
-	action: Action;
+	action: Omit<Action, "id"> & { id: string };
 	pressed: boolean;
 	/** Whether Tab lands here: one button in the bar is (a roving tab stop). */
 	tabStop?: boolean;
+	/** Its key, where it may go in the bar's "…" menu (SectionBar.tsx). */
+	overflow?: string;
 	onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
 	const hint = shortcutHint(action.id, apple);
@@ -1151,7 +1371,9 @@ export function ActionButton({
 			aria-expanded={action.unavailable ? undefined : pressed}
 			aria-haspopup={action.unavailable ? undefined : "dialog"}
 			aria-disabled={action.unavailable ? true : undefined}
-			data-tooltip={action.unavailable ?? action.label}
+			data-tooltip={action.unavailable ?? action.tooltip ?? action.label}
+			data-bar-item
+			data-overflow={overflow}
 			data-shortcut={action.unavailable ? "" : hint}
 			tabIndex={tabStop ? 0 : -1}
 			onClick={onClick}

@@ -22,14 +22,13 @@ import { transactLocal, updateShapes } from "../shared/shapes.ts";
 import { addSection, fitSection, readShapes, resizeSection } from "../shared/structure.ts";
 import { sectionSpot } from "../shared/placement.ts";
 import { sortOf } from "../shared/display.ts";
-import { DisplaySwitch, sortLabel } from "./display/DisplaySwitch.tsx";
+import { sortLabel } from "./display/DisplaySwitch.tsx";
 import { useZoomTier } from "./display/DisplayItem.tsx";
 import { EmptyList, useEmptyPresence } from "./display/EmptyList.tsx";
 import { type ShapeNode, focusWhenMounted, isFresh, takeFocus } from "./board.ts";
 import { scaledDuration } from "./motion.ts";
 import { DocContext, ReadOnlyContext, SectionContext, type SectionUI } from "./DocContext.ts";
-import { SilentBadge, SilentButton } from "./facilitation/Silent.tsx";
-import { VoteButton } from "./facilitation/Votes.tsx";
+import { SilentBadge } from "./facilitation/Silent.tsx";
 import { TrayIcon } from "./inbox/icons.tsx";
 import { inboxUI, useTray } from "./inbox/useTray.ts";
 import { isOnUnselectedShape } from "./keys.ts";
@@ -176,29 +175,14 @@ export const SectionNode = memo(function SectionNode({
 					{shape.inbox && <InboxBadge id={id} shape={shape} />}
 					{shape.silent && <SilentBadge shape={shape} />}
 				</div>
-				{selected && doc && !readOnly && (
+				{/* On its own, a section's tools are in its bar, with what it can
+				    become (ActionBar.tsx), above every shape; among others, its colours. */}
+				{selected && !alone && doc && !readOnly && (
 					<SectionTools>
 						<SectionColors
 							color={color as SectionColor}
 							onColor={(next) => updateShapes(doc, [id], { color: next })}
 						/>
-						{alone && doc && !readOnly && !shape.inbox && (
-							<button
-								type="button"
-								className="section-make-inbox nodrag nopan"
-								title="Collect new matches for a search in this section"
-								onClick={(event) => {
-									event.stopPropagation();
-									inboxUI.edit(id);
-								}}
-							>
-								<TrayIcon size={14} />
-								Make inbox
-							</button>
-						)}
-						{alone && doc && !readOnly && !shape.silent && <SilentButton id={id} />}
-						{alone && doc && !readOnly && <VoteButton id={id} />}
-						{alone && doc && !readOnly && <DisplaySwitch id={id} shape={shape} />}
 					</SectionTools>
 				)}
 			</div>
@@ -254,9 +238,9 @@ function useGlide(box: string): boolean {
 }
 
 /**
- * A selected section's colours and actions, beside its title: as many as
- * fit across the section, and the rest in a row above (see sections.css),
- * so they never reach over the title of the section beside it.
+ * The colours of a section selected with other things, beside its title:
+ * as many as fit across the section, and the rest in a row above (see
+ * sections.css), so they never reach over the title of the section beside it.
  */
 function SectionTools({ children }: { children: ReactNode }) {
 	return <div className="section-tools">{children}</div>;
