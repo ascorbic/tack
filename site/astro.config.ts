@@ -2,6 +2,7 @@ import sitemap from "@astrojs/sitemap";
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
+import { ASK_ENDPOINT } from "./src/ask/stream.ts";
 
 const site = "https://tack.social";
 // The link preview image (scripts/og.ts), for every page.
@@ -17,8 +18,20 @@ const og = [
 	{ name: "twitter:image", content: `${site}/og.png` },
 ];
 
+// The docs' Ask (src/components/Ask.astro) calls AI Search's public endpoint,
+// which only answers browsers on tack.social: on this machine, the dev and
+// preview servers pass `/__ask/*` through to it.
+const askProxy = {
+	"/__ask": {
+		target: ASK_ENDPOINT,
+		changeOrigin: true,
+		rewrite: (path: string) => path.replace(/^\/__ask/, ""),
+	},
+};
+
 export default defineConfig({
 	site,
+	vite: { server: { proxy: askProxy }, preview: { proxy: askProxy } },
 	integrations: [
 		// Starlight's own sitemap, with every page's <lastmod> set to the build:
 		// AI Search's crawler (the docs' "Ask" index, see AGENTS.md) re-reads a
@@ -43,6 +56,7 @@ export default defineConfig({
 			components: {
 				Hero: "./src/components/Hero.astro",
 				SiteTitle: "./src/components/SiteTitle.astro",
+				Search: "./src/components/Search.astro",
 			},
 			expressiveCode: {
 				themes: ["github-dark", "github-light"],

@@ -1,0 +1,235 @@
+---
+// The header's search: Starlight's Pagefind search, as it is, with "Ask AI"
+// beside it (Ask.astro: answers from the docs by Cloudflare AI Search). The
+// search dialog offers to ask too, with what's been typed.
+import Default from "@astrojs/starlight/components/Search.astro";
+import Ask from "./Ask.astro";
+import Spark from "./Spark.astro";
+---
+
+<div class="tk-search">
+	<Default {...Astro.props} />
+	<button type="button" class="tk-ask-open" data-ask-open aria-haspopup="dialog" aria-label="Ask AI about the docs">
+		<Spark size={18} />
+		<span class="tk-ask-open__label" aria-hidden="true">Ask AI</span>
+	</button>
+</div>
+<template id="tk-ask-row">
+	<button type="button" class="tk-ask-row">
+		<span class="tk-ask-row__spark"><Spark size={18} /></span>
+		<span class="tk-ask-row__text">
+			<span class="tk-ask-row__title">Ask AI</span>
+			<span class="tk-ask-row__query"></span>
+		</span>
+		<kbd class="tk-ask-row__keys"><kbd data-mod>Ctrl</kbd><kbd>↵</kbd></kbd>
+	</button>
+</template>
+<Ask />
+
+<script>
+	// Pagefind draws its search box once it's loaded (after the page is idle):
+	// put an "Ask AI" row under it that asks what's been typed. Ctrl or ⌘ + Enter
+	// in the search box does the same.
+	const search = document.getElementById("starlight__search");
+	const template = document.getElementById("tk-ask-row") as HTMLTemplateElement | null;
+	const mac = /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform);
+
+	const askFromSearch = (query: string) => {
+		search?.closest("dialog")?.close();
+		document.dispatchEvent(new CustomEvent("tk-ask", { detail: { question: query.trim() } }));
+	};
+
+	const addRow = () => {
+		const form = search?.querySelector<HTMLFormElement>(".pagefind-ui__form");
+		const input = form?.querySelector<HTMLInputElement>("input");
+		if (!form || !input || !template || form.querySelector(".tk-ask-row")) return Boolean(form);
+		const row = (template.content.firstElementChild as HTMLButtonElement).cloneNode(true) as HTMLButtonElement;
+		const query = row.querySelector<HTMLElement>(".tk-ask-row__query")!;
+		if (mac) row.querySelector("[data-mod]")!.textContent = "⌘";
+		const update = () => {
+			const text = input.value.trim();
+			query.textContent = text ? `“${text}”` : "Ask a question, get an answer from the docs";
+			row.classList.toggle("has-query", Boolean(text));
+		};
+		update();
+		input.addEventListener("input", update);
+		input.addEventListener("keydown", (event) => {
+			if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+				event.preventDefault();
+				askFromSearch(input.value);
+			}
+		});
+		row.addEventListener("click", () => askFromSearch(input.value));
+		const drawer = form.querySelector(".pagefind-ui__drawer");
+		form.insertBefore(row, drawer);
+		return true;
+	};
+
+	if (search && !addRow()) {
+		const observer = new MutationObserver(() => {
+			if (addRow()) observer.disconnect();
+		});
+		observer.observe(search, { childList: true, subtree: true });
+	}
+</script>
+
+<style>
+	.tk-search {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+	}
+
+	.tk-ask-open {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		gap: 0.4rem;
+		height: 2.5rem;
+		padding: 0 0.25rem;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-gray-1);
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.tk-ask-open :global(svg) {
+		color: var(--tk-accent);
+		transition: transform var(--tk-t-settle) var(--tk-ease-spring);
+	}
+
+	.tk-ask-open:hover :global(svg),
+	.tk-ask-open:focus-visible :global(svg) {
+		transform: rotate(90deg) scale(1.12);
+	}
+
+	.tk-ask-open__label {
+		display: none;
+	}
+
+	@media (min-width: 50rem) {
+		/* Starlight's search button keeps its width; Ask sits at its end. */
+		.tk-search :global(button[data-open-modal]) {
+			flex: 1 1 auto;
+		}
+
+		.tk-ask-open {
+			padding-inline: 0.7rem 0.85rem;
+			border: 1px solid var(--sl-color-gray-5);
+			border-radius: 0.5rem;
+			background: var(--sl-color-black);
+			color: var(--sl-color-gray-2);
+			transition:
+				border-color var(--tk-t-quick) var(--tk-ease-out),
+				color var(--tk-t-quick) var(--tk-ease-out),
+				transform var(--tk-t-base) var(--tk-ease-spring);
+		}
+
+		.tk-ask-open:hover {
+			border-color: var(--tk-accent);
+			color: var(--sl-color-white);
+		}
+
+		.tk-ask-open:active {
+			transform: scale(0.97);
+		}
+
+		.tk-ask-open__label {
+			display: inline;
+		}
+	}
+
+	/* The row in the search dialog, under the search box. */
+	:global(#starlight__search .tk-ask-row) {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		width: calc(100% - var(--sl-search-cancel-space, 0px));
+		margin-top: 0.75rem;
+		padding: 0.6rem 0.75rem;
+		border: 1px dashed var(--tk-line-strong);
+		border-radius: 10px;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		text-align: start;
+		cursor: pointer;
+		transition:
+			background-color var(--tk-t-quick) var(--tk-ease-out),
+			border-color var(--tk-t-quick) var(--tk-ease-out);
+	}
+
+	:global(#starlight__search .tk-ask-row:hover),
+	:global(#starlight__search .tk-ask-row:focus-visible),
+	:global(#starlight__search .tk-ask-row.has-query) {
+		border-style: solid;
+		border-color: color-mix(in srgb, var(--tk-accent) 45%, transparent);
+		background: var(--tk-accent-soft);
+	}
+
+	:global(#starlight__search .tk-ask-row:focus-visible) {
+		outline: 2px solid var(--tk-accent);
+		outline-offset: 2px;
+	}
+
+	:global(.tk-ask-row__spark) {
+		display: grid;
+		place-items: center;
+		flex: none;
+		width: 2rem;
+		height: 2rem;
+		border-radius: 8px;
+		background: var(--tk-surface);
+		box-shadow: var(--tk-shadow-rest);
+		color: var(--tk-accent);
+	}
+
+	:global(.tk-ask-row__text) {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		line-height: 1.3;
+	}
+
+	:global(.tk-ask-row__title) {
+		color: var(--sl-color-white);
+		font-weight: 600;
+		font-size: var(--sl-text-sm);
+	}
+
+	:global(.tk-ask-row__query) {
+		overflow: hidden;
+		color: var(--tk-muted);
+		font-size: var(--sl-text-xs);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	:global(.tk-ask-row__keys) {
+		display: none;
+		gap: 0.25em;
+		margin-inline-start: auto;
+		font-family: var(--tk-font-ui);
+		font-size: var(--sl-text-2xs);
+	}
+
+	:global(.tk-ask-row__keys kbd) {
+		padding: 0.1rem 0.35rem;
+		border: 1px solid var(--tk-line-strong);
+		border-bottom-width: 2px;
+		border-radius: 5px;
+		background: var(--tk-surface);
+		color: var(--tk-muted);
+		font-family: inherit;
+	}
+
+	@media (min-width: 50rem) and (hover: hover) {
+		:global(.tk-ask-row__keys) {
+			display: inline-flex;
+		}
+	}
+</style>

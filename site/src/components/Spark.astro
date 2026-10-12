@@ -1,0 +1,27 @@
+---
+// The app's AI mark (src/client/ai/icons.tsx): a four-pointed spark with a
+// small one beside it. Stroke colour follows the text.
+interface Props {
+	size?: number;
+	class?: string;
+}
+const { size = 16, class: className } = Astro.props;
+---
+
+<svg
+	class:list={["tk-spark", className]}
+	width={size}
+	height={size}
+	viewBox="0 0 16 16"
+	fill="none"
+	stroke="currentColor"
+	stroke-width="1.5"
+	stroke-linecap="round"
+	stroke-linejoin="round"
+	aria-hidden="true"
+>
+	<path
+		d="M8 1.8c.4 2.9 1.4 3.9 4.3 4.3-2.9.4-3.9 1.4-4.3 4.3-.4-2.9-1.4-3.9-4.3-4.3 2.9-.4 3.9-1.4 4.3-4.3z"
+		transform="translate(0 1.9)"></path>
+	<path d="M12.6 1.6v2.2M11.5 2.7h2.2" stroke-width="1.2"></path>
+</svg>

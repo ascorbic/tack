@@ -1,0 +1,1122 @@
+---
+// "Ask AI": questions about Tack answered from these docs, with the pages the
+// answer came from. Cloudflare AI Search indexes tack.social and answers on
+// its own public endpoint (src/ask/stream.ts); this is only its dialog. Opened
+// by anything with [data-ask-open], or a `tk-ask` event with a question (the
+// search dialog's "Ask AI" row, Search.astro). See "The docs' Ask" in AGENTS.md.
+import Spark from "./Spark.astro";
+
+const ideas = [
+	{ question: "How do I deploy Tack?", colour: "yellow" },
+	{ question: "What are stacks?", colour: "pink" },
+	{ question: "How do changes get back to GitHub?", colour: "blue" },
+	{ question: "Can I run a retro on a board?", colour: "green" },
+];
+---
+
+<tk-ask>
+	<dialog class="tk-ask" aria-labelledby="tk-ask-title">
+		<div class="tk-ask__frame">
+			<header class="tk-ask__head">
+				<span class="tk-ask__badge"><Spark size={16} /></span>
+				<h2 id="tk-ask-title" class="tk-ask__title">Ask the docs</h2>
+				<button type="button" class="tk-ask__chrome" data-ask-new hidden>New question</button>
+				<button type="button" class="tk-ask__chrome tk-ask__close" data-ask-close aria-label="Close">
+					<span class="tk-ask__close-wide" aria-hidden="true">Esc</span>
+					<svg class="tk-ask__close-narrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+						<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+					</svg>
+				</button>
+			</header>
+
+			<div class="tk-ask__thread" data-ask-thread tabindex="-1">
+				<div class="tk-ask__empty" data-ask-empty>
+					<p class="tk-ask__hello">Ask anything about Tack.</p>
+					<p class="tk-ask__intro">
+						Answers come from these docs, with links to the pages they’re from.
+					</p>
+					<ul class="tk-ask__ideas" aria-label="Try asking">
+						{
+							ideas.map(({ question, colour }, i) => (
+								<li style={`--i: ${i}`}>
+									<button
+										type="button"
+										class="tk-ask__idea"
+										data-question={question}
+										style={`--paper: var(--tk-sticky-${colour})`}
+									>
+										{question}
+									</button>
+								</li>
+							))
+						}
+					</ul>
+				</div>
+			</div>
+
+			<form class="tk-ask__form" data-ask-form>
+				<label class="sr-only" for="tk-ask-input">Your question</label>
+				<textarea
+					id="tk-ask-input"
+					class="tk-ask__input"
+					rows="1"
+					maxlength="500"
+					placeholder="Ask a question about Tack…"
+					enterkeyhint="send"
+					autocomplete="off"></textarea>
+				<button type="submit" class="tk-ask__send" data-ask-send aria-label="Ask">
+					<svg class="tk-ask__send-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+						<path
+							d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round"></path>
+					</svg>
+					<svg class="tk-ask__stop-icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+						<rect x="1" y="1" width="10" height="10" rx="2.5" fill="currentColor"></rect>
+					</svg>
+				</button>
+			</form>
+			<p class="tk-ask__note">
+				Answers are written by AI from these docs and can be wrong: check the pages they link to.
+			</p>
+			<p class="sr-only" role="status" data-ask-status></p>
+		</div>
+	</dialog>
+</tk-ask>
+
+<template id="tk-ask-turn">
+	<article class="tk-ask__turn">
+		<p class="tk-ask__question"></p>
+		<nav class="tk-ask__sources" aria-label="Pages this answer is from" hidden>
+			<ul></ul>
+		</nav>
+		<div class="tk-ask__answer">
+			<p class="tk-ask__reading">
+				<span class="tk-ask__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+				<span>Reading the docs…</span>
+			</p>
+			<div class="tk-ask__prose sl-markdown-content" hidden></div>
+			<div class="tk-ask__problem" hidden>
+				<p></p>
+				<button type="button" class="tk-ask__retry">Try again</button>
+			</div>
+			<p class="tk-ask__after" hidden>
+				<span class="tk-ask__stopped" hidden>Stopped.</span>
+				<button type="button" class="tk-ask__search">Search the docs instead</button>
+			</p>
+		</div>
+	</article>
+</template>
+
+<template id="tk-ask-source">
+	<li>
+		<a class="tk-ask__source">
+			<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+				<path
+					d="M4 1.8h5.2L12.5 5v8.2a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1V2.8a1 1 0 0 1 1-1z M9 1.8V5h3.5"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.3"
+					stroke-linejoin="round"></path>
+			</svg>
+			<span class="tk-ask__source-title"></span>
+			<span class="tk-ask__source-section"></span>
+		</a>
+	</li>
+</template>
+
+<script>
+	import { renderMarkdown } from "../ask/markdown.ts";
+	import { ASK_ENDPOINT, AskError, ask, followsOn, type Source, type Turn } from "../ask/stream.ts";
+
+	// The endpoint only answers browsers on tack.social; on this machine the
+	// dev and preview servers pass questions through (astro.config.ts).
+	const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+	const ENDPOINT = LOCAL ? "/__ask" : ASK_ENDPOINT;
+	const STORE = "tk-ask";
+	const MAX_KEPT = 8;
+
+	type Status = "reading" | "writing" | "done" | "stopped" | "error";
+
+	interface Shown extends Turn {
+		sources: Source[];
+		status: Status;
+		problem?: AskError["reason"];
+		/** Asked afresh (an idea, or from the search box), so not a follow-up. */
+		standalone?: boolean;
+		element: HTMLElement;
+	}
+
+	const PROBLEMS: Record<AskError["reason"] | "empty", string> = {
+		busy: "Lots of people are asking right now. Try again in a minute.",
+		offline: "Couldn’t reach the docs’ AI. Check your connection, then try again.",
+		failed: "Something went wrong answering that.",
+		empty: "No answer came back that time.",
+	};
+
+	const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+	class TkAsk extends HTMLElement {
+		dialog = this.querySelector("dialog")!;
+		thread = this.querySelector<HTMLElement>("[data-ask-thread]")!;
+		empty = this.querySelector<HTMLElement>("[data-ask-empty]")!;
+		form = this.querySelector<HTMLFormElement>("[data-ask-form]")!;
+		input = this.querySelector<HTMLTextAreaElement>("textarea")!;
+		send = this.querySelector<HTMLButtonElement>("[data-ask-send]")!;
+		status = this.querySelector<HTMLElement>("[data-ask-status]")!;
+		fresh = this.querySelector<HTMLButtonElement>("[data-ask-new]")!;
+		turns: Shown[] = [];
+		running: AbortController | undefined;
+		opener: HTMLElement | undefined;
+
+		connectedCallback() {
+			document.addEventListener("click", (event) => {
+				const opener = (event.target as Element | null)?.closest<HTMLElement>("[data-ask-open]");
+				if (opener) this.open(undefined, opener);
+			});
+			document.addEventListener("tk-ask", (event) => {
+				// From the search box: a new question, not a follow-up.
+				this.open((event as CustomEvent<{ question?: string }>).detail?.question, undefined, true);
+			});
+
+			this.querySelector("[data-ask-close]")!.addEventListener("click", () => this.dialog.close());
+			this.fresh.addEventListener("click", () => this.reset());
+			// A click on the backdrop (the dialog itself, outside its frame) closes it.
+			this.dialog.addEventListener("click", (event) => {
+				if (event.target === this.dialog) this.dialog.close();
+			});
+			this.dialog.addEventListener("close", () => {
+				document.documentElement.removeAttribute("data-ask-open-modal");
+				this.opener?.focus({ preventScroll: true });
+			});
+			this.dialog.addEventListener("keydown", (event) => {
+				// Ctrl or ⌘ + K is search's: hand over to it.
+				if ((event.metaKey || event.ctrlKey) && event.key === "k") this.dialog.close();
+			});
+
+			for (const idea of this.querySelectorAll<HTMLButtonElement>("[data-question]")) {
+				idea.addEventListener("click", () => this.submit(idea.dataset.question!, true));
+			}
+			this.form.addEventListener("submit", (event) => {
+				event.preventDefault();
+				if (this.running) this.running.abort();
+				else this.submit(this.input.value);
+			});
+			this.input.addEventListener("keydown", (event) => {
+				if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+					event.preventDefault();
+					this.form.requestSubmit();
+				}
+			});
+			if (!CSS.supports("field-sizing", "content")) {
+				this.input.addEventListener("input", () => {
+					this.input.style.height = "auto";
+					this.input.style.height = `${Math.min(this.input.scrollHeight, 160)}px`;
+				});
+			}
+			this.restore();
+		}
+
+		open(question?: string, opener?: HTMLElement, standalone = false) {
+			this.opener = opener ?? (document.activeElement as HTMLElement | null) ?? undefined;
+			if (!this.dialog.open) {
+				this.dialog.showModal();
+				document.documentElement.setAttribute("data-ask-open-modal", "");
+			}
+			if (question) this.submit(question, standalone);
+			else this.input.focus();
+			const last = this.turns.at(-1)?.element;
+			if (!question && last) this.thread.scrollTop = this.thread.scrollHeight;
+		}
+
+		reset() {
+			this.running?.abort();
+			for (const turn of this.turns) turn.element.remove();
+			this.turns = [];
+			this.save();
+			this.sync();
+			this.input.focus();
+		}
+
+		submit(raw: string, standalone = false) {
+			const question = raw.trim().slice(0, 500);
+			if (!question || this.running) return;
+			this.input.value = "";
+			this.input.style.height = "";
+			const turn = this.addTurn(question);
+			turn.standalone = standalone;
+			this.sync();
+			// The new question goes to the top, with room below for its answer.
+			requestAnimationFrame(() =>
+				turn.element.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" }),
+			);
+			void this.answer(turn);
+		}
+
+		addTurn(question: string, kept?: Pick<Shown, "answer" | "sources">): Shown {
+			const template = document.getElementById("tk-ask-turn") as HTMLTemplateElement;
+			const element = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
+			element.querySelector(".tk-ask__question")!.textContent = question;
+			element.querySelector(".tk-ask__retry")!.addEventListener("click", () => {
+				if (!this.running) void this.answer(turn);
+			});
+			element.querySelector(".tk-ask__search")!.addEventListener("click", () => this.searchFor(question));
+			const turn: Shown = {
+				question,
+				answer: kept?.answer ?? "",
+				sources: kept?.sources ?? [],
+				status: kept ? "done" : "reading",
+				element,
+			};
+			if (kept) element.classList.add("is-kept");
+			this.thread.append(element);
+			this.turns.push(turn);
+			this.draw(turn);
+			return turn;
+		}
+
+		async answer(turn: Shown) {
+			const history = turn.standalone
+				? []
+				: this.turns.slice(0, this.turns.indexOf(turn)).filter((t) => t.status === "done" && t.answer);
+			const controller = new AbortController();
+			this.running = controller;
+			Object.assign(turn, { answer: "", sources: [], status: "reading", problem: undefined });
+			this.draw(turn);
+			this.sync();
+			this.announce("Reading the docs…");
+			let frame = 0;
+			const redraw = () => {
+				frame ||= requestAnimationFrame(() => {
+					frame = 0;
+					this.draw(turn);
+				});
+			};
+			// A question that didn't look like a follow-up but finds no pages on its
+			// own is asked again as one ("How many does each person get?"). The
+			// pages come before any of the answer, so nothing's shown twice.
+			let followOn = followsOn(turn.question);
+			try {
+				for (let again = true; again; ) {
+					again = false;
+					for await (const event of ask(ENDPOINT, turn.question, history, controller.signal, followOn)) {
+						if (event.type === "sources") {
+							if (!event.sources.length && history.length && !followOn) {
+								followOn = again = true;
+								break;
+							}
+							turn.sources = event.sources;
+							this.draw(turn);
+						} else {
+							turn.answer += event.text;
+							turn.status = "writing";
+							redraw();
+						}
+					}
+				}
+				turn.status = turn.answer.trim() ? "done" : "error";
+				if (turn.status === "error") turn.problem = undefined;
+			} catch (error) {
+				if (controller.signal.aborted) {
+					turn.status = turn.answer ? "stopped" : "error";
+					if (!turn.answer) turn.problem = undefined;
+				} else {
+					turn.status = "error";
+					turn.problem = error instanceof AskError ? error.reason : "failed";
+				}
+			} finally {
+				cancelAnimationFrame(frame);
+				if (this.running === controller) this.running = undefined;
+			}
+			this.draw(turn);
+			this.sync();
+			this.save();
+			this.announce(this.summary(turn));
+		}
+
+		summary(turn: Shown): string {
+			if (turn.status === "error") return PROBLEMS[turn.problem ?? "empty"];
+			if (turn.status === "stopped") return "Stopped.";
+			const pages = turn.sources.length;
+			return pages ? `Answered, from ${pages} page${pages === 1 ? "" : "s"}.` : "Answered.";
+		}
+
+		draw(turn: Shown) {
+			const el = turn.element;
+			el.dataset.status = turn.status;
+			const reading = el.querySelector<HTMLElement>(".tk-ask__reading")!;
+			const prose = el.querySelector<HTMLElement>(".tk-ask__prose")!;
+			const problem = el.querySelector<HTMLElement>(".tk-ask__problem")!;
+			const after = el.querySelector<HTMLElement>(".tk-ask__after")!;
+
+			reading.hidden = turn.status !== "reading";
+			prose.hidden = !turn.answer;
+			prose.setAttribute("aria-busy", String(turn.status === "writing"));
+			if (turn.answer) {
+				prose.innerHTML = renderMarkdown(turn.answer);
+				if (turn.status === "writing") {
+					const blocks = prose.querySelectorAll("p, li, td, pre code");
+					const caret = document.createElement("span");
+					caret.className = "tk-ask__caret";
+					(blocks[blocks.length - 1] ?? prose).append(caret);
+				}
+			}
+			problem.hidden = turn.status !== "error";
+			problem.querySelector("p")!.textContent = PROBLEMS[turn.problem ?? "empty"];
+			after.hidden = turn.status !== "done" && turn.status !== "stopped";
+			after.querySelector<HTMLElement>(".tk-ask__stopped")!.hidden = turn.status !== "stopped";
+
+			const nav = el.querySelector<HTMLElement>(".tk-ask__sources")!;
+			const list = nav.querySelector("ul")!;
+			if (list.childElementCount !== turn.sources.length || !turn.sources.length) {
+				const template = document.getElementById("tk-ask-source") as HTMLTemplateElement;
+				list.replaceChildren(
+					...turn.sources.map((source, i) => {
+						const item = (template.content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
+						item.style.setProperty("--i", String(i));
+						const a = item.querySelector("a")!;
+						a.href = source.url;
+						a.querySelector(".tk-ask__source-title")!.textContent = source.title;
+						const section = a.querySelector<HTMLElement>(".tk-ask__source-section")!;
+						if (source.section) section.textContent = source.section;
+						else section.remove();
+						return item;
+					}),
+				);
+			}
+			nav.hidden = !turn.sources.length;
+		}
+
+		sync() {
+			const busy = Boolean(this.running);
+			this.empty.hidden = this.turns.length > 0;
+			this.fresh.hidden = this.turns.length === 0;
+			this.send.classList.toggle("is-stop", busy);
+			this.send.setAttribute("aria-label", busy ? "Stop" : "Ask");
+		}
+
+		announce(text: string) {
+			this.status.textContent = text;
+		}
+
+		searchFor(question: string) {
+			this.dialog.close();
+			document.querySelector<HTMLButtonElement>("button[data-open-modal]")?.click();
+			const input = document.querySelector<HTMLInputElement>("#starlight__search input");
+			if (input) {
+				input.value = question;
+				input.dispatchEvent(new Event("input", { bubbles: true }));
+			}
+		}
+
+		// The conversation stays as you move between pages, until the tab closes.
+		save() {
+			const kept = this.turns
+				.filter((t) => t.status === "done")
+				.slice(-MAX_KEPT)
+				.map(({ question, answer, sources }) => ({ question, answer, sources }));
+			try {
+				sessionStorage.setItem(STORE, JSON.stringify(kept));
+			} catch {
+				// Storage may be off; the conversation just won't follow you.
+			}
+		}
+
+		restore() {
+			let kept: unknown;
+			try {
+				kept = JSON.parse(sessionStorage.getItem(STORE) ?? "[]");
+			} catch {
+				return;
+			}
+			if (!Array.isArray(kept)) return;
+			for (const turn of kept as { question?: unknown; answer?: unknown; sources?: unknown }[]) {
+				if (typeof turn?.question !== "string" || typeof turn.answer !== "string") continue;
+				const sources = Array.isArray(turn.sources)
+					? (turn.sources as Source[]).filter(
+							(s) => typeof s?.url === "string" && s.url.startsWith("/") && typeof s.title === "string",
+						)
+					: [];
+				this.addTurn(turn.question, { answer: turn.answer, sources });
+			}
+			this.sync();
+		}
+	}
+
+	customElements.define("tk-ask", TkAsk);
+</script>
+
+<style is:global>
+	[data-ask-open-modal] {
+		overflow: hidden;
+	}
+</style>
+
+<style>
+	tk-ask {
+		display: contents;
+	}
+
+	.tk-ask {
+		margin: 0;
+		padding: 0;
+		width: 100%;
+		max-width: 100%;
+		height: 100%;
+		max-height: 100%;
+		border: 0;
+		background: var(--tk-ground);
+		color: var(--sl-color-gray-2);
+		box-shadow: var(--tk-shadow-lifted);
+	}
+
+	.tk-ask[open] {
+		display: flex;
+		animation: tk-ask-in var(--tk-t-settle) var(--tk-ease-spring);
+	}
+
+	.tk-ask::backdrop {
+		background-color: var(--sl-color-backdrop-overlay);
+		backdrop-filter: blur(0.25rem);
+		-webkit-backdrop-filter: blur(0.25rem);
+	}
+
+	.tk-ask[open]::backdrop {
+		animation: tk-ask-fade var(--tk-t-base) var(--tk-ease-out);
+	}
+
+	@keyframes tk-ask-in {
+		from {
+			opacity: 0;
+			transform: translateY(10px) scale(0.98);
+		}
+	}
+
+	@keyframes tk-ask-fade {
+		from {
+			opacity: 0;
+		}
+	}
+
+	.tk-ask__frame {
+		display: flex;
+		flex-direction: column;
+		flex-grow: 1;
+		min-height: 0;
+		padding-bottom: env(safe-area-inset-bottom);
+	}
+
+	/* Head */
+	.tk-ask__head {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0.85rem 1rem;
+		border-bottom: 1px solid var(--tk-line);
+	}
+
+	.tk-ask__badge {
+		display: grid;
+		place-items: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: 8px;
+		background: var(--tk-accent-soft);
+		color: var(--tk-accent);
+	}
+
+	.tk-ask__title {
+		margin: 0;
+		margin-inline-end: auto;
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-base);
+		font-weight: 650;
+		letter-spacing: -0.01em;
+	}
+
+	.tk-ask__chrome {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		height: 1.9rem;
+		padding: 0 0.6rem;
+		border: 1px solid var(--tk-line-strong);
+		border-radius: 8px;
+		background: var(--tk-surface);
+		color: var(--sl-color-gray-2);
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		font-weight: 550;
+		cursor: pointer;
+		transition:
+			background-color var(--tk-t-quick) var(--tk-ease-out),
+			color var(--tk-t-quick) var(--tk-ease-out);
+	}
+
+	.tk-ask__chrome[hidden] {
+		display: none;
+	}
+
+	.tk-ask__chrome:hover {
+		color: var(--sl-color-white);
+		background: var(--tk-chip);
+	}
+
+	.tk-ask__close {
+		padding: 0 0.5rem;
+	}
+
+	.tk-ask__close-wide {
+		display: none;
+	}
+
+	/* Thread */
+	.tk-ask__thread {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		padding: 1.25rem 1rem 1.5rem;
+		scroll-padding-top: 1rem;
+		outline: none;
+	}
+
+	.tk-ask__empty {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 1.5rem 0 0.5rem;
+		text-align: center;
+	}
+
+	.tk-ask__empty[hidden] {
+		display: none;
+	}
+
+	.tk-ask__hello {
+		margin: 0;
+		color: var(--sl-color-white);
+		font-family: var(--tk-font-display);
+		font-size: var(--sl-text-2xl);
+		font-weight: 700;
+		letter-spacing: -0.025em;
+	}
+
+	.tk-ask__intro {
+		max-width: 26rem;
+		text-wrap: balance;
+		margin: 0.4rem 0 0;
+		color: var(--tk-muted);
+		font-size: var(--sl-text-sm);
+	}
+
+	.tk-ask__ideas {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+		width: 100%;
+		max-width: 30rem;
+		margin: 1.5rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.tk-ask__ideas li {
+		margin: 0;
+		animation: tk-ask-land var(--tk-t-settle) var(--tk-ease-spring) both;
+		animation-delay: calc(var(--i) * 50ms * var(--tk-motion));
+	}
+
+	/* Ideas are stickies: paper in both themes, tilted a little each way. */
+	.tk-ask__idea {
+		--tilt: -1deg;
+		width: 100%;
+		min-height: 4.25rem;
+		padding: 0.7rem 0.8rem;
+		border: 0;
+		border-radius: 3px 3px 3px 12px;
+		background: var(--paper);
+		box-shadow: var(--tk-sticky-shadow);
+		color: var(--tk-sticky-ink);
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		font-weight: 550;
+		line-height: 1.3;
+		text-align: start;
+		cursor: pointer;
+		transform: rotate(var(--tilt));
+		transition:
+			transform var(--tk-t-base) var(--tk-ease-spring),
+			box-shadow var(--tk-t-base) var(--tk-ease-out);
+	}
+
+	.tk-ask__ideas li:nth-child(2n) .tk-ask__idea {
+		--tilt: 0.8deg;
+	}
+
+	.tk-ask__idea:hover,
+	.tk-ask__idea:focus-visible {
+		transform: translateY(-3px) rotate(calc(var(--tilt) * -1)) scale(1.02);
+		box-shadow: var(--tk-shadow-lifted);
+	}
+
+	.tk-ask__idea:active {
+		transform: scale(0.97);
+	}
+
+	.tk-ask__idea:focus-visible {
+		outline: 2px solid var(--tk-accent);
+		outline-offset: 3px;
+	}
+
+	@keyframes tk-ask-land {
+		from {
+			opacity: 0;
+			transform: translateY(6px) scale(0.96);
+		}
+	}
+
+	/* A question and its answer */
+	.tk-ask__thread :global(.tk-ask__turn) {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		scroll-margin-top: 1rem;
+	}
+
+	/* The latest question, once there are others above it, fills the view, so
+	   it sits at the top with its answer coming in under it. */
+	.tk-ask__thread :global(.tk-ask__turn + .tk-ask__turn:last-child) {
+		min-height: 100%;
+	}
+
+	.tk-ask__thread :global(.tk-ask__answer) {
+		display: flex;
+		flex-direction: column;
+		gap: 0.85rem;
+	}
+
+	.tk-ask__thread :global(.tk-ask__turn + .tk-ask__turn) {
+		margin-top: 1.75rem;
+		padding-top: 1.75rem;
+		border-top: 1px solid var(--tk-line);
+	}
+
+	/* The question, as a sticky you put up. */
+	.tk-ask__thread :global(.tk-ask__question) {
+		align-self: flex-end;
+		max-width: min(85%, 28rem);
+		margin: 0;
+		padding: 0.55rem 0.8rem;
+		border-radius: 3px 3px 12px 3px;
+		background: var(--tk-sticky-yellow);
+		box-shadow: var(--tk-sticky-shadow);
+		color: var(--tk-sticky-ink);
+		font-size: var(--sl-text-sm);
+		font-weight: 550;
+		line-height: 1.4;
+		overflow-wrap: anywhere;
+		white-space: pre-wrap;
+		transform: rotate(0.6deg);
+		animation: tk-ask-put var(--tk-t-settle) var(--tk-ease-spring);
+	}
+
+	.tk-ask__thread :global(.is-kept .tk-ask__question),
+	.tk-ask__thread :global(.is-kept .tk-ask__sources li) {
+		animation: none;
+	}
+
+	@keyframes tk-ask-put {
+		from {
+			opacity: 0;
+			transform: translateY(8px) rotate(-2deg) scale(1.05);
+		}
+	}
+
+	/* Sources: the pages it read, as small cards. */
+	.tk-ask__thread :global(.tk-ask__sources[hidden]) {
+		display: none;
+	}
+
+	.tk-ask__thread :global(.tk-ask__sources ul) {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.tk-ask__thread :global(.tk-ask__sources li) {
+		margin: 0;
+		min-width: 0;
+		animation: tk-ask-land var(--tk-t-settle) var(--tk-ease-spring) both;
+		animation-delay: calc(var(--i) * 60ms * var(--tk-motion));
+	}
+
+	.tk-ask__thread :global(.tk-ask__source) {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		max-width: 100%;
+		padding: 0.3rem 0.6rem 0.3rem 0.5rem;
+		border: 1px solid var(--tk-line-strong);
+		border-radius: 8px;
+		background: var(--tk-surface);
+		box-shadow: var(--tk-shadow-rest);
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		line-height: 1.3;
+		text-decoration: none;
+		transition:
+			transform var(--tk-t-base) var(--tk-ease-spring),
+			box-shadow var(--tk-t-base) var(--tk-ease-out),
+			border-color var(--tk-t-quick) var(--tk-ease-out);
+	}
+
+	.tk-ask__thread :global(.tk-ask__source svg) {
+		flex: none;
+		color: var(--tk-muted);
+	}
+
+	.tk-ask__thread :global(.tk-ask__source:hover),
+	.tk-ask__thread :global(.tk-ask__source:focus-visible) {
+		border-color: color-mix(in srgb, var(--tk-accent) 50%, transparent);
+		box-shadow: var(--tk-shadow-lifted);
+		transform: translateY(-2px) rotate(-0.4deg);
+	}
+
+	.tk-ask__thread :global(.tk-ask__source:focus-visible) {
+		outline: 2px solid var(--tk-accent);
+		outline-offset: 2px;
+	}
+
+	.tk-ask__thread :global(.tk-ask__source-title),
+	.tk-ask__thread :global(.tk-ask__source-section) {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.tk-ask__thread :global(.tk-ask__source-section) {
+		color: var(--tk-muted);
+		font-weight: 500;
+	}
+
+	.tk-ask__thread :global(.tk-ask__source-section::before) {
+		content: "›";
+		margin-inline-end: 0.35rem;
+		color: var(--sl-color-gray-4);
+	}
+
+	/* The answer */
+	.tk-ask__thread :global(.tk-ask__reading) {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin: 0;
+		color: var(--tk-muted);
+		font-size: var(--sl-text-sm);
+	}
+
+	.tk-ask__thread :global(.tk-ask__reading[hidden]),
+	.tk-ask__thread :global(.tk-ask__prose[hidden]),
+	.tk-ask__thread :global(.tk-ask__problem[hidden]),
+	.tk-ask__thread :global(.tk-ask__after[hidden]),
+	.tk-ask__thread :global(.tk-ask__stopped[hidden]) {
+		display: none;
+	}
+
+	.tk-ask__thread :global(.tk-ask__dots) {
+		display: inline-flex;
+		gap: 4px;
+	}
+
+	.tk-ask__thread :global(.tk-ask__dots i) {
+		width: 7px;
+		height: 7px;
+		border-radius: 2px;
+		background: var(--tk-sticky-yellow);
+		animation: tk-ask-bob 1.1s var(--tk-ease-out) infinite;
+	}
+
+	.tk-ask__thread :global(.tk-ask__dots i:nth-child(2)) {
+		background: var(--tk-sticky-pink);
+		animation-delay: 0.14s;
+	}
+
+	.tk-ask__thread :global(.tk-ask__dots i:nth-child(3)) {
+		background: var(--tk-sticky-blue);
+		animation-delay: 0.28s;
+	}
+
+	@keyframes tk-ask-bob {
+		0%,
+		60%,
+		100% {
+			transform: translateY(0) rotate(0);
+		}
+		30% {
+			transform: translateY(-4px) rotate(-8deg);
+		}
+	}
+
+	.tk-ask__thread :global(.tk-ask__prose) {
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-sm);
+		line-height: 1.65;
+		overflow-wrap: anywhere;
+	}
+
+	.tk-ask__thread :global(.tk-ask__prose > :first-child) {
+		margin-top: 0;
+	}
+
+	.tk-ask__thread :global(.tk-ask__prose :is(p, ul, ol, pre, table, blockquote) + *) {
+		margin-top: 0.75rem;
+	}
+
+	.tk-ask__thread :global(.tk-ask__prose pre) {
+		padding: 0.75rem 0.9rem;
+		border: 1px solid var(--tk-line-strong);
+		border-radius: 10px;
+		background: var(--tk-surface-muted);
+		font-size: var(--sl-text-xs);
+		overflow-x: auto;
+	}
+
+	.tk-ask__thread :global(.tk-ask__prose pre code) {
+		padding: 0;
+		background: none;
+		overflow-wrap: normal;
+	}
+
+	.tk-ask__thread :global(.tk-ask__prose .tk-ask-heading) {
+		color: var(--sl-color-white);
+	}
+
+	.tk-ask__thread :global(.tk-ask__caret) {
+		display: inline-block;
+		width: 0.5em;
+		height: 1.05em;
+		margin-inline-start: 0.15em;
+		border-radius: 2px;
+		background: var(--tk-accent);
+		vertical-align: -0.15em;
+		animation: tk-ask-blink 0.9s steps(1) infinite;
+	}
+
+	@keyframes tk-ask-blink {
+		50% {
+			opacity: 0;
+		}
+	}
+
+	.tk-ask__thread :global(.tk-ask__problem) {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		padding: 0.65rem 0.8rem;
+		border-radius: 3px 3px 3px 12px;
+		background: var(--tk-sticky-pink);
+		box-shadow: var(--tk-sticky-shadow);
+		color: var(--tk-sticky-ink);
+		font-size: var(--sl-text-sm);
+	}
+
+	.tk-ask__thread :global(.tk-ask__problem p) {
+		margin: 0;
+		flex: 1 1 14rem;
+	}
+
+	.tk-ask__thread :global(:is(.tk-ask__retry, .tk-ask__search)) {
+		padding: 0.25rem 0.6rem;
+		border: 1px solid currentColor;
+		border-radius: 7px;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.tk-ask__thread :global(.tk-ask__retry:hover) {
+		background: rgb(23 25 28 / 8%);
+	}
+
+	.tk-ask__thread :global(.tk-ask__after) {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin: 0;
+		color: var(--tk-muted);
+		font-size: var(--sl-text-xs);
+	}
+
+	.tk-ask__thread :global(.tk-ask__search) {
+		border-color: var(--tk-line-strong);
+		color: var(--tk-muted);
+	}
+
+	.tk-ask__thread :global(.tk-ask__search:hover) {
+		border-color: var(--tk-accent);
+		color: var(--sl-color-white);
+	}
+
+	.tk-ask__thread :global(:is(.tk-ask__retry, .tk-ask__search):focus-visible) {
+		outline: 2px solid var(--tk-accent);
+		outline-offset: 2px;
+	}
+
+	/* The question box */
+	.tk-ask__form {
+		display: flex;
+		align-items: flex-end;
+		gap: 0.5rem;
+		margin: 0 1rem;
+		padding: 0.4rem 0.4rem 0.4rem 0.85rem;
+		border: 1px solid var(--tk-line-strong);
+		border-radius: 14px;
+		background: var(--tk-surface);
+		box-shadow: var(--tk-shadow-rest);
+		transition:
+			border-color var(--tk-t-quick) var(--tk-ease-out),
+			box-shadow var(--tk-t-base) var(--tk-ease-out);
+	}
+
+	.tk-ask__form:focus-within {
+		border-color: var(--tk-accent);
+		box-shadow:
+			0 0 0 3px var(--tk-accent-soft),
+			var(--tk-shadow-rest);
+	}
+
+	.tk-ask__input {
+		flex: 1;
+		min-height: 2.1rem;
+		max-height: 10rem;
+		padding: 0.4rem 0;
+		border: 0;
+		background: transparent;
+		color: var(--sl-color-white);
+		font: inherit;
+		font-size: max(16px, var(--sl-text-sm));
+		line-height: 1.4;
+		resize: none;
+		outline: none;
+		field-sizing: content;
+	}
+
+	.tk-ask__input::placeholder {
+		color: var(--tk-muted);
+	}
+
+	.tk-ask__send {
+		display: grid;
+		flex: none;
+		place-items: center;
+		width: 2.1rem;
+		height: 2.1rem;
+		border: 0;
+		border-radius: 10px;
+		background: var(--tk-accent);
+		color: var(--tk-on-accent);
+		cursor: pointer;
+		box-shadow: 0 1px 1px rgb(0 0 0 / 10%);
+		transition:
+			transform var(--tk-t-base) var(--tk-ease-spring),
+			background-color var(--tk-t-quick) var(--tk-ease-out);
+	}
+
+	.tk-ask__send:hover {
+		transform: translateY(-1px);
+	}
+
+	.tk-ask__send:active {
+		transform: scale(0.92);
+	}
+
+	.tk-ask__send:focus-visible {
+		outline: 2px solid var(--tk-accent);
+		outline-offset: 2px;
+	}
+
+	.tk-ask__stop-icon,
+	.tk-ask__send.is-stop .tk-ask__send-icon {
+		display: none;
+	}
+
+	.tk-ask__send.is-stop {
+		background: var(--tk-ink);
+		color: var(--tk-ground);
+	}
+
+	.tk-ask__send.is-stop .tk-ask__stop-icon {
+		display: block;
+	}
+
+	.tk-ask__note {
+		margin: 0;
+		padding: 0.5rem 1rem 0.85rem;
+		color: var(--tk-muted);
+		font-size: var(--sl-text-2xs, 0.75rem);
+		text-align: center;
+	}
+
+	@media (min-width: 50rem) {
+		.tk-ask {
+			margin: 4rem auto auto;
+			width: 90%;
+			max-width: 42rem;
+			height: min(44rem, calc(100% - 8rem));
+			border: 1px solid var(--tk-line-strong);
+			border-radius: 16px;
+			background: var(--tk-ground);
+		}
+
+		.tk-ask__head {
+			padding: 0.9rem 1.25rem;
+		}
+
+		.tk-ask__thread {
+			padding-inline: 1.5rem;
+		}
+
+		.tk-ask__form {
+			margin-inline: 1.25rem;
+		}
+
+		.tk-ask__close-wide {
+			display: inline;
+		}
+
+		.tk-ask__close-narrow {
+			display: none;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tk-ask[open],
+		.tk-ask[open]::backdrop,
+		.tk-ask__ideas li,
+		.tk-ask__thread :global(.tk-ask__question),
+		.tk-ask__thread :global(.tk-ask__sources li),
+		.tk-ask__thread :global(.tk-ask__dots i),
+		.tk-ask__thread :global(.tk-ask__caret) {
+			animation: none;
+		}
+
+		.tk-ask__idea:hover,
+		.tk-ask__idea:focus-visible,
+		.tk-ask__thread :global(.tk-ask__source:hover),
+		.tk-ask__thread :global(.tk-ask__source:focus-visible) {
+			transform: rotate(var(--tilt, 0deg));
+		}
+	}
+</style>
