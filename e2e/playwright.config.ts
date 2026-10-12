@@ -8,6 +8,18 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = Number(process.env.E2E_PORT ?? 5205);
 const CI = Boolean(process.env.CI);
 
+// Safari, opt-in (E2E_WEBKIT=1, or `pnpm e2e:webkit`), over the specs that
+// cover what Safari does its own way (touch, focus in frames, IndexedDB,
+// pasting, dragging), so CI's default run stays Chromium only.
+// E2E_WEBKIT=all runs every spec in it.
+const WEBKIT = process.env.E2E_WEBKIT;
+const WEBKIT_SPECS =
+	WEBKIT === "all"
+		? "**/*.spec.ts"
+		: ["mobile", "try", "embed", "embeds", "images", "links", "canvas", "stacks", "cards"].map(
+				(name) => `**/${name}.spec.ts`,
+			);
+
 export default defineConfig({
 	testDir: ".",
 	outputDir: "./test-results",
@@ -38,6 +50,15 @@ export default defineConfig({
 			name: "chromium",
 			use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
 		},
+		...(WEBKIT
+			? [
+					{
+						name: "webkit",
+						testMatch: WEBKIT_SPECS,
+						use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 800 } },
+					},
+				]
+			: []),
 	],
 	webServer: {
 		command: `pnpm dev --port ${PORT} --strictPort`,

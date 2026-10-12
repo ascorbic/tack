@@ -17,6 +17,7 @@
 		"wrangler-config": "node scripts/wrangler-config.ts",
 		"test": "vp test",
 		"e2e": "playwright test -c e2e/playwright.config.ts",
+		"e2e:webkit": "E2E_WEBKIT=1 playwright test -c e2e/playwright.config.ts --project=webkit",
 		"e2e:update": "VISUAL=1 playwright test -c e2e/playwright.config.ts --update-snapshots",
 		"check": "vp check",
 		"fix": "vp check --fix",
