@@ -1,5 +1,6 @@
 import type * as Y from "yjs";
 import { FACILITATION_ORIGIN } from "../../shared/facilitation.ts";
+import { GROW_ORIGIN } from "../../shared/growth.ts";
 import {
 	type Actor,
 	type Attribution,
@@ -113,7 +114,8 @@ export class SimulatedHistory implements HistorySource {
 	}
 
 	private attribute(origin: unknown): Attribution {
-		if (origin === LOCAL_ORIGIN) {
+		// A section growing for you (growth.ts) is yours too.
+		if (origin === LOCAL_ORIGIN || origin === GROW_ORIGIN) {
 			const user = this.you();
 			const key = user.login ? `u:you-${user.login}` : "g:you";
 			return { key, actor: { key, name: user.name, color: user.color, login: user.login } };

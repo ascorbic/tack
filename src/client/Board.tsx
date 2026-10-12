@@ -20,7 +20,7 @@ import {
 import { readVotes } from "../shared/dotvotes.ts";
 import { STAMPS, type StampEmoji } from "../shared/facilitation.ts";
 import { type CardRun, addCardsInRun, cardsOnBoard, searchScopeOf } from "../shared/addCards.ts";
-import { intersects } from "../shared/geometry.ts";
+import { type Rect, intersects } from "../shared/geometry.ts";
 import { parseKey } from "../shared/refs.ts";
 import { boxOf } from "../shared/sections.ts";
 import {
@@ -149,6 +149,7 @@ import { useDevice } from "./touch/device.ts";
 import { MultiSelectPill } from "./touch/MultiSelect.tsx";
 import { PhoneBoard } from "./touch/PhoneBoard.tsx";
 import { useTouchSelection } from "./touch/useTouchSelection.ts";
+import { useSectionGrowth } from "./useSectionGrowth.ts";
 
 // Every shape shows the changes staged about it, and shapes in a section
 // showing a list or mini cards draw as rows or mini cards (#72). Each is named
@@ -520,6 +521,8 @@ export function Board({
 		return out;
 	};
 	const stackData = useRef(new Map<string, { key: string; data: ShapeNode["data"] }>());
+	/** The stack open here and its tray, as drawn. */
+	const openTray = useRef<{ id: string; tray: Rect } | null>(null);
 	const nodes = useMemo(() => {
 		// Where each stack is drawn (where it's dragged to, or its row), its
 		// stickies with it; and the one open here, spread into its grid.
@@ -558,6 +561,9 @@ export function Board({
 					},
 				)
 			: null;
+		// Its section grows to hold its tray, once it's not on the move.
+		openTray.current =
+			openId && open && !structure.overrides.has(openId) ? { id: openId, tray: open.tray } : null;
 		const { target, armed, dragged } = stackDrop.state;
 		const proposalOf = new Map<string, { n: number; color: string }>();
 		(stackUI.proposal ?? []).forEach((group, i) => {
@@ -793,6 +799,15 @@ export function Board({
 		fed,
 	]);
 	nodesRef.current = nodes;
+	// Sections grow for what grows after it's placed, and for an open stack's tray.
+	useSectionGrowth({
+		doc: liveDoc,
+		history,
+		measured,
+		boxSize,
+		open: openTray.current,
+		enabled: !readOnly,
+	});
 
 	// A dragged section's contents move with it, so they're never snapped to.
 	const snapping = useSnapping(nodes, sizeOf, structure.contentsOf, (id) =>

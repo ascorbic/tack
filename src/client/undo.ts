@@ -98,6 +98,29 @@ export class History {
 	}
 
 	/**
+	 * Run a local write as part of an earlier undo step, if it's still the
+	 * latest: what follows from a change after it's made (a section growing
+	 * for a card that just loaded taller) undoes with that change. False, and
+	 * nothing written, if anything's happened since.
+	 */
+	amend(step: ReturnType<History["top"]>, fn: () => void): boolean {
+		const manager = this.manager;
+		if (!step || this.top() !== step || manager.undoing || manager.redoing) return false;
+		const { captureTimeout, lastChange } = manager;
+		manager.captureTimeout = Number.POSITIVE_INFINITY;
+		// Any change since the step began, however long ago, joins it.
+		manager.lastChange = Math.max(lastChange, 1);
+		try {
+			transactLocal(this.doc, fn);
+		} finally {
+			manager.captureTimeout = captureTimeout;
+			// What comes next starts a step of its own, as it would have.
+			manager.lastChange = lastChange;
+		}
+		return true;
+	}
+
+	/**
 	 * Save the selection with each undo step, and restore it when the step is
 	 * undone or redone, so the shapes that changed are the ones selected.
 	 */
@@ -182,7 +205,7 @@ function touchedByOthers(type: Y.AbstractType<unknown>, client: number): boolean
  * The ids of top-level entries (shapes, and whatever else lives in a
  * top-level map) that a transaction changed.
  */
-function affectedEntries(changed: ChangedTypes): Affected {
+export function affectedEntries(changed: ChangedTypes): Affected {
 	const ids: Affected = new Set();
 	for (const [type, events] of changed) {
 		if (type._item === null) {
