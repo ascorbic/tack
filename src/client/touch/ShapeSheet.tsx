@@ -7,7 +7,7 @@ import { type CommentThread, anchorAt, isVisible, starter } from "../../shared/c
 import { voterKey } from "../../shared/decisions.ts";
 import { excerpt } from "../../shared/comments.ts";
 import type { ShapeNode } from "../board.ts";
-import { CardView } from "../CardView.tsx";
+import { CardView, StateIcon } from "../CardView.tsx";
 import { useCard } from "../cardStore.ts";
 import { relativeTime } from "../boards/api.ts";
 import { Composer } from "../comments/Composer.tsx";
@@ -21,7 +21,8 @@ import { Avatar } from "../People.tsx";
 import type { User } from "../presence.ts";
 import type { ToastStore } from "../Toasts.tsx";
 import { silentOf } from "../../shared/silent.ts";
-import { stackName } from "../../shared/stacks.ts";
+import { countMembers, stackName } from "../../shared/stacks.ts";
+import { isMissing } from "../../shared/cards.ts";
 
 // What a phone shows when you tap a shape (#67): the shape itself, big
 // enough to read; its votes (a dot vote around it, or a decision's own);
@@ -198,7 +199,7 @@ function ShapeFace({
 	}
 }
 
-/** A stack (#73): its stickies, top first, each to read. */
+/** A stack (#73): its stickies and cards, top first, each to read. */
 function StackFace({ node }: { node: ShapeNode }) {
 	const members = node.data.stack?.members ?? [];
 	const texts = useSilentTexts();
@@ -212,8 +213,14 @@ function StackFace({ node }: { node: ShapeNode }) {
 		);
 	}
 	return (
-		<ol className="phone-sheet-stack" aria-label={`${members.length} stacked stickies`}>
+		<ol
+			className="phone-sheet-stack"
+			aria-label={countMembers(members.map(({ shape }) => shape.type)).replace(" ", " stacked ")}
+		>
 			{members.map(({ id, shape }, i) => {
+				if (shape.type === "card") {
+					return <StackCardItem key={id} cardRef={shape.ref ?? ""} index={i} />;
+				}
 				const session = silentOf(shape);
 				const mine = session !== null && texts.has(id);
 				const faceDown = session !== null && !mine;
@@ -231,6 +238,29 @@ function StackFace({ node }: { node: ShapeNode }) {
 				);
 			})}
 		</ol>
+	);
+}
+
+/** A card in a stack's sheet: its state, number and title, or that it's private. */
+function StackCardItem({ cardRef, index }: { cardRef: string; index: number }) {
+	const card = useCard(cardRef);
+	const style = { "--i": index } as CSSProperties;
+	if (!card || isMissing(card)) {
+		return (
+			<li className="phone-sheet-stack-item" data-kind="card" style={style}>
+				<em>
+					{!card ? "Loading…" : card.reason === "private" ? "Private item" : "Unavailable item"}
+				</em>
+			</li>
+		);
+	}
+	return (
+		<li className="phone-sheet-stack-item" data-kind="card" data-state={card.state} style={style}>
+			<span className="state-icon" title={card.kind === "pull" ? "Pull request" : "Issue"}>
+				<StateIcon card={card} size={15} />
+			</span>
+			<span className="phone-sheet-stack-ref">{card.item}</span> {card.title}
+		</li>
 	);
 }
 

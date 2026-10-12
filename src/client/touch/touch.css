@@ -373,6 +373,27 @@
 	font-family: var(--font-hand);
 }
 
+/* A card in a stack: card paper, not a sticky's, with its state and number. */
+.phone-sheet-stack-item[data-kind="card"] {
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: var(--surface);
+	color: var(--ink);
+	box-shadow: none;
+	font-size: 16px;
+	white-space: normal;
+}
+
+.phone-sheet-stack-item[data-kind="card"] .state-icon {
+	margin-right: 6px;
+	vertical-align: -2px;
+}
+
+.phone-sheet-stack-ref {
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
 .phone-sheet-stack-item em {
 	color: var(--muted);
 	font-style: normal;
