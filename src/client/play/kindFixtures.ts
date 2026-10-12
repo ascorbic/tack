@@ -217,7 +217,7 @@ export function staleCards(now: number): Card[] {
 			reactions: 8,
 		}),
 		item(233, "Memory use in the Node transformer", 140, { labels: [MORE_LABELS.performance] }),
-		item(251, "WIP: a Squoosh-based local transformer", 95, {
+		item(251, "WIP: a WebAssembly local transformer", 95, {
 			kind: "pull",
 			state: "draft",
 			labels: [LABELS.provider],
