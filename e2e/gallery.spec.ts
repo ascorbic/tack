@@ -24,6 +24,29 @@ test.beforeEach(async ({ page }) => {
 	await page.evaluate(() => document.fonts.ready);
 });
 
+test("images in every state: ready, selected, captioned, loading, uploading, abandoned and missing", async ({
+	page,
+}) => {
+	const images = page.locator("section").filter({
+		has: page.getByRole("heading", { name: "Images", exact: true }),
+	});
+	const figure = (caption: string) =>
+		images.locator(".gallery-images > figure").filter({
+			has: page.locator("figcaption", { hasText: new RegExp(`^${caption}$`) }),
+		});
+	await expect(figure("An image").locator(".image-node")).toHaveAttribute("data-state", "ready");
+	await expect(figure("Selected").locator(".image-node")).toHaveAttribute("data-selected", "true");
+	await expect(figure("With its caption").locator(".image-caption")).toHaveText("Tack’s mark");
+	await expect(figure("Loading").locator(".image-node")).toHaveAttribute("data-state", "loading");
+	await expect(figure("Uploading, yours").getByRole("progressbar")).toHaveAttribute(
+		"aria-valuenow",
+		"42",
+	);
+	await expect(figure("Uploading, someone else’s")).toContainText("Uploading · Priya Shah");
+	await expect(figure("Upload abandoned")).toContainText("The upload didn’t finish");
+	await expect(figure("Missing")).toContainText("Image unavailable");
+});
+
 test("stacks are theme cards: stickies, issues and pull requests a line each, or only a name far out", async ({
 	page,
 }) => {

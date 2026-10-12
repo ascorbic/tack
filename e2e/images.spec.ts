@@ -9,6 +9,7 @@ import { expect, openScenario, settleCanvas, test } from "./fixtures.ts";
 async function images(page: Page, global = "tackPlayground"): Promise<Record<string, unknown>[]> {
 	return page.evaluate((name) => {
 		const holder = (window as unknown as Record<string, { doc: import("yjs").Doc }>)[name];
+		if (!holder) return [];
 		return [...holder.doc.getMap<import("yjs").Map<unknown>>("shapes").values()]
 			.map((shape) => shape.toJSON() as Record<string, unknown>)
 			.filter((shape) => shape.type === "image");
@@ -70,6 +71,12 @@ async function withFiles(
 		},
 		{ sizes, deliver, type },
 	);
+}
+
+/** An image shape's box, as tests read it. */
+interface Size {
+	w: number;
+	h: number;
 }
 
 const ready = (page: Page) => page.locator(".image-node[data-state='ready']:not([data-uploading])");
@@ -205,7 +212,7 @@ test.describe("images in the playground", () => {
 		await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
 		await settleCanvas(page);
 		const grip = page.locator(".react-flow__node-image .section-resize[data-handle='se']");
-		const before = (await images(page))[0] as Record<string, number>;
+		const before = (await images(page))[0] as unknown as Size;
 		const at = (await grip.boundingBox()) as {
 			x: number;
 			y: number;
@@ -217,7 +224,7 @@ test.describe("images in the playground", () => {
 		await page.mouse.down();
 		await page.mouse.move(from.x + 120, from.y + 10, { steps: 8 });
 		await page.mouse.up();
-		const after = (await images(page))[0] as Record<string, number>;
+		const after = (await images(page))[0] as unknown as Size;
 		expect(after.w).toBeGreaterThan(before.w);
 		expect(after.w / after.h).toBeCloseTo(before.w / before.h, 1);
 
@@ -236,12 +243,12 @@ test.describe("images in the playground", () => {
 		await page.mouse.move(from2.x, from2.y + 150, { steps: 8 });
 		await page.mouse.up();
 		await page.keyboard.up("Shift");
-		const free = (await images(page))[0] as Record<string, number>;
+		const free = (await images(page))[0] as unknown as Size;
 		expect(free.w).toBeCloseTo(after.w, 0);
 		expect(free.h).toBeGreaterThan(after.h + 100);
 		// And back to its own proportions from its toolbar.
 		await page.getByRole("button", { name: "Original proportions" }).click();
-		const restored = (await images(page))[0] as Record<string, number>;
+		const restored = (await images(page))[0] as unknown as Size;
 		expect(restored.w / restored.h).toBeCloseTo(2, 1);
 	});
 
@@ -320,12 +327,54 @@ test("a second person sees a pasted image arrive, served by the board", async ({
 	// The other person's board shows it, loaded from the board's own address.
 	await expect(ready(other)).toHaveCount(1, { timeout: 15_000 });
 	const loaded = other.locator(".image-file[data-loaded]");
-	await expect(loaded).toHaveAttribute("src", `/api/boards/${board.id}/images/${shape?.image}`);
+	await expect(loaded).toHaveAttribute(
+		"src",
+		`/api/boards/${board.id}/images/${String(shape?.image)}`,
+	);
 	expect(await loaded.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBe(1400);
+
+	// Copied to another board of the owner's, its file comes too, to that board's own address.
+	const copied = await owner.evaluate(() => {
+		const data = new DataTransfer();
+		document
+			.querySelector(".react-flow")
+			?.dispatchEvent(
+				new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true }),
+			);
+		return data.getData("application/x-tack+json");
+	});
+	expect(copied).toContain(String(shape?.image));
+	const second = await owner.evaluate(async () => {
+		const response = await fetch("/api/boards", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ title: "More pictures", visibility: "private" }),
+		});
+		return (await response.json()) as { id: string; slug: string };
+	});
+	await owner.goto(`/b/${second.id}/${second.slug}`);
+	await expect(owner.getByRole("toolbar", { name: "Tools" })).toBeVisible({ timeout: 15_000 });
+	await settleCanvas(owner);
+	await owner.evaluate((json) => {
+		const data = new DataTransfer();
+		data.setData("application/x-tack+json", json);
+		document
+			.querySelector(".react-flow")
+			?.dispatchEvent(
+				new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+			);
+	}, copied);
+	await uploaded(owner, 1, "tackBoard");
+	await expect(owner.locator(".image-file[data-loaded]")).toHaveAttribute(
+		"src",
+		`/api/boards/${second.id}/images/${String(shape?.image)}`,
+	);
 
 	// Someone signed out can't fetch it.
 	const response = await (
 		await browser.newContext()
-	).request.get(new URL(`/api/boards/${board.id}/images/${shape?.image}`, owner.url()).toString());
+	).request.get(
+		new URL(`/api/boards/${board.id}/images/${String(shape?.image)}`, owner.url()).toString(),
+	);
 	expect(response.status()).toBe(404);
 });

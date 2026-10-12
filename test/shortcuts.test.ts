@@ -104,7 +104,13 @@ describe("the sheet", () => {
 
 	it("lists tools from the toolbar, including ones it doesn't know", () => {
 		const tools = sheetShortcuts(all, "", true).find((s) => s.group === "Tools");
-		expect(tools?.shortcuts.map((s) => s.label)).toEqual(["Select", "Sticky note", "Frame"]);
+		// Then the tools with shortcuts of their own (⇧⌘K for an image).
+		expect(tools?.shortcuts.map((s) => s.label)).toEqual([
+			"Select",
+			"Sticky note",
+			"Frame",
+			"Image from your files",
+		]);
 	});
 
 	it("shows one nudge entry, not one per arrow", () => {

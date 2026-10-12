@@ -399,7 +399,7 @@ function webpSize(bytes: Uint8Array, size: SizeOrNull) {
 function avifSize(bytes: Uint8Array, size: SizeOrNull) {
 	// The first `ispe` (image spatial extents) property: version and flags, then width and height.
 	const end = Math.min(bytes.length - 16, 64 * 1024);
-	for (let i = 4; i < end; i++) {
+	for (let i = 4; i <= end; i++) {
 		if (
 			bytes[i] === 0x69 &&
 			bytes[i + 1] === 0x73 &&
