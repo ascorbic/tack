@@ -72,6 +72,11 @@ export function planDisplayDrop(
 						placeInDisplay(doc, [...into], hover.section, hover.index, {
 							sizeOf,
 							cardOf: display.cardOf,
+							// What wasn't in it before the drop is joining, even if the
+							// drop's move has already put it in.
+							joining: new Set(
+								[...into].filter((id) => display.structure.parentOf.get(id) !== hover.section),
+							),
 						})
 				: adjusted.size > 0
 					? () => false

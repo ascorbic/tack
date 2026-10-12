@@ -679,13 +679,19 @@ export function joinDisplay(doc: Y.Doc, id: string, section: string, sizeOf?: Si
 /**
  * Put `ids` in a list or grid at `index` (in what it shows), whether or not
  * they're in it yet: what's joining gets a free-form spot. One transaction.
+ * `joining` says which of them came from elsewhere, when the caller knows:
+ * a drop's own moves may already have put them in by where they landed.
  */
 export function placeInDisplay(
 	doc: Y.Doc,
 	ids: readonly string[],
 	section: string,
 	index: number,
-	options: { sizeOf?: SizeOf; cardOf?: LayoutOptions["cardOf"] } = {},
+	options: {
+		sizeOf?: SizeOf;
+		cardOf?: LayoutOptions["cardOf"];
+		joining?: ReadonlySet<string>;
+	} = {},
 ): boolean {
 	let unsorted = false;
 	doc.transact(() => {
@@ -699,7 +705,7 @@ export function placeInDisplay(
 				shape.set("parent", section);
 				if (shape.has("order")) shape.delete("order");
 				joinDisplay(doc, id, section, options.sizeOf);
-			} else {
+			} else if (!options.joining?.has(id)) {
 				reordering = true;
 			}
 		}

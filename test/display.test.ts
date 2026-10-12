@@ -538,6 +538,23 @@ describe("containment with lists", () => {
 		expect(get("sorted")?.sort).toBeUndefined();
 		expect(layout({ cardOf }).sections.get("sorted")?.order).toEqual(["closed", "open", "joining"]);
 	});
+
+	it("keeps a sorted list sorted when a drop's own move already put what joins it in", () => {
+		const { doc, card, get } = board();
+		addSection(doc, { x: 0, y: 0, w: 640, h: 600 }, { id: "sorted" });
+		card("open", "github.com/a/b#12", 20, 20, "sorted");
+		card("joining", "github.com/a/b#21", 2000, 2000);
+		setDisplay(doc, ["sorted"], "list");
+		setSort(doc, "sorted", { by: "state" });
+		// The drop's move lands it over the list first, which takes it in.
+		shapesMap(doc).get("joining")?.set("parent", "sorted");
+		const placed = placeInDisplay(doc, ["joining"], "sorted", 0, {
+			cardOf,
+			joining: new Set(["joining"]),
+		});
+		expect(placed).toBe(false);
+		expect(get("sorted")?.sort).toEqual({ by: "state" });
+	});
 });
 
 describe("expanding from a row", () => {
