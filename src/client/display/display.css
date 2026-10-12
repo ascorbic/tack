@@ -1039,6 +1039,13 @@
 	box-shadow: var(--sticky-shadow-lifted);
 }
 
+/* A stack's row pops out as its theme card (#73), lifted like a card. */
+.display-preview .stack-card {
+	box-shadow:
+		0 0 0 1px var(--line),
+		var(--shadow-lifted);
+}
+
 @keyframes display-pop {
 	from {
 		opacity: 0;

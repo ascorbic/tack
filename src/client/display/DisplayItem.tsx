@@ -12,7 +12,7 @@ import type * as Y from "yjs";
 import type { Card } from "../../shared/cards.ts";
 import { type DotVote, dottersOn, voteFor } from "../../shared/dotvotes.ts";
 import type { StampCount, Stamper } from "../../shared/facilitation.ts";
-import { UNTITLED_STACK, nameState, stackName } from "../../shared/stacks.ts";
+import { UNTITLED_STACK, countMembers, nameState, stackName } from "../../shared/stacks.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { widgetDefinition } from "../../shared/widgetRegistry.ts";
@@ -84,6 +84,7 @@ function DisplayItem({ kind, ...props }: NodeProps<ShapeNode> & { kind: "row" | 
 			selected={!!props.selected}
 			tier={tier}
 			enter={enter}
+			holds={props.data.stack?.members.map((member) => member.shape.type)}
 		/>
 	);
 }
@@ -95,6 +96,8 @@ export interface ItemProps {
 	selected: boolean;
 	tier: "full" | "compact" | "far";
 	enter: boolean;
+	/** A stack's members' types, to say what it holds (#73). */
+	holds?: readonly (ShapeProps["type"] | undefined)[];
 	/** For the gallery: a silent sticky's side, without a pretend server. */
 	silentAs?: "face-down" | "mine";
 }
@@ -353,8 +356,16 @@ function useFlip(session: string | null): number {
 	return flip;
 }
 
-const PlainItem = memo(function PlainItem({ id, shape, kind, selected, tier, enter }: ItemProps) {
-	const { glyph, title, note } = describePlain(shape);
+const PlainItem = memo(function PlainItem({
+	id,
+	shape,
+	kind,
+	selected,
+	tier,
+	enter,
+	holds,
+}: ItemProps) {
+	const { glyph, title, note } = describePlain(shape, holds);
 	return (
 		<article
 			className={`display-item display-${kind === "mini" ? "mini" : "row"} display-plain`}
@@ -382,7 +393,10 @@ const DECISION_STATUS: Record<string, string> = {
 	superseded: "Superseded",
 };
 
-function describePlain(shape: ShapeProps): { glyph: string; title: string; note?: string } {
+function describePlain(
+	shape: ShapeProps,
+	holds?: ItemProps["holds"],
+): { glyph: string; title: string; note?: string } {
 	if (shape.type === "text") return { glyph: "T", title: shape.text || "Empty text" };
 	if (shape.type === "decision") {
 		return {
@@ -400,11 +414,12 @@ function describePlain(shape: ShapeProps): { glyph: string; title: string; note?
 		};
 	}
 	if (shape.type === "stack") {
-		// A stack (#73): its name (✨ while it's a suggestion); it pops out as its stack.
+		// A stack (#73): its name (✨ while it's a suggestion) and what it
+		// holds; it pops out as its theme card.
 		return {
 			glyph: nameState(shape) === "suggested" ? "✨" : "❐",
 			title: stackName(shape) ?? UNTITLED_STACK,
-			note: "Stack",
+			note: holds?.length ? countMembers(holds) : "Stack",
 		};
 	}
 	if (shape.type === "widget") {

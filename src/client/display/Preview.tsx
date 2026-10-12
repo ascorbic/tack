@@ -2,11 +2,13 @@ import { NodeToolbar, Position } from "@xyflow/react";
 import { useContext, useEffect, useSyncExternalStore } from "react";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
+import { membersOf } from "../../shared/stacks.ts";
 import { CardView } from "../CardView.tsx";
 import { useCard } from "../cardStore.ts";
 import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { useSilentTexts } from "../facilitation/store.ts";
 import { useCardProvenance } from "../Provenance.tsx";
+import { StackPapers } from "../stacks/StackNode.tsx";
 import { StickyView, tilt } from "../StickyNode.tsx";
 import type { DisplayState } from "./useDisplay.ts";
 
@@ -14,7 +16,8 @@ import type { DisplayState } from "./useDisplay.ts";
 // moment's intent (and at once while one's already showing, so running the
 // pointer down a list reads it), and pinned while the row is selected on its
 // own, beside its usual actions. Drawn at screen size, so a list read from
-// far away still pops out legibly.
+// far away still pops out legibly. A stack's row pops out as its theme card
+// (#73): its name and its first few stickies and cards.
 
 /** How long the pointer rests on a row before its card pops out. */
 const SHOW_MS = 260;
@@ -93,7 +96,7 @@ export function DisplayPreview({
 		const slot = display.slots.get(id);
 		const shape = display.shapes.get(id);
 		if (!slot || slot.dragging || slot.kind === "group" || !shape) return null;
-		if (shape.type !== "card" && shape.type !== "sticky") return null;
+		if (shape.type !== "card" && shape.type !== "sticky" && shape.type !== "stack") return null;
 		return { id, slot, shape };
 	};
 	const target = suppressed ? null : (previewable(hovered) ?? previewable(only));
@@ -120,6 +123,8 @@ export function DisplayPreview({
 			>
 				{target.shape.type === "card" ? (
 					<CardPreview id={target.id} shape={target.shape} />
+				) : target.shape.type === "stack" ? (
+					<StackPreview id={target.id} shape={target.shape} shapes={display.shapes} />
 				) : (
 					<StickyPreview id={target.id} shape={target.shape} />
 				)}
@@ -138,6 +143,24 @@ function CardPreview({ id, shape }: { id: string; shape: ShapeProps }) {
 		useContext(ReadOnlyContext),
 	);
 	return <CardView card={card} cardKey={key} origin={origin} unmatched={unmatched} />;
+}
+
+function StackPreview({
+	id,
+	shape,
+	shapes,
+}: {
+	id: string;
+	shape: ShapeProps;
+	shapes: ReadonlyMap<string, ShapeProps>;
+}) {
+	const members = membersOf(shapes, id).flatMap((member) => {
+		const props = shapes.get(member);
+		return props ? [{ id: member, shape: props }] : [];
+	});
+	return (
+		<StackPapers id={id} shape={shape} view={{ members, open: false, receiving: false, fed: 0 }} />
+	);
 }
 
 function StickyPreview({ id, shape }: { id: string; shape: ShapeProps }) {

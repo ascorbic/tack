@@ -31,6 +31,7 @@ interface Case {
 	id?: string;
 	selected?: boolean;
 	silentAs?: ItemProps["silentAs"];
+	holds?: ItemProps["holds"];
 }
 
 const at = { x: 0, y: 0, z: "a0" };
@@ -106,6 +107,18 @@ const CASES: Case[] = [
 		shape: { type: "decision", title: "Drop Node 18 in 5.0", status: "decided", ...at },
 	},
 	{
+		label: "Stack, named",
+		state: "stack",
+		shape: { type: "stack", title: "Big sites are slow", ...at },
+		holds: ["sticky", "sticky", "sticky"],
+	},
+	{
+		label: "Stack, a suggested name, issues and stickies",
+		state: "stack-suggested",
+		shape: { type: "stack", suggested: { title: "Release notes", hash: "x" }, ...at },
+		holds: ["sticky", "card", "card", "sticky", "card"],
+	},
+	{
 		label: "Widget",
 		state: "widget",
 		shape: { type: "widget", widget: "list", config: { title: "Open bugs" }, ...at },
@@ -145,6 +158,7 @@ function Item({ c, kind, tier }: { c: Case; kind: "row" | "mini"; tier: ItemProp
 			tier={tier}
 			enter={false}
 			silentAs={c.silentAs}
+			holds={c.holds}
 		/>
 	);
 }
