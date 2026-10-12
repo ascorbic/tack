@@ -4,6 +4,7 @@ import {
 	type SearchTerm,
 	alternatives,
 	parseSearch,
+	searchKind,
 	searchScope,
 } from "../../shared/search.ts";
 import type { ListConfig } from "../../shared/widgetRegistry.ts";
@@ -22,8 +23,10 @@ export function describeSearch(q: string): string {
 			(term) =>
 				!term.negated && term.key === key && (value === undefined || lower(term.value) === value),
 		);
-	const kind =
-		has("is", "pr") || has("type", "pr")
+	const discussions = has("is", "discussion") || has("type", "discussion");
+	const kind = discussions
+		? "discussions"
+		: has("is", "pr") || has("type", "pr")
 			? "pull requests"
 			: has("is", "issue") || has("type", "issue")
 				? "issues"
@@ -32,12 +35,18 @@ export function describeSearch(q: string): string {
 		? "Merged"
 		: has("is", "draft")
 			? "Draft"
-			: has("is", "open") || has("state", "open")
-				? "Open"
-				: has("is", "closed") || has("state", "closed")
-					? "Closed"
-					: "";
+			: has("is", "unanswered")
+				? "Unanswered"
+				: has("is", "answered")
+					? "Answered"
+					: has("is", "open") || has("state", "open")
+						? "Open"
+						: has("is", "closed") || has("state", "closed")
+							? "Closed"
+							: "";
 	const parts: string[] = [state ? `${state} ${kind}` : capitalise(kind)];
+	const category = parsed.terms.find((term) => term.key === "category" && !term.negated);
+	if (category) parts.push(`in ${category.value}`);
 	const labels = parsed.terms
 		.filter((term) => term.key === "label" && !term.negated)
 		.flatMap((term) => alternatives(term));
@@ -113,6 +122,13 @@ export function dropNote(q: string): { ok: boolean; text: string } {
 		return {
 			ok: false,
 			text: `It searches for words (${words.map((w) => `“${w.value}”`).join(", ")}), so dropping cards on it can't make them match.`,
+		};
+	}
+	// Discussions have no assignees or milestones.
+	if (searchKind(parsed) === "discussion") {
+		return {
+			ok: true,
+			text: "Drop discussions on it to stage the labels and state that make them match.",
 		};
 	}
 	return {

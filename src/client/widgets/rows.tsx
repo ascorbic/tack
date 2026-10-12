@@ -21,6 +21,10 @@ function signature(card: Card): string {
 		card.assignees.map((a) => a.login),
 		card.pull?.checks?.state,
 		card.pull?.review,
+		// What a discussion's row counts.
+		card.discussion?.upvotes,
+		card.discussion?.answered,
+		card.discussion ? card.comments : null,
 	]);
 }
 

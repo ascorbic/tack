@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { BoardInfo, CarryResponse } from "../../shared/boards.ts";
 import type { Stager } from "../../shared/changes.ts";
-import type { RepoMeta } from "../../shared/push.ts";
+import type { RepoDiscussionCategory, RepoMeta } from "../../shared/push.ts";
 import type { QueryError, RelatedResult, SearchResult } from "../../shared/widgets.ts";
 import { canEdit } from "../../shared/boards.ts";
 import { type AiService, liveAi } from "../ai/service.ts";
@@ -24,6 +24,11 @@ export interface WriteServices {
 	boardTitle(): string | null;
 	/** Labels, milestones, people and access for a repository (`github.com/o/r`), or null if unknown. */
 	repoMeta(repo: string): Promise<RepoMeta | null>;
+	/**
+	 * A repository's discussion categories (`github.com/o/r`), for a list's
+	 * Discussions mode: empty if it has none, null if that can't be known.
+	 */
+	discussionCategories?(repo: string): Promise<RepoDiscussionCategory[] | null>;
 	/** Upload a PNG snapshot; resolves to its public URL. Throws with a message people can read. */
 	uploadSnapshot(png: Blob): Promise<string>;
 	/** What's related to an item, as this viewer may see it (Expand related). Never throws. */
@@ -63,6 +68,18 @@ export function liveServices(boardId: string): WriteServices {
 		images: liveImages(boardId),
 		// The shared repository endpoint (src/client/changes/api.ts).
 		repoMeta: (repo) => repoApi.meta(repo).catch(() => null),
+		async discussionCategories(repo) {
+			try {
+				const response = await fetch(`/api/repos/categories?${new URLSearchParams({ repo })}`, {
+					headers: { accept: "application/json" },
+				});
+				if (!response.ok) return null;
+				const body = (await response.json()) as { categories?: RepoDiscussionCategory[] };
+				return Array.isArray(body.categories) ? body.categories : null;
+			} catch {
+				return null;
+			}
+		},
 		async uploadSnapshot(png) {
 			let response: Response;
 			try {

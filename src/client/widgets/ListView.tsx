@@ -3,15 +3,19 @@ import {
 	type PointerEvent as ReactPointerEvent,
 	type ReactNode,
 	useId,
+	useLayoutEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import type { Card } from "../../shared/cards.ts";
 import type { MatchStep } from "../../shared/search.ts";
 import { mightMiss } from "../../shared/queryHelp.ts";
 import { mentionsMe, parseSearch } from "../../shared/search.ts";
+import type { FilledPreset } from "../../shared/widgetRegistry.ts";
 import type { QueryError, SearchResult } from "../../shared/widgets.ts";
-import { StateIcon, cardTone } from "../CardView.tsx";
+import { StateIcon, cardTone, stateLabel } from "../CardView.tsx";
+import { scaledDuration } from "../motion.ts";
 import {
 	Count,
 	PersonalChip,
@@ -25,14 +29,17 @@ import {
 import { type Motion, rowActivation, useRowMotion } from "./rows.tsx";
 import { queryChips } from "./describe.ts";
 import {
+	CommentIcon,
 	DropIcon,
 	ExternalIcon,
 	ListIcon,
+	LockIcon,
 	PinIcon,
 	RefreshIcon,
 	SearchIcon,
 	SettingsIcon,
 	StepIcon,
+	UpvoteIcon,
 	WarnIcon,
 } from "./icons.tsx";
 import { safeUrl } from "../changes/inline.ts";
@@ -75,8 +82,8 @@ export interface ListViewProps {
 	/** For the gallery: a fixed "now". */
 	now?: number;
 	/** Ready-made searches to offer while it's not set up. */
-	presets?: { label: string; q: string; title: string }[];
-	onPreset?: (preset: { q: string; title: string }) => void;
+	presets?: FilledPreset[];
+	onPreset?: (preset: FilledPreset) => void;
 	onRefresh?: () => void;
 	onConfigure?: () => void;
 	onRowHover?: (key: string | null) => void;
@@ -264,9 +271,10 @@ function Body(props: ListViewProps) {
 
 function Rows(props: ListViewProps & { rows: Card[]; stale: boolean }) {
 	const shown = useRowMotion(props.rows);
+	const list = useReorder(shown.map(({ card, motion }) => (motion === "leave" ? "" : card.key)));
 	let entering = 0;
 	return (
-		<ul className="widget-rows" aria-label="Matches">
+		<ul ref={list} className="widget-rows" aria-label="Matches">
 			{shown.map(({ card, motion }) => (
 				<Row
 					key={motion === "leave" ? `leave:${card.key}` : card.key}
@@ -314,9 +322,12 @@ function Row({
 }) {
 	const repo = card.repo.split("/").at(-1);
 	const activation = rowActivation(card, onBoard, { readOnly, onRowActivate: onActivate });
+	const discussion = card.discussion;
+	const labels = discussion ? 2 : 3;
 	return (
 		<li
 			className="widget-row nodrag nopan"
+			data-key={card.key}
 			{...cardTone(card)}
 			data-motion={motion}
 			data-linked={linked || undefined}
@@ -335,10 +346,31 @@ function Row({
 			<span className="widget-row-main" {...activation.handle}>
 				<span className="widget-row-title">{card.title}</span>
 				<span className="widget-row-meta">
+					{discussion?.category.emoji && (
+						<span
+							className="widget-row-category"
+							role="img"
+							aria-label={`Category: ${discussion.category.name}`}
+							title={discussion.category.name}
+						>
+							{discussion.category.emoji}
+						</span>
+					)}
 					<span className="mono">
 						{repo} {card.item}
 					</span>
-					{card.labels.slice(0, 3).map((label) => (
+					{discussion && <DiscussionStatus card={card} />}
+					{discussion?.locked && (
+						<span
+							className="widget-row-locked"
+							role="img"
+							aria-label="Locked"
+							title="Locked: only people who can write here can comment"
+						>
+							<LockIcon size={11} />
+						</span>
+					)}
+					{card.labels.slice(0, labels).map((label) => (
 						<span
 							key={label.name}
 							className="chip label widget-row-label"
@@ -347,12 +379,13 @@ function Row({
 							{label.name}
 						</span>
 					))}
-					{card.labels.length > 3 && (
-						<span className="widget-row-more">+{card.labels.length - 3}</span>
+					{card.labels.length > labels && (
+						<span className="widget-row-more">+{card.labels.length - labels}</span>
 					)}
 				</span>
 			</span>
 			<span className="widget-row-side">
+				{discussion && <DiscussionCounts card={card} />}
 				{card.assignees.length > 0 && (
 					<span className="avatars widget-row-avatars">
 						{card.assignees.slice(0, 2).map((a) => (
@@ -392,6 +425,62 @@ function Row({
 				)}
 			</span>
 		</li>
+	);
+}
+
+/**
+ * How a discussion ended, or that it's answered, as its card says it: a
+ * green tick for an answer, and resolved, outdated or duplicate once closed.
+ * Open and unanswered says nothing: the bubble already does.
+ */
+function DiscussionStatus({ card }: { card: Card }) {
+	const answered = card.state === "open" && card.discussion?.answered;
+	if (card.state === "open" && !answered) return null;
+	return (
+		<span
+			className="widget-row-status"
+			data-status={answered ? "answered" : (card.stateReason ?? "closed")}
+			title={
+				answered && card.discussion?.answer?.author
+					? `Answered by ${card.discussion.answer.author}`
+					: undefined
+			}
+		>
+			{(answered || card.stateReason === "resolved") && (
+				<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
+					<path d="M2.75 6.25 5 8.5l4.25-4.75" />
+				</svg>
+			)}
+			{stateLabel(card)}
+		</span>
+	);
+}
+
+/** A discussion's upvotes and comments, as its card counts them. */
+function DiscussionCounts({ card }: { card: Card }) {
+	const upvotes = card.discussion?.upvotes;
+	return (
+		<span className="widget-row-counts">
+			{upvotes !== undefined && (
+				<span
+					className="widget-row-upvotes"
+					key={upvotes}
+					title={`${upvotes} ${upvotes === 1 ? "upvote" : "upvotes"}`}
+				>
+					<UpvoteIcon size={11} />
+					<span className="visually-hidden">Upvotes: </span>
+					{upvotes}
+				</span>
+			)}
+			<span
+				className="widget-row-comments"
+				title={`${card.comments} ${card.comments === 1 ? "comment" : "comments"}`}
+			>
+				<CommentIcon size={11} />
+				<span className="visually-hidden">Comments: </span>
+				{card.comments}
+			</span>
+		</span>
 	);
 }
 
@@ -481,6 +570,40 @@ function Footer({
 				: `${shown} ${shown === 1 ? "match" : "matches"}`}
 		</WidgetFoot>
 	);
+}
+
+/**
+ * Rows that change places glide to their new ones (a list of the most
+ * upvoted re-sorting as votes come in), rather than jumping: each row's
+ * old place is remembered, and it starts from there. Rows coming and going
+ * have their own motion, so only rows that stayed move.
+ */
+function useReorder(keys: string[]) {
+	const list = useRef<HTMLUListElement>(null);
+	const tops = useRef(new Map<string, number>());
+	const order = keys.join("\n");
+	useLayoutEffect(() => {
+		const el = list.current;
+		if (!el) return;
+		const before = tops.current;
+		const after = new Map<string, number>();
+		const rows = el.querySelectorAll<HTMLElement>(":scope > [data-key]");
+		for (const row of rows) after.set(row.dataset.key ?? "", row.offsetTop);
+		tops.current = after;
+		const duration = scaledDuration(420);
+		if (before.size === 0 || duration === 0) return;
+		for (const row of rows) {
+			if (row.dataset.motion === "enter" || row.dataset.motion === "leave") continue;
+			const was = before.get(row.dataset.key ?? "");
+			const now = after.get(row.dataset.key ?? "");
+			if (was === undefined || now === undefined || was === now) continue;
+			row.animate([{ transform: `translateY(${was - now}px)` }, { transform: "none" }], {
+				duration,
+				easing: "cubic-bezier(0.2, 0.9, 0.25, 1.05)",
+			});
+		}
+	}, [order]);
+	return list;
 }
 
 /**

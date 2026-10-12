@@ -8,7 +8,6 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import type * as Y from "yjs";
 import { boardRepos } from "../../shared/actions.ts";
 import type { ShapeProps } from "../../shared/shapes.ts";
 import type { QueryError, SearchResult } from "../../shared/widgets.ts";
@@ -18,6 +17,7 @@ import {
 	listConfig,
 	listPresets,
 	listWidget,
+	presetConfig,
 	readConfig,
 	updateWidgetConfig,
 	widgetDefinition,
@@ -30,6 +30,7 @@ import { cardStore } from "../cardStore.ts";
 import { DocContext, HistoryContext, ReadOnlyContext, SectionContext } from "../DocContext.ts";
 import { RESIZE_HANDLES, ResizeGrip } from "../sections.tsx";
 import { transactLocal } from "../undo.ts";
+import { useDiscussionCategories } from "./categories.ts";
 import { ListConfigPanel, SchemaConfigPanel } from "./ConfigPanel.tsx";
 import { WidgetContext } from "./context.ts";
 import { CustomWidget } from "./custom/CustomWidget.tsx";
@@ -144,9 +145,19 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 		);
 	}, [hovering, doc, config, configured, board.user?.login]);
 
-	const repo = doc ? suggestedRepo(doc) : null;
+	const busiest = doc ? boardRepos(doc)[0]?.repo : undefined;
+	const repo = busiest ? busiest.split("/").slice(1).join("/") : null;
 	const login = board.user?.login ?? null;
-	const presets = useMemo(() => listPresets(repo, login), [repo, login]);
+	// Ready-made discussion lists that fit the repository's categories, while it's empty.
+	const categories = useDiscussionCategories(
+		busiest?.split("/")[0] ?? config.host,
+		repo,
+		!configured && !readOnly,
+	);
+	const presets = useMemo(
+		() => listPresets(repo, login, { categories: categories.value }),
+		[repo, login, categories.value],
+	);
 	const change = (changes: Partial<ListConfig>) => {
 		if (doc) transactLocal(doc, () => updateWidgetConfig(doc, id, changes));
 	};
@@ -167,7 +178,7 @@ function ListWidget({ id, shape, selected }: { id: string; shape: ShapeProps; se
 				drop={drop}
 				lifted={rowDrag.lifted}
 				presets={presets}
-				onPreset={(preset) => change({ q: preset.q, title: config.title || preset.title })}
+				onPreset={(preset) => change(presetConfig(preset, config))}
 				onRefresh={configured ? () => widgetStore.refresh(id) : undefined}
 				onConfigure={readOnly ? undefined : () => setConfigOpen((open) => !open)}
 				onRowHover={(key) => linkStore.set(key, "row")}
@@ -222,12 +233,6 @@ export function listStatus(
 	if (result.kind !== "search") return { kind: "loading" };
 	const period = (listWidget.refresh ?? 300) * 1000;
 	return { kind: "ready", result, at: data.at, stale: now - data.at > period * STALE_PERIODS };
-}
-
-/** The board's busiest repository, for ready-made searches: `owner/name`. */
-function suggestedRepo(doc: Y.Doc): string | null {
-	const busiest = boardRepos(doc)[0]?.repo;
-	return busiest ? busiest.split("/").slice(1).join("/") : null;
 }
 
 /** A widget this version can't show (or has no view for yet): it keeps its place and config. */

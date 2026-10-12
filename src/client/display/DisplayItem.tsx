@@ -178,6 +178,19 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 						<span className="display-state display-state-blank" aria-hidden="true" />
 					)}
 					<span className="display-number mono">{item}</span>
+					{tier === "full" && card?.discussion?.category.emoji && (
+						<span
+							className="display-category"
+							title={`Category: ${card.discussion.category.name}`}
+							aria-label={`Category: ${card.discussion.category.name}`}
+							role="img"
+						>
+							{card.discussion.category.emoji}
+						</span>
+					)}
+					{tier === "full" && card?.discussion?.upvotes !== undefined && (
+						<Upvotes count={card.discussion.upvotes} />
+					)}
 					<DisplayMarks id={id} compact />
 				</span>
 				<span className="display-mini-title">
@@ -247,6 +260,9 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 			{tier === "full" && card && (state !== "open" || card.discussion?.answered) && (
 				<span className="display-chip">{stateLabel(card)}</span>
 			)}
+			{tier === "full" && card?.discussion?.upvotes !== undefined && (
+				<Upvotes count={card.discussion.upvotes} />
+			)}
 			{tier === "full" && card && card.assignees.length > 0 && (
 				<span
 					className="display-avatars"
@@ -262,6 +278,19 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 		</article>
 	);
 });
+
+/** A discussion's upvotes, in its card's blue, with its arrow. */
+function Upvotes({ count }: { count: number }) {
+	return (
+		<span className="display-upvotes" title={`${count} ${count === 1 ? "upvote" : "upvotes"}`}>
+			<svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true">
+				<path d="M8 3.25 3.5 8.5h3v4.25h3V8.5h3z" />
+			</svg>
+			<span className="visually-hidden">Upvotes: </span>
+			{count}
+		</span>
+	);
+}
 
 const StickyItem = memo(function StickyItem({
 	id,

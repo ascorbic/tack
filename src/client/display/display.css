@@ -224,6 +224,22 @@
 	line-height: 1;
 }
 
+/* Its upvotes, in the discussion blue its card counts them in. */
+.display-upvotes {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	color: var(--discussion);
+	font-size: 10.5px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+}
+
+.display-upvotes svg {
+	fill: currentColor;
+}
+
 .display-label-dots {
 	flex: none;
 	display: inline-flex;
@@ -1227,4 +1243,13 @@
 	padding: 18px 10px 8px;
 	background: linear-gradient(transparent, rgb(0 0 0 / 55%));
 	color: #fff;
+}
+
+/* A mini card counts a discussion's upvotes at the top right, before its marks. */
+.display-mini-head .display-upvotes {
+	margin-left: auto;
+}
+
+.display-mini-head .display-upvotes + .display-marks {
+	margin-left: 0;
 }

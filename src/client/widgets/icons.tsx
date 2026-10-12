@@ -271,3 +271,55 @@ export function PlayIcon({ size = 12 }: { size?: number }) {
 		</Icon>
 	);
 }
+
+/** Issues and pull requests: an open issue's ring. */
+export function IssuesIcon({ size = 14 }: { size?: number }) {
+	return (
+		<Icon size={size}>
+			<circle cx="8" cy="8" r="5.75" />
+			<circle cx="8" cy="8" r="1.4" className="fill" />
+		</Icon>
+	);
+}
+
+/** Discussions: a speech bubble, as a discussion's card draws it. */
+export function DiscussionsIcon({ size = 14 }: { size?: number }) {
+	return (
+		<Icon size={size}>
+			<path d="M2.75 3.25h10.5a.5.5 0 0 1 .5.5v6.5a.5.5 0 0 1-.5.5H8l-3.25 2.5v-2.5h-2a.5.5 0 0 1-.5-.5v-6.5a.5.5 0 0 1 .5-.5z" />
+		</Icon>
+	);
+}
+
+/** An upvote: the discussion card's filled arrow. */
+export function UpvoteIcon({ size = 12 }: { size?: number }) {
+	return (
+		<svg
+			className="widget-icon upvote-icon"
+			width={size}
+			height={size}
+			viewBox="0 0 16 16"
+			aria-hidden="true"
+		>
+			<path d="M8 3.25 3.5 8.5h3v4.25h3V8.5h3z" fill="currentColor" />
+		</svg>
+	);
+}
+
+/** Comments: the card's bubble. */
+export function CommentIcon({ size = 12 }: { size?: number }) {
+	return (
+		<Icon size={size}>
+			<path d="M2.5 3h11v7.5H7l-3 2.5v-2.5H2.5z" />
+		</Icon>
+	);
+}
+
+/** Take something away: a small cross. */
+export function CrossIcon({ size = 10 }: { size?: number }) {
+	return (
+		<Icon size={size}>
+			<path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+		</Icon>
+	);
+}

@@ -1649,3 +1649,323 @@ body[data-row-drag] * {
 .widget-sample {
 	width: 360px;
 }
+
+/* Discussions mode ---------------------------------------------------------------
+   A switch at the top of the list's panel, and controls that write the search:
+   the repository, its categories as chips (emoji and name, as GitHub shows
+   them), answered, open or closed, and labels. */
+
+.widget-segmented[data-stretch] {
+	display: flex;
+	width: 100%;
+}
+
+.widget-segmented[data-stretch] button {
+	flex: 1 1 auto;
+	padding: 0 6px;
+	white-space: nowrap;
+}
+
+.widget-segmented button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+}
+
+.widget-segmented button .widget-icon {
+	flex: none;
+	opacity: 0.8;
+}
+
+.widget-segmented button[aria-checked="true"] .widget-icon {
+	opacity: 1;
+}
+
+.widget-mode {
+	margin: -2px 0 14px;
+}
+
+.widget-mode .widget-segmented button {
+	height: 28px;
+	font-size: 12.5px;
+}
+
+/* The bubble lights up in the discussion blue when it's chosen. */
+.widget-mode .widget-segmented button[aria-checked="true"]:last-child .widget-icon {
+	color: var(--discussion);
+}
+
+.widget-discussion-fields {
+	animation: fields-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes fields-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+}
+
+.widget-mode-presets {
+	margin: 0 0 12px;
+}
+
+.widget-preset[aria-pressed="true"] {
+	border-color: var(--accent);
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.widget-categories {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+
+.widget-category {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 10px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--ink-soft);
+	font-size: 12px;
+	font-weight: 560;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+	animation: step-in var(--t-base) var(--ease-spring) backwards;
+}
+
+.widget-category:hover {
+	border-color: var(--line-strong);
+	color: var(--ink);
+	transform: translateY(-1px);
+}
+
+.widget-category:active {
+	transform: scale(0.96);
+}
+
+.widget-category[aria-checked="true"] {
+	border-color: color-mix(in srgb, var(--discussion) 55%, transparent);
+	background: var(--discussion-bg);
+	color: var(--discussion);
+}
+
+.widget-category:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.widget-category-emoji {
+	font-size: 13px;
+	line-height: 1;
+	/* Emoji fonts sit high beside text. */
+	transform: translateY(0.5px);
+}
+
+.widget-category-skeleton {
+	width: 72px;
+	height: 26px;
+	border-radius: 999px;
+	background: linear-gradient(
+		90deg,
+		var(--skeleton) 25%,
+		var(--skeleton-shine) 50%,
+		var(--skeleton) 75%
+	);
+	background-size: 200% 100%;
+	animation: shimmer calc(1400ms * var(--motion)) linear infinite;
+	animation-delay: calc(var(--i, 0) * 120ms * var(--motion));
+}
+
+.widget-field-aside {
+	display: grid;
+	gap: 4px;
+	margin: 0 0 12px;
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.4;
+	text-wrap: pretty;
+}
+
+.widget-field input[aria-invalid="true"] {
+	border-color: var(--pending-ink);
+}
+
+.widget-labels {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 5px;
+	min-height: 26px;
+}
+
+.chip.label.widget-label-chip {
+	gap: 3px;
+	padding: 0 3px 0 8px;
+	line-height: 22px;
+	animation: label-in var(--t-settle) var(--ease-spring);
+}
+
+.chip.widget-label-chip:not([style]) {
+	background: var(--chip);
+	color: var(--ink-soft);
+}
+
+.widget-label-chip button {
+	display: grid;
+	place-items: center;
+	width: 16px;
+	height: 16px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: inherit;
+	opacity: 0.6;
+	cursor: pointer;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+}
+
+.widget-label-chip button:hover {
+	background: color-mix(in srgb, currentColor 14%, transparent);
+	opacity: 1;
+}
+
+.widget-label-add select,
+.widget-field .widget-label-add select {
+	width: auto;
+	height: 24px;
+	padding: 0 10px;
+	border: 1px dashed var(--line-strong);
+	border-radius: 999px;
+	background: transparent;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 560;
+	cursor: pointer;
+	appearance: none;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out);
+}
+
+.widget-label-add select:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+.widget-labels-none {
+	color: var(--muted);
+	font-size: 12px;
+}
+
+/* Discussions in a list: the category's emoji leads the meta line, how it
+   ended (answered, resolved) follows its number, and the side counts its
+   upvotes, in the discussion blue its card uses, and its comments. */
+
+.widget-row-category {
+	flex: none;
+	font-size: 13px;
+	line-height: 1;
+	/* Emoji fonts sit high beside text. */
+	transform: translateY(0.5px);
+}
+
+.widget-row-status {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--state-bg);
+	color: var(--state);
+	font-size: 10px;
+	font-weight: 600;
+	line-height: 16px;
+}
+
+.widget-row-status svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.9;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	margin-left: -1px;
+}
+
+.widget-row-locked {
+	flex: none;
+	display: inline-flex;
+	color: var(--muted);
+}
+
+.widget-row-counts {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 3px;
+	min-width: 34px;
+	font-variant-numeric: tabular-nums;
+}
+
+.widget-row-upvotes,
+.widget-row-comments {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	font-size: 11px;
+	line-height: 1;
+}
+
+.widget-row-upvotes {
+	padding: 3px 6px 3px 4px;
+	border-radius: 7px;
+	background: var(--discussion-bg);
+	color: var(--discussion);
+	font-weight: 650;
+}
+
+.widget-row-comments {
+	padding-right: 6px;
+	color: var(--muted);
+	font-weight: 520;
+}
+
+.widget-row-comments .widget-icon {
+	stroke-width: 1.4;
+}
+
+/* A new vote: the count pops up, as a card's does. */
+.widget-row[data-motion="changed"] .widget-row-upvotes {
+	animation: upvote-pop var(--t-settle) var(--ease-spring);
+}
+
+.widget-row[data-motion="changed"] .widget-row-upvotes .upvote-icon {
+	animation: upvote-nudge var(--t-settle) var(--ease-spring);
+}
+
+@keyframes upvote-pop {
+	30% {
+		transform: scale(1.12);
+	}
+}
+
+@keyframes upvote-nudge {
+	30% {
+		transform: translateY(-2px);
+	}
+}

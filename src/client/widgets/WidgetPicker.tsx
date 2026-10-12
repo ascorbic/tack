@@ -2,7 +2,7 @@ import { type DragEvent, useState } from "react";
 import { AI_PROMPT_MAX } from "../../shared/ai.ts";
 import { CUSTOM_KIND } from "../../shared/customWidgets.ts";
 import { SparkIcon } from "../ai/icons.tsx";
-import { WIDGETS, listPresets } from "../../shared/widgetRegistry.ts";
+import { WIDGETS, listPresets, presetConfig } from "../../shared/widgetRegistry.ts";
 import { useCustomWidgets } from "./custom/state.ts";
 import { CodeIcon, ListIcon, MilestoneIcon, ReviewIcon, StaleIcon, UnknownIcon } from "./icons.tsx";
 import { DependencyIcon, ReleaseIcon, TimelineIcon } from "./kindIcons.tsx";
@@ -116,7 +116,7 @@ export function WidgetPicker({
 					)}
 				</span>
 				{presets.map((preset) => {
-					const config = { q: preset.q, title: preset.title };
+					const config = presetConfig(preset);
 					return (
 						<button
 							key={preset.label}
