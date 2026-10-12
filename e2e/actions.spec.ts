@@ -512,7 +512,7 @@ test("cards without the app can't be changed", async ({ page }) => {
 test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
-	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(6);
+	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(7);
 	// 27, and Auto-stack's nine (#73): one with cards included, two of cards
 	// alone, and a section with more than it reads at once.
 	await expect(page.locator(".action-popover")).toHaveCount(36);

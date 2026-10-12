@@ -1,10 +1,18 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { addShape } from "../../shared/shapes.ts";
+import type { SectionColor } from "../../shared/sections.ts";
 import { addConnector } from "../../shared/structure.ts";
 import { type Action, ActionButton } from "../actions/ActionBar.tsx";
 import { BacklinkPanel } from "../actions/BacklinkPanel.tsx";
 import { BlockedByAction } from "../actions/BlockedBy.tsx";
+import { type BarEntry, BarDivider, MoreMenu, SectionColour } from "../actions/SectionBar.tsx";
+import { DraftDecisionIcon, SummariseIcon } from "../ai/icons.tsx";
+import { DisplaySwitch } from "../display/DisplaySwitch.tsx";
+import { DocContext } from "../DocContext.ts";
+import { DotsIcon, HushIcon } from "../facilitation/icons.tsx";
+import { TrayIcon } from "../inbox/icons.tsx";
+import { SparkIcon } from "../stacks/StackNode.tsx";
 import {
 	type ExpandSummary,
 	type RelatedState,
@@ -14,6 +22,7 @@ import {
 import {
 	BacklinkIcon,
 	CloseIssueIcon,
+	FitIcon,
 	IssueIcon,
 	LabelIcon,
 	MilestoneIcon,
@@ -82,7 +91,13 @@ const CARD_ACTIONS: Action[] = [
 	{ id: "parentIssue", label: "Make a parent issue", icon: <ParentIcon /> },
 ];
 
-const BARS: { label: string; actions: Action[]; open?: string; install?: boolean }[] = [
+const BARS: {
+	label: string;
+	actions: Action[];
+	open?: string;
+	install?: boolean;
+	section?: "all" | "small";
+}[] = [
 	{ label: "Stickies", actions: STICKY_ACTIONS },
 	{
 		label: "Stickies, already staged",
@@ -97,16 +112,11 @@ const BARS: { label: string; actions: Action[]; open?: string; install?: boolean
 		],
 	},
 	{
-		label: "A section",
-		actions: [
-			{
-				id: "parentIssue",
-				label: "Make a parent issue from this section",
-				icon: <ParentIcon />,
-				text: "Make parent issue",
-			},
-		],
+		label: "A section on its own: its tools, then what it can become",
+		actions: [],
+		section: "all",
 	},
+	{ label: "A section small on screen: the rest in …", actions: [], section: "small" },
 	{ label: "Cards, labels open", actions: CARD_ACTIONS, open: "labels" },
 	{
 		label: "One card",
@@ -147,6 +157,86 @@ function Bar({ actions, open, install }: { actions: Action[]; open?: string; ins
 				</a>
 			)}
 		</div>
+	);
+}
+
+const entry = (group: BarEntry["group"], action: BarEntry["action"]): BarEntry => ({
+	key: action.id,
+	group,
+	action,
+	pressed: false,
+	run: () => {},
+});
+
+const SECTION_ENTRIES: BarEntry[] = [
+	entry("facilitate", { id: "startSilent", label: "Silent mode", icon: <HushIcon size={16} /> }),
+	entry("facilitate", { id: "startVote", label: "Vote", icon: <DotsIcon size={16} /> }),
+	entry("facilitate", { id: "makeInbox", label: "Make inbox", icon: <TrayIcon size={16} /> }),
+	entry("actions", {
+		id: "parentIssue",
+		label: "Make a parent issue from this section",
+		icon: <ParentIcon />,
+		text: "Make parent issue",
+	}),
+	entry("actions", {
+		id: "groupThese",
+		label: "Auto-stack: sort this section into named stacks",
+		icon: <SparkIcon />,
+		text: "Auto-stack",
+	}),
+	entry("actions", {
+		id: "fitSection",
+		label: "Fit to contents",
+		icon: <FitIcon />,
+		text: "Fit",
+		quiet: true,
+	}),
+	entry("actions", { id: "summarise", label: "Summarise with AI", icon: <SummariseIcon /> }),
+	entry("actions", {
+		id: "draftDecision",
+		label: "Draft a decision with AI",
+		icon: <DraftDecisionIcon />,
+	}),
+];
+
+const sectionDoc = new Y.Doc();
+
+/** A lone section's bar, as the board draws it: all of it, or cut short with a … menu. */
+function SectionBarSample({ small }: { small: boolean }) {
+	const [color, setColor] = useState<SectionColor>(small ? "green" : "blue");
+	const more = useRef<HTMLButtonElement>(null);
+	const shown = small ? 4 : SECTION_ENTRIES.length;
+	const visible = SECTION_ENTRIES.slice(0, shown);
+	return (
+		<DocContext value={sectionDoc}>
+			<div className="selection-actions" role="toolbar" aria-label="Stage changes" data-section>
+				<SectionColour color={color} onColor={setColor} />
+				<BarDivider />
+				<DisplaySwitch
+					id="gallery-section"
+					shape={{ type: "section", x: 0, y: 0, z: "a0", ...(small ? { display: "list" } : {}) }}
+				/>
+				{(["facilitate", "actions"] as const).map((group) => {
+					const entries = visible.filter((entry) => entry.group === group);
+					return entries.length === 0 ? null : (
+						<Fragment key={group}>
+							<BarDivider />
+							{entries.map((entry) => (
+								<ActionButton
+									key={entry.key}
+									action={entry.action}
+									pressed={false}
+									onClick={() => {}}
+								/>
+							))}
+						</Fragment>
+					);
+				})}
+				{shown < SECTION_ENTRIES.length && (
+					<MoreMenu entries={SECTION_ENTRIES.slice(shown)} buttonRef={more} />
+				)}
+			</div>
+		</DocContext>
 	);
 }
 
@@ -326,7 +416,11 @@ export default function ActionsGallery() {
 					<div className="gallery-grid actions-bars">
 						{BARS.map((bar) => (
 							<figure key={bar.label}>
-								<Bar actions={bar.actions} open={bar.open} install={bar.install} />
+								{bar.section ? (
+									<SectionBarSample small={bar.section === "small"} />
+								) : (
+									<Bar actions={bar.actions} open={bar.open} install={bar.install} />
+								)}
 								<figcaption>{bar.label}</figcaption>
 							</figure>
 						))}
