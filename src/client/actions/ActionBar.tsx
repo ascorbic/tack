@@ -98,7 +98,7 @@ import {
 import { snapshotRegion as snapshotRegionFor } from "./snapshot.ts";
 import type { SizeOf } from "../../shared/sections.ts";
 import { spreadStack, stackSelection } from "../../shared/stackEdits.ts";
-import { membersOf, nameState, stackName } from "../../shared/stacks.ts";
+import { countMembers, membersOf, nameState, stackName } from "../../shared/stacks.ts";
 import { readShapes } from "../../shared/structure.ts";
 import { GroupThese } from "../stacks/GroupThese.tsx";
 import { SparkIcon, SpreadIcon, StackIcon } from "../stacks/StackNode.tsx";
@@ -316,17 +316,22 @@ export function ActionBar(props: ActionBarProps) {
 				unavailable: onlySection ? undefined : faceDown,
 			});
 		}
-		// Stacks (#73): stickies into one, a selection into themed ones by AI,
-		// and a stack back out, or up as a parent issue.
+		// Stacks (#73): stickies and cards into one, a selection into themed ones
+		// by AI, and a stack back out, or up as a parent issue.
 		const onlyStack = stacks.length === 1 && selected.length === 1 ? stacks[0] : undefined;
 		if (
-			stickies.length + stacks.length >= 2 &&
-			cardNodes.length + sections.length + others.length === 0 &&
-			[...stickies, ...stacks].every((n) => n.data.display === undefined)
+			stickies.length + cardNodes.length + stacks.length >= 2 &&
+			sections.length + others.length === 0 &&
+			[...stickies, ...cardNodes, ...stacks].every((n) => n.data.display === undefined)
 		) {
 			out.push({ id: "stackThese", label: "Stack these", icon: <StackIcon />, text: "Stack" });
 		}
-		if (ai === true && stickies.length >= 3 && selected.length === stickies.length) {
+		// Stickies, and cards if they're asked to join in (the panel's choice).
+		if (
+			ai === true &&
+			stickies.length >= 3 &&
+			selected.length === stickies.length + cardNodes.length
+		) {
 			const readable = stickies.filter(
 				(s) => !s.data.shape.silent && (s.data.shape.text ?? "").trim() !== "",
 			);
@@ -346,7 +351,7 @@ export function ActionBar(props: ActionBarProps) {
 			const members = membersOf(shapes, onlyStack.id);
 			out.push({
 				id: "parentIssue",
-				label: "Make a parent issue from this stack, its stickies as sub-issues",
+				label: "Make a parent issue from this stack, what’s in it as sub-issues",
 				icon: <ParentIcon />,
 				text: "Parent issue",
 				unavailable: members.some((id) => shapes.get(id)?.silent)
@@ -355,7 +360,7 @@ export function ActionBar(props: ActionBarProps) {
 			});
 			out.push({
 				id: "unstack",
-				label: "Unstack: lay its stickies out where it is",
+				label: "Unstack: lay what’s in it out where it is",
 				icon: <SpreadIcon />,
 				text: "Unstack",
 				quiet: true,
@@ -497,7 +502,7 @@ export function ActionBar(props: ActionBarProps) {
 		);
 	};
 
-	/** Stickies (and stacks) into one stack where the first of them is: one undo step. */
+	/** Stickies, cards and stacks into one stack where the first of them is: one undo step. */
 	const stackThese = () => {
 		const stack = transactLocal(doc, () =>
 			stackSelection(
@@ -511,7 +516,7 @@ export function ActionBar(props: ActionBarProps) {
 		requestAnimationFrame(() => store.getState().addSelectedNodes([stack]));
 	};
 
-	/** A stack's stickies laid out where it is, for good: one undo step. */
+	/** A stack's stickies and cards laid out where it is, for good: one undo step. */
 	const unstack = () => {
 		const stack = stacks[0];
 		if (!stack) return;
@@ -520,7 +525,8 @@ export function ActionBar(props: ActionBarProps) {
 		if (spread.length === 0) return;
 		store.getState().resetSelectedElements();
 		requestAnimationFrame(() => store.getState().addSelectedNodes(spread));
-		toast(`Unstacked ${count(spread.length, "sticky", "stickies")}`);
+		const types = readShapes(doc);
+		toast(`Unstacked ${countMembers(spread.map((id) => types.get(id)?.type))}`);
 	};
 
 	/** What the bar does at once, without a panel. */
@@ -834,15 +840,22 @@ export function ActionBar(props: ActionBarProps) {
 							text: s.data.shape.text ?? "",
 							color: s.data.shape.color,
 						}))}
+						cards={cardNodes.map((n) => {
+							const card = cardData.get(n.data.shape.ref ?? "");
+							return {
+								id: n.id,
+								text: isCard(card) ? card.title : "",
+								ref: isCard(card) ? card.item : undefined,
+								state: isCard(card) ? card.state : undefined,
+							};
+						})}
 						sizeOf={props.boxSize}
 						onClose={close}
 						onMade={(made, grouped) => {
 							setOpen(null);
 							store.getState().resetSelectedElements();
 							requestAnimationFrame(() => store.getState().addSelectedNodes(made));
-							toast(
-								`Made ${count(made.length, "stack")} of ${count(grouped, "sticky", "stickies")}`,
-							);
+							toast(`Made ${count(made.length, "stack")} of ${grouped}`);
 						}}
 					/>
 				);

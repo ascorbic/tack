@@ -18,7 +18,12 @@ export interface StackChannel {
 export type GroupFailure = "off" | "too_few" | "limited" | "failed" | "not_editor" | "offline";
 
 export type GroupAnswer =
-	| { ok: true; stacks: ProposedStack[] }
+	| {
+			ok: true;
+			stacks: ProposedStack[];
+			/** Cards whose titles couldn't be shared with everyone here, so weren't asked about. */
+			withheld?: number;
+	  }
 	| { ok: false; reason: GroupFailure };
 
 /** How long to wait for an answer before saying it didn't come. */
@@ -91,7 +96,7 @@ class StackStore {
 		this.waiting.delete(message.request);
 		waiting.resolve(
 			message.type === "stack-groups"
-				? { ok: true, stacks: message.stacks }
+				? { ok: true, stacks: message.stacks, withheld: message.withheld }
 				: { ok: false, reason: message.reason },
 		);
 	}
@@ -132,7 +137,7 @@ export function groupFailure(reason: GroupFailure): string {
 		case "off":
 			return "AI suggestions are off on this Tack, so there’s nothing to ask: stack them up by hand";
 		case "too_few":
-			return "Select at least three stickies with something written on them";
+			return "Select at least three stickies (or cards) with something to read";
 		case "limited":
 			return "That’s a lot of asking: try again in a minute";
 		case "not_editor":

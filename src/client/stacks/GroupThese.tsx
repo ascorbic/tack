@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 import { type ProposedStack, applyGrouping, planGrouping } from "../../shared/stackEdits.ts";
-import { cleanText } from "../../shared/stacks.ts";
+import { cleanText, countMembers } from "../../shared/stacks.ts";
 import type { SizeOf } from "../../shared/sections.ts";
 import { readShapes } from "../../shared/structure.ts";
 import { Notice, PopoverHead, SUBMIT_HINT } from "../actions/Popover.tsx";
@@ -10,12 +10,14 @@ import { type GroupAnswer, groupFailure, stackStore } from "./store.ts";
 import { SparkIcon } from "./StackNode.tsx";
 
 // "Group these" (#73): stacks the board's AI proposes for a selection of
-// stickies, previewed before anything's written. The board marks each
+// stickies (and, if asked, the cards selected with them: "Include cards"),
+// previewed before anything's written. The board marks each
 // proposed stack's stickies in its colour while the panel's open
 // (`stackStore.setProposal`); names can be changed (and are then a person's,
 // not a suggestion), stickies left out, stacks dropped, and the rest made in
 // one undo step. Nothing's sent to the model but the selected stickies'
-// visible text, and that's the server's to decide (stackNamer.ts).
+// visible text and the titles of cards everyone on the board can read, and
+// that's the server's to decide (stackNamer.ts).
 
 /** How many proposed stacks get their own colour; past that they repeat. */
 export const PROPOSAL_COLORS = ["blue", "orange", "green", "purple", "red", "yellow"] as const;
@@ -30,31 +32,52 @@ export interface StickyInfo {
 	color?: string;
 }
 
+/** A card selected with them: its title, number and state, as this person sees it. */
+export interface CardInfo {
+	id: string;
+	text: string;
+	ref?: string;
+	state?: string;
+}
+
 export function GroupThese({
 	doc,
 	stickies,
+	cards = [],
 	sizeOf,
 	onMade,
 	onClose,
 	preview,
+	initialCards = false,
 }: {
 	doc: Y.Doc;
 	/** The selected stickies, as they read now. */
 	stickies: readonly StickyInfo[];
+	/** Cards selected with them, which join in only when asked to. */
+	cards?: readonly CardInfo[];
 	sizeOf?: SizeOf;
-	/** The stacks made, and how many stickies went into them. */
-	onMade: (stacks: string[], stickies: number) => void;
+	/** The stacks made, and what went into them, in words ("5 stickies"). */
+	onMade: (stacks: string[], grouped: string) => void;
 	onClose: () => void;
 	/** For the gallery: this answer (or "thinking", none yet), never asking. */
 	preview?: GroupAnswer | "thinking";
+	/** For the gallery: Include cards already ticked. */
+	initialCards?: boolean;
 }) {
 	const [answer, setAnswer] = useState<GroupAnswer | null>(null);
 	const [drafts, setDrafts] = useState<Draft[]>([]);
 	const [attempt, setAttempt] = useState(0);
-	// The same stickies are the same request, however often the selection's re-read.
-	const idsKey = stickies.map((sticky) => sticky.id).join(",");
+	// Cards stay out unless asked in: a theme's usually the stickies'.
+	const [withCards, setWithCards] = useState(initialCards);
+	const items = useMemo<(StickyInfo | CardInfo)[]>(
+		() => (withCards ? [...stickies, ...cards] : [...stickies]),
+		[withCards, stickies, cards],
+	);
+	// The same selection is the same request, however often it's re-read.
+	const idsKey = items.map((item) => item.id).join(",");
 	const ids = useMemo(() => (idsKey ? idsKey.split(",") : []), [idsKey]);
-	const byId = useMemo(() => new Map(stickies.map((sticky) => [sticky.id, sticky])), [stickies]);
+	const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+	const cardIds = useMemo(() => new Set(cards.map((card) => card.id)), [cards]);
 
 	// Ask (again, for Try again), and show what came back.
 	useEffect(() => {
@@ -85,10 +108,10 @@ export function GroupThese({
 
 	const edit = (key: number, change: (draft: Draft) => Draft) =>
 		setDrafts((current) => current.map((draft) => (draft.key === key ? change(draft) : draft)));
-	const grouped = proposal.reduce((sum, draft) => sum + draft.ids.length, 0);
-	const left = stickies.filter(
-		(sticky) => !proposal.some((draft) => draft.ids.includes(sticky.id)),
-	);
+	const left = items.filter((item) => !proposal.some((draft) => draft.ids.includes(item.id)));
+	const groupedIds = proposal.flatMap((draft) => draft.ids);
+	const grouped = countMembers(groupedIds.map((id) => (cardIds.has(id) ? "card" : "sticky")));
+	const leftWords = countMembers(left.map((item) => (cardIds.has(item.id) ? "card" : "sticky")));
 
 	const make = () => {
 		const named = proposal.filter((draft) => draft.name.trim() || draft.named);
@@ -110,7 +133,13 @@ export function GroupThese({
 	if (!answer) {
 		return (
 			<div className="group-these" aria-busy="true">
-				<PopoverHead title={title} detail={`Reading ${stickies.length} stickies for themes…`} />
+				<PopoverHead
+					title={title}
+					detail={`Reading ${countMembers(items.map((item) => (cardIds.has(item.id) ? "card" : "sticky")))} for themes…`}
+				/>
+				{cards.length > 0 && (
+					<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
+				)}
 				<div className="group-thinking" aria-hidden="true">
 					{[0, 1, 2].map((i) => (
 						<div key={i} className="group-thinking-row" style={{ "--i": i } as React.CSSProperties}>
@@ -136,6 +165,9 @@ export function GroupThese({
 		return (
 			<div className="group-these">
 				<PopoverHead title={title} />
+				{cards.length > 0 && (
+					<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
+				)}
 				<Notice tone={answer.reason === "failed" ? "error" : "warn"}>
 					{groupFailure(answer.reason)}
 				</Notice>
@@ -170,9 +202,12 @@ export function GroupThese({
 				detail={
 					proposal.length === 0
 						? "No stacks left to make"
-						: `${proposal.length} ${proposal.length === 1 ? "stack" : "stacks"} of ${grouped} stickies: change a name, or leave stickies out`
+						: `${proposal.length} ${proposal.length === 1 ? "stack" : "stacks"} of ${grouped}: change a name, or leave some out`
 				}
 			/>
+			{cards.length > 0 && (
+				<IncludeCards count={cards.length} checked={withCards} onChange={setWithCards} />
+			)}
 			<ol className="group-list">
 				{drafts.map((draft, i) => (
 					<ProposedRow
@@ -193,9 +228,15 @@ export function GroupThese({
 			</ol>
 			{left.length > 0 && (
 				<p className="group-left">
-					{left.length === 1 ? "1 sticky stays" : `${left.length} stickies stay`} where{" "}
-					{left.length === 1 ? "it is" : "they are"}.
+					{leftWords} {left.length === 1 ? "stays where it is" : "stay where they are"}.
 				</p>
+			)}
+			{(answer.withheld ?? 0) > 0 && (
+				<Notice>
+					{answer.withheld === 1
+						? "A card was left out: its title can’t be shared with everyone on this board."
+						: `${answer.withheld} cards were left out: their titles can’t be shared with everyone on this board.`}
+				</Notice>
 			)}
 			<footer className="action-foot">
 				<button type="button" className="action-secondary" onClick={() => setAttempt((n) => n + 1)}>
@@ -225,7 +266,7 @@ function ProposedRow({
 	draft: Draft;
 	color: string;
 	number: number;
-	byId: ReadonlyMap<string, StickyInfo>;
+	byId: ReadonlyMap<string, StickyInfo | CardInfo>;
 	onName: (name: string) => void;
 	onLeaveOut: (id: string) => void;
 	onDrop: () => void;
@@ -264,15 +305,26 @@ function ProposedRow({
 				</button>
 			</div>
 			{thin ? (
-				<p className="group-thin">Needs two stickies to make a stack</p>
+				<p className="group-thin">Needs two to make a stack</p>
 			) : (
 				<ul className="group-chips">
 					{draft.ids.map((id) => {
-						const sticky = byId.get(id);
-						const text = cleanText(sticky?.text ?? "");
+						const item = byId.get(id);
+						const text = cleanText(item?.text ?? "");
+						const card = item && "ref" in item ? item : null;
 						return (
-							<li key={id} className="group-chip" data-color={sticky?.color ?? "yellow"}>
-								<span className="group-chip-paper" aria-hidden="true" />
+							<li
+								key={id}
+								className="group-chip"
+								data-color={item && "color" in item ? (item.color ?? "yellow") : "yellow"}
+								data-card={card ? true : undefined}
+								data-state={card?.state}
+							>
+								{card ? (
+									<span className="group-chip-ref">{card.ref}</span>
+								) : (
+									<span className="group-chip-paper" aria-hidden="true" />
+								)}
 								<span className="group-chip-text">{text || "Empty sticky"}</span>
 								<button
 									type="button"
@@ -288,6 +340,30 @@ function ProposedRow({
 				</ul>
 			)}
 		</li>
+	);
+}
+
+/** Whether the cards selected with the stickies join in. */
+function IncludeCards({
+	count,
+	checked,
+	onChange,
+}: {
+	count: number;
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+}) {
+	return (
+		<label className="group-include">
+			<input
+				type="checkbox"
+				checked={checked}
+				onChange={(event) => onChange(event.target.checked)}
+			/>
+			<span>
+				Include cards <span className="group-include-count">({count} selected)</span>
+			</span>
+		</label>
 	);
 }
 
