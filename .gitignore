@@ -37,3 +37,6 @@ pnpm-debug.log*
 # agent worktrees
 .claude/worktrees/
 docs/ux-review/shots/
+
+# TypeScript build caches
+*.tsbuildinfo
