@@ -1,5 +1,6 @@
 import type * as Y from "yjs";
 import type { Point } from "./geometry.ts";
+import { type Growth, planGrowth, writeBoxes } from "./growth.ts";
 import { PLACE_GAP } from "./placement.ts";
 import { NOMINAL_SIZE, type Size, type SizeOf, boxOf } from "./sections.ts";
 import { type ShapeProps, shapesMap } from "./shapes.ts";
@@ -33,8 +34,8 @@ const IN_ROWS: ReadonlySet<ShapeProps["type"]> = new Set([
 export interface RoomPlan {
 	/** Shapes to move: the stickies about to become cards, and their neighbours. */
 	moves: Map<string, Point>;
-	/** Sections to grow so they keep what's in them. */
-	sections: Map<string, Size>;
+	/** Sections to grow so they keep what's in them, and their new boxes. */
+	sections: Growth;
 }
 
 interface Item {
@@ -99,7 +100,11 @@ export function planRoomForCards(
 				}
 			}
 		}
-		if (parent) grow(shapes, parent, items, plan);
+		// The section grows to keep its shapes, as they'll be, inside it.
+		if (parent) {
+			const boxes = items.map((item) => [item.id, item] as const);
+			planGrowth(shapes, boxes, { plan: plan.sections });
+		}
 	}
 	return plan;
 }
@@ -118,31 +123,6 @@ function rowsOf(items: Item[], tolerance: number): Item[][] {
 		}
 	}
 	return rows;
-}
-
-/** Grow a section (and the sections around it) to keep its contents inside, with a gap. */
-function grow(
-	shapes: ReadonlyMap<string, ShapeProps>,
-	section: string,
-	items: Item[],
-	plan: RoomPlan,
-): void {
-	let id: string | null | undefined = section;
-	let right = Math.max(...items.map((item) => item.x + item.w));
-	let bottom = Math.max(...items.map((item) => item.y + item.h));
-	while (id) {
-		const shape = shapes.get(id);
-		if (!shape || shape.type !== "section") return;
-		const box = boxOf(id, shape);
-		const size = plan.sections.get(id) ?? { w: box.w, h: box.h };
-		const w = Math.max(size.w, Math.round(right + PLACE_GAP - box.x));
-		const h = Math.max(size.h, Math.round(bottom + PLACE_GAP - box.y));
-		if (w === size.w && h === size.h) return;
-		plan.sections.set(id, { w, h });
-		right = box.x + w;
-		bottom = box.y + h;
-		id = shape.parent;
-	}
 }
 
 /**
@@ -169,11 +149,7 @@ export function makeRoomForCards(doc: Y.Doc, stickies: Iterable<string>, sizeOf?
 			shape.set("y", at.y);
 			shape.set("parent", shape.get("parent") ?? null);
 		}
-		for (const [id, size] of plan.sections) {
-			const shape = map.get(id);
-			shape?.set("w", size.w);
-			shape?.set("h", size.h);
-		}
+		writeBoxes(doc, plan.sections);
 	});
 	return plan.moves.size;
 }

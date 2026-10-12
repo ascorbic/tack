@@ -12,6 +12,7 @@ import {
 	sortOf,
 } from "./display.ts";
 import { type Point, type Rect, area, centre, contains, intersects } from "./geometry.ts";
+import { fitBox, growSections } from "./growth.ts";
 import { isStacked, memberAt, stackMembers } from "./stacks.ts";
 import {
 	SECTION_DEFAULT,
@@ -138,11 +139,15 @@ function reparent(doc: Y.Doc, ids: Iterable<string>, always: boolean, sizeOf?: S
 }
 
 /**
- * Put newly added shapes into whichever section they landed in. Call in the
- * same transaction as adding them.
+ * Put newly added shapes into whichever section they landed in, growing it
+ * if they reach over its edge. Call in the same transaction as adding them.
  */
 export function placeInSections(doc: Y.Doc, ids: Iterable<string>, sizeOf?: SizeOf): void {
-	doc.transact(() => reparent(doc, ids, true, sizeOf));
+	const list = [...ids];
+	doc.transact(() => {
+		reparent(doc, list, true, sizeOf);
+		growSections(doc, list, sizeOf);
+	});
 }
 
 /** Non-connector shapes overlapping any of `boxes`, other than `skip`. */
@@ -164,8 +169,9 @@ function overlapping(
 /**
  * Commit dropped shapes. Sections bring their contents (and loose connector
  * ends inside them) along, everything that moved comes to the front in its
- * existing order, and dropped shapes join whichever section they landed in.
- * A section dropped over shapes takes them in.
+ * existing order, and dropped shapes join whichever section they landed in,
+ * which grows if they reach over its edge (growth.ts). A section dropped
+ * over shapes takes them in.
  */
 export function commitMoves(
 	doc: Y.Doc,
@@ -286,12 +292,16 @@ export function commitMoves(
 			);
 			reparent(doc, covered, false, sizeOf);
 		}
+		// What was dropped reaching over its section's edge: the section grows.
+		growSections(doc, moved, sizeOf);
 	});
 }
 
 /**
  * Resize a section. Its contents stay where they are: anything now outside
- * it leaves, and anything it now covers joins.
+ * it leaves, and anything it now covers joins. The sections around it grow
+ * if it reaches over their edges; it never grows itself, since its size is
+ * what was asked for.
  */
 export function resizeSection(doc: Y.Doc, id: string, rect: Rect, sizeOf?: SizeOf): void {
 	doc.transact(() => {
@@ -313,7 +323,25 @@ export function resizeSection(doc: Y.Doc, id: string, rect: Rect, sizeOf?: SizeO
 			false,
 			sizeOf,
 		);
+		growSections(doc, [id], sizeOf);
 	});
+}
+
+/**
+ * Fit a section to what's in it (`fitBox`): it grows or shrinks to its
+ * contents with a margin all round, as one resize. False if it isn't a
+ * free-form section, or already fits.
+ */
+export function fitSection(doc: Y.Doc, id: string, sizeOf?: SizeOf): boolean {
+	const box = fitBox(readShapes(doc), id, sizeOf);
+	const shape = shapesMap(doc).get(id);
+	if (!box || !shape) return false;
+	const current = boxOf(id, readShape(shape));
+	if (box.x === current.x && box.y === current.y && box.w === current.w && box.h === current.h) {
+		return false;
+	}
+	resizeSection(doc, id, box, sizeOf);
+	return true;
 }
 
 /**
@@ -330,6 +358,7 @@ export function resizeWidget(doc: Y.Doc, id: string, rect: Rect, sizeOf?: SizeOf
 		shape.set("w", next.w);
 		shape.set("h", next.h);
 		reparent(doc, [id], true, sizeOf);
+		growSections(doc, [id], sizeOf);
 	});
 }
 
@@ -367,6 +396,7 @@ export function addSection(
 		reparent(doc, [id], true, sizeOf);
 		const shapes = readShapes(doc);
 		reparent(doc, overlapping(shapes, [box], new Set([id]), sizeOf), false, sizeOf);
+		growSections(doc, [id], sizeOf);
 	});
 	return id;
 }
@@ -578,6 +608,7 @@ export function settlePasted(
 			if (typeof parent !== "string" || !pasted.has(parent)) place.push(id);
 		}
 		reparent(doc, place, true, sizeOf);
+		growSections(doc, place, sizeOf);
 		// Stickies pasted in a stack are in whichever section it landed in.
 		const shapes = readShapes(doc);
 		for (const [stack, members] of stackMembers(shapes)) {

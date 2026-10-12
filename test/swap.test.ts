@@ -67,7 +67,7 @@ describe("making room for cards", () => {
 		});
 		const plan = planRoomForCards(board, ["a", "b", "c"]);
 		expect(plan.moves.get("c")).toEqual({ x: 576, y: 40 });
-		expect(plan.sections.get("sec")).toEqual({ w: 576 + 252 + 24, h: 300 });
+		expect(plan.sections.get("sec")).toEqual({ x: 0, y: 0, w: 576 + 252 + 24, h: 300 });
 	});
 
 	it("leaves sections showing a list alone", () => {
