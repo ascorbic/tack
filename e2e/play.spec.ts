@@ -7,7 +7,7 @@ const SCENARIOS: Record<
 	string,
 	{ cards: number; stickies: number; texts: number; decisions?: number; sections?: number }
 > = {
-	planning: { cards: 8, stickies: 4, texts: 0 },
+	planning: { cards: 10, stickies: 4, texts: 0 },
 	triage: { cards: 9, stickies: 0, texts: 0 },
 	stress: { cards: 500, stickies: 0, texts: 0 },
 	brainstorm: { cards: 0, stickies: 30, texts: 7 },
@@ -165,7 +165,7 @@ test("an empty board's guide lets a placing tool click through it", async ({ pag
 	await expect(guide).toBeVisible();
 	// It says how to find an issue, and that opens the card tool.
 	await guide.getByRole("button", { name: /Find an issue or PR/ }).click();
-	await expect(page.getByRole("combobox", { name: "Issue or pull request" })).toBeFocused();
+	await expect(page.getByRole("combobox", { name: "Issue, pull request or discussion" })).toBeFocused();
 	await page.keyboard.press("Escape");
 
 	// The sticky tool, clicked right on the pinned notes in the middle.

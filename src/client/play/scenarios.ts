@@ -351,25 +351,15 @@ export const SCENARIOS: Record<string, Scenario> = {
 			const [rfc, question] = DISCUSSIONS;
 			for (const card of [...PLANNING_CARDS, ...upstream, ...DISCUSSIONS]) cardStore.set(card);
 			doc.transact(() => {
-				const ids = PLANNING_CARDS.map((card, i) =>
-					addCard(doc, card.key, { x: 40 + (i % 3) * 290, y: 40 + Math.floor(i / 3) * 300 }),
-				);
+				PLANNING_CARDS.forEach((card, i) => {
+					addCard(doc, card.key, { x: 40 + (i % 3) * 290, y: 40 + Math.floor(i / 3) * 300 });
+				});
 				upstream.forEach((card, i) => {
 					addCard(doc, card.key, { x: 40 + i * 290, y: 640 });
 				});
-				if (rfc && question) {
-					const rfcId = addCard(doc, rfc.key, { x: 620, y: 640 });
-					addCard(doc, question.key, { x: 960, y: 520 });
-					// The draft Pictura provider is the RFC's first plugin.
-					const pictura = ids[5];
-					if (pictura) {
-						connect(doc, bound(rfcId, { x: 0.5, y: 0 }), bound(pictura, { x: 0.5, y: 1 }), {
-							dash: true,
-							color: "blue",
-							label: "RFC",
-						});
-					}
-				}
+				// Under the draft Pictura provider, the RFC's first plugin.
+				if (rfc) addCard(doc, rfc.key, { x: 620, y: 640 });
+				if (question) addCard(doc, question.key, { x: 960, y: 520 });
 				sticky(doc, "Provider docs are hard to find, I end up reading source", "yellow", 960, 40);
 				sticky(doc, "CDN detection fails for custom domains", "pink", 1150, 60);
 				sticky(doc, "Need a fallback when the CDN isn’t recognised", "blue", 970, 250);

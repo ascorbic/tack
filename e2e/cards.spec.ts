@@ -68,10 +68,10 @@ test("the card tool searches the board's repository, and says what's already her
 }) => {
 	const before = await cardIds(page);
 	await page.keyboard.press("c");
-	const field = page.getByRole("combobox", { name: "Issue or pull request" });
+	const field = page.getByRole("combobox", { name: "Issue, pull request or discussion" });
 	await expect(field).toBeFocused();
 	await field.fill("node");
-	const results = page.getByRole("listbox", { name: "Issues and pull requests" });
+	const results = page.getByRole("listbox", { name: "Issues, pull requests and discussions" });
 	const options = results.getByRole("option");
 	await expect(options).toHaveCount(3);
 	await expect(options.filter({ hasText: "Drop Node 18 support" })).toContainText("On the board");
@@ -113,7 +113,7 @@ test("cards added one after another go side by side, never on top of anything", 
 }) => {
 	const before = await cardIds(page);
 	await page.keyboard.press("c");
-	const field = page.getByRole("combobox", { name: "Issue or pull request" });
+	const field = page.getByRole("combobox", { name: "Issue, pull request or discussion" });
 	for (const n of [5, 6, 7, 8, 9]) {
 		// Just the number: an item in the board's repository.
 		await field.fill(`#${n}`);
@@ -146,6 +146,98 @@ test("pasting links adds cards in free space, and any other address a link card"
 	await paste(page, "https://tack.social/docs");
 	await expect(page.locator(".react-flow__node-link")).toHaveCount(1);
 	await expect(page.locator(".react-flow__node-sticky", { hasText: "tack.social" })).toHaveCount(0);
+});
+
+/** The card on the board for an item. */
+function cardFor(page: Page, title: string) {
+	return page
+		.locator(".react-flow__node-card")
+		.filter({ has: page.locator(".card-title", { hasText: title }) })
+		.locator(".card");
+}
+
+test("a pasted discussion link is a discussion's card, and shows when it's answered", async ({
+	page,
+}) => {
+	const before = await cardIds(page);
+	await page.mouse.move(640, 420);
+	await paste(
+		page,
+		"https://fake.tack/acme/unpic/discussions/482\nhttps://fake.tack/acme/unpic/discussions/483#discussioncomment-1",
+	);
+	await expect.poll(async () => (await added(page, before)).length).toBe(2);
+
+	const rfc = cardFor(page, "RFC: a plugin API for image providers");
+	await expect(rfc).toHaveAttribute("data-item", "discussion");
+	await expect(rfc.locator(".chip.category")).toHaveText("📝RFCs");
+	await expect(rfc.locator(".chip.state")).toHaveText("Open");
+	await expect(rfc.locator(".count.upvotes")).toContainText("24");
+
+	const question = cardFor(page, "How do I set a default quality for every image?");
+	await expect(question).toHaveAttribute("data-answered", "true");
+	await expect(question.locator(".chip.state")).toHaveText("Answered");
+	await expect(question.locator(".chip.state")).toHaveAttribute("title", "Answered by kai");
+
+	// An answer chosen on the forge lands live: the chip turns, and the tick draws in.
+	await page.evaluate(() => {
+		const sim = (
+			window as unknown as {
+				tackPlayground: {
+					updateCard: (key: string, change: (card: unknown) => Record<string, unknown>) => void;
+				};
+			}
+		).tackPlayground;
+		sim.updateCard("fake.tack/acme/unpic#482", (card) => {
+			const { discussion } = card as { discussion: Record<string, unknown> };
+			return {
+				discussion: {
+					...discussion,
+					answered: true,
+					answer: { url: "https://fake.tack/a", author: "jo", chosenAt: null },
+				},
+			};
+		});
+	});
+	await expect(rfc.locator(".chip.state")).toHaveText("Answered");
+	await expect(rfc).toHaveAttribute("data-answered", "true");
+	await expect(rfc.locator(".chip.state .answered-tick")).toBeVisible();
+});
+
+test("the card tool finds discussions, and can look for nothing else", async ({ page }) => {
+	const before = await cardIds(page);
+	await page.keyboard.press("c");
+	const field = page.getByRole("combobox", { name: "Issue, pull request or discussion" });
+	const options = page
+		.getByRole("listbox", { name: "Issues, pull requests and discussions" })
+		.getByRole("option");
+
+	// Every kind, unless one's picked.
+	await field.fill("detect");
+	await expect(options.filter({ hasText: "Why does provider detection run" })).toHaveCount(1);
+	await expect(options.filter({ hasText: "Detect custom domains from the CDN" })).toHaveCount(1);
+
+	const kinds = page.getByRole("group", { name: "Search for" });
+	await kinds.getByRole("button", { name: "Discussions" }).click();
+	await expect(kinds.getByRole("button", { name: "Discussions" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(field).toBeFocused();
+	await expect(options.filter({ hasText: "Detect custom domains from the CDN" })).toHaveCount(0);
+	const discussion = options.filter({ hasText: "Why does provider detection run" });
+	await expect(discussion).toHaveAttribute("data-item", "discussion");
+	await expect(discussion.getByRole("img", { name: "Q&A" })).toBeVisible();
+
+	// An answered one says so, and adding it makes its card.
+	await field.fill("default quality");
+	const answered = options.filter({ hasText: "How do I set a default quality" });
+	await expect(answered).toContainText("Answered");
+	await answered.click();
+	await expect.poll(async () => (await added(page, before)).length).toBe(1);
+	await expect(cardFor(page, "How do I set a default quality for every image?")).toHaveAttribute(
+		"data-item",
+		"discussion",
+	);
 });
 
 test("a card's title selects it first; once selected, or with ⌘, it opens", async ({ page }) => {

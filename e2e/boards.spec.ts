@@ -156,7 +156,7 @@ test("the card tool searches the forge for the board's repositories", async ({ p
 
 	await page.locator(".react-flow__pane").click({ position: { x: 400, y: 300 } });
 	await page.keyboard.press("c");
-	const field = page.getByRole("combobox", { name: "Issue or pull request" });
+	const field = page.getByRole("combobox", { name: "Issue, pull request or discussion" });
 	await field.fill("https://fake.tack/stress/cards/issues/3");
 	await field.press("Enter");
 	await expect.poll(cardKeys).toEqual(["fake.tack/stress/cards#3"]);
@@ -164,7 +164,7 @@ test("the card tool searches the forge for the board's repositories", async ({ p
 	// Now the board has a repository, words search it, through the Worker.
 	await field.fill("synthetic");
 	const options = page
-		.getByRole("listbox", { name: "Issues and pull requests" })
+		.getByRole("listbox", { name: "Issues, pull requests and discussions" })
 		.getByRole("option");
 	await expect(options).toHaveCount(10);
 	await expect(options.filter({ hasText: "#3" }).first()).toBeVisible();

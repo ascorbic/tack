@@ -65,12 +65,46 @@ test("every card state renders", async ({ page }) => {
 		await expect(figure.locator(".card-title")).not.toBeEmpty();
 	}
 
-	// The first four cards, then three more PRs. Every PR with checks has a CI bar.
-	await expect(page.locator(".card.compact:not(.link-card)")).toHaveCount(7);
+	// The first four cards, three more PRs and two discussions. Every PR with checks has a CI bar.
+	await expect(page.locator(".card.compact:not(.link-card)")).toHaveCount(9);
 	await expect(page.locator(".card.compact .ci-bar")).toHaveCount(6);
 	await expect(page.locator(".card[data-selected=true]:not(.link-card)")).toHaveCount(1);
 	await expect(page.locator(".card.loading")).toHaveCount(1);
-	await expect(page.locator(".card.missing")).toHaveCount(8);
+	await expect(page.locator(".card.missing")).toHaveCount(9);
+});
+
+test("discussions are cards of their own: category, answered, upvotes and why they closed", async ({
+	page,
+}) => {
+	const section = page
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Discussions", exact: true }) });
+	const card = (caption: string) =>
+		section.locator("figure", { hasText: caption }).locator(".card");
+	const states: [caption: string, chip: string, category: string][] = [
+		["an open RFC", "Open", "📝RFCs"],
+		["answered", "Answered", "🙏Q&A"],
+		["unanswered question", "Open", "🙏Q&A"],
+		["closed as resolved", "Resolved", "💡Ideas"],
+		["closed as outdated", "Outdated", "💡Ideas"],
+		["locked announcement", "Open", "📣Announcements"],
+	];
+	for (const [caption, chip, category] of states) {
+		const face = card(`Discussion, ${caption}`);
+		await expect(face).toHaveAttribute("data-item", "discussion");
+		await expect(face.locator(".chip.state")).toHaveText(chip);
+		await expect(face.locator(".chip.category")).toHaveText(category);
+		await expect(face.locator(".count.upvotes")).toBeVisible();
+	}
+	await expect(card("Discussion, answered")).toHaveAttribute("data-answered", "true");
+	await expect(card("Discussion, closed as outdated")).toHaveAttribute("data-reason", "outdated");
+	await expect(card("Discussion, locked announcement")).toContainText("Locked");
+	const permission = card("needs the Discussions permission");
+	await expect(permission).toContainText("needs the Discussions permission");
+	await expect(permission.getByRole("link", { name: "Review permissions" })).toHaveAttribute(
+		"href",
+		/^\/setup\/install/,
+	);
 });
 
 test("every link card state renders, without a broken image", async ({ page }) => {
