@@ -82,7 +82,7 @@ export const pushLoop: Loop = {
 		await d.wait(300);
 
 		// Three stickies, made issues.
-		await kai.marquee({ x: 12, y: 50, w: 3 * 204 + 6, h: 216 }, 900);
+		await kai.marquee({ x: 12, y: 50, w: 3 * 204 + 6, h: 216 }, 800);
 		stage.select(NOTES.map(([text]) => stage.find(text)));
 		const make = await stage.element(() => stage.button(/^Make \d+ issues/));
 		if (!make) return;
@@ -90,8 +90,8 @@ export const pushLoop: Loop = {
 		await kai.click(make, 600);
 		const staging = await stage.element(() => stage.button(/^Stage \d+ issues/));
 		if (!staging) return;
-		await d.wait(500);
-		await kai.click(staging, 700);
+		await d.wait(250);
+		await kai.click(staging, 600);
 		stage.deselect();
 		await d.wait(300);
 
@@ -100,15 +100,15 @@ export const pushLoop: Loop = {
 		const review = await stage.element(() => stage.button(/^Review and push/));
 		if (!review) return;
 		await d.wait(300);
-		await kai.click(review, 800);
+		await kai.click(review, 650);
 		const push = await stage.element(() => stage.button(/^Push \d+ changes/));
 		if (!push) return;
-		await d.wait(500);
-		await kai.click(push, 700);
+		await d.wait(350);
+		await kai.click(push, 600);
 		const done = await stage.element(() => stage.button("Done"), 10_000);
 		if (!done) return;
-		await d.wait(600);
-		await kai.click(done, 700);
+		await d.wait(350);
+		await kai.click(done, 550);
 		stage.board.changes?.setPanelOpen(false);
 		await d.wait(300);
 		// The issues, numbered, where the stickies were.
@@ -117,5 +117,5 @@ export const pushLoop: Loop = {
 		await stage.look({ x: -20, y: -110, w: 900, h: 562 }, 1300);
 		d.also(jo.say("🎉 on the board and on the forge", 1600));
 	},
-	hold: 2600,
+	hold: 2000,
 };
