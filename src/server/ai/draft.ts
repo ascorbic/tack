@@ -42,13 +42,13 @@ export interface Drafted {
 }
 
 /**
- * Ask Workers AI (or, with `fake`, local development's stand-in) and check
- * the answer. Never throws: a failure is an `AiError` (`unusable` or `failed`).
+ * Ask Workers AI (`model`, or `AI_MODEL`; with `fake`, local development's
+ * stand-in) and check the answer. Never throws: a failure is an `AiError` (`unusable` or `failed`).
  */
 export async function draft(
 	env: Env,
 	input: Draftable,
-	{ fake = false }: { fake?: boolean } = {},
+	{ fake = false, model }: { fake?: boolean; model?: string } = {},
 ): Promise<Drafted> {
 	let attempts = 1;
 	if (input.task === "widget") {
@@ -57,7 +57,7 @@ export async function draft(
 		const asking = (turns: ChatMessage[]): Promise<Answer> =>
 			fake
 				? Promise.resolve(made(proposeWidget(input.prompt, input.context)))
-				: ask(env, turns, format);
+				: ask(env, turns, format, { model });
 		let answer = await asking(messages);
 		let check = answer.ok ? checkWidget(answer.value, { host: input.context.host }) : null;
 		// Asked again once, told what was wrong, when the answer didn't check out.
@@ -90,7 +90,7 @@ export async function draft(
 			? Promise.resolve(
 					made(summary ? summarise(input.items) : draftDecision(input.items, input.prompt)),
 				)
-			: ask(env, messages, summary ? SUMMARY_FORMAT : DECISION_FORMAT);
+			: ask(env, messages, summary ? SUMMARY_FORMAT : DECISION_FORMAT, { model });
 	const reading = (answer: Answer) =>
 		answer.ok ? (summary ? readSummary(answer.value) : readDecision(answer.value)) : null;
 	let answer = await asking();

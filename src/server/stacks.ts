@@ -37,8 +37,11 @@ import { log } from "./log.ts";
 /** Most tokens an answer may take: a name is a few, a grouping of sixty stickies a few hundred. */
 const MAX_TOKENS = { name: 48, group: 1500 } as const;
 
-/** What names stacks here: Workers AI, local development's stand-in, or null when suggestions are off. */
-export function stackAi(env: Env): StackAi | null {
+/**
+ * What names stacks here: Workers AI, local development's stand-in, or null
+ * when suggestions are off. `models` asks other models than `AI_MODEL`.
+ */
+export function stackAi(env: Env, models: { name?: string; group?: string } = {}): StackAi | null {
 	const status = aiStatus(env);
 	if (status.provider === "fake") return fakeStackAi();
 	if (status.provider !== "workers-ai") return null;
@@ -50,6 +53,7 @@ export function stackAi(env: Env): StackAi | null {
 				schema: NAME_SCHEMA,
 				schemaName: "stack_name",
 				maxTokens: MAX_TOKENS.name,
+				model: models.name,
 			}),
 		group: (notes) =>
 			askModel(env, {
@@ -58,6 +62,7 @@ export function stackAi(env: Env): StackAi | null {
 				schema: GROUP_SCHEMA,
 				schemaName: "stack_groups",
 				maxTokens: MAX_TOKENS.group,
+				model: models.group,
 			}),
 	};
 }

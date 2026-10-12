@@ -63,6 +63,8 @@ export interface ModelRequest {
 	maxTokens: number;
 	/** Default 0.2: steady, with a little room. */
 	temperature?: number;
+	/** Default `AI_MODEL`; `AI_FALLBACK_MODEL` takes the same request. */
+	model?: string;
 }
 
 /**
@@ -73,7 +75,7 @@ export interface ModelRequest {
 export async function askModel(env: Env, request: ModelRequest): Promise<unknown> {
 	if (!hasAi(env)) throw new Error("No Workers AI binding");
 	const binding = (env as unknown as { AI: AiRunner }).AI;
-	const result = await binding.run(AI_MODEL, {
+	const result = await binding.run(request.model ?? AI_MODEL, {
 		messages: [
 			{ role: "system", content: request.system },
 			{ role: "user", content: request.user },

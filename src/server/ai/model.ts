@@ -24,7 +24,7 @@ export async function ask(
 	env: Env,
 	messages: readonly ChatMessage[],
 	format: AnswerFormat,
-	{ maxTokens = 1200 }: { maxTokens?: number } = {},
+	{ maxTokens = 1200, model }: { maxTokens?: number; model?: string } = {},
 ): Promise<Answer> {
 	const started = Date.now();
 	const [system, user, ...followUp] = messages;
@@ -38,6 +38,7 @@ export async function ask(
 				schema: format.schema,
 				schemaName: format.name,
 				maxTokens,
+				model,
 			}),
 			new Promise<never>((_, reject) => {
 				timer = setTimeout(() => reject(new Error("timed out")), TIMEOUT_MS);
