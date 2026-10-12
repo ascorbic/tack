@@ -1,3 +1,4 @@
+import sitemap from "@astrojs/sitemap";
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
@@ -19,6 +20,11 @@ const og = [
 export default defineConfig({
 	site,
 	integrations: [
+		// Starlight's own sitemap, with every page's <lastmod> set to the build:
+		// AI Search's crawler (the docs' "Ask" index, see AGENTS.md) re-reads a
+		// page only when its <lastmod> is newer than its last sync, so a deploy
+		// means every page is read again on the next sync.
+		sitemap({ lastmod: new Date() }),
 		starlight({
 			title: "Tack",
 			description:
