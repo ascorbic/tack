@@ -23,7 +23,7 @@ import type { SimulatedFacilitator } from "./facilitation.ts";
 import { type SimulatedHistory, retroHistory } from "./history.ts";
 import { facilitateSilent, seedRetro, seedSilent, seedVote } from "./facilitationScenarios.ts";
 import type { Stager } from "../../shared/changes.ts";
-import { ACCESS_GALLERY, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
+import { ACCESS_GALLERY, DISCUSSIONS, fixture, LABELS, PLANNING_CARDS } from "./fixtures.ts";
 import { seedRelated } from "./related.ts";
 import { seedWrites } from "./writes.ts";
 import { seedAi } from "./ai.ts";
@@ -343,18 +343,33 @@ export const SCENARIOS: Record<string, Scenario> = {
 	planning: {
 		name: "Planning",
 		description:
-			"A handful of cards and stickies, the everyday case, with two not-live cards from a public upstream repo.",
+			"A handful of cards and stickies, the everyday case, with two not-live cards from a public upstream repo, and the RFC discussion the provider work came from.",
 		seed(doc) {
 			// Two cards from an upstream repo without the app: not live until it's installed.
 			const upstream = ACCESS_GALLERY.slice(0, 2).map((entry) => entry.card);
-			for (const card of [...PLANNING_CARDS, ...upstream]) cardStore.set(card);
+			// The RFC the provider work comes from, and the question it answers.
+			const [rfc, question] = DISCUSSIONS;
+			for (const card of [...PLANNING_CARDS, ...upstream, ...DISCUSSIONS]) cardStore.set(card);
 			doc.transact(() => {
-				PLANNING_CARDS.forEach((card, i) => {
-					addCard(doc, card.key, { x: 40 + (i % 3) * 290, y: 40 + Math.floor(i / 3) * 300 });
-				});
+				const ids = PLANNING_CARDS.map((card, i) =>
+					addCard(doc, card.key, { x: 40 + (i % 3) * 290, y: 40 + Math.floor(i / 3) * 300 }),
+				);
 				upstream.forEach((card, i) => {
 					addCard(doc, card.key, { x: 40 + i * 290, y: 640 });
 				});
+				if (rfc && question) {
+					const rfcId = addCard(doc, rfc.key, { x: 620, y: 640 });
+					addCard(doc, question.key, { x: 960, y: 520 });
+					// The draft Pictura provider is the RFC's first plugin.
+					const pictura = ids[5];
+					if (pictura) {
+						connect(doc, bound(rfcId, { x: 0.5, y: 0 }), bound(pictura, { x: 0.5, y: 1 }), {
+							dash: true,
+							color: "blue",
+							label: "RFC",
+						});
+					}
+				}
 				sticky(doc, "Provider docs are hard to find, I end up reading source", "yellow", 960, 40);
 				sticky(doc, "CDN detection fails for custom domains", "pink", 1150, 60);
 				sticky(doc, "Need a fallback when the CDN isn’t recognised", "blue", 970, 250);
@@ -457,7 +472,8 @@ export const SCENARIOS: Record<string, Scenario> = {
 			"A messy cluster to tidy: drag to snap, select a few to align or tidy up, then copy, paste and undo.",
 		seed(doc) {
 			const cards = PLANNING_CARDS.slice(0, 4);
-			for (const card of cards) cardStore.set(card);
+			// Discussions too, so a pasted `/discussions/` link has a card to show.
+			for (const card of [...cards, ...DISCUSSIONS]) cardStore.set(card);
 			doc.transact(() => {
 				cards.forEach((card, i) => {
 					addCard(doc, card.key, { x: 60 + i * 300 + ((i * 37) % 50), y: 60 + ((i * 53) % 70) });

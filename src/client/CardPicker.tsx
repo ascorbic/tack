@@ -10,18 +10,35 @@ import {
 import type { Card } from "../shared/cards.ts";
 import { parseKey } from "../shared/refs.ts";
 import type { QueryError, SearchResult } from "../shared/widgets.ts";
-import { StateIcon } from "./CardView.tsx";
+import { StateIcon, cardTone } from "./CardView.tsx";
 import { type AddOutcome, type CardInput, type CardScope, readCardInput } from "./cardInput.ts";
 import { cardStore } from "./cardStore.ts";
 import { isApplePlatform } from "./shortcuts.ts";
 
-// The card tool (C): paste a link or a reference to add an issue or pull
-// request, or type a few words to search the board's repositories for one.
-// It stays open after adding, so a run of cards goes in quickly, each placed
-// in free space beside the last (see shared/addCards.ts).
+// The card tool (C): paste a link or a reference to add an issue, pull
+// request or discussion, or type a few words to search the board's
+// repositories for one (all three kinds, or one picked out). It stays open
+// after adding, so a run of cards goes in quickly, each placed in free space
+// beside the last (see shared/addCards.ts).
 
 const apple = isApplePlatform();
 const DEBOUNCE_MS = 250;
+
+/** Which kinds a search finds: all of them, or one, as the qualifier GitHub's search takes. */
+type KindFilter = "all" | "issue" | "pr" | "discussion";
+
+const KIND_FILTERS: { id: KindFilter; label: string }[] = [
+	{ id: "all", label: "All" },
+	{ id: "issue", label: "Issues" },
+	{ id: "pr", label: "Pull requests" },
+	{ id: "discussion", label: "Discussions" },
+];
+
+/** A search with the kind filter written in, unless the words already say which. */
+export function withKindFilter(q: string, kind: KindFilter): string {
+	if (kind === "all" || /(^|\s)(is|type):(issue|pr|pull-request|discussion)\b/i.test(q)) return q;
+	return `${q} is:${kind}`;
+}
 
 export type { AddOutcome, CardScope };
 
@@ -59,9 +76,10 @@ export function CardPicker({
 	const listId = useId();
 	useEffect(() => input.current?.focus(), []);
 
+	const [kind, setKind] = useState<KindFilter>("all");
 	const read = useMemo(() => readCardInput(value, scope), [value, scope]);
 	const canSearch = read.kind === "search" && search !== undefined;
-	const q = read.kind === "search" ? read.q : null;
+	const q = read.kind === "search" ? withKindFilter(read.q, kind) : null;
 	const host = read.kind === "search" ? read.host : scope.host;
 
 	// Search as you type, a moment after you stop.
@@ -125,7 +143,7 @@ export function CardPicker({
 			return;
 		}
 		if (read.kind === "search" && !search) {
-			setProblem("Paste a link to an issue or pull request, or owner/repo#123.");
+			setProblem("Paste a link to an issue, pull request or discussion, or owner/repo#123.");
 			return;
 		}
 		const option = options[Math.min(active, options.length - 1)];
@@ -157,7 +175,7 @@ export function CardPicker({
 					className="card-results"
 					id={listId}
 					role="listbox"
-					aria-label="Issues and pull requests"
+					aria-label="Issues, pull requests and discussions"
 					data-loading={results.status === "loading" || undefined}
 				>
 					{options.map((option, i) => {
@@ -171,7 +189,7 @@ export function CardPicker({
 								role="option"
 								aria-selected={i === Math.min(active, options.length - 1)}
 								className="card-result"
-								data-state={option.card?.state}
+								{...(option.card ? cardTone(option.card) : {})}
 								onPointerMove={() => setActive(i)}
 								onPointerDown={(event) => event.preventDefault()}
 								onClick={() => add([option.key])}
@@ -187,6 +205,19 @@ export function CardPicker({
 								<span className="card-result-title">
 									{option.card?.title ?? `Add ${repo}${ref?.item ?? ""}`}
 								</span>
+								{option.card?.discussion?.answered && option.card.state === "open" && (
+									<span className="card-result-answered">Answered</span>
+								)}
+								{option.card?.discussion?.category.emoji && (
+									<span
+										className="card-result-category"
+										role="img"
+										aria-label={option.card.discussion.category.name}
+										title={option.card.discussion.category.name}
+									>
+										{option.card.discussion.category.emoji}
+									</span>
+								)}
 								{option.card && scope.repos.length !== 1 && (
 									<span className="card-result-repo">{repo.split("/").pop()}</span>
 								)}
@@ -222,9 +253,29 @@ export function CardPicker({
 					</p>
 				)
 			)}
+			{search && (
+				<div className="card-kinds" role="group" aria-label="Search for">
+					{KIND_FILTERS.map((filter) => (
+						<button
+							key={filter.id}
+							type="button"
+							className="card-kind"
+							aria-pressed={kind === filter.id}
+							onPointerDown={(event) => event.preventDefault()}
+							onClick={() => {
+								setKind(filter.id);
+								setActive(0);
+								input.current?.focus();
+							}}
+						>
+							{filter.label}
+						</button>
+					))}
+				</div>
+			)}
 			<form className="card-options" onSubmit={submit}>
 				<label htmlFor={`${listId}-input`} className="visually-hidden">
-					Issue or pull request
+					Issue, pull request or discussion
 				</label>
 				<input
 					id={`${listId}-input`}

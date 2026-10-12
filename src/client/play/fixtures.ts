@@ -1,6 +1,6 @@
-import type { Card } from "../../shared/cards.ts";
+import type { Card, DiscussionCategory, DiscussionDetails } from "../../shared/cards.ts";
 import { itemKey } from "../../shared/refs.ts";
-import { makeChecks, pullDetails, reviewer } from "./ci.ts";
+import { PEOPLE, makeChecks, pullDetails, reviewer } from "./ci.ts";
 
 // Fixture cards on the fake forge, for the playground and gallery.
 
@@ -257,6 +257,125 @@ export const PULL_GALLERY: { label: string; card: Card }[] = [
 			pull: pullDetails({ checks: makeChecks({ passed: 2, pending: 9 }), review: null }),
 		}),
 	},
+];
+
+/** Discussion categories, as a repository might set them up. */
+export const CATEGORIES = {
+	rfcs: { name: "RFCs", emoji: "📝", answerable: false },
+	qa: { name: "Q&A", emoji: "🙏", answerable: true },
+	ideas: { name: "Ideas", emoji: "💡", answerable: false },
+	showAndTell: { name: "Show and tell", emoji: "🙌", answerable: false },
+	announcements: { name: "Announcements", emoji: "📣", answerable: false },
+} satisfies Record<string, DiscussionCategory>;
+
+/** A discussion on the fake forge: its own kind of card, with its category and upvotes. */
+export function discussion(
+	overrides: Partial<Card> & Pick<Card, "title" | "item">,
+	details: Partial<DiscussionDetails> & { category: DiscussionCategory },
+): Card {
+	const repo = overrides.repo ?? REPO;
+	return fixture({
+		kind: "discussion",
+		url: `https://fake.tack/${repo}/discussions/${overrides.item.slice(1)}`,
+		...overrides,
+		discussion: { answered: false, answer: null, upvotes: 0, locked: false, ...details },
+	});
+}
+
+/** Discussions in every state, on acme/unpic: an RFC, questions, ideas, an announcement. */
+export const DISCUSSIONS: Card[] = [
+	discussion(
+		{
+			item: "#482",
+			title: "RFC: a plugin API for image providers",
+			labels: [LABELS.enhancement],
+			author: PEOPLE.priya,
+			comments: 31,
+			reactions: 12,
+		},
+		{ category: CATEGORIES.rfcs, upvotes: 24 },
+	),
+	discussion(
+		{
+			item: "#483",
+			title: "How do I set a default quality for every image?",
+			author: PEOPLE.tom,
+			comments: 5,
+		},
+		{
+			category: CATEGORIES.qa,
+			upvotes: 7,
+			answered: true,
+			answer: {
+				url: "https://fake.tack/acme/unpic/discussions/483#discussioncomment-1",
+				author: "kai",
+				chosenAt: new Date().toISOString(),
+			},
+		},
+	),
+	discussion(
+		{
+			item: "#484",
+			title: "Why does provider detection run on every request?",
+			labels: [LABELS.provider],
+			author: PEOPLE.jo,
+			comments: 2,
+		},
+		{ category: CATEGORIES.qa, upvotes: 3 },
+	),
+	discussion(
+		{
+			item: "#485",
+			state: "closed",
+			stateReason: "resolved",
+			title: "Should 5.0 drop the CommonJS build?",
+			labels: [LABELS.breaking],
+			author: PEOPLE.kai,
+			comments: 46,
+		},
+		{ category: CATEGORIES.ideas, upvotes: 38 },
+	),
+	discussion(
+		{
+			item: "#486",
+			title: "Show and tell: an image gallery on emdash",
+			author: PEOPLE.jo,
+			comments: 9,
+			reactions: 21,
+		},
+		{ category: CATEGORIES.showAndTell, upvotes: 18 },
+	),
+	discussion(
+		{
+			item: "#487",
+			state: "closed",
+			stateReason: "outdated",
+			title: "Ideas for the docs site’s search",
+			author: PEOPLE.tom,
+			comments: 4,
+		},
+		{ category: CATEGORIES.ideas, upvotes: 2 },
+	),
+	discussion(
+		{
+			item: "#488",
+			title: "unpic 5.0 is out",
+			author: PEOPLE.priya,
+			comments: 14,
+			reactions: 52,
+		},
+		{ category: CATEGORIES.announcements, upvotes: 41, locked: true },
+	),
+];
+
+/** The gallery's discussions: one of each state. */
+export const DISCUSSION_GALLERY: { label: string; card: Card }[] = [
+	{ label: "Discussion, an open RFC", card: DISCUSSIONS[0] as Card },
+	{ label: "Discussion, answered", card: DISCUSSIONS[1] as Card },
+	{ label: "Discussion, unanswered question", card: DISCUSSIONS[2] as Card },
+	{ label: "Discussion, closed as resolved", card: DISCUSSIONS[3] as Card },
+	{ label: "Discussion, closed as outdated", card: DISCUSSIONS[5] as Card },
+	{ label: "Discussion, locked announcement", card: DISCUSSIONS[6] as Card },
 ];
 
 /** A public upstream repository the app isn't installed on: read lazily, not live (#9). */

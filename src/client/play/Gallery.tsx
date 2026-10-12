@@ -34,7 +34,14 @@ import {
 } from "./ci.ts";
 import { DecisionGallery } from "./DecisionGallery.tsx";
 import { StackGallery } from "./StackGallery.tsx";
-import { ACCESS_GALLERY, FORGE_GALLERY, GALLERY_CARDS, LABELS, PULL_GALLERY } from "./fixtures.ts";
+import {
+	ACCESS_GALLERY,
+	DISCUSSION_GALLERY,
+	FORGE_GALLERY,
+	GALLERY_CARDS,
+	LABELS,
+	PULL_GALLERY,
+} from "./fixtures.ts";
 import { PROVENANCE_GALLERY } from "./related.ts";
 
 const MISSING: { label: string; card: MissingCard }[] = [
@@ -457,6 +464,34 @@ function Sections({
 			</section>
 
 			<section>
+				<h2>Discussions</h2>
+				<p className="gallery-note">
+					GitHub Discussions: a speech bubble, the category’s emoji and name, upvotes, and an
+					Answered badge once an answer’s chosen.
+				</p>
+				<div className="gallery-grid">
+					{DISCUSSION_GALLERY.map(({ label, card }) => (
+						<figure key={card.key}>
+							<CardView card={card} cardKey={card.key} />
+							<figcaption>{label}</figcaption>
+						</figure>
+					))}
+					<figure>
+						<CardView
+							card={{
+								key: "github.com/acme/roadmap#61",
+								missing: true,
+								reason: "forbidden",
+								permission: "discussions",
+							}}
+							cardKey="github.com/acme/roadmap#61"
+						/>
+						<figcaption>The app needs the Discussions permission</figcaption>
+					</figure>
+				</div>
+			</section>
+
+			<section>
 				<h2>Repository access</h2>
 				<div className="gallery-grid">
 					{access.map((card, i) => (
@@ -495,7 +530,11 @@ function Sections({
 			<section>
 				<h2>Compact (zoomed out)</h2>
 				<div className="gallery-grid">
-					{[...cards.slice(0, 4), ...pulls.slice(0, 3)].map((card) => (
+					{[
+						...cards.slice(0, 4),
+						...pulls.slice(0, 3),
+						...DISCUSSION_GALLERY.slice(0, 2).map((entry) => entry.card),
+					].map((card) => (
 						<figure key={card.key}>
 							<CardView card={card} cardKey={card.key} compact />
 						</figure>

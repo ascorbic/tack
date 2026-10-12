@@ -632,7 +632,7 @@ const TOOL_LABELS: Record<string, string> = {
 	select: "Select",
 	hand: "Hand",
 	sticky: "Sticky note",
-	card: "Issue or pull request",
+	card: "Issue, pull request or discussion",
 	text: "Text",
 	decision: "Decision",
 	action: "Action item",

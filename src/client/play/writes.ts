@@ -9,9 +9,10 @@ import { type ConnectorEnd, addShape, nextZ, readShape, shapesMap } from "../../
 import { addConnector, addSection } from "../../shared/structure.ts";
 import type { WriteServices } from "../actions/services.ts";
 import { cardStore } from "../cardStore.ts";
-import { matchSearch, parseSearch } from "../../shared/search.ts";
+import { matchSearch, parseSearch, searchKind } from "../../shared/search.ts";
 import {
 	ACCESS_GALLERY,
+	DISCUSSIONS,
 	GALLERY_CARDS,
 	LABELS,
 	PLANNING_CARDS,
@@ -103,16 +104,19 @@ export function playServices(): WriteServices {
 				};
 			}
 			const parsed = parseSearch(q);
+			// The card tool finds every kind unless it says which, as the Worker's does.
+			const discussions = searchKind(parsed) === null ? parseSearch(`${q} is:discussion`) : parsed;
 			const seen = new Set<string>();
 			const items = [
 				...PLANNING_CARDS,
 				...CARDS,
+				...DISCUSSIONS,
 				...GALLERY_CARDS.map((entry) => entry.card),
 				...PULL_GALLERY.map((entry) => entry.card),
 			].filter((card) => {
 				if (seen.has(card.key) || card.host !== host) return false;
 				seen.add(card.key);
-				return matchSearch(card, parsed) === "yes";
+				return matchSearch(card, card.kind === "discussion" ? discussions : parsed) === "yes";
 			});
 			return { kind: "search", total: items.length, items: items.slice(0, 10) };
 		},
