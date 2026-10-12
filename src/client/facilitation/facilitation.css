@@ -695,6 +695,12 @@
 	z-index: 5;
 }
 
+/* A vote's dots and rank are what the board's deciding on: zoomed out, where
+   stamps grow up over the shape, they stay on top. */
+.vote-dots-anchor {
+	z-index: 6;
+}
+
 .stamps {
 	display: flex;
 	flex-wrap: wrap;
@@ -905,13 +911,14 @@
 /* On the board, dots and a closed vote's rank perch on the shape's top-right
    corner: their bottom edge a little way in, so they're seen to belong to
    it, and the rest above the shape, clear of a sticky's first line. Zoomed
-   out they grow up and to the left from there, never down over the text. */
+   out they grow up and to the left from there, never down over the text,
+   and only so far: no wider than a sticky, so neighbours' don't overlap. */
 .vote-dots-anchor > :is(.vote-dots, .vote-rank) {
 	position: absolute;
 	right: -6px;
 	bottom: -7px;
 	transform-origin: 100% 100%;
-	scale: var(--unzoom, 1);
+	scale: min(var(--unzoom, 1), 2.5);
 }
 
 .vote-dots-anchor > .vote-dots {
