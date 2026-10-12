@@ -66,6 +66,8 @@ Select one or more cards.
 - **Labels** (<kbd>⌥</kbd> <kbd>L</kbd>) and **Assign** (<kbd>⌥</kbd> <kbd>P</kbd>) show a checklist. A box is ticked if every selected item has it, dashed if some do. Only what you toggle changes: "+2 −1 on 3 items". With cards from several repositories, only the labels (or people) every one of them has are offered.
 - **Milestone** (<kbd>⌥</kbd> <kbd>M</kbd>) picks one of the repository's open milestones, starting on the items' current one (ticked), or **No milestone**, last in the list.
 
+Discussions take labels like issues do, though only labels the repository already has (GitHub can't make a new one on a discussion). They have no assignees or milestones: with only discussions selected those aren't offered, and with some, they say so.
+
 ## Close or reopen
 
 <kbd>⌥</kbd> <kbd>C</kbd> offers what fits the selection:
@@ -76,6 +78,8 @@ Select one or more cards.
 - **Reopen**
 
 Pull requests close without a reason, and merged pull requests can't be closed or reopened.
+
+Discussions close as GitHub words it for them: **Close as resolved**, **Close as outdated** or **Close as duplicate**.
 
 ## Blocked by
 

@@ -17,6 +17,10 @@ Widgets and inboxes send the search to GitHub, so **anything GitHub's issue sear
 
 People who aren't signed in only see public results: Tack adds `is:public` for them. `@me` means whoever's looking, and nothing for someone signed out.
 
+### Discussions
+
+As on GitHub, a search finds issues and pull requests unless it asks for discussions: `is:discussion` (or `type:discussion`) makes it a search of the repository's [discussions](/boards/cards/#discussions) instead, which understands `is:answered`, `is:unanswered`, `is:locked`, `category:"Q&A"`, labels, authors and the rest. Discussions are only searched for people who are signed in, as GitHub only searches them with an account.
+
 ## Rules
 
 [Rules](/automation/rules/) run when GitHub sends a webhook, checking the item in the webhook against the search without asking GitHub. So they understand a subset:
@@ -26,6 +30,7 @@ People who aren't signed in only see public results: Tack adds `is:public` for t
 | Words, matched against the title | `flaky`, `-wip`                                                                                                             |
 | Where                            | `repo:owner/name` (at least one is required), `org:`, `user:`, `owner:`                                                     |
 | Kind and state                   | `is:issue`, `is:pr`, `is:open`, `is:closed`, `is:merged`, `is:unmerged`, `is:draft`, `state:open`, `type:pr`, `draft:false` |
+| Discussions                      | `is:discussion`, `is:answered`, `is:unanswered`, `is:locked`, `category:Ideas`                                              |
 | Labels                           | `label:bug`, `-label:wontfix`, `label:"good first issue"`, `label:bug,regression`                                           |
 | People                           | `author:octocat`, `assignee:octocat`, `no:assignee`                                                                         |
 | Missing labels                   | `no:label`                                                                                                                  |

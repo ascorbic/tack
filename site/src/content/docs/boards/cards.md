@@ -1,15 +1,15 @@
 ---
 title: Cards
-description: Live GitHub issues and pull requests on the board, and what each part of a card means.
+description: Live GitHub issues, pull requests and discussions on the board, and what each part of a card means.
 sidebar:
   order: 2
 ---
 
-A card is a live view of a GitHub issue or pull request. Tack never keeps its own copy of the item's state: the card shows what GitHub says, and changes when GitHub does.
+A card is a live view of a GitHub issue, pull request or discussion. Tack never keeps its own copy of the item's state: the card shows what GitHub says, and changes when GitHub does.
 
 ## Adding cards
 
-- **The card tool** (<kbd>C</kbd>): type a few words to search the board's repositories (the ones its cards, inboxes and widgets are from, busiest first), or start with `owner/repo` to search that one. Results show as you type: <kbd>↑</kbd> <kbd>↓</kbd> to choose, <kbd>Enter</kbd> to add, <kbd>⌘</kbd> <kbd>Enter</kbd> to add every result that isn't on the board yet. It also takes a link, `owner/repo#123`, or just `#123` for the board's busiest repository. The tool stays open, so you can add several in a row; <kbd>Esc</kbd> closes it.
+- **The card tool** (<kbd>C</kbd>): type a few words to search the board's repositories (the ones its cards, inboxes and widgets are from, busiest first), or start with `owner/repo` to search that one. Results show as you type: <kbd>↑</kbd> <kbd>↓</kbd> to choose, <kbd>Enter</kbd> to add, <kbd>⌘</kbd> <kbd>Enter</kbd> to add every result that isn't on the board yet. It finds issues, pull requests and discussions alike; **Issues**, **Pull requests** or **Discussions** under the results looks for only that kind (as `is:issue`, `is:pr` or `is:discussion` in the words would). It also takes a link, `owner/repo#123`, or just `#123` for the board's busiest repository. The tool stays open, so you can add several in a row; <kbd>Esc</kbd> closes it.
 - **Paste** a link onto the board (<kbd>⌘</kbd> <kbd>V</kbd>, or <kbd>Ctrl</kbd> <kbd>V</kbd>). Several links, one per line, make several cards (up to 50), in rows of four from the pointer.
 - From a **list widget**: drag a row onto the board. See [List](/widgets/list/).
 - From an **inbox**: drag or click an item out of its tray. See [Inbox frames](/automation/inboxes/).
@@ -19,11 +19,11 @@ New cards never land on anything: each goes in the nearest free space, beside th
 
 Tack understands:
 
-- issue and pull request URLs on github.com: `https://github.com/owner/repo/issues/12` and `https://github.com/owner/repo/pull/34` (anything after the number, like `/files`, is fine, and so are `www.` and `http://`)
-- the short form `owner/repo#12`
+- issue, pull request and discussion URLs on github.com: `https://github.com/owner/repo/issues/12`, `https://github.com/owner/repo/pull/34` and `https://github.com/owner/repo/discussions/56` (anything after the number, like `/files` or `#discussioncomment-7`, is fine, and so are `www.` and `http://`)
+- the short form `owner/repo#12`, whichever of the three it is: on GitHub, discussions share their repository's numbers with its issues and pull requests
 - issues and merge requests on GitLab (`https://gitlab.com/group/project/-/issues/12`, `/-/merge_requests/34`, in groups as deep as they go), issues and pull requests on Codeberg (`https://codeberg.org/owner/repo/issues/12`, `/pulls/34`), and issues and pulls on Tangled (`https://tangled.org/handle/repo/issues/12`), plus any self-hosted GitLab or Forgejo your instance [is set up for](/self-hosting/forges/)
 
-Discussions, releases, milestones, commits and code links aren't cards: like any other web address, they become [link cards](/boards/link-cards/), with the page's preview. Pasting text that isn't only links makes a sticky instead.
+Releases, milestones, commits and code links aren't cards (nor are discussions on GitLab, Codeberg or Tangled, which have none like GitHub's): like any other web address, they become [link cards](/boards/link-cards/), with the page's preview. Pasting text that isn't only links makes a sticky instead.
 
 ## What a card shows
 
@@ -42,6 +42,18 @@ Pull requests also show:
 When the board is zoomed out a long way, cards shrink to their state, number, title and CI bar, so a board of hundreds of cards stays readable.
 
 When a card changes on GitHub while you're looking, it pulses and the changed parts flash.
+
+## Discussions
+
+A GitHub Discussion is a card of its own, with a speech bubble where an issue has its ring:
+
+- **The state**: **Open** (in blue), **Answered** with a tick (in green) once an answer's chosen, or **Resolved**, **Outdated** or **Duplicate** once it's closed. Hover **Answered** to see whose answer it is.
+- **The category**, its emoji and name (`🙏 Q&A`), ahead of the labels.
+- **The foot**: who started it, its **upvotes**, its comments, and a lock when it's locked.
+
+Discussions take labels, closing (as resolved, outdated or duplicate), reopening and backlinks from the bar under them, staged and pushed like any change (see [Actions](/writing-back/actions/)). They have no assignees, milestones, sub-issues or dependencies, so those aren't offered, and **Expand related** isn't either. A list widget follows discussions when its search says `is:discussion` (the **Unanswered questions** list does); otherwise lists, inboxes and rules search issues and pull requests, as GitHub does.
+
+Discussions need the GitHub App's **Discussions** permission. On an instance set up before Tack showed them, the app's owner adds it and each account accepts it; until then a discussion's card says the app needs it, with **Review permissions**. See [The GitHub App](/self-hosting/github-app/).
 
 ## Live and not live
 

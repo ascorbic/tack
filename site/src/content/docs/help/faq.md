@@ -35,7 +35,7 @@ It caches what each card shows, so boards load quickly, and refreshes it from Gi
 
 ## Which things can be cards?
 
-Issues and pull requests on github.com, and issues and merge or pull requests from GitLab, Codeberg and other Forgejo instances, and Tangled. Discussions, releases, milestones and code links aren't cards, though [widgets](/widgets/overview/) can follow milestones and releases.
+Issues, pull requests and discussions on github.com, and issues and merge or pull requests from GitLab, Codeberg and other Forgejo instances, and Tangled. Releases, milestones and code links aren't cards (pasted, they're [link cards](/boards/link-cards/)), though [widgets](/widgets/overview/) can follow milestones and releases.
 
 ## Does it work with GitLab, Forgejo or Codeberg?
 

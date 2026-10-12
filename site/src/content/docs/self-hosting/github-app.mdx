@@ -37,7 +37,7 @@ Whoever created the app becomes the first admin when they sign in, which happens
 | Issues               | Read and write | Issue cards; creating issues, labels, milestones, assignees, closing and reopening, sub-issues, blocked-by links, and comments |
 | Pull requests        | Read and write | Pull request cards, reviews and mergeability; opening ADR pull requests                                                        |
 | Contents             | Read and write | Numbering decision records from `docs/decisions/`, and committing a new record to its own branch                               |
-| Discussions          | Read and write | Writing a decision back as a Discussion post, and listing categories                                                           |
+| Discussions          | Read and write | Discussion cards; labelling, closing, reopening and commenting on them; decisions and digests posted as Discussions            |
 | Checks               | Read           | CI on pull request cards                                                                                                       |
 | Commit statuses      | Read           | CI on pull request cards                                                                                                       |
 | Actions              | Read           | Workflow runs, for CI on pull request cards                                                                                    |
@@ -45,9 +45,18 @@ Whoever created the app becomes the first admin when they sign in, which happens
 
 It asks for no permissions on people's own accounts. Signing in uses the app's own OAuth, with no extra scopes: people see what GitHub lets them see.
 
-The app subscribes to these webhook events: **issues**, **issue comment** (for [comment commands](/automation/comment-commands/)), **sub-issues** (so cards know which [parent issue](/writing-back/actions/#when-some-already-have-a-parent) they have), **pull request**, **pull request review**, **check run**, **check suite**, **status**, **workflow run**, **discussion** and **repository** (for renames, transfers and visibility changes). GitHub always sends installation events too.
+The app subscribes to these webhook events: **issues**, **issue comment** (for [comment commands](/automation/comment-commands/)), **sub-issues** (so cards know which [parent issue](/writing-back/actions/#when-some-already-have-a-parent) they have), **pull request**, **pull request review**, **check run**, **check suite**, **status**, **workflow run**, **discussion** and **discussion comment** (so discussion cards stay live), and **repository** (for renames, transfers and visibility changes). GitHub always sends installation events too.
 
 Everything Tack writes is staged and pushed by a person, so the write permissions are only used when someone [pushes](/writing-back/pushing/), as themselves or as the app.
+
+### Apps set up before discussions were cards
+
+An app made before Tack showed discussions as cards may not have the **Discussions** permission, or the **Discussion comment** event. Until it does, a discussion's card says the app needs the permission, with **Review permissions**, and "Where it's installed" says **Live · no Discussions**. To add them:
+
+1. Open the app's settings on GitHub (**App settings** on `/setup`), then **Permissions & events**.
+2. Under Repository permissions, set **Discussions** to **Read and write**.
+3. Under Subscribe to events, tick **Discussion** and **Discussion comment**, and save.
+4. Each account the app is installed on gets a request to accept the new permission: an owner accepts it from the account's Settings → Applications → Installed GitHub Apps → Configure. Its discussions' cards load once they do.
 
 ## Install on repositories
 
@@ -87,7 +96,7 @@ Before a planning session, open `/setup` and check it says All set, and that eve
 
 ### Where it's installed
 
-**Where it's installed** lists every account the app is installed on, the repositories each covers, and whether Tack can push there: "Live · Tack can push", "Live, read-only" (the account hasn't accepted the permissions Tack asks for), or "Suspended".
+**Where it's installed** lists every account the app is installed on, the repositories each covers, and whether Tack can push there: "Live · Tack can push", "Live, read-only" (the account hasn't accepted the permissions Tack asks for), "Live · no Discussions" (it hasn't accepted the Discussions permission, so discussions can't be cards there), or "Suspended".
 
 Below them, **On boards, without the app** lists repositories Tack has looked for the app on (cards on boards, mostly) and not found it. Their cards still show if they're public, but don't update live, and Tack can't push to them: install the app on any you'll plan with.
 

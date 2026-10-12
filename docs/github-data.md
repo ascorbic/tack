@@ -22,7 +22,7 @@ Edge case: if someone later creates a new repository with the old name, boards t
 
 ## Fetching
 
-GitHub-specific code lives in `src/server/forges/github.ts` and `github-graphql.ts`. With a token (`repoToken`), reads use batched GraphQL: `nodes(ids:)` for items fetched before, aliased `issueOrPullRequest(number:)` fields for new ones, 50 items per request. Without a token, or if GraphQL fails, they fall back to REST, one item at a time.
+GitHub-specific code lives in `src/server/forges/github.ts` and `github-graphql.ts`. With a token (`repoToken`), reads use batched GraphQL: `nodes(ids:)` for items fetched before, aliased `issueOrPullRequest(number:)` fields for new ones, each beside a `discussion(number:)` (discussions share the numbers; see "Discussions" in AGENTS.md), 50 items per request. Without a token, or if GraphQL fails, they fall back to REST, one item at a time.
 
 Pull request cards carry `pull` details (`src/shared/cards.ts`): the CI rollup on the head commit (passed, failing, pending and skipped counts, plus failing check names), the review decision and each reviewer's latest state, mergeability, and the issues the PR closes. REST and webhook payloads only give `basic` details: head commit, mergeability and requested reviewers, but no CI, review decision or linked issues. The card says so rather than guessing. When a webhook's basic details arrive for a card that has full ones, `Repo` keeps the full ones until a refetch replaces them.
 
