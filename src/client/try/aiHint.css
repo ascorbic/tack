@@ -1,8 +1,8 @@
-/* The demo's quiet "Using the offline stand-in" (AiHint.tsx), at the top of the board. */
+/* The demo's quiet "Using the offline stand-in" (AiHint.tsx): a quiet pill just above the toolbar, where toasts go. */
 
 .try-ai-hint-wrap {
 	position: absolute;
-	top: 12px;
+	bottom: 84px;
 	left: 50%;
 	z-index: 24;
 	max-width: calc(100% - 32px);
@@ -49,14 +49,14 @@
 @keyframes try-ai-hint-in {
 	from {
 		opacity: 0;
-		transform: translateY(-6px) scale(0.97);
+		transform: translateY(6px) scale(0.97);
 	}
 }
 
 @keyframes try-ai-hint-out {
 	to {
 		opacity: 0;
-		transform: translateY(-4px);
+		transform: translateY(4px);
 	}
 }
 

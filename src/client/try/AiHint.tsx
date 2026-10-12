@@ -4,7 +4,7 @@ import type { HintStore } from "./hints.ts";
 import "./aiHint.css";
 
 // A quiet word when the demo's stand-in AI answers instead of the real one
-// (src/client/try/ai.ts): a small pill at the top of the board for a few
+// (src/client/try/ai.ts): a small pill above the toolbar for a few
 // seconds, saying why in a few words (hints.ts decides when).
 
 const SHOWN_MS = 4500;
