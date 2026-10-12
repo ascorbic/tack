@@ -7,7 +7,7 @@ sidebar:
 
 import Screenshot from "../../../components/Screenshot.astro";
 
-Tack is a collaborative whiteboard for planning open source work. You put GitHub issues and pull requests on a freeform board as **live cards**, next to stickies, text, sections, connectors and decisions, and work through them with your team, live or over days.
+Tack is a collaborative whiteboard for planning open source work. You put GitHub issues and pull requests on a freeform board as **live cards**, next to stickies, stacks, sections, connectors and decisions, and work through them with your team, live or over days, on a computer, a tablet or a phone.
 
 Arranging a board never touches GitHub. When the session has produced something worth keeping (new issues, labels, a milestone, links between issues, a decision record), you **stage** it, review it as one batch, and **push** it. Until then, nothing changes on GitHub.
 
@@ -18,7 +18,7 @@ Arranging a board never touches GitHub. When the session has produced something 
 	caption="A planning board: live cards from two repositories, and stickies from the session."
 />
 
-Tack is open source (MIT) and self-hosted: each instance is one Cloudflare Worker and a GitHub App you own. There's no hosted service. See [Deploy Tack](/self-hosting/deploy/).
+Tack is open source (MIT) and self-hosted: each instance is one Cloudflare Worker and a GitHub App you own. There's no hosted service. See [Deploy Tack](/self-hosting/deploy/), or [try it in your browser](/try/) first.
 
 :::caution[Early days]
 Tack is an early prototype. It's used for real planning, but expect rough edges and changes between versions.
@@ -48,10 +48,15 @@ You sign in with GitHub, and **GitHub decides what you can see and do**:
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | [Cards](/boards/cards/)                         | Live GitHub issues and pull requests: state, labels, assignees, CI and reviews                                                |
 | [Stickies and text](/boards/stickies-and-text/) | Ideas, notes and headings. Stickies can become issues                                                                         |
+| [Stacks](/boards/stacks/)                       | Stickies, issues and pull requests gathered into a named theme. A stack can become a parent issue                             |
 | [Sections](/boards/sections/)                   | Frames that hold things. A section can become a parent issue, an inbox, a silent brainstorm or a vote                         |
 | [Connectors](/boards/connectors/)               | Arrows between things. A connector between two issues can become a blocked-by link                                            |
 | [Decisions](/boards/decisions/)                 | Proposals people vote on, decided, then written back as an ADR pull request or a Discussion                                   |
+| [Action items](/facilitation/action-items/)     | Who'll do what by when, following their issues, and carried into the next session                                             |
 | [History](/boards/history/)                     | The board over time: replay it, see who changed what, bring back what was removed                                             |
 | [Widgets](/widgets/overview/)                   | Live searches and views: lists, a timeline, a release draft, a dependency map, a review queue, a milestone and a stale finder |
+| [Custom widgets](/widgets/custom/)              | Your own code, in a sandbox, drawing the board's data                                                                         |
+
+Cards can also come from [GitLab, Codeberg, Forgejo and Tangled](/self-hosting/forges/), and [AI](/boards/ai/) can name stacks, set up a widget from a sentence, summarise and draft decisions, always shown to you first.
 
 Next, take [the two-minute tour](/start/tour/).

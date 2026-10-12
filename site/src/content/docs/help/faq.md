@@ -11,7 +11,7 @@ No. Nothing you do to the layout touches GitHub. Only [pushing](/writing-back/pu
 
 ## Is there a hosted Tack I can use?
 
-No. Tack is self-hosted only for now: [deploy your own](/self-hosting/deploy/) on Cloudflare.
+No. Tack is self-hosted only for now: [deploy your own](/self-hosting/deploy/) on Cloudflare. To see it first, [try it in your browser](/try/): a board with pretend teammates and a pretend forge, where nothing leaves your browser.
 
 ## Can I use it with repositories I don't own?
 
@@ -33,13 +33,17 @@ The push sheet says roughly how many people each repository's changes will notif
 
 It caches what each card shows, so boards load quickly, and refreshes it from GitHub. It never keeps its own version of an issue's state: GitHub is always the source of truth. What it does store is the board itself: layout, stickies, comments, votes, decisions, its history and the push history.
 
-## Which GitHub things can be cards?
+## Which things can be cards?
 
-Issues and pull requests on github.com. Discussions, releases, milestones and code links aren't cards, though [widgets](/widgets/overview/) can follow milestones and releases.
+Issues and pull requests on github.com, and issues and merge or pull requests from GitLab, Codeberg and other Forgejo instances, and Tangled. Discussions, releases, milestones and code links aren't cards, though [widgets](/widgets/overview/) can follow milestones and releases.
 
 ## Does it work with GitLab, Forgejo or Codeberg?
 
-Not yet. Tack's core is forge-neutral, and other forges are planned, but GitHub is the only one today.
+Yes, beside GitHub. Every instance reads public projects on gitlab.com, codeberg.org and tangled.org with no setup; give it a token and webhooks for a host to make its cards live and, if you want, to push there. Self-hosted GitLab and Forgejo work the same way. Sign-in is always with GitHub. See [Other forges](/self-hosting/forges/).
+
+## Does Tack use AI?
+
+Only where it helps and you can see it: naming [stacks](/boards/stacks/), grouping a selection into themes, and, when an editor asks, setting up a widget from a sentence, summarising a selection or drafting a decision. It runs on Workers AI in the instance's own Cloudflare account, reads only what the person asking can read, and shows everything before it goes on the board. An instance can turn it off. See [AI](/boards/ai/).
 
 ## Can I export a board?
 

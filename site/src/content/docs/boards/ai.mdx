@@ -5,6 +5,8 @@ sidebar:
   order: 6.5
 ---
 
+import Screenshot from "../../../components/Screenshot.astro";
+
 Tack can use AI for three things on a board: setting up a [widget](/widgets/overview/) from a description, summarising what's selected, and drafting a [decision](/boards/decisions/) from it. Everything it comes up with is shown to you first, to read, edit or throw away. Nothing goes on the board until you place it, and then it's your own edit, undone in one step like any other.
 
 It's for the board's editors, and only where the instance has AI suggestions on (see [Turning it off](#turning-it-off)): where they're off, none of what's below is there.
@@ -18,6 +20,11 @@ The AI picks the kind of widget that fits and fills in its settings, using the b
 - which widget it chose, and a sentence on what it shows
 - its settings in words (the search, the repository, the time range)
 - **the widget itself**, live, with the results you'd see
+
+<Screenshot
+	name="ai"
+	alt="Asking for “Open bugs in unpic”: the AI chose a list widget, says its search in words, and previews the list live with six open bugs, with Try again and Place on board."
+/>
 
 **Place on board** (or <kbd>Enter</kbd>) puts it in view. Change your words and press <kbd>Enter</kbd> to ask again, or **Pick one yourself** to go back to the picker. Once it's placed it's an ordinary widget: its settings are editable like any other's, and everyone sees its results as they may read them.
 

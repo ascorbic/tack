@@ -6,8 +6,14 @@ sidebar:
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+import Screenshot from "../../../components/Screenshot.astro";
 
 A custom widget is a little JavaScript that draws whatever you like from the board's data: a burndown, a label cloud, who's contributing. Its code runs in a sandbox that can't reach the network, Tack, or anything else on the page, and it reads data through a small API that can search and read cards, but never change anything.
+
+<Screenshot
+	name="custom"
+	alt="Custom widgets on a board: a new one offering Burndown, Label cloud, Contributors and Blank to start from; a sandbox check showing fetch, images, WebSockets, cookies, storage, the board, popups and WebRTC all blocked; a burndown of unpic 5.0; and a cloud of the repository's labels."
+/>
 
 ## Turning them on
 
