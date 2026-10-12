@@ -11,6 +11,7 @@ import {
 } from "../../shared/comments.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
 import { shortRef } from "../../shared/rules.ts";
+import { linkText } from "../../shared/linkPreview.ts";
 import { stackName } from "../../shared/stacks.ts";
 import { type ShapeProps, shapesMap } from "../../shared/shapes.ts";
 import { relativeTime } from "../boards/api.ts";
@@ -65,6 +66,10 @@ export function threadPlace(doc: Y.Doc | null, thread: CommentThread): string {
 		return name ? `on the “${excerpt(name, 32)}” stack` : "on a stack";
 	}
 	if (type === "text") return "on some text";
+	if (type === "link") {
+		const { title } = linkText(shape.toJSON() as ShapeProps);
+		return `on “${excerpt(title, 32)}”`;
+	}
 	return "on the board";
 }
 

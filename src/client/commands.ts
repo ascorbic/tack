@@ -22,6 +22,7 @@ import {
 	setStickyText,
 } from "./board.ts";
 import { RUN_COLUMNS } from "../shared/addCards.ts";
+import { LINK_CARD } from "../shared/linkPreview.ts";
 import { PLACE_GAP, PLACED_CARD, slideClear } from "../shared/placement.ts";
 import { cardStore } from "./cardStore.ts";
 import { fitBoxes, shapeBoxes } from "./fitting.ts";
@@ -103,6 +104,8 @@ interface CommandsOptions {
 	 * in free space, and saying so for any already on the board.
 	 */
 	addCards?: (keys: string[], options: { at: Position }) => { added: string[] };
+	/** Add link cards for pasted web addresses (links.ts), starting at `at`, as cards are. */
+	addLinks?: (urls: string[], options: { at: Position }) => void;
 }
 
 /** How much each step in or out zooms by: React Flow's own step. */
@@ -325,21 +328,25 @@ export function useCanvasCommands(options: CommandsOptions) {
 	);
 
 	const pasteText = useCallback(
-		(text: string): boolean => {
+		(text: string, where?: Position): boolean => {
 			const paste = interpretText(text);
 			if (!paste) return false;
-			const at = pointerOrCentre();
-			const { user, stickyColor, addCards, toasts } = latest.current;
+			const at = where ?? pointerOrCentre();
+			const { user, stickyColor, addCards, addLinks } = latest.current;
 			if (paste.kind === "cards") {
-				if (!addCards) return false;
-				// Centred under the pointer, then in rows (see shared/addCards.ts).
-				const columns = Math.min(paste.keys.length, RUN_COLUMNS);
-				addCards(paste.keys, {
-					at: {
-						x: Math.round(at.x - (columns * (PLACED_CARD.w + PLACE_GAP) - PLACE_GAP) / 2),
-						y: Math.round(at.y - PLACED_CARD.h / 2),
-					},
-				});
+				if (!addCards || (paste.links.length > 0 && !addLinks)) return false;
+				// Centred under the pointer, then in rows (see shared/addCards.ts):
+				// cards first, then link cards in rows of their own below them.
+				const columns = Math.min(Math.max(paste.keys.length, paste.links.length), RUN_COLUMNS);
+				const left = Math.round(at.x - (columns * (PLACED_CARD.w + PLACE_GAP) - PLACE_GAP) / 2);
+				const top = Math.round(at.y - (paste.keys.length > 0 ? PLACED_CARD.h : LINK_CARD.h) / 2);
+				if (paste.keys.length > 0) addCards(paste.keys, { at: { x: left, y: top } });
+				if (paste.links.length > 0) {
+					const rows = Math.ceil(paste.keys.length / RUN_COLUMNS);
+					addLinks?.(paste.links, {
+						at: { x: left, y: top + rows * (PLACED_CARD.h + PLACE_GAP) },
+					});
+				}
 				return true;
 			}
 			const id = transactLocal(doc, () => {
@@ -351,12 +358,6 @@ export function useCanvasCommands(options: CommandsOptions) {
 				return id;
 			});
 			latest.current.setSelected(new Set([id]));
-			// A link that isn't to an issue or pull request still lands, as a note.
-			if (isLink(paste.text)) {
-				toasts.show({
-					message: "Added as a sticky: Tack makes cards from issue and pull request links",
-				});
-			}
 			return true;
 		},
 		[doc, pointerOrCentre],
@@ -764,12 +765,10 @@ export function useCanvasCommands(options: CommandsOptions) {
 	const onRemoveRef = useRef(onRemove);
 	onRemoveRef.current = onRemove;
 
-	return useMemo(() => ({ run, onRemove, settle }), [run, onRemove, settle]);
-}
-
-/** A single web address, and nothing else. */
-function isLink(text: string): boolean {
-	return /^(https?:\/\/|www\.)\S+$/i.test(text.trim());
+	return useMemo(
+		() => ({ run, onRemove, settle, dropText: pasteText }),
+		[run, onRemove, settle, pasteText],
+	);
 }
 
 function hasWords(text: unknown): boolean {
@@ -785,6 +784,7 @@ const NOUNS: Record<string, [string, string]> = {
 	widget: ["widget", "widgets"],
 	action: ["action item", "action items"],
 	stack: ["stack", "stacks"],
+	link: ["link card", "link cards"],
 };
 
 /** "its issue", "3 issues", "4 changes": what deleting shapes unstaged. */

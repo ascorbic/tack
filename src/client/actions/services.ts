@@ -7,6 +7,7 @@ import { canEdit } from "../../shared/boards.ts";
 import { type AiService, liveAi } from "../ai/service.ts";
 import { boardsApi } from "../boards/api.ts";
 import { repoApi } from "../changes/api.ts";
+import { type LinkService, liveLinks } from "../links/service.ts";
 import type { User } from "../presence.ts";
 
 // What the built-in actions need from outside the board document: the
@@ -37,6 +38,8 @@ export interface WriteServices {
 	carryOver?(to: string, shapes?: string[]): Promise<CarryResponse | { error: string }>;
 	/** AI (#64): widgets from descriptions, summaries and drafted decisions. */
 	ai?: AiService;
+	/** Link cards: reading pages' previews, and where their images load from. */
+	links?: LinkService;
 }
 
 const SNAPSHOT_ERRORS: Record<string, string> = {
@@ -53,6 +56,7 @@ export function liveServices(boardId: string): WriteServices {
 		boardUrl: () => location.origin + location.pathname,
 		boardTitle: () => document.title.replace(/ · Tack$/, "") || null,
 		ai: liveAi(boardId),
+		links: liveLinks(boardId),
 		// The shared repository endpoint (src/client/changes/api.ts).
 		repoMeta: (repo) => repoApi.meta(repo).catch(() => null),
 		async uploadSnapshot(png) {

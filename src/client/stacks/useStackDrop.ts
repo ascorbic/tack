@@ -88,7 +88,10 @@ export function useStackDrop({
 				const node = byId.get(id);
 				return (
 					node &&
-					(node.type === "sticky" || node.type === "card" || node.type === "stack") &&
+					(node.type === "sticky" ||
+						node.type === "card" ||
+						node.type === "link" ||
+						node.type === "stack") &&
 					node.data.display === undefined &&
 					!(node.type === "stack" && node.data.stack?.open)
 				);
@@ -105,7 +108,13 @@ export function useStackDrop({
 			let best: ShapeNode | null = null;
 			drawn.forEach((node) => {
 				if (node.hidden || dragged.has(node.id) || node.data.display !== undefined) return;
-				if (node.type !== "sticky" && node.type !== "card" && node.type !== "stack") return;
+				if (
+					node.type !== "sticky" &&
+					node.type !== "card" &&
+					node.type !== "link" &&
+					node.type !== "stack"
+				)
+					return;
 				const stack = node.type === "stack" ? node.id : (stacks.stackOf.get(node.id) ?? null);
 				if (ownStack && stack === ownStack) return;
 				if (!contains(nodeBox(node), at)) return;

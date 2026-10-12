@@ -20,6 +20,7 @@ import {
 import { readVotes } from "../shared/dotvotes.ts";
 import { STAMPS, type StampEmoji } from "../shared/facilitation.ts";
 import { type CardRun, addCardsInRun, cardsOnBoard, searchScopeOf } from "../shared/addCards.ts";
+import { addLinksInRun, linkHost } from "../shared/links.ts";
 import { type Rect, intersects } from "../shared/geometry.ts";
 import { parseKey } from "../shared/refs.ts";
 import { boxOf } from "../shared/sections.ts";
@@ -42,6 +43,7 @@ import { ActionBar } from "./actions/ActionBar.tsx";
 import { BlockedByAction } from "./actions/BlockedBy.tsx";
 import { ActionRequests } from "./actions/selection.ts";
 import { ServicesContext, type WriteServices, liveServices } from "./actions/services.ts";
+import { useLinkUnfurling } from "./links/unfurling.ts";
 import type { BoardSource } from "./connection.ts";
 import type { PushClient } from "./changes/api.ts";
 import { ChangesButton } from "./changes/ChangesButton.tsx";
@@ -125,7 +127,7 @@ import { isEditingShape } from "./useEditing.ts";
 import { spotNear } from "../shared/placement.ts";
 import { addSection, placeInSections, readShapes } from "../shared/structure.ts";
 import { leaveStack, stackUp, reorderInStack } from "../shared/stackEdits.ts";
-import { STACK_SIZE, STICKY, nearestSlot, openLayout } from "../shared/stacks.ts";
+import { STACK_SIZE, STICKY, isStackable, nearestSlot, openLayout } from "../shared/stacks.ts";
 import { contains } from "../shared/geometry.ts";
 import { stackStore, useStacks } from "./stacks/store.ts";
 import { PROPOSAL_COLORS } from "./stacks/GroupThese.tsx";
@@ -463,6 +465,8 @@ export function Board({
 	}, [liveDoc, toasts]);
 	// Selection actions: staging changes for the forge (src/client/actions/).
 	const writeServices = useMemo(() => services ?? liveServices(name), [services, name]);
+	// Link cards' previews: read by editors' clients, written for everyone (links/unfurling.ts).
+	useLinkUnfurling(liveDoc, writeServices.links, !viewOnly);
 	const [actionRequests] = useState(() => new ActionRequests());
 	const [sheetOpen, setSheetOpen] = useState(false);
 	const [minimapOn, setMinimapOn] = useMinimapPreference();
@@ -708,11 +712,7 @@ export function Board({
 					fed: fed?.id === base.id ? fed.n : 0,
 				};
 			}
-			if (
-				target === base.id &&
-				armed &&
-				(base.data.shape.type === "sticky" || base.data.shape.type === "card")
-			) {
+			if (target === base.id && armed && isStackable(base.data.shape.type)) {
 				className = `${className ?? ""} stack-target`.trim();
 			}
 			if (armed && dragged.includes(base.id)) {
@@ -1033,6 +1033,9 @@ export function Board({
 		added: [],
 		existing: [],
 	}));
+	const addLinksRef = useRef<(urls: string[], options: { at: Position; copies?: boolean }) => void>(
+		() => {},
+	);
 	const commands = useCanvasCommands({
 		doc,
 		board: name,
@@ -1076,6 +1079,7 @@ export function Board({
 		inList: (id) => displayRef.current.slots.has(id),
 		drawnAt: (id) => displayRef.current.slots.get(id)?.rect,
 		addCards: (keys, options) => addCardsRef.current(keys, options),
+		addLinks: (urls, options) => addLinksRef.current(urls, options),
 	});
 	// Tablets: long-press to select several (#67).
 	const touchSelect = useTouchSelection({
@@ -1478,7 +1482,11 @@ export function Board({
 	// Drag a sticky straight off the toolbar.
 	const onDragOver = (event: DragEvent) => {
 		const types = event.dataTransfer.types;
-		if (types.includes(STICKY_DRAG_TYPE) || types.includes(WIDGET_DRAG_TYPE)) {
+		if (
+			types.includes(STICKY_DRAG_TYPE) ||
+			types.includes(WIDGET_DRAG_TYPE) ||
+			(!readOnly && droppedText(types))
+		) {
 			event.preventDefault();
 			event.dataTransfer.dropEffect = "copy";
 		}
@@ -1503,9 +1511,27 @@ export function Board({
 			return;
 		}
 		const color = event.dataTransfer.getData(STICKY_DRAG_TYPE) as StickyColor;
-		if (!color || readOnly) return;
+		if (readOnly) return;
+		const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+		if (!color) {
+			// Links dragged in from elsewhere (a browser's address bar, a page, a
+			// chat) land as a paste would there: cards, link cards, or a sticky.
+			const types = event.dataTransfer.types;
+			if (!droppedText(types)) return;
+			const uris = event.dataTransfer
+				.getData("text/uri-list")
+				.split(/\r?\n/)
+				.filter((line) => line.trim() && !line.startsWith("#"))
+				.join("\n");
+			const text = uris || event.dataTransfer.getData("text/plain");
+			if (text.trim()) {
+				event.preventDefault();
+				commands.dropText(text, at);
+			}
+			return;
+		}
 		event.preventDefault();
-		placeSticky(flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }), color);
+		placeSticky(at, color);
 		setTool("select");
 	};
 
@@ -1595,6 +1621,48 @@ export function Board({
 		[doc, readOnly, boxSize, flow, centre, follow.stop, pulse, reveal, toasts],
 	);
 	addCardsRef.current = addCards;
+	// Link cards for pasted or dropped web addresses (links.ts): laid out as
+	// cards are, never twice for an address that's here unless asked for, and
+	// read by `useLinkUnfurling` once they're on the board.
+	const addLinks = useCallback(
+		(urls: string[], options: { at: Position; copies?: boolean }) => {
+			if (readOnly || urls.length === 0) return;
+			const result = transactLocal(doc, () =>
+				addLinksInRun(
+					doc,
+					urls,
+					{ origin: options.at, count: 0 },
+					{
+						sizeOf: boxSize,
+						copies: options.copies,
+					},
+				),
+			);
+			const ids = result.added.map((entry) => entry.id);
+			if (ids.length > 0) setSelected(new Set(ids));
+			const existing = result.existing;
+			if (existing.length === 0) return;
+			pulse(existing.map((entry) => entry.id));
+			const [first] = existing;
+			if (ids.length === 0 && first && existing.length === 1) reveal(first.id);
+			toasts.show({
+				message:
+					existing.length === 1 && first
+						? `${linkHost(first.url)} is already on the board`
+						: `${existing.length} of those links are already on the board`,
+				action: {
+					label: existing.length === 1 ? "Add another copy" : "Add copies",
+					run: () =>
+						addLinksRef.current(
+							existing.map((entry) => entry.url),
+							{ at: options.at, copies: true },
+						),
+				},
+			});
+		},
+		[doc, readOnly, boxSize, pulse, reveal, toasts],
+	);
+	addLinksRef.current = addLinks;
 	const onBoard = useCallback((key: string) => cardsOnBoard(doc).has(key.toLowerCase()), [doc]);
 	// Where the card tool searches: read while it's open, and again as cards arrive.
 	const cardShapes = tool === "card" ? shapeNodes : null;
@@ -2184,6 +2252,8 @@ function minimapClass(node: ShapeNode): string {
 	if (type === "decision")
 		return `minimap-decision minimap-decision-${node.data.shape.status ?? "proposed"}`;
 	if (type === "widget") return "minimap-widget";
+	// A link card is a card, on the minimap.
+	if (type === "link") return "minimap-card";
 	if (type === "action")
 		return `minimap-action${node.data.shape.done ? " minimap-action-done" : ""}`;
 	// A stack shows as its top sticky's paper.
@@ -2197,4 +2267,10 @@ function minimapClass(node: ShapeNode): string {
 function shortRef(key: string): string {
 	const ref = parseKey(key);
 	return ref ? `${ref.repo.split("/").pop()}${ref.item}` : key;
+}
+
+/** Text dragged in from outside the board (not one of its own drags): links, or words. */
+function droppedText(types: readonly string[]): boolean {
+	if (types.includes("Files")) return false;
+	return types.includes("text/uri-list") || types.includes("text/plain");
 }

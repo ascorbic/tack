@@ -374,7 +374,7 @@
 }
 
 /* A card in a stack: card paper, not a sticky's, with its state and number. */
-.phone-sheet-stack-item[data-kind="card"] {
+.phone-sheet-stack-item:is([data-kind="card"], [data-kind="link"]) {
 	border: 1px solid var(--line);
 	border-radius: 10px;
 	background: var(--surface);

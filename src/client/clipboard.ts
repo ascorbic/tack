@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { ACTION_UNCOPIED } from "../shared/actionItems.ts";
 import { DECISION_UNCOPIED } from "../shared/decisions.ts";
 import { CARD_UNCOPIED } from "../shared/provenance.ts";
+import { MAX_PASTED_LINKS, linkUrl } from "../shared/linkPreview.ts";
 import { itemKey, parseRef } from "../shared/refs.ts";
 import { nextZ, shapesMap } from "../shared/shapes.ts";
 
@@ -263,28 +264,39 @@ export function pasteShapes(
 	return added;
 }
 
-/** What a piece of pasted plain text should become. */
-export type TextPaste = { kind: "cards"; keys: string[] } | { kind: "sticky"; text: string };
+/**
+ * What a piece of pasted plain text should become: cards for items a forge
+ * recognises, link cards for any other web address (links.ts), or a sticky.
+ */
+export type TextPaste =
+	| { kind: "cards"; keys: string[]; links: string[] }
+	| { kind: "sticky"; text: string };
 
 /** Longest text a pasted sticky takes; anything longer is cut short. */
 export const MAX_PASTED_TEXT = 5000;
 const MAX_PASTED_CARDS = 50;
 
 /**
- * Text that's nothing but issue and PR references (one per line) becomes
- * cards; any other text becomes a sticky.
+ * Text that's nothing but references and addresses (one per line, or
+ * between spaces) becomes cards: an issue's or pull request's (anything
+ * `parseRef` reads, always asked first) as its card, any other web address
+ * as a link card. Any other text becomes a sticky, addresses and all.
  */
 export function interpretText(text: string): TextPaste | null {
 	const trimmed = text.trim();
 	if (!trimmed) return null;
-	const lines = trimmed
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter(Boolean);
-	if (lines.length <= MAX_PASTED_CARDS) {
-		const refs = lines.map(parseRef);
-		if (refs.every((ref) => ref !== null)) {
-			return { kind: "cards", keys: [...new Set(refs.map((ref) => itemKey(ref)))] };
+	const words = trimmed.split(/\s+/);
+	if (words.length <= MAX_PASTED_CARDS) {
+		const keys = new Set<string>();
+		const links = new Set<string>();
+		const items = words.every((word) => {
+			const ref = parseRef(word);
+			if (ref) return keys.add(itemKey(ref));
+			const url = linkUrl(word);
+			return url !== null && links.add(url);
+		});
+		if (items && links.size <= MAX_PASTED_LINKS) {
+			return { kind: "cards", keys: [...keys], links: [...links] };
 		}
 	}
 	return { kind: "sticky", text: trimmed.slice(0, MAX_PASTED_TEXT) };

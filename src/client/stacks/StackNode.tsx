@@ -11,6 +11,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { isMissing } from "../../shared/cards.ts";
+import { linkHost, linkHue, linkText, readPreview } from "../../shared/linkPreview.ts";
 import { setStackName } from "../../shared/stackEdits.ts";
 import {
 	UNTITLED_STACK,
@@ -25,6 +26,8 @@ import type { ShapeProps } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { isFresh, type ShapeNode } from "../board.ts";
 import { StateIcon } from "../CardView.tsx";
+import { ServicesContext } from "../actions/services.ts";
+import { SiteIcon } from "../links/LinkView.tsx";
 import { useCard } from "../cardStore.ts";
 import { useChangesUI } from "../changes/context.ts";
 import { useShapeChanges } from "../changes/store.ts";
@@ -97,7 +100,9 @@ type Member = StackView["members"][number];
 /** A member's paper colour, for the edges behind the card: a sticky's, or a card's tint. */
 function paperOf(member: Member | undefined): string | undefined {
 	if (!member) return undefined;
-	return member.shape.type === "card" ? "card" : (member.shape.color ?? "yellow");
+	return member.shape.type === "card" || member.shape.type === "link"
+		? "card"
+		: (member.shape.color ?? "yellow");
 }
 
 /**
@@ -106,7 +111,7 @@ function paperOf(member: Member | undefined): string | undefined {
  * and it marks a stack it can't name (`unnameable`).
  */
 function hasWords(member: Member): boolean {
-	if (member.shape.type === "card") return true;
+	if (member.shape.type === "card" || member.shape.type === "link") return true;
 	return !silentOf(member.shape) && (member.shape.text ?? "").trim() !== "";
 }
 
@@ -181,7 +186,9 @@ export function StackPapers({
 		.map((member) =>
 			member.shape.type === "card"
 				? member.id
-				: `${member.id}:${silentOf(member.shape) ?? ""}:${member.shape.text ?? ""}`,
+				: member.shape.type === "link"
+					? `${member.id}:${member.shape.preview?.title ?? member.shape.url ?? ""}`
+					: `${member.id}:${silentOf(member.shape) ?? ""}:${member.shape.text ?? ""}`,
 		)
 		.join("\n");
 	const waiting = useNamingWait(expecting, wordsKey, patience);
@@ -287,7 +294,31 @@ export function StackPapers({
 /** One member, in a line: a sticky's colour and words, or a card's state, number and title. */
 function Excerpt({ member }: { member: Member }) {
 	if (member.shape.type === "card") return <CardExcerpt id={member.id} shape={member.shape} />;
+	if (member.shape.type === "link") return <LinkExcerpt id={member.id} shape={member.shape} />;
 	return <StickyExcerpt id={member.id} shape={member.shape} />;
+}
+
+/** A link card in a line: its site's icon, then its page's title. */
+function LinkExcerpt({ id, shape }: { id: string; shape: ShapeProps }) {
+	const links = useContext(ServicesContext)?.links;
+	const url = shape.url ?? "";
+	const { title } = linkText(shape);
+	return (
+		<span
+			className="stack-row link-tinted"
+			data-kind="link"
+			style={{ "--link-hue": linkHue(url) } as React.CSSProperties}
+		>
+			<SiteIcon
+				icon={readPreview(shape.preview)?.icon}
+				host={linkHost(url)}
+				imageSrc={links?.imageSrc}
+				size="small"
+			/>
+			<span className="stack-row-text">{title}</span>
+			<StagedMark id={id} />
+		</span>
+	);
 }
 
 function StickyExcerpt({ id, shape }: { id: string; shape: ShapeProps }) {

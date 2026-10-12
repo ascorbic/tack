@@ -16,6 +16,9 @@ import { UNTITLED_STACK, countMembers, nameState, stackName } from "../../shared
 import type { ShapeProps } from "../../shared/shapes.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { widgetDefinition } from "../../shared/widgetRegistry.ts";
+import { linkHost, linkHue, linkText, readPreview } from "../../shared/linkPreview.ts";
+import { ServicesContext } from "../actions/services.ts";
+import { SiteIcon } from "../links/LinkView.tsx";
 import { type ShapeNode, isFresh, setStickyText, takeFocus } from "../board.ts";
 import { StateIcon, stateLabel } from "../CardView.tsx";
 import { useCard } from "../cardStore.ts";
@@ -109,6 +112,8 @@ export function DisplayItemView(props: ItemProps) {
 			return <CardItem {...props} />;
 		case "sticky":
 			return <StickyItem {...props} />;
+		case "link":
+			return <LinkItem {...props} />;
 		default:
 			return <PlainItem {...props} />;
 	}
@@ -382,6 +387,38 @@ const PlainItem = memo(function PlainItem({
 			</span>
 			<span className={kind === "mini" ? "display-mini-title" : "display-title"}>{title}</span>
 			{note && tier === "full" && <span className="display-chip">{note}</span>}
+			<DisplayMarks id={id} compact={kind === "mini"} />
+		</article>
+	);
+});
+
+/** A link card in a list: its site's icon where a card's state is, its page's title, and where it is. */
+const LinkItem = memo(function LinkItem({ id, shape, kind, selected, tier, enter }: ItemProps) {
+	const links = useContext(ServicesContext)?.links;
+	const url = shape.url ?? "";
+	const host = linkHost(url);
+	const { title } = linkText(shape);
+	return (
+		<article
+			className={`display-item display-${kind === "mini" ? "mini" : "row"} display-plain link-tinted`}
+			data-kind={kind}
+			data-tier={tier}
+			data-type="link"
+			data-selected={selected}
+			data-enter={enter || undefined}
+			style={{ "--link-hue": linkHue(url) } as React.CSSProperties}
+			aria-label={`${title}, ${host}`}
+		>
+			<span className="display-glyph" aria-hidden="true">
+				<SiteIcon
+					icon={readPreview(shape.preview)?.icon}
+					host={host}
+					imageSrc={links?.imageSrc}
+					size="small"
+				/>
+			</span>
+			<span className={kind === "mini" ? "display-mini-title" : "display-title"}>{title}</span>
+			{tier === "full" && kind === "row" && <span className="display-chip">{host}</span>}
 			<DisplayMarks id={id} compact={kind === "mini"} />
 		</article>
 	);

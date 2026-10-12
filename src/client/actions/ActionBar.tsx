@@ -154,7 +154,15 @@ export interface Action {
 }
 
 /** What the AI can read in a selection (#64). */
-const AI_READS = new Set<ShapeType>(["sticky", "card", "text", "section", "decision", "action"]);
+const AI_READS = new Set<ShapeType>([
+	"sticky",
+	"card",
+	"text",
+	"section",
+	"decision",
+	"action",
+	"link",
+]);
 
 const KIND: Partial<Record<ActionCommand, OperationKind>> = {
 	labels: "item.labels",

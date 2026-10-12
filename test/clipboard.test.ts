@@ -197,14 +197,47 @@ describe("interpretText", () => {
 		expect(interpretText("https://github.com/ascorbic/unpic/pull/42")).toEqual({
 			kind: "cards",
 			keys: ["github.com/ascorbic/unpic#42"],
+			links: [],
 		});
 		expect(interpretText("ascorbic/unpic#1\n\n  ascorbic/unpic#2 \nascorbic/unpic#1")).toEqual({
 			kind: "cards",
 			keys: ["github.com/ascorbic/unpic#1", "github.com/ascorbic/unpic#2"],
+			links: [],
 		});
 	});
 
-	it("turns any other text into a sticky", () => {
+	it("turns a bare web address that isn't an item into a link card", () => {
+		expect(interpretText(" https://unpic.pics \n")).toEqual({
+			kind: "cards",
+			keys: [],
+			links: ["https://unpic.pics/"],
+		});
+		expect(interpretText("www.emdashcms.com/docs")).toEqual({
+			kind: "cards",
+			keys: [],
+			links: ["https://www.emdashcms.com/docs"],
+		});
+		// A repository's page, or its pull requests' list, isn't an item: a link card.
+		expect(interpretText("https://github.com/ascorbic/cirrus")).toEqual({
+			kind: "cards",
+			keys: [],
+			links: ["https://github.com/ascorbic/cirrus"],
+		});
+	});
+
+	it("reads several addresses at once, items as cards and the rest as link cards", () => {
+		expect(
+			interpretText(
+				"https://unpic.pics https://github.com/ascorbic/unpic/issues/7\nhttps://tack.social\nhttps://unpic.pics/",
+			),
+		).toEqual({
+			kind: "cards",
+			keys: ["github.com/ascorbic/unpic#7"],
+			links: ["https://unpic.pics/", "https://tack.social/"],
+		});
+	});
+
+	it("keeps an address with words around it a sticky", () => {
 		expect(interpretText("  remember the changelog \n")).toEqual({
 			kind: "sticky",
 			text: "remember the changelog",
@@ -213,7 +246,19 @@ describe("interpretText", () => {
 			kind: "sticky",
 			text: "see ascorbic/unpic#1 for why",
 		});
-		expect(interpretText("https://example.com")?.kind).toBe("sticky");
+		expect(interpretText("Read https://tack.social/docs first")).toEqual({
+			kind: "sticky",
+			text: "Read https://tack.social/docs first",
+		});
+		// Not web addresses: other schemes, and hosts that aren't hosts.
+		expect(interpretText("javascript:alert(1)")?.kind).toBe("sticky");
+		expect(interpretText("ftp://tack.social/file")?.kind).toBe("sticky");
+		expect(interpretText("https://intranet/wiki")?.kind).toBe("sticky");
+	});
+
+	it("makes a sticky of more addresses than make sense at once", () => {
+		const many = Array.from({ length: 21 }, (_, i) => `https://tack.social/${i}`).join("\n");
+		expect(interpretText(many)?.kind).toBe("sticky");
 	});
 
 	it("ignores blank text and caps long text", () => {

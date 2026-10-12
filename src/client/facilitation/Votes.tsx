@@ -27,6 +27,7 @@ import {
 import type { Stamper } from "../../shared/facilitation.ts";
 import { readShape, shapesMap } from "../../shared/shapes.ts";
 import { UNTITLED_STACK, stackName } from "../../shared/stacks.ts";
+import { linkText } from "../../shared/linkPreview.ts";
 import { silentOf } from "../../shared/silent.ts";
 import { cardStore, useCard } from "../cardStore.ts";
 import { DocContext } from "../DocContext.ts";
@@ -685,6 +686,14 @@ function RowLabel({ doc, row }: { doc: Y.Doc; row: TallyRow }) {
 		return (
 			<span className="tally-label">
 				{number && <span className="tally-number mono">{number}</span>} {title}
+			</span>
+		);
+	}
+	if (shape.type === "link") {
+		const { title, host } = linkText(shape);
+		return (
+			<span className="tally-label">
+				<span className="tally-number mono">{host}</span> {title}
 			</span>
 		);
 	}

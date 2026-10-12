@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useContext, useEffect, useMemo, useState } from "react";
 import type * as Y from "yjs";
 import { type VoteChoice, castVote, statusOf, tally } from "../../shared/decisions.ts";
 import { type DotVote, ballotOf, dotsLeft, voteFor } from "../../shared/dotvotes.ts";
@@ -23,6 +23,9 @@ import type { ToastStore } from "../Toasts.tsx";
 import { silentOf } from "../../shared/silent.ts";
 import { countMembers, stackName } from "../../shared/stacks.ts";
 import { isMissing } from "../../shared/cards.ts";
+import { linkText, readPreview } from "../../shared/linkPreview.ts";
+import { ServicesContext } from "../actions/services.ts";
+import { LinkView } from "../links/LinkView.tsx";
 
 // What a phone shows when you tap a shape (#67): the shape itself, big
 // enough to read; its votes (a dot vote around it, or a decision's own);
@@ -122,6 +125,7 @@ function ShapeFace({
 	const shape = node.data.shape;
 	const card = useCard(shape.type === "card" ? (shape.ref ?? "") : "");
 	const texts = useSilentTexts();
+	const links = useContext(ServicesContext)?.links;
 	switch (shape.type) {
 		case "card":
 			return (
@@ -180,6 +184,17 @@ function ShapeFace({
 			return null;
 		case "stack":
 			return <StackFace node={node} />;
+		case "link":
+			return (
+				<div className="phone-sheet-card">
+					<LinkView
+						url={shape.url ?? ""}
+						preview={readPreview(shape.preview)}
+						selected
+						imageSrc={links?.imageSrc}
+					/>
+				</div>
+			);
 		case "widget": {
 			const config = shape.config as { title?: unknown } | undefined;
 			const title = typeof config?.title === "string" ? config.title : "";
@@ -220,6 +235,20 @@ function StackFace({ node }: { node: ShapeNode }) {
 			{members.map(({ id, shape }, i) => {
 				if (shape.type === "card") {
 					return <StackCardItem key={id} cardRef={shape.ref ?? ""} index={i} />;
+				}
+				if (shape.type === "link") {
+					const { title, host } = linkText(shape);
+					return (
+						<li
+							key={id}
+							className="phone-sheet-stack-item"
+							data-kind="link"
+							style={{ "--i": i } as CSSProperties}
+						>
+							<p className="phone-sheet-sticky-text">{title}</p>
+							<span className="phone-sheet-sticky-author">{host}</span>
+						</li>
+					);
 				}
 				const session = silentOf(shape);
 				const mine = session !== null && texts.has(id);

@@ -9,6 +9,9 @@ import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { useSilentTexts } from "../facilitation/store.ts";
 import { useCardProvenance } from "../Provenance.tsx";
 import { StackPapers } from "../stacks/StackNode.tsx";
+import { readPreview } from "../../shared/linkPreview.ts";
+import { ServicesContext } from "../actions/services.ts";
+import { LinkView } from "../links/LinkView.tsx";
 import { StickyView, tilt } from "../StickyNode.tsx";
 import type { DisplayState } from "./useDisplay.ts";
 
@@ -96,7 +99,7 @@ export function DisplayPreview({
 		const slot = display.slots.get(id);
 		const shape = display.shapes.get(id);
 		if (!slot || slot.dragging || slot.kind === "group" || !shape) return null;
-		if (shape.type !== "card" && shape.type !== "sticky" && shape.type !== "stack") return null;
+		if (!["card", "sticky", "stack", "link"].includes(shape.type)) return null;
 		return { id, slot, shape };
 	};
 	const target = suppressed ? null : (previewable(hovered) ?? previewable(only));
@@ -123,6 +126,8 @@ export function DisplayPreview({
 			>
 				{target.shape.type === "card" ? (
 					<CardPreview id={target.id} shape={target.shape} />
+				) : target.shape.type === "link" ? (
+					<LinkPreviewCard shape={target.shape} />
 				) : target.shape.type === "stack" ? (
 					<StackPreview id={target.id} shape={target.shape} shapes={display.shapes} />
 				) : (
@@ -130,6 +135,17 @@ export function DisplayPreview({
 				)}
 			</div>
 		</NodeToolbar>
+	);
+}
+
+function LinkPreviewCard({ shape }: { shape: ShapeProps }) {
+	const links = useContext(ServicesContext)?.links;
+	return (
+		<LinkView
+			url={shape.url ?? ""}
+			preview={readPreview(shape.preview)}
+			imageSrc={links?.imageSrc}
+		/>
 	);
 }
 

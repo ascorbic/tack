@@ -124,7 +124,7 @@ test("cards added one after another go side by side, never on top of anything", 
 	await expect.poll(async () => overlapsOf(page, await added(page, before))).toEqual([]);
 });
 
-test("pasting links adds cards in free space, and a link Tack can't show says so", async ({
+test("pasting links adds cards in free space, and any other address a link card", async ({
 	page,
 }) => {
 	const before = await cardIds(page);
@@ -142,11 +142,10 @@ test("pasting links adds cards in free space, and a link Tack can't show says so
 	await toast.getByRole("button", { name: "Add another copy" }).click();
 	await expect.poll(async () => (await added(page, before)).length).toBe(3);
 
-	await paste(page, "https://github.com/acme/unpic/discussions/4");
-	await expect(toast).toContainText("Added as a sticky");
-	await expect(page.locator(".react-flow__node-sticky", { hasText: "discussions/4" })).toHaveCount(
-		1,
-	);
+	// An address that isn't an item: a link card, not a sticky (e2e/links.spec.ts has more).
+	await paste(page, "https://tack.social/docs");
+	await expect(page.locator(".react-flow__node-link")).toHaveCount(1);
+	await expect(page.locator(".react-flow__node-sticky", { hasText: "tack.social" })).toHaveCount(0);
 });
 
 test("a card's title selects it first; once selected, or with ⌘, it opens", async ({ page }) => {

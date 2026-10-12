@@ -223,6 +223,15 @@ export function useShapeNavigation(options: NavigationOptions) {
 				const { selected } = latest.current;
 				const which = onNode ? id : selected.size === 1 ? [...selected][0] : undefined;
 				if (!which) return;
+				// A link card opens its page.
+				const shape = latest.current.nodes.find((node) => node.id === which)?.data.shape;
+				if (shape?.type === "link") {
+					const page = safeUrl(shape.url);
+					if (!page) return;
+					event.preventDefault();
+					window.open(page, "_blank", "noopener,noreferrer");
+					return;
+				}
 				const ref = nodeRef(latest.current.nodes, which);
 				if (!ref) return;
 				event.preventDefault();
