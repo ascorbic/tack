@@ -9,7 +9,8 @@
 		"dev": "astro dev",
 		"build": "astro build && node scripts/try.ts && node scripts/build-output.ts",
 		"preview": "astro preview",
-		"deploy": "pnpm run build && cf deploy --prebuilt",
+		"deploy": "pnpm run build && cf deploy --prebuilt && pnpm run reindex",
+		"reindex": "cf ai-search jobs create tack-docs --namespace default --description \"Docs deployed\"",
 		"screenshots": "node scripts/screenshots.ts",
 		"og": "node scripts/og.ts"
 	},
