@@ -217,6 +217,10 @@ test("? opens a searchable shortcut sheet", async ({ page }) => {
 	const sheet = page.getByRole("dialog", { name: "Keyboard shortcuts" });
 	await expect(sheet).toBeVisible();
 	await expect(sheet.getByText("Cursor chat")).toBeVisible();
+	await expect(sheet.getByRole("link", { name: "Read the docs" })).toHaveAttribute(
+		"href",
+		/^https:\/\/tack\.social\//,
+	);
 	await page.keyboard.type("zoom");
 	const rows = sheet.locator(".sheet-row");
 	await expect(rows).toHaveCount(5);

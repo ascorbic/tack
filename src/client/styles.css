@@ -3608,6 +3608,46 @@ a.card-title {
 	color: var(--muted);
 }
 
+.sheet-foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px 16px;
+	padding: 12px 22px;
+	border-top: 1px solid var(--line);
+	background: var(--surface-muted);
+	font-size: 12.5px;
+	color: var(--muted);
+}
+
+.sheet-foot a {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-weight: 600;
+	color: var(--accent);
+	text-decoration: none;
+}
+
+.sheet-foot a:hover {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.sheet-foot svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: translate var(--t-quick) var(--ease-out);
+}
+
+.sheet-foot a:hover svg {
+	translate: 1px -1px;
+}
+
 /* ---------------------------------------------------------------------------
    Cursors
    ------------------------------------------------------------------------ */

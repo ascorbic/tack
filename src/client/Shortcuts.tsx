@@ -12,6 +12,9 @@ import { TOOL_KEYS } from "./Toolbar.tsx";
 // The shortcut sheet: press ? anywhere on the board. Searchable, grouped,
 // and generated from the same list the key handling uses.
 
+/** Where the docs live, for the sheet's way out to the rest of them. */
+export const DOCS_URL = "https://tack.social/start/introduction/";
+
 const apple = isApplePlatform();
 
 export function ShortcutSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -112,6 +115,15 @@ function Sheet({
 						))
 					)}
 				</div>
+				<footer className="sheet-foot">
+					<span>Everything else Tack does is in the docs.</span>
+					<a href={DOCS_URL} target="_blank" rel="noreferrer">
+						Read the docs
+						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+							<path d="M4.5 2.5h5v5M9.5 2.5l-7 7" />
+						</svg>
+					</a>
+				</footer>
 			</div>
 		</div>
 	);
