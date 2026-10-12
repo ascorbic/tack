@@ -1,4 +1,5 @@
 import { type Rect, area, centre, contains } from "./geometry.ts";
+import { imageSize } from "./images.ts";
 import { STACK_SIZE } from "./stacks.ts";
 import type { ShapeProps } from "./shapes.ts";
 import { widgetSize } from "./widgetRegistry.ts";
@@ -54,6 +55,8 @@ export function boxOf(id: string, shape: ShapeProps, sizeOf?: SizeOf): Rect {
 	}
 	// Widgets are sized like sections: by their own w and h.
 	if (shape.type === "widget") return { x: shape.x, y: shape.y, ...widgetSize(shape) };
+	// So are images (a caption hangs below, outside the box, as a section's title sits above).
+	if (shape.type === "image") return { x: shape.x, y: shape.y, ...imageSize(shape) };
 	// A stack is its theme card's size as measured (never an open one's tray:
 	// the board doesn't measure that), or one of its size would be (stacks.ts).
 	if (shape.type === "stack") return { x: shape.x, y: shape.y, ...(sizeOf?.(id) ?? STACK_SIZE) };

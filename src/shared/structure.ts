@@ -36,6 +36,7 @@ import {
 	topZ,
 } from "./shapes.ts";
 import { normaliseWidgetRect } from "./widgetRegistry.ts";
+import { IMAGE_MIN } from "./images.ts";
 
 // Edits that keep the board's structure consistent: dropping shapes in and
 // out of sections, moving and resizing sections with their contents, and
@@ -357,6 +358,23 @@ export function resizeWidget(doc: Y.Doc, id: string, rect: Rect, sizeOf?: SizeOf
 		shape.set("y", next.y);
 		shape.set("w", next.w);
 		shape.set("h", next.h);
+		reparent(doc, [id], true, sizeOf);
+		growSections(doc, [id], sizeOf);
+	});
+}
+
+/**
+ * Resize an image. Like any shape that moves, it then belongs to whichever
+ * section it's in, which grows to keep it.
+ */
+export function resizeImage(doc: Y.Doc, id: string, rect: Rect, sizeOf?: SizeOf): void {
+	doc.transact(() => {
+		const shape = shapesMap(doc).get(id);
+		if (!shape || shape.get("type") !== "image") return;
+		shape.set("x", Math.round(rect.x));
+		shape.set("y", Math.round(rect.y));
+		shape.set("w", Math.max(IMAGE_MIN, Math.round(rect.w)));
+		shape.set("h", Math.max(IMAGE_MIN, Math.round(rect.h)));
 		reparent(doc, [id], true, sizeOf);
 		growSections(doc, [id], sizeOf);
 	});

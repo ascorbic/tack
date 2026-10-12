@@ -3,6 +3,7 @@ import * as v from "valibot";
 import * as Y from "yjs";
 import { isDate } from "./actionItems.ts";
 import { type CreatedBoard, MAX_TITLE, type Visibility } from "./boards.ts";
+import { IMAGE_HASH, IMAGE_LIMITS, IMAGE_TYPES, type ImageType, isImageHash } from "./images.ts";
 import { type PreparedPlan, preparedMap, readPrepared, readStep } from "./prepared.ts";
 import { LINK_LIMITS, linkUrl, readPreview } from "./linkPreview.ts";
 import { parseKey } from "./refs.ts";
@@ -19,10 +20,16 @@ import { isStackable } from "./stacks.ts";
 import { TEMPLATE_REPOS_MAX, cleanRepos } from "./templates.ts";
 
 // A board as a file (#59): its shapes (cards, stickies, text, sections,
-// connectors, decisions, widgets, action items, stacks), rules and prepared
-// facilitation steps as plain, versioned JSON, to download, keep in a
-// repository (backups.ts on the server writes it to an orphan branch) and
+// connectors, decisions, widgets, action items, stacks, images), rules and
+// prepared facilitation steps as plain, versioned JSON, to download, keep in
+// a repository (backups.ts on the server writes it to an orphan branch) and
 // import into a new board.
+//
+// Image shapes name their file by its hash. A file downloaded from the
+// board's menu carries the files too, in `images` (base64), which the
+// browser uploads to the new board when it's imported. Backups leave them
+// out (a repository's no place for them): a board imported from a backup
+// shows its images as missing.
 //
 // It's the board's content, not its sessions or the people on it: what's
 // left out is everything that's someone's own or only means something on
@@ -50,8 +57,11 @@ import { TEMPLATE_REPOS_MAX, cleanRepos } from "./templates.ts";
 export const BOARD_EXPORT_FORMAT = "tack.board";
 /** Bump when the format changes, and add a migration from the one before (`MIGRATIONS`). */
 export const BOARD_EXPORT_VERSION = 1;
-/** The most an export may weigh, as JSON, to import. */
+/** The most an export may weigh, as JSON, to import, besides its images' files. */
 export const BOARD_EXPORT_MAX_BYTES = 4 * 1024 * 1024;
+/** The most a file may weigh with its images: all a board may hold, as base64. */
+export const BOARD_EXPORT_MAX_FILE_BYTES =
+	BOARD_EXPORT_MAX_BYTES + Math.ceil((IMAGE_LIMITS.boardBytes * 4) / 3) + 1024 * 1024;
 /** The most shapes an import may have. */
 export const BOARD_EXPORT_MAX_SHAPES = 10_000;
 
@@ -92,6 +102,21 @@ export interface BoardExport {
 	 * its rules may place: `github.com/owner/name`. Absent if there are none.
 	 */
 	repos?: string[];
+	/**
+	 * The files image shapes show, when the exporter included them (a
+	 * download does; backups don't). Never sent to the server: the browser
+	 * uploads them to the board an import makes (`splitImages`).
+	 */
+	images?: ExportedImage[];
+}
+
+/** An image file in an export. */
+export interface ExportedImage {
+	/** The hex SHA-256 of its bytes, which image shapes name it by. */
+	hash: string;
+	type: ImageType;
+	/** Its bytes, base64. */
+	data: string;
 }
 
 /** What an export left out, to say so. */
@@ -127,6 +152,8 @@ const KEEP: Record<ShapeType, readonly string[]> = {
 	stack: ["title", "suggested"],
 	// A link's preview is what anyone who opens the address sees (links.ts).
 	link: ["url", "preview", "stack"],
+	// Its file by hash; one still uploading isn't exported at all.
+	image: ["image", "mime", "iw", "ih", "w", "h", "alt", "caption"],
 };
 
 const SHAPE_TYPES = Object.keys(KEEP) as ShapeType[];
@@ -168,6 +195,7 @@ export function exportBoard(
 			delete props.ref;
 		}
 		if (type === "card" && !ref) continue;
+		if (type === "image" && !isImageHash(props.image)) continue;
 		entries.push({ id, z: typeof props.z === "string" ? props.z : "", props });
 	}
 	const kept = new Set(entries.map((entry) => entry.id));
@@ -276,6 +304,7 @@ const ItemKey = v.pipe(
 	v.check((key) => parseKey(key) !== null, "Not an item key"),
 );
 const Instant = text(40);
+const ImageHash = v.pipe(v.string(), v.regex(IMAGE_HASH));
 const Color = text(32);
 const Author = v.object({ name: text(200), color: text(64), login: v.optional(text(100)) });
 const Point = v.object({ x: coordinate, y: coordinate });
@@ -424,7 +453,30 @@ const ShapeSchema = v.variant("type", [
 		),
 		stack: v.optional(ShapeId),
 	}),
+	v.object({
+		...common,
+		type: v.literal("image"),
+		image: ImageHash,
+		mime: v.optional(v.picklist(IMAGE_TYPES)),
+		iw: v.optional(extent),
+		ih: v.optional(extent),
+		w: extent,
+		h: extent,
+		alt: v.optional(text(IMAGE_LIMITS.alt)),
+		caption: v.optional(v.boolean()),
+	}),
 ]);
+
+/** An image file, base64: no bigger than a board stores (a third more, as base64). */
+const ImageSchema = v.object({
+	hash: ImageHash,
+	type: v.picklist(IMAGE_TYPES),
+	data: v.pipe(
+		v.string(),
+		v.maxLength(Math.ceil(IMAGE_LIMITS.bytes / 3) * 4),
+		v.regex(/^[A-Za-z0-9+/]*={0,2}$/),
+	),
+});
 
 const RuleSchema = v.object({
 	id: ShapeId,
@@ -457,6 +509,7 @@ const ExportSchema = v.object({
 		v.pipe(v.array(v.pipe(v.string(), v.maxLength(300))), v.maxLength(TEMPLATE_REPOS_MAX)),
 	),
 	prepared: v.optional(v.pipe(v.array(StepSchema), v.maxLength(200)), []),
+	images: v.optional(v.pipe(v.array(ImageSchema), v.maxLength(IMAGE_LIMITS.boardCount))),
 });
 
 /** `POST /api/boards/import`: a new board from an export. */
@@ -493,13 +546,19 @@ const MIGRATIONS: Record<number, (raw: Record<string, unknown>) => Record<string
 export function readBoardExport(input: unknown): ReadResult {
 	let raw: unknown = input;
 	if (typeof input === "string") {
-		if (new TextEncoder().encode(input).byteLength > BOARD_EXPORT_MAX_BYTES) {
-			return { ok: false, error: { reason: "too_large" } };
-		}
+		const bytes = new TextEncoder().encode(input).byteLength;
+		if (bytes > BOARD_EXPORT_MAX_FILE_BYTES) return { ok: false, error: { reason: "too_large" } };
 		try {
 			raw = JSON.parse(input);
 		} catch {
 			return { ok: false, error: { reason: "not_json" } };
+		}
+		// Past the limit only with images, which are weighed apart.
+		if (bytes > BOARD_EXPORT_MAX_BYTES) {
+			const { images: _images, ...rest } = (raw ?? {}) as Record<string, unknown>;
+			if (new TextEncoder().encode(JSON.stringify(rest)).byteLength > BOARD_EXPORT_MAX_BYTES) {
+				return { ok: false, error: { reason: "too_large" } };
+			}
 		}
 	}
 	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -542,6 +601,15 @@ export function readBoardExport(input: unknown): ReadResult {
 	return { ok: true, data: parsed.output as unknown as BoardExport };
 }
 
+/**
+ * An export's image files apart from the rest, which is what goes to the
+ * server: the browser uploads the files to the board it makes.
+ */
+export function splitImages(data: BoardExport): { board: BoardExport; images: ExportedImage[] } {
+	const { images = [], ...board } = data;
+	return { board, images };
+}
+
 /** Why an import failed, in words. */
 export function describeImportError(error: ImportError): string {
 	switch (error.reason) {
@@ -552,7 +620,7 @@ export function describeImportError(error: ImportError): string {
 		case "newer":
 			return `That was exported by a newer version of Tack (format ${error.version}). Update this Tack, then try again.`;
 		case "too_large":
-			return "That’s too big to import: boards up to 4 MB can be.";
+			return "That’s too big to import: boards up to 4 MB can be, besides their images.";
 		case "invalid":
 			return `Something in it isn’t right${error.where ? ` (at ${error.where})` : ""}: ${error.message}.`;
 	}

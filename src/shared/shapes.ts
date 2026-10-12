@@ -4,6 +4,7 @@ import type { ListSort, SectionDisplay } from "./display.ts";
 import type { Anchor } from "./geometry.ts";
 import type { Dismissal } from "./inbox.ts";
 import type { LinkPreview } from "./linkPreview.ts";
+import type { ImageUpload } from "./images.ts";
 import type { SilentSession } from "./silent.ts";
 import type { InboxConfig, Provenance } from "./widgets.ts";
 
@@ -20,7 +21,7 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // | ------------ | ------------------ | --------------------------------------------- |
 // | type         | all                | `card`, `sticky`, `text`, `section`,          |
 // |              |                    | `connector`, `decision`, `widget`, `action`,  |
-// |              |                    | `stack` or `link`                             |
+// |              |                    | `stack`, `link` or `image`                    |
 // | x, y         | all but connectors | top-left corner, absolute; 0 on connectors    |
 // | z            | all                | fractional index for stacking order           |
 // | parent       | all but connectors | id of the containing section, or null         |
@@ -37,7 +38,8 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              | connector          |                                               |
 // | author       | sticky, decision,  | who made it (who proposed a decision)         |
 // |              | action             |                                               |
-// | w, h         | section, widget    | size (cards and stickies size to content)     |
+// | w, h         | section, widget,   | size (cards and stickies size to content)     |
+// |              | image              |                                               |
 // | title        | section, decision, | the section's name; the decision's title; a   |
 // |              | stack               | stack's name as a person wrote it (stacks.ts)   |
 // | from, to     | connector          | each end, see `ConnectorEnd`                  |
@@ -107,6 +109,18 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              |                    | name's coming (`StackUnnameable`: a hash of   |
 // |              |                    | its members' ids, `membersHash`, when it      |
 // |              |                    | looked); written only by the server           |
+// | image        | image              | its file's id: the hex SHA-256 of the bytes,  |
+// |              |                    | kept beside the board (images.ts); absent     |
+// |              |                    | while it uploads                              |
+// | mime         | image              | the file's type, e.g. `image/png`             |
+// | iw, ih       | image              | the file's natural size, in pixels            |
+// | alt          | image              | what it shows, in words: read to screen       |
+// |              |                    | readers and AI, never the picture itself      |
+// | caption      | image              | show `alt` beneath it as a caption            |
+// | upload       | image              | who's uploading its file (`ImageUpload`),     |
+// |              |                    | until it's stored                             |
+// | preview      | image              | a tiny blurred data URL others see while it   |
+// |              |                    | uploads; cleared with `upload`                |
 //
 // Beside `shapes`, the document has these root maps:
 //
@@ -152,7 +166,8 @@ export type ShapeType =
 	| "widget"
 	| "action"
 	| "stack"
-	| "link";
+	| "link"
+	| "image";
 
 /** Where a decision stands. */
 export type DecisionStatus = "proposed" | "decided" | "superseded";
@@ -305,6 +320,21 @@ export interface ShapeProps {
 	url?: string;
 	/** Link cards: what the page says about itself, once it's been read. */
 	preview?: LinkPreview;
+	/** Images: the file's hash (images.ts). Absent while it uploads. */
+	image?: string;
+	/** Images: the file's type. */
+	mime?: string;
+	/** Images: the file's natural size, in pixels. */
+	iw?: number;
+	ih?: number;
+	/** Images: what it shows, in words. */
+	alt?: string;
+	/** Images: show the alt text beneath it. */
+	caption?: boolean;
+	/** Images: who's uploading the file, until it's stored. */
+	upload?: ImageUpload;
+	/** Images: a tiny blurred stand-in, while it uploads. */
+	blur?: string;
 }
 
 /**

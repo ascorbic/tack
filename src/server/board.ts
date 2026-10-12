@@ -94,6 +94,14 @@ import { repoObject, resolveRepo } from "./routing.ts";
 import { RulesEngine } from "./rules.ts";
 import { CardHistory, ChangeLog, Visits } from "./since.ts";
 import { loadSnapshot, storeSnapshot } from "./snapshots.ts";
+import {
+	IMAGE_SWEEP_MS,
+	ImageStore,
+	type StoreResult,
+	type StoredImage,
+	historyMentions,
+} from "./images.ts";
+import { imageRefs } from "../shared/images.ts";
 import { realTime } from "./testClock.ts";
 import { isPublic, visibleCard } from "./visibility.ts";
 import { configureForges } from "./forges/config.ts";
@@ -264,6 +272,9 @@ export class Board extends YServer<Env> {
 	private compaction: BoardCompaction | null = null;
 	/** Stacks' suggested names and Auto-stack (#73). */
 	private stacks: Stacks | null = null;
+	/** Image files (images.ts), and when the board last let go of ones nothing uses. */
+	private images: ImageStore | null = null;
+	private imagesSweptAt = 0;
 
 	override async fetch(request: Request): Promise<Response> {
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -461,6 +472,54 @@ export class Board extends YServer<Env> {
 		return loadSnapshot(this.ctx.storage, token);
 	}
 
+	// Image files (see images.ts). Like snapshots, these only touch their own
+	// tables: serving an image never loads the document.
+
+	private imageStore(): ImageStore {
+		this.images ??= new ImageStore(this.ctx.storage);
+		return this.images;
+	}
+
+	/** Keep an image file (checked by the route), unless it's here already or there's no room. */
+	async storeImage(image: StoredImage): Promise<StoreResult> {
+		return this.imageStore().store(image);
+	}
+
+	async hasImage(hash: string): Promise<boolean> {
+		return this.imageStore().has(hash);
+	}
+
+	/** An image file, to serve. */
+	async imageFile(hash: string): Promise<{ bytes: ArrayBuffer; type: string } | null> {
+		return this.imageStore().file(hash);
+	}
+
+	/** Everything about an image file, to copy it to another board. */
+	async imageRecord(hash: string): Promise<Omit<StoredImage, "hash"> | null> {
+		return this.imageStore().record(hash);
+	}
+
+	/** How many image files the board keeps, and how many bytes, for tests and operators. */
+	async imageUsage(): Promise<{ count: number; bytes: number }> {
+		return this.imageStore().usage();
+	}
+
+	/**
+	 * Let go of image files nothing shows or mentions any more (see
+	 * images.ts). As the board saves, at most hourly; tests call it with a
+	 * clock of their own.
+	 */
+	async sweepImages(now?: number): Promise<string[]> {
+		this.imagesSweptAt = Date.now();
+		const store =
+			now === undefined ? this.imageStore() : new ImageStore(this.ctx.storage, () => now);
+		const removed = store.sweep(imageRefs(this.document), (hash) =>
+			historyMentions(this.ctx.storage.sql, hash),
+		);
+		if (removed.length > 0) log.info("image.swept", { board: this.name, removed: removed.length });
+		return removed;
+	}
+
 	// --- Format versions (#55) -------------------------------------------------------
 
 	/**
@@ -652,6 +711,11 @@ export class Board extends YServer<Env> {
 		this.changeLog?.flush();
 		this.writeSnapshot();
 		await this.updateIndex();
+		if (Date.now() - this.imagesSweptAt > IMAGE_SWEEP_MS) {
+			await this.sweepImages().catch((error: unknown) =>
+				log.error("image.sweep.failed", { board: this.name, error }),
+			);
+		}
 	}
 
 	/** Write the document to storage now. */

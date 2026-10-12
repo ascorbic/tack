@@ -34,6 +34,8 @@ const cookies: Record<Actor, string> = {
 let privateBoard = "";
 let publicBoard = "";
 let template = "";
+/** An image on each board. */
+let image = "";
 const clients: BoardClient[] = [];
 
 function call(actor: Actor, method: string, path: string, body?: unknown, type?: string) {
@@ -81,6 +83,37 @@ beforeAll(async () => {
 			await call("owner", "POST", "/api/templates", { board: privateBoard, title: "Mine" })
 		).json()) as { id: string }
 	).id;
+});
+
+/** A real 1×1 PNG, uploaded to both boards. */
+const PNG = Uint8Array.from(
+	atob(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+	),
+	(c) => c.charCodeAt(0),
+);
+
+async function uploadImage(board: string): Promise<string> {
+	const form = new FormData();
+	form.set("image", new Blob([PNG]), "image");
+	// Miniflare's fetch doesn't know Node's FormData: send it as bytes.
+	const encoded = new Response(form);
+	const response = await mf.dispatchFetch(`${ORIGIN}/api/boards/${board}/images`, {
+		method: "POST",
+		headers: {
+			cookie: cookies.owner,
+			origin: ORIGIN,
+			"content-type": encoded.headers.get("content-type") ?? "",
+		},
+		body: await encoded.arrayBuffer(),
+	} as never);
+	expect(response.status).toBe(201);
+	return ((await response.json()) as { hash: string }).hash;
+}
+
+beforeAll(async () => {
+	image = await uploadImage(privateBoard);
+	await uploadImage(publicBoard);
 });
 
 afterAll(async () => {
@@ -234,6 +267,33 @@ const ROWS: Row[] = [
 		allowed: privateEditors,
 		// Not a PNG: editors get past the check to a 415.
 		request: (a) => call(a, "POST", `/api/boards/${privateBoard}/snapshots`, "x", "image/png"),
+	},
+	{
+		route: "POST /api/boards/:id/images",
+		allowed: privateEditors,
+		// Not a form: editors get past the check to a 400.
+		request: (a) =>
+			call(a, "POST", `/api/boards/${privateBoard}/images`, "x", "multipart/form-data; boundary=x"),
+	},
+	{
+		// Editors here, from a board they can open (anyone can open a public one).
+		route: "POST /api/boards/:id/images/copy",
+		allowed: privateEditors,
+		request: (a) =>
+			call(a, "POST", `/api/boards/${privateBoard}/images/copy`, {
+				from: publicBoard,
+				hashes: [image],
+			}),
+	},
+	{
+		route: "GET /api/boards/:id/images/:hash",
+		allowed: privateReaders,
+		request: (a) => call(a, "GET", `/api/boards/${privateBoard}/images/${image}`),
+	},
+	{
+		route: "GET /api/boards/:id/images/:hash (public)",
+		allowed: everyone,
+		request: (a) => call(a, "GET", `/api/boards/${publicBoard}/images/${image}`),
 	},
 	{
 		// Editors only: what it drafts is for them to place. Answered by the harness's fake Workers AI.

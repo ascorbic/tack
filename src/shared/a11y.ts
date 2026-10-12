@@ -157,6 +157,7 @@ export const ROLE_NAMES: Record<ShapeType, [one: string, many: string]> = {
 	action: ["action item", "action items"],
 	stack: ["stack", "stacks"],
 	link: ["link", "links"],
+	image: ["image", "images"],
 };
 
 export function roleName(type: ShapeType): string {
@@ -264,6 +265,9 @@ export function describeShape(
 		| "suggested"
 		| "url"
 		| "preview"
+		| "alt"
+		| "image"
+		| "upload"
 	>,
 	context: DescribeContext = {},
 ): string {
@@ -340,6 +344,11 @@ export function describeShape(
 			if (shape.due) parts.push(`due ${shape.due}`);
 			break;
 		}
+		case "image":
+			// Its alt text is the whole of what a screen reader can know of it.
+			parts.push(clip(shape.alt ?? "") || "no description");
+			if (!shape.image && shape.upload) parts.push("uploading");
+			break;
 		default:
 			parts.push(roleName(shape.type));
 	}

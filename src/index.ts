@@ -13,6 +13,7 @@ import { handleSetup } from "./server/github/setup.ts";
 import { handleNotifications } from "./server/notifications.ts";
 import { handlePush } from "./server/push/routes.ts";
 import { handleHistory } from "./server/history.ts";
+import { handleImages } from "./server/images.ts";
 import { handleItemSearch } from "./server/itemSearch.ts";
 import { handleLinks } from "./server/links/routes.ts";
 import { handleRelated } from "./server/related.ts";
@@ -92,6 +93,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 	// Pushing staged changes, the audit log, and what repositories offer to write with.
 	const push = await handlePush(request, env);
 	if (push) return push;
+
+	// Images on boards: uploads, copies between boards, and serving them to people who can open it.
+	const image = await handleImages(request, env);
+	if (image) return image;
 
 	// Board snapshots for backlink comments: uploads, and the public images.
 	const snapshot = await handleSnapshots(request, env);
