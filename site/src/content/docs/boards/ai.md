@@ -11,7 +11,7 @@ It's for the board's editors, and only where the instance has AI suggestions on 
 
 ## Asking for a widget
 
-Press <kbd>W</kbd> (or choose **Widget** in the toolbar), and type what you want to see in **Ask for one** at the top of the picker: "open bugs in withastro/astro", "pull requests waiting for my review", "what merged in the last two weeks", "issues nobody's touched for a month". Press <kbd>Enter</kbd>.
+Press <kbd>W</kbd> (or choose **Widget** in the toolbar), and type what you want to see in **Ask for one** at the top of the picker: "open bugs in ascorbic/unpic", "pull requests waiting for my review", "what merged in the last two weeks", "issues nobody's touched for a month". Press <kbd>Enter</kbd>.
 
 The AI picks the kind of widget that fits and fills in its settings, using the board's repositories when you don't name one. Tack checks the settings against what that kind accepts, and asks the AI again if they don't fit. You see:
 

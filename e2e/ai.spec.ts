@@ -18,12 +18,13 @@ test("ask for a widget in words, see it previewed, and place it", async ({ page 
 	await expect(widgets).toHaveCount(0);
 	await page.keyboard.press("w");
 	const picker = page.getByRole("group", { name: "Widgets" });
-	await picker.getByLabel("Ask for a widget: describe it").fill("Open bugs in acme/imagekit");
+	await picker.getByLabel("Ask for a widget: describe it").fill("Open bugs in this repository");
 	await page.keyboard.press("Enter");
 
 	const ask = page.getByRole("group", { name: "Ask for a widget" });
 	await expect(ask.getByText("List widget")).toBeVisible();
-	await expect(ask.locator(".ai-ask-config")).toContainText("repo:acme/imagekit is:open label:bug");
+	// The board's repository, since none was named.
+	await expect(ask.locator(".ai-ask-config")).toContainText(/repo:\S+\/\S+ is:open label:bug/);
 	// The preview is the widget itself, with the fake repository's open bugs.
 	const preview = ask.getByRole("img", { name: "Preview" });
 	await expect(preview.locator(".widget-row").first()).toBeVisible();
@@ -34,7 +35,7 @@ test("ask for a widget in words, see it previewed, and place it", async ({ page 
 	// Enter places it (focus went to Place on board).
 	await page.keyboard.press("Enter");
 	await expect(widgets).toHaveCount(1);
-	await expect(widgets.first()).toContainText("Open bugs in acme/imagekit");
+	await expect(widgets.first()).toContainText("Open bugs in this repository");
 	await expect(ask).toHaveCount(0);
 	await page.keyboard.press("ControlOrMeta+z");
 	await expect(widgets).toHaveCount(0);

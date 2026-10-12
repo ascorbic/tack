@@ -38,7 +38,7 @@ const PROPOSALS: { label: string; prompt: string; proposal: WidgetProposal }[] =
 				sort: "updated",
 				limit: 30,
 			},
-			explanation: "Open bugs in acme/imagekit, most recently updated first.",
+			explanation: `Open bugs in ${REPO}, most recently updated first.`,
 		},
 	},
 	{

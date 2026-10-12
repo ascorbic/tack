@@ -182,7 +182,7 @@ describe("asking for a widget", () => {
 		const client = await open(mf, id, olive);
 		addShape(client.doc, "c1", {
 			type: "card",
-			ref: "github.com/withastro/astro#12",
+			ref: "github.com/ascorbic/unpic#12",
 			x: 0,
 			y: 0,
 			z: nextZ(client.doc),
@@ -205,7 +205,7 @@ describe("asking for a widget", () => {
 			widget: "list",
 			config: {
 				title: "Open bugs",
-				q: "repo:withastro/astro is:open label:bug",
+				q: "repo:ascorbic/unpic is:open label:bug",
 				host: "github.com",
 			},
 		});
@@ -216,7 +216,7 @@ describe("asking for a widget", () => {
 			type: "json_schema",
 			json_schema: { name: "widget" },
 		});
-		expect(call.input.messages![1]?.content).toContain("withastro/astro");
+		expect(call.input.messages![1]?.content).toContain("ascorbic/unpic");
 		expect(call.input.messages![1]?.content).toContain("ideas: “Ideas”");
 		expect(call.input.messages![1]?.content).toContain("<request>Open bugs</request>");
 		expect(call.input.messages![1]?.content).toContain("@olive");

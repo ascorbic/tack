@@ -126,13 +126,13 @@ describe("the playground's pretend AI", () => {
 	const context = {
 		today: "2026-10-11",
 		host: "fake.tack",
-		repos: ["acme/imagekit"],
+		repos: ["ascorbic/cirrus"],
 		sections: [],
 		login: "you",
 	};
 
 	it("proposes a valid widget for each of its suggestions", () => {
-		const kinds = widgetSuggestions("acme/imagekit").map((prompt) => {
+		const kinds = widgetSuggestions("ascorbic/cirrus").map((prompt) => {
 			const proposal = proposeWidget(prompt, context);
 			const check = checkWidget(proposal, { host: "fake.tack" });
 			expect(check.ok, prompt).toBe(true);
@@ -141,7 +141,7 @@ describe("the playground's pretend AI", () => {
 		expect(kinds).toEqual(["list", "review", "timeline", "stale"]);
 		for (const prompt of [
 			"How is the 5.0 milestone going",
-			"Release notes for acme/imagekit",
+			"Release notes for ascorbic/cirrus",
 			"What blocks what",
 			"Docs issues assigned to me",
 		]) {
