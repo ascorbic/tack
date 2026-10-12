@@ -13,6 +13,8 @@ import {
 	appCsp,
 	headersFile,
 	inlineHashes,
+	tryCsp,
+	tryHeadersFile,
 	withSecurityHeaders,
 } from "../src/server/securityHeaders.ts";
 import { isRepoPath, parseKey, parseRepoKey, parseRef } from "../src/shared/refs.ts";
@@ -46,6 +48,41 @@ describe("security headers", () => {
 		expect(headers).toContain("X-Content-Type-Options: nosniff");
 		expect(headers).toContain("X-Frame-Options: DENY");
 		expect(headers).toContain("Strict-Transport-Security: max-age=31536000");
+	});
+
+	it("let the site frame the demo's live embeds, and nothing frame the demo", () => {
+		const demo = { scripts: ["sha256-demo"] };
+		const embed = { scripts: ["sha256-embed"] };
+		const rules = tryHeadersFile(demo, embed);
+		// Each rule: its path, then its headers.
+		const blocks = new Map<string, string[]>();
+		let path = "";
+		for (const line of rules.split("\n")) {
+			if (line.startsWith("/")) blocks.set((path = line), []);
+			else if (line.startsWith("  ")) blocks.get(path)?.push(line.trim());
+		}
+		// The rule for everything under /try/ sets no policy or framing of its
+		// own: Cloudflare would join it to a page's, and both would apply.
+		const all = blocks.get("/try/*") ?? [];
+		expect(all).toContain("X-Content-Type-Options: nosniff");
+		expect(all.some((line) => /^(Content-Security-Policy|X-Frame-Options):/.test(line))).toBe(
+			false,
+		);
+		for (const page of ["/try/", "/try/index.html"]) {
+			expect(blocks.get(page)).toEqual([
+				`Content-Security-Policy: ${tryCsp(demo)}`,
+				"X-Frame-Options: DENY",
+			]);
+		}
+		for (const page of ["/try/embed/", "/try/embed/index.html"]) {
+			expect(blocks.get(page)).toEqual([
+				`Content-Security-Policy: ${tryCsp(embed, { framedBy: "'self'" })}`,
+				"X-Frame-Options: SAMEORIGIN",
+			]);
+		}
+		expect(tryCsp(demo)).toContain("frame-ancestors 'none'");
+		expect(tryCsp(embed, { framedBy: "'self'" })).toContain("frame-ancestors 'self'");
+		expect(tryCsp(embed, { framedBy: "'self'" })).toContain("'sha256-embed'");
 	});
 
 	it("go on Worker responses, keeping what a route set, and leave WebSocket upgrades alone", async () => {

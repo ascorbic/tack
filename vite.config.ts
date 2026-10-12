@@ -41,9 +41,15 @@ function tryHeaders(): Plugin {
 		enforce: "post",
 		async generateBundle(_options, bundle) {
 			const html = bundle["index.html"];
-			if (html?.type !== "asset") return;
+			const embed = bundle["embed/index.html"];
+			if (html?.type !== "asset" || embed?.type !== "asset") return;
 			const hashes = await inlineHashes(String(html.source));
-			this.emitFile({ type: "asset", fileName: "_headers", source: tryHeadersFile(hashes) });
+			const embedHashes = await inlineHashes(String(embed.source));
+			this.emitFile({
+				type: "asset",
+				fileName: "_headers",
+				source: tryHeadersFile(hashes, embedHashes),
+			});
 		},
 	};
 }
@@ -73,7 +79,15 @@ export default defineConfig(({ mode }) => ({
 		root: TRY_ROOT,
 		base: "/try/",
 		publicDir: false,
-		build: { outDir: TRY_OUT, emptyOutDir: true },
+		build: {
+			outDir: TRY_OUT,
+			emptyOutDir: true,
+			// The demo, and the landing page's live embeds of it (/try/embed/),
+			// which share its chunks, so a visitor's browser fetches them once.
+			rollupOptions: {
+				input: { main: `${TRY_ROOT}/index.html`, embed: `${TRY_ROOT}/embed/index.html` },
+			},
+		},
 	}),
 	// The demo's AI: a Worker module, everything bundled in.
 	...(mode === "try-ai" && {

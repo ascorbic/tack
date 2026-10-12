@@ -118,9 +118,13 @@ export function headersFile(hashes: InlineHashes): string {
  * The public demo's policy (tack.social/try, #75): the app's, but it may
  * connect to nothing beyond its own files (exported images inline its fonts),
  * shows no images from elsewhere, and posts no forms. Nothing a visitor does
- * there can leave the browser.
+ * there can leave the browser. Nothing may frame the demo itself; its live
+ * embeds (/try/embed/, on the landing page) only the site's own pages.
  */
-export function tryCsp(hashes: InlineHashes): string {
+export function tryCsp(
+	hashes: InlineHashes,
+	{ framedBy = "'none'" }: { framedBy?: "'none'" | "'self'" } = {},
+): string {
 	const directives: Record<string, string[]> = {
 		"default-src": ["'self'"],
 		"script-src": ["'self'", ...hashes.scripts.map((hash) => `'${hash}'`)],
@@ -132,7 +136,7 @@ export function tryCsp(hashes: InlineHashes): string {
 		"object-src": ["'none'"],
 		"base-uri": ["'self'"],
 		"form-action": ["'none'"],
-		"frame-ancestors": ["'none'"],
+		"frame-ancestors": [framedBy],
 	};
 	return Object.entries(directives)
 		.map(([name, values]) => `${name} ${values.join(" ")}`)
@@ -140,15 +144,32 @@ export function tryCsp(hashes: InlineHashes): string {
 }
 
 /**
- * The demo's rules for the docs site's `_headers` file, under /try/: its
- * policy and the common headers, and a year's caching for its hashed assets.
+ * The demo's rules for the docs site's `_headers` file, under /try/: the
+ * common headers on everything, each page's own policy, and a year's caching
+ * for its hashed assets. The pages' rules are exact paths rather than
+ * `/try/*`: Cloudflare joins the values of a header two matching rules set,
+ * and two policies both apply, so the embed's `frame-ancestors 'self'` could
+ * never loosen the demo's `'none'`. `X-Frame-Options` goes with each policy.
  */
-export function tryHeadersFile(hashes: InlineHashes): string {
+export function tryHeadersFile(hashes: InlineHashes, embedHashes: InlineHashes): string {
+	const page = (paths: string[], csp: string, frames: string) =>
+		paths.flatMap((path) => [
+			path,
+			`  Content-Security-Policy: ${csp}`,
+			`  X-Frame-Options: ${frames}`,
+		]);
 	const lines = [
 		"# The demo at /try/: written by its build (vite.config.ts, src/server/securityHeaders.ts).",
 		"/try/*",
-		`  Content-Security-Policy: ${tryCsp(hashes)}`,
-		...Object.entries(COMMON_HEADERS).map(([name, value]) => `  ${title(name)}: ${value}`),
+		...Object.entries(COMMON_HEADERS)
+			.filter(([name]) => name !== "x-frame-options")
+			.map(([name, value]) => `  ${title(name)}: ${value}`),
+		...page(["/try/", "/try/index.html"], tryCsp(hashes), "DENY"),
+		...page(
+			["/try/embed/", "/try/embed/index.html"],
+			tryCsp(embedHashes, { framedBy: "'self'" }),
+			"SAMEORIGIN",
+		),
 		"/try/assets/*",
 		"  Cache-Control: public, max-age=31536000, immutable",
 		"",
