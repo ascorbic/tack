@@ -17,6 +17,7 @@ import {
 	isReady,
 	type SetupStep,
 } from "../src/client/auth/setupChecks.ts";
+import { installationState } from "../src/client/auth/Installations.tsx";
 import { assessWebhooks, isLocalOrigin, webhookUrl } from "../src/server/github/webhookHealth.ts";
 
 const NOW = Date.parse("2026-10-11T10:00:00Z");
@@ -108,6 +109,18 @@ describe("the setup checklist", () => {
 		expect(broken.webhooks).toMatchObject({ tone: "fail", detail: "Refused" });
 		expect(broken.repositories).toMatchObject({ tone: "warn", detail: "1 account to check" });
 		expect(focusStep(Object.values(broken))).toBe("webhooks");
+
+		// An install from before Tack read discussions: it needs the new permission accepted.
+		const older = steps(health(), {
+			installations: [
+				installation(),
+				installation({ id: 3, account: "ascorbic", discussions: false }),
+			],
+		});
+		expect(older.repositories).toMatchObject({ tone: "warn", detail: "1 account to check" });
+		expect(
+			installationState(installation({ id: 3, account: "ascorbic", discussions: false })),
+		).toMatchObject({ tone: "warn", label: "Live · no Discussions" });
 
 		const missing = steps(health(), {
 			installations: [installation()],

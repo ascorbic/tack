@@ -78,7 +78,7 @@ function repositoriesStep(installations: Loaded<InstallationList>): SetupStep {
 	if (list.length === 0) return { ...step, detail: "Not installed yet", tone: "current" };
 	const live = list.filter((i) => !i.suspended);
 	const repositories = live.reduce((n, i) => n + i.repositories.length + i.more, 0);
-	const stuck = list.filter((i) => i.suspended || !i.writable).length;
+	const stuck = list.filter((i) => i.suspended || !i.writable || i.discussions === false).length;
 	const counted = live.some((i) => i.selection === "all")
 		? `All of ${live.length === 1 ? live[0]!.account : `${live.length} accounts`}`
 		: `${repositories} ${repositories === 1 ? "repository" : "repositories"}`;

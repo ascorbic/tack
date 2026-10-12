@@ -39,6 +39,14 @@ export function installationState(installation: InstallationSummary): {
 				"Tack can’t push here until the account accepts the permissions it asks for (review them in its settings).",
 		};
 	}
+	if (installation.discussions === false) {
+		return {
+			tone: "warn",
+			label: "Live · no Discussions",
+			detail:
+				"Discussions can’t be cards here until the account accepts the Discussions permission (review it in its settings).",
+		};
+	}
 	return { tone: "ok", label: "Live · Tack can push", detail: null };
 }
 

@@ -104,6 +104,12 @@ export interface InstallationSummary {
 	 * but can't be pushed to.
 	 */
 	writable: boolean;
+	/**
+	 * Whether it may read and write discussions: installs from before Tack
+	 * showed them as cards need the account to accept the Discussions
+	 * permission. Absent: not known (treated as yes).
+	 */
+	discussions?: boolean;
 	/** Where the account manages it on GitHub. */
 	settingsUrl: string | null;
 	repositories: { name: string; private: boolean }[];

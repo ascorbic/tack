@@ -659,6 +659,7 @@ export class Instance extends DurableObject<Env> {
 					writable:
 						!installation.permissions ||
 						(permissions.issues === "write" && permissions.pull_requests === "write"),
+					discussions: !installation.permissions || permissions.discussions !== undefined,
 					settingsUrl: installation.html_url ?? null,
 					repositories: [],
 					more: 0,

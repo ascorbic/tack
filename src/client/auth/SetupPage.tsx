@@ -114,7 +114,10 @@ const PERMISSIONS = [
 	["Metadata", "read, which GitHub requires"],
 	["Issues and pull requests", "read and write, for pushing staged changes"],
 	["Code", "read and write, for decision records (ADR pull requests)"],
-	["Discussions", "read and write, for writing decisions back as posts"],
+	[
+		"Discussions",
+		"read and write, for discussions as cards (labels, closing) and decisions posted back",
+	],
 	["Checks, statuses, Actions runs", "read, for CI on cards"],
 	["Organisation members", "read, for the access list"],
 ];
