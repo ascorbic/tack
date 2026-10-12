@@ -7,6 +7,7 @@ import { cardStore } from "../cardStore.ts";
 import { commentStore } from "../comments/store.ts";
 import { type User, localUser } from "../presence.ts";
 import { PLAY_YOU_ID, SimulatedComments } from "../play/comments.ts";
+import { playAi } from "../play/ai.ts";
 import { installFakeRepoApi } from "../play/decisions.ts";
 import { SimulatedFacilitator } from "../play/facilitation.ts";
 import { SimulatedHistory } from "../play/history.ts";
@@ -194,8 +195,15 @@ function TryBoard({
 		];
 		widgetStore.connect(widgets);
 		comments.setAccess({ signedIn: true, role: "owner" });
+		// AI (#64) answers in the browser, over this board and its widgets.
+		playAi.mode = "live";
+		playAi.doc = sim.doc;
+		playAi.widgets = widgets;
+		playAi.login = userRef.current.login ?? null;
 		return () => {
 			for (const uninstall of uninstalls) uninstall();
+			if (playAi.doc === sim.doc) playAi.doc = null;
+			if (playAi.widgets === widgets) playAi.widgets = null;
 			widgetStore.connect(null);
 			widgets.destroy();
 			history.destroy();

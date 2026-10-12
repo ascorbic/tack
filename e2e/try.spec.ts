@@ -223,3 +223,17 @@ test("nothing can leave the browser: requests elsewhere are refused", async ({ p
 	).toBeVisible();
 	await expect(page).toHaveURL(/\/play\/try/);
 });
+
+test("the demo's AI answers: summarise a section", async ({ page }) => {
+	await open(page);
+	await coach(page).getByRole("button", { name: "Skip tour" }).click();
+	await settleCanvas(page);
+	await page
+		.locator(".section-title", { hasText: "What should 1.0 fix?" })
+		.click({ position: { x: 12, y: 8 } });
+	const bar = page.getByRole("toolbar", { name: "Stage changes" });
+	await bar.getByRole("button", { name: "Summarise with AI" }).click();
+	const panel = page.getByRole("dialog");
+	await expect(panel.getByLabel("Summary")).not.toHaveValue("", { timeout: 10_000 });
+	await expect(panel).not.toContainText("The AI didn’t answer");
+});
