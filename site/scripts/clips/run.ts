@@ -133,7 +133,7 @@ async function record(clip: Clip): Promise<void> {
 		);
 		const mp4 = path.join(out, `${clip.name}.mp4`);
 		await encodeMp4(
-			film(recording, keys, (n) => rec.framePath(n)),
+			film(recording, keys, (n) => rec.framePath(n), { fade: clip.fade }),
 			recording.fps,
 			mp4,
 		);

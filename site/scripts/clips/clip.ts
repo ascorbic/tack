@@ -14,4 +14,6 @@ export interface Clip {
 	play(rec: Recorder): Promise<void>;
 	/** The camera's keyframes, from the marks and boxes `play` recorded. */
 	camera(recording: Recording): Keyframe[];
+	/** Seconds of dissolve back into the first frame at the end (a second unless it says). */
+	fade?: number;
 }
