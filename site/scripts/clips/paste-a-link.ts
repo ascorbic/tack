@@ -68,7 +68,7 @@ async function seed(page: Page): Promise<void> {
 			doc.transact(() => {
 				addShape(doc, "clip-title", {
 					type: "text",
-					text: "Astro support",
+					text: "Paste a link",
 					size: "l",
 					x: 0,
 					y: -84,
@@ -90,8 +90,21 @@ async function seed(page: Page): Promise<void> {
 	);
 }
 
-/** Paste the address where the pointer is, as Cmd+V would (the e2e tests' trick). */
-async function paste(page: Page, text: string): Promise<void> {
+/**
+ * Paste the address at `at`, as Cmd+V would (the e2e tests' trick). The
+ * board learns where the pointer is from a pointer event there, while the
+ * real mouse waits on empty board: the card lands under no hover, so its
+ * connector handles don't flash up as it arrives.
+ */
+async function paste(page: Page, text: string, at: { x: number; y: number }): Promise<void> {
+	await page.mouse.move(60, 600);
+	await page.evaluate(
+		({ x, y }) =>
+			document
+				.elementFromPoint(x, y)
+				?.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y, bubbles: true })),
+		at,
+	);
 	await page.evaluate((text) => {
 		const data = new DataTransfer();
 		data.setData("text/plain", text);
@@ -130,19 +143,18 @@ async function play(rec: Recorder): Promise<void> {
 	const spot = { x: issue.x + issue.w + 170, y: issue.y + 90 };
 	await rec.place({ x: spot.x - 130, y: spot.y + 260 });
 
-	// The board, still.
-	await rec.wait(1.2);
+	// The board, still, as the pointer fades in.
+	await rec.appear();
+	await rec.wait(0.8);
 
 	// To the empty spot, and paste. The pointer hides as you type, as it does on a Mac.
 	await rec.moveTo(spot, 0.95);
 	await rec.wait(0.4);
 	rec.mark("paste");
-	await paste(page, URL);
+	await paste(page, URL, spot);
 	// Not left selected: no selection bar under it.
 	await page.keyboard.press("Escape");
 	rec.pointer.visible = false;
-	// And the real mouse off the card, onto empty board in view (outside it, the card stays hovered).
-	await page.mouse.move(60, 600);
 	const pull = page.locator(".react-flow__node-card", { hasText: "#437" });
 	await rec.until(pull);
 	// Its entrance, then hold on it.
@@ -201,7 +213,7 @@ export const clip: Clip = {
 	name: "paste-a-link",
 	setup: {
 		url: "/play?scenario=empty",
-		title: "unpic 5.0 planning",
+		title: "Paste a link",
 		you: { name: "Jo Rivera", color: "#5b5fc7" },
 	},
 	seed,
