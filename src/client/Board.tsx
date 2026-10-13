@@ -4,6 +4,7 @@ import {
 	type OnNodesChange,
 	ReactFlow,
 	SelectionMode,
+	type Viewport,
 	ViewportPortal,
 	useReactFlow,
 } from "@xyflow/react";
@@ -369,6 +370,21 @@ export function Board({
 			if (viewport) void flow.setViewport(viewport, { duration: scaledDuration(700) });
 		}, 120);
 	}, [fitOnLoad, rememberView, synced, shapeNodes, flow]);
+	// Where you are is kept when a move ends, which React Flow reports 150ms
+	// late (so scrolling's many ends come as one): leaving sooner keeps it too.
+	const unsavedView = useRef<Viewport | null>(null);
+	useEffect(() => {
+		if (!rememberView) return;
+		const flush = () => {
+			if (unsavedView.current) saveViewport(rememberView, unsavedView.current);
+			unsavedView.current = null;
+		};
+		window.addEventListener("pagehide", flush);
+		return () => {
+			window.removeEventListener("pagehide", flush);
+			flush();
+		};
+	}, [rememberView]);
 	// Spotlight: someone bringing everyone to their view (#50).
 	const spotlight = useSpotlightFollow(awareness, presence.people, follow);
 	usePublishStatus(awareness);
@@ -1865,8 +1881,12 @@ export function Board({
 										onNodesChange={onNodesChange}
 										onPaneClick={onPaneClick}
 										onMoveStart={follow.onMoveStart}
+										onMove={(_event, viewport) => {
+											if (rememberView && fitted.current) unsavedView.current = viewport;
+										}}
 										onMoveEnd={(_event, viewport) => {
 											if (rememberView && fitted.current) saveViewport(rememberView, viewport);
+											unsavedView.current = null;
 										}}
 										proOptions={{ hideAttribution: true }}
 										onlyRenderVisibleElements={!exporter.drawing}
