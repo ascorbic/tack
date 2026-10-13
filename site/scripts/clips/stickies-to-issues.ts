@@ -2,7 +2,7 @@
 // the bar, and each sticky turning into its issue's card. The camera leans
 // in on the bar's button for the click, then frames the stickies for the
 // rest: their "New issue in unpic" tags, then the cards landing one by
-// one. The issues' panel and the push happen out of sight, through the
+// one, and last it eases in on the top two cards to read them. The issues' panel and the push happen out of sight, through the
 // app's own code: nothing but the bar's button is ever on screen.
 
 import type { Page } from "@playwright/test";
@@ -37,9 +37,9 @@ const HIDE = `
 
 /**
  * How slowly the pretend forge answers, as a multiple of its usual: slow
- * enough that the cards land one after another, about 0.42s apart.
+ * enough that the cards land one after another, about a third of a second apart.
  */
-const PACE = 0.62;
+const PACE = 0.5;
 
 async function seed(page: Page): Promise<void> {
 	await page.addStyleTag({ content: HIDE });
@@ -64,7 +64,7 @@ async function seed(page: Page): Promise<void> {
 		doc.transact(() => {
 			addShape(doc, "clip-title", {
 				type: "text",
-				text: "unpic 5.0 ideas",
+				text: "Stickies to issues",
 				size: "l",
 				x: 0,
 				y: -86,
@@ -76,8 +76,9 @@ async function seed(page: Page): Promise<void> {
 					text: note.text,
 					color: note.color,
 					author: people[note.author],
-					// Two columns, far enough apart for the cards they'll become.
-					x: (i % 2) * 280 + ((i * 37) % 9) - 4,
+					// Two columns, far enough apart for the cards they'll become, with a gap
+					// between them that the camera's last close-up can sit in.
+					x: (i % 2) * 340 + ((i * 37) % 9) - 4,
 					y: Math.floor(i / 2) * 212 + ((i * 53) % 9) - 4,
 					z: nextZ(doc),
 				});
@@ -125,8 +126,9 @@ async function play(rec: Recorder): Promise<void> {
 	const home = { x: last.x + 252 + 60, y: last.y + last.h / 2 };
 	await rec.place({ x: first.x - 26, y: first.y - 22 });
 
-	// The board, still.
-	await rec.wait(1.2);
+	// The board, still, as the pointer fades in.
+	await rec.appear();
+	await rec.wait(0.8);
 
 	// Box the six stickies, slowly.
 	await rec.drag({ x: last.x + last.w + 18, y: last.y + last.h + 18 }, 1.3);
@@ -136,18 +138,19 @@ async function play(rec: Recorder): Promise<void> {
 	await rec.box("make", make);
 
 	// The camera leans in on the bar while the pointer heads for its button.
+	// The real mouse jumps there at the end, hovering nothing on the way.
 	await rec.wait(0.1);
-	await rec.moveTo(await rec.centre(make, { x: -14 }), 1.0);
+	await rec.moveTo(await rec.centre(make, { x: -14 }), 1.0, { follow: false });
 	await rec.wait(0.4);
 	rec.mark("click");
 	await rec.click();
 
 	// Back out to the stickies, the pointer back to rest; then they're staged.
-	await rec.moveTo(home, 1.0);
+	await rec.moveTo(home, 1.0, { follow: false });
 	const panel = page.getByRole("dialog", { name: "Make issues from stickies" });
 	const stage = panel.getByRole("button", { name: /^Stage \d+ issues/ });
 	// Once the camera's back, and the panel knows the repository.
-	const back = (rec.marks.click ?? 0) + 1.5;
+	const back = (rec.marks.click ?? 0) + 1.3;
 	while (rec.t < back || !(await stage.isEnabled())) await rec.tick();
 	rec.mark("staging");
 	await stage.evaluate((button: HTMLButtonElement) => button.click());
@@ -159,7 +162,7 @@ async function play(rec: Recorder): Promise<void> {
 			.first(),
 	);
 	rec.mark("staged");
-	await rec.wait(1.9);
+	await rec.wait(1.8);
 
 	// Pushed, out of sight: the stickies make room, and become their cards one by one.
 	await push(page, PACE);
@@ -170,16 +173,21 @@ async function play(rec: Recorder): Promise<void> {
 		rec.mark(`card-${n}`);
 	}
 	rec.mark("landed");
-	// Until the last card's settled, then hold on them all.
-	await rec.wait(0.4);
+	// Until the last card's settled; then the camera eases in on the top two, the pointer fading as
+	// it goes, and holds on them.
+	await rec.wait(0.35);
 	for (let i = 0; i < NOTES.length; i++) await rec.box(`card-${i}`, cards.nth(i));
+	rec.mark("read");
+	await rec.wait(0.3);
+	await rec.vanish();
+	await rec.wait(0.5);
 	await rec.wait(1.8);
 	rec.mark("end");
 	// Still, while it fades back to the first frame.
 	await rec.wait(1.0);
 }
 
-/** Stickies and cards framed from the start; in on the bar for the click, and back. */
+/** Stickies and cards framed from the start; in on the bar for the click, and back; in on two cards at the end. */
 function camera({ marks, boxes }: Recording): Keyframe[] {
 	const m = (name: string) => marks[name] ?? 0;
 	const all = Object.entries(boxes)
@@ -189,12 +197,24 @@ function camera({ marks, boxes }: Recording): Keyframe[] {
 	// The button, with the stickies it's for just above it.
 	const make = boxes.make!;
 	const bar = closeOn({ x: make.x + make.w / 2 + 110, y: make.y + make.h / 2 - 70 }, 1.9);
+	// The left column's first two cards, big enough to read on a phone: clear of the title above,
+	// the column beside them and the row below.
+	const top = boxes["card-0"]!;
+	const below = boxes["card-2"]!;
+	const w = below.y + below.h - top.y + 48;
+	const read = {
+		x: (Math.min(top.x, below.x) + Math.max(top.x + top.w, below.x + below.w)) / 2 - w / 2,
+		y: (top.y + below.y + below.h) / 2 - w / 2 + 6,
+		w,
+	};
 	return [
 		{ t: 0, ...board },
 		{ t: m("selected") + 0.05, ...board },
 		{ t: m("selected") + 1.15, ...bar },
-		{ t: m("click") + 0.35, ...bar },
-		{ t: m("click") + 1.45, ...board },
+		{ t: m("click") + 0.25, ...bar },
+		{ t: m("click") + 1.25, ...board },
+		{ t: m("read"), ...board },
+		{ t: m("read") + 1.1, ...read },
 	];
 }
 
@@ -202,7 +222,7 @@ export const clip: Clip = {
 	name: "stickies-to-issues",
 	setup: {
 		url: "/play?scenario=empty",
-		title: "unpic 5.0 planning",
+		title: "Stickies to issues",
 		you: { name: "Jo Rivera", color: "#5b5fc7" },
 		retext: [[/the test forge/gi, "GitHub"]],
 	},
