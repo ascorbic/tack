@@ -4,6 +4,9 @@ dist/
 # Astro (the docs site, site/)
 .astro/
 
+# Social clips (site/scripts/clips/)
+clips-out/
+
 # Playwright output
 e2e/test-results/
 e2e/report/

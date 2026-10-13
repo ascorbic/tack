@@ -36,6 +36,7 @@ The UI must be delightful, with FigJam as the bar: considered typography, micro-
 - `pnpm types` — regenerate `Env` types after changing bindings
 - `pnpm --filter site dev` / `build` — preview or build the docs site (the build fails on broken links, undocumented widget settings and setup.md problems); `pnpm --filter site run deploy` builds and deploys it, then starts an AI Search sync; `pnpm --filter site run reindex` starts one on its own
 - `pnpm --filter site screenshots <dev server URL>` — retake the docs' screenshots; `pnpm --filter site og` redraws `site/public/og.png`
+- `pnpm --filter site run clips -- [name]` — record the looping social clips from the playground into `clips-out/` (not committed); see `site/scripts/clips/run.ts`
 - `node scripts/send-webhook.ts` — send a signed webhook to a local dev server (reads `GITHUB_WEBHOOK_SECRET` from `.dev.vars`)
 - `node scripts/load-test.ts` — see "Load"
 
