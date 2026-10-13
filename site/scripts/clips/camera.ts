@@ -63,22 +63,53 @@ export async function shoot(file: string, view: View): Promise<Buffer> {
 	const sx = view.x * SCALE;
 	const sy = view.y * SCALE;
 	const sw = view.w * SCALE;
-	// Cut out whole pixels around the view, with a little to spare.
-	const left = Math.max(0, Math.floor(sx) - 1);
-	const top = Math.max(0, Math.floor(sy) - 1);
-	const width = Math.min(full - left, Math.ceil(sx + sw) + 2 - left);
-	const height = Math.min(full - top, Math.ceil(sy + sw) + 2 - top);
-	const cut = await sharp(file)
-		.extract({ left, top, width, height })
+	// Cut out whole pixels around the view, with a few to spare: the shift
+	// below blends each pixel with its neighbours, and its last rows and
+	// columns with black; the resize darkens its last row and column too.
+	// So a few more than the view are kept, and trimmed after the resize.
+	const left = Math.floor(sx) - 1;
+	const top = Math.floor(sy) - 1;
+	const keep = Math.ceil(sw) + 4;
+	const width = keep + 6;
+	const height = keep + 6;
+	// Past the page's edge, its edge pixels repeated: shifting by a fraction
+	// against nothing would blend in black, a dark seam along the edge.
+	const inside = {
+		left: Math.max(0, left),
+		top: Math.max(0, top),
+		right: Math.min(full, left + width),
+		bottom: Math.min(full, top + height),
+	};
+	let cut = await sharp(file)
+		.extract({
+			left: inside.left,
+			top: inside.top,
+			width: inside.right - inside.left,
+			height: inside.bottom - inside.top,
+		})
 		.removeAlpha()
 		.raw()
 		.toBuffer({ resolveWithObject: true });
+	const pad = {
+		left: inside.left - left,
+		top: inside.top - top,
+		right: left + width - inside.right,
+		bottom: top + height - inside.bottom,
+	};
+	if (pad.left || pad.top || pad.right || pad.bottom) {
+		cut = await sharp(cut.data, {
+			raw: { width: cut.info.width, height: cut.info.height, channels: 3 },
+		})
+			.extend({ ...pad, extendWith: "copy" })
+			.raw()
+			.toBuffer({ resolveWithObject: true });
+	}
 	// Shift by the fraction of a pixel left over, so the view starts exactly at the corner.
 	const dx = sx - left;
 	const dy = sy - top;
 	const shifted = await sharp(cut.data, { raw: { width, height, channels: 3 } })
 		.affine([1, 0, 0, 1], { idx: -dx, idy: -dy, interpolator: "bicubic" })
-		.extract({ left: 0, top: 0, width: width - 2, height: height - 2 })
+		.extract({ left: 0, top: 0, width: keep, height: keep })
 		.raw()
 		.toBuffer({ resolveWithObject: true });
 	// Then scale to the output, filtering properly whether it shrinks or grows.
