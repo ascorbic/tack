@@ -166,7 +166,7 @@ export function StickyView({
 
 export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps<ShapeNode>) {
 	const doc = useContext(DocContext);
-	const [enter] = useState(() => isFresh(data.id));
+	const [enter, setEnter] = useState(() => isFresh(data.id));
 	// A sticky this client just placed starts in editing mode.
 	const [startEditing] = useState(() => takeFocus(data.id));
 	// Silent mode: yours show your own text (kept off the document); everyone
@@ -179,6 +179,10 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 	const latest = useRef(value);
 	latest.current = value;
 	const flip = useRevealFlip(doc, session, data.shape);
+	// It drops in once: turning over remounts it (twice), and it mustn't drop in again.
+	useEffect(() => {
+		if (flip) setEnter(false);
+	}, [flip]);
 	const { editing, setEditing, field, handlers, hint } = useEditing({
 		id: data.id,
 		selected: !!selected && !faceDown,
