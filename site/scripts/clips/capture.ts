@@ -284,16 +284,53 @@ export class Recorder {
 		await this.page.mouse.move(at.x, at.y);
 	}
 
-	/** Move the pointer along a gently bowed, eased path; the real mouse follows it. */
-	async moveTo(to: Point, seconds = moveDuration(this.pointer, to)): Promise<void> {
+	/**
+	 * Move the pointer along a gently bowed, eased path; the real mouse
+	 * follows it. With `follow: false` the real mouse waits and jumps to the
+	 * end, so nothing the pointer passes over is hovered (a sticky's
+	 * connector handles flashing up on the way to a button).
+	 */
+	async moveTo(
+		to: Point,
+		seconds = moveDuration(this.pointer, to),
+		{ follow = true }: { follow?: boolean } = {},
+	): Promise<void> {
 		const path = bowedPath({ ...this.pointer }, to);
 		const frames = Math.max(1, Math.round(seconds * FPS));
 		for (let i = 1; i <= frames; i++) {
 			const at = path(easeReach(i / frames));
 			Object.assign(this.pointer, at);
-			await this.page.mouse.move(at.x, at.y);
+			if (follow || i === frames) await this.page.mouse.move(at.x, at.y);
 			await this.tick();
 		}
+	}
+
+	/** Every pointer, yours and everyone else's. */
+	private get pointers(): Pointer[] {
+		return [...this.others, this.pointer];
+	}
+
+	/**
+	 * Fade every pointer in from nothing, from the first frame: the loop
+	 * dissolves back into a first frame without them, so none reappears as
+	 * the clip fades out.
+	 */
+	async appear(seconds = 0.4): Promise<void> {
+		await this.fadePointers(0, 1, seconds);
+	}
+
+	/** Fade every pointer out, before the loop's dissolve back to the start. */
+	async vanish(seconds = 0.3): Promise<void> {
+		await this.fadePointers(1, 0, seconds);
+	}
+
+	private async fadePointers(from: number, to: number, seconds: number): Promise<void> {
+		const frames = Math.max(1, Math.round(seconds * FPS));
+		for (let i = 0; i < frames; i++) {
+			for (const p of this.pointers) p.opacity = from + ((to - from) * i) / frames;
+			await this.tick();
+		}
+		for (const p of this.pointers) p.opacity = to;
 	}
 
 	/** Press and release where the pointer is, with a ripple. */

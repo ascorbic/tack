@@ -22,6 +22,8 @@ export interface Pointer {
 	/** For someone else's pointer: their name and colour. */
 	label?: string;
 	color?: string;
+	/** From 0 to 1, for fading in and out: unset is 1. */
+	opacity?: number;
 }
 
 /** Ease in and out, gentler than cubic at the ends. */
@@ -75,21 +77,23 @@ export async function installOverlay(page: Page): Promise<void> {
 			visible: boolean;
 			label?: string;
 			color?: string;
+			opacity?: number;
 		};
 		const set = (pointers: P[]) => {
 			layer.innerHTML = "";
 			for (const p of pointers) {
-				if (!p.visible) continue;
+				const opacity = p.opacity ?? 1;
+				if (!p.visible || opacity <= 0) continue;
 				for (const r of p.ripples) {
 					const ring = document.createElement("div");
 					const size = 10 + 34 * (1 - (1 - r.t) ** 3);
 					const ink = p.color ?? "#3b4cca";
-					ring.style.cssText = `position:absolute;left:${r.x - size / 2}px;top:${r.y - size / 2}px;width:${size}px;height:${size}px;border-radius:50%;background:${ink}22;border:2px solid ${ink};opacity:${0.55 * (1 - r.t)};`;
+					ring.style.cssText = `position:absolute;left:${r.x - size / 2}px;top:${r.y - size / 2}px;width:${size}px;height:${size}px;border-radius:50%;background:${ink}22;border:2px solid ${ink};opacity:${0.55 * (1 - r.t) * opacity};`;
 					layer.append(ring);
 				}
 				const el = document.createElement("div");
 				const scale = 1 - 0.12 * p.press;
-				el.style.cssText = `position:absolute;left:0;top:0;transform:translate(${p.x}px,${p.y}px) scale(${scale});transform-origin:0 0;`;
+				el.style.cssText = `position:absolute;left:0;top:0;transform:translate(${p.x}px,${p.y}px) scale(${scale});transform-origin:0 0;opacity:${opacity};`;
 				el.innerHTML = arrow(p.color ?? "#1d1d1f");
 				if (p.label) {
 					const tag = document.createElement("div");
