@@ -55,6 +55,8 @@ function defaultOut(): string {
 }
 
 const { values, positionals } = parseArgs({
+	// pnpm passes on the `--` before the clip's own arguments: not the end of the options here.
+	args: process.argv.slice(2).filter((arg) => arg !== "--"),
 	allowPositionals: true,
 	options: {
 		base: { type: "string" },
@@ -63,7 +65,7 @@ const { values, positionals } = parseArgs({
 		keep: { type: "boolean", default: false },
 	},
 });
-const names = positionals.filter((name) => name !== "--");
+const names = positionals;
 const chosen = names.length ? CLIPS.filter((c) => names.includes(c.name)) : CLIPS;
 if (chosen.length === 0) {
 	console.error(`No such clip. There are: ${CLIPS.map((c) => c.name).join(", ")}`);
@@ -103,6 +105,10 @@ async function record(clip: Clip): Promise<void> {
 		// Fit the board, then let entrances and the fit settle.
 		await rec.page.keyboard.press("Shift+Digit1");
 		await rec.page.waitForTimeout(1500);
+		if (clip.framed) {
+			await clip.framed(rec.page);
+			await rec.page.waitForTimeout(1000);
+		}
 		if (values.still) {
 			await rec.page.screenshot({ path: path.join(out, `${clip.name}.still.png`) });
 			return;

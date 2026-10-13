@@ -112,7 +112,7 @@ export async function* film(
 	recording: Recording,
 	keys: Keyframe[],
 	frameAt: (n: number) => string,
-	{ fade = 0.6 } = {},
+	{ fade = 1 } = {},
 ): AsyncGenerator<Buffer> {
 	const total = recording.frames;
 	const fadeFrames = Math.round(fade * recording.fps);
