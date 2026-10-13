@@ -10,4 +10,6 @@ overrides:
   vitest@*: 5.0.3
 onlyBuiltDependencies:
   - esbuild
+  # Downloads its ffmpeg binary, for the social clips (site/scripts/clips/).
+  - ffmpeg-static
   - workerd
