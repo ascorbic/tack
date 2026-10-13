@@ -60,6 +60,8 @@ async function seed(page: Page): Promise<void> {
 			// Just the one section, close enough to see the stickies' backs.
 			removeShapes(doc, [byTitle("Parking lot")]);
 			resizeSection(doc, hurts, section);
+			// Named for the feature, so the clip's about silent mode rather than what hurts.
+			shapesMap(doc).get(hurts)?.set("title", "Silent mode");
 			// You started silent mode: you're the facilitator.
 			f.hub.start({ id: "local", author: "you", canEdit: true, owner: true }, hurts, {
 				name: "Jo Rivera",
@@ -125,8 +127,9 @@ async function play(rec: Recorder): Promise<void> {
 	// You, the facilitator, up by the section's header.
 	await rec.place(toPage({ x: SECTION.x + SECTION.w - 60, y: SECTION.y + 30 }));
 
-	// The board, still.
-	await crowd.wait(1.2);
+	// The board, still, as the pointers fade in.
+	await rec.appear();
+	await crowd.wait(0.8);
 
 	// One at a time, each lands face down with a beat of its own, and its
 	// writer heads back while the next comes in.
@@ -164,11 +167,16 @@ async function play(rec: Recorder): Promise<void> {
 	// A little slower than life, so you see each one turn.
 	rec.speed = 0.6;
 	await rec.click();
+	// The real mouse off the stickies as they turn (one tilts up under it), onto empty board.
+	const aside = toPage({ x: SECTION.x - 30, y: SECTION.y + 300 });
+	await page.mouse.move(aside.x, aside.y);
 	await crowd.wait(1.8);
 	rec.speed = 1;
 	rec.mark("revealed");
-	// Read them, then dissolve back to the start.
-	await crowd.wait(3);
+	// Read them; the pointers fade, then it dissolves back to the start.
+	await crowd.wait(1.8);
+	await rec.vanish();
+	await crowd.wait(1.0);
 }
 
 /** On the section, header and all, from the first frame to the last. */
@@ -189,7 +197,7 @@ export const clip: Clip = {
 	name: "silent-reveal",
 	setup: {
 		url: "/play?scenario=empty",
-		title: "unpic retro",
+		title: "Silent mode",
 		you: { name: "Jo Rivera", color: "#5b5fc7" },
 	},
 	seed,
