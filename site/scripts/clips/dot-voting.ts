@@ -1,16 +1,17 @@
 // Dot voting: a vote on what's next for unpic is already under way, with
-// the dot tool on. The camera comes in close on the cards, and Kai, Priya
-// and Tom (other people's pointers, with their names) and then you put dots
-// on them, a calm beat apart, each landing in the card's corner. Then Priya,
-// who's running it, closes the vote: the camera steps back, and every card
-// that got dots wears its place and its dots.
+// the dot tool on. The camera starts on the section and comes in close on
+// the cards, and Kai, Priya and Tom (other people's pointers, with their
+// names) and then you put dots on them, a calm beat apart, each landing in
+// the card's corner, everyone stepping off the cards after. Then Priya,
+// who's running it, closes the vote, and, still close, every card that got
+// dots wears its place and its dots.
 //
 // The vote's started before recording (as the "vote" scenario's is, with
 // the shared dotvotes.ts), so there's no dialog; its results panel, which
 // opens by itself when a vote closes, stays out of sight.
 
 import type { Page } from "@playwright/test";
-import { type Keyframe, WIDE, around } from "./camera.ts";
+import { type Keyframe, around } from "./camera.ts";
 import type { Box, Recorder, Recording } from "./capture.ts";
 import type { Clip } from "./clip.ts";
 import type { Point, Pointer } from "./cursor.ts";
@@ -144,7 +145,10 @@ function dot(page: Page, who: Who, item: Item): Promise<void> {
 
 async function play(rec: Recorder): Promise<void> {
 	const { page } = rec;
-	await page.addStyleTag({ content: `.tally-panel { visibility: hidden !important; }` });
+	// No results panel, and no tool dock or its hint peeking in at the foot of the frame.
+	await page.addStyleTag({
+		content: `.tally-panel, .toolbar-dock { visibility: hidden !important; }`,
+	});
 	await page.evaluate(async () => {
 		const { tackPlayground } = window as unknown as { tackPlayground: { doc: import("yjs").Doc } };
 		tackPlayground.doc.getMap("shapes").delete("clip-spacer");
@@ -163,32 +167,41 @@ async function play(rec: Recorder): Promise<void> {
 		await Promise.all(ITEMS.map(async (item) => [item, await box(item)] as const)),
 	) as Record<Item, Box>;
 	await rec.box("section", page.locator(".react-flow__node-section").first());
-	await rec.box("bar", page.locator(".vote-bar").first());
+	await rec.box("header", page.locator(".section-header").first());
 	// Where a pointer goes to dot something: a little in from its top right, where the dots land.
 	const on = (item: Item, dx = 0, dy = 0): Point => ({
 		x: items[item].x + items[item].w * 0.62 + dx,
 		y: items[item].y + items[item].h * 0.38 + dy,
 	});
 
-	// Resting around the cards, just inside where the camera will be.
+	// Resting below the cards and stickies, where their names cover nothing: Kai under the
+	// last card, Tom and Priya under the last sticky, you to Kai's left.
 	const c0 = items["card-0"];
 	const c2 = items["card-2"];
-	const s0 = items["sticky-0"];
 	const s1 = items["sticky-1"];
 	const crowd = new Crowd(rec);
-	const person = (who: Who, at: Point) => crowd.join(PEOPLE[who].name, PEOPLE[who].color, at);
-	const priya = person("priya", { x: s1.x + 30, y: s1.y + s1.h + 20 });
-	const kai = person("kai", { x: s0.x + s0.w + 26, y: s0.y + 70 });
-	const tom = person("tom", { x: s1.x - 22, y: s1.y + s1.h - 34 });
-	const rest = { x: c2.x + c2.w * 0.4, y: c2.y + c2.h + 40 };
+	// By first name: shorter labels, which fit the gaps between things.
+	const person = (who: Who, at: Point) =>
+		crowd.join(PEOPLE[who].name.split(" ")[0]!, PEOPLE[who].color, at);
+	const park: Record<Who, Point> = {
+		kai: { x: c2.x + c2.w * 0.62, y: c2.y + c2.h + 5 },
+		tom: { x: s1.x + 18, y: s1.y + s1.h + 8 },
+		priya: { x: s1.x + 108, y: s1.y + s1.h + 26 },
+	};
+	const priya = person("priya", park.priya);
+	const kai = person("kai", park.kai);
+	const tom = person("tom", park.tom);
+	const rest = { x: c2.x + c2.w * 0.18, y: c2.y + c2.h + 14 };
 	await rec.place(rest);
 	/** Frames go by, with everyone on the move carrying on, until `time`. */
 	const until = (time: number) => crowd.wait(Math.max(0, time - rec.t));
 	const vote = (who: Pointer, name: Who, item: Item) =>
 		crowd.click(who, () => dot(page, name, item));
 
-	// The board, still; then the camera's in close from 1.2s to 2.4s, and a dot
-	// lands every 0.8s or so from 3.4s, yours last at 6.9s.
+	// The board, still, as everyone's pointers fade in; then the camera's in
+	// close from 1.2s to 2.4s, and a dot lands every 0.8s or so from 3.4s,
+	// yours last at 6.9s.
+	await rec.appear();
 	await until(1.2);
 	rec.mark("in");
 	await until(1.85);
@@ -197,17 +210,18 @@ async function play(rec: Recorder): Promise<void> {
 	crowd.move(priya, on("sticky-0", 10), { seconds: 1.1 });
 	await until(3.3);
 	await vote(kai, "kai", "card-0");
-	crowd.move(kai, { x: c0.x + c0.w + 22, y: c0.y + c0.h * 0.75 }, { seconds: 0.8 });
+	// Into the gap beside the card, his name between it and the sticky.
+	crowd.move(kai, { x: c0.x + c0.w + 6, y: c0.y + c0.h - 2 }, { seconds: 0.8 });
 	await until(3.55);
 	crowd.move(tom, on("card-0", -40, 22), { seconds: 1.1 });
 	await until(4.15);
 	await vote(priya, "priya", "sticky-0");
-	crowd.move(priya, { x: s1.x + 40, y: s1.y + s1.h + 16 }, { seconds: 1.1 });
+	crowd.move(priya, park.priya, { seconds: 1.1 });
 	await until(4.65);
 	crowd.move(kai, on("card-0", 20, 14), { seconds: 0.8 });
 	await until(4.9);
 	await vote(tom, "tom", "card-0");
-	crowd.move(tom, { x: s1.x - 18, y: s1.y + s1.h - 44 }, { seconds: 1.1 });
+	crowd.move(tom, park.tom, { seconds: 1.1 });
 	await until(5.3);
 	// You: across to Blurhash placeholders while Kai goes back for another.
 	const target = on("card-2", -30, 10);
@@ -216,15 +230,16 @@ async function play(rec: Recorder): Promise<void> {
 	crowd.move(rec.pointer, target, { seconds: 1.1 });
 	await until(5.7);
 	await vote(kai, "kai", "card-0");
+	crowd.move(kai, park.kai, { seconds: 0.9 });
 	// Everyone else is still by the time you click, as the recorder's click holds them.
 	await until(6.8);
 	await page.mouse.move(target.x, target.y);
 	await rec.click();
 	await page.mouse.move(rest.x, rest.y);
+	// And back off the card.
+	await crowd.moveTo(rec.pointer, rest, { seconds: 0.8 });
 	// Every dot in: a beat to take them in, quite still.
-	await until(6.9 + 1.8);
-	rec.mark("out");
-	await rec.wait(1.15 + 0.25);
+	await crowd.wait(1.8);
 	// Priya closes the vote, from her board: places and dots on every card.
 	rec.mark("closed");
 	await page.evaluate(async (by) => {
@@ -237,24 +252,30 @@ async function play(rec: Recorder): Promise<void> {
 		const doc = tackPlayground.doc;
 		doc.transact(() => closeVote(doc, clipVote, by, new Date().toISOString()));
 	}, PEOPLE.priya);
-	await rec.wait(0.4 + 2);
+	await rec.wait(0.4 + 1.9);
 	// The fade back to the start, without the pointers.
-	for (const pointer of [rec.pointer, ...rec.others]) pointer.visible = false;
+	await rec.vanish();
 	await rec.wait(0.9);
 }
 
-/** Wide; in close on the cards for the dots; back out for the result. */
+/**
+ * The section, header and all; then in close on the cards for the dots,
+ * staying there for their places: room above them for the dots and the
+ * place badges on their top edges, and below for everyone's pointers.
+ */
 function camera({ marks, boxes }: Recording): Keyframe[] {
 	const m = (name: string) => marks[name] ?? 0;
-	const cards = ITEMS.map((item) => boxes[item]!);
-	const close = around(cards, { margin: 18, max: 2.4 });
-	const result = around([...cards, boxes.bar!], { margin: 16, max: 2 });
+	const items = ITEMS.map((item) => boxes[item]!);
+	const section = around([boxes.section!, boxes.header!], { margin: 24 });
+	const left = Math.min(...items.map((b) => b.x)) - 18;
+	const right = Math.max(...items.map((b) => b.x + b.w)) + 18;
+	const top = Math.min(...items.map((b) => b.y)) - 26;
+	const w = Math.max(right - left, Math.max(...items.map((b) => b.y + b.h)) + 56 - top);
+	const close = { x: (left + right) / 2 - w / 2, y: top, w };
 	return [
-		{ t: 0, ...WIDE },
-		{ t: m("in"), ...WIDE },
+		{ t: 0, ...section },
+		{ t: m("in"), ...section },
 		{ t: m("in") + 1.2, ...close },
-		{ t: m("out"), ...close },
-		{ t: m("out") + 1.15, ...result },
 	];
 }
 
