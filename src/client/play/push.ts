@@ -124,6 +124,8 @@ function avatarOf(login: string): string {
 
 export class SimulatedPush implements PushClient {
 	mode: PushMode = "works";
+	/** How long it takes to answer, as a multiple of its usual: the social clips (site/scripts/clips/) quicken it. */
+	pace = 1;
 	private log: AuditEntry[] = [];
 	private running = 0;
 
@@ -133,7 +135,7 @@ export class SimulatedPush implements PushClient {
 	) {}
 
 	async push({ ids, as }: PushRequest): Promise<PushResult> {
-		await sleep(jitter(450));
+		await sleep(jitter(450) * this.pace);
 		const changes = listChanges(this.doc);
 		const index = indexChanges(changes);
 		const chosen = ids.flatMap((id) => {
@@ -183,13 +185,13 @@ export class SimulatedPush implements PushClient {
 	}
 
 	async pushes(): Promise<Loaded<AuditEntry[]>> {
-		await sleep(jitter(500));
+		await sleep(jitter(500) * this.pace);
 		if (this.mode === "offline") return { ok: false, error: "offline" };
 		return { ok: true, value: structuredClone(this.log) };
 	}
 
 	async repoMeta(repo: string): Promise<Loaded<RepoMeta>> {
-		await sleep(jitter(400));
+		await sleep(jitter(400) * this.pace);
 		return { ok: true, value: playMeta(repo) };
 	}
 
@@ -271,7 +273,7 @@ export class SimulatedPush implements PushClient {
 		const confirmations: Promise<void>[] = [];
 		for (const change of ordered) {
 			this.write(change.id, { status: "sending" satisfies ChangeStatus });
-			await sleep(jitter(520));
+			await sleep(jitter(520) * this.pace);
 			const error = failing.get(change.id);
 			// Rejected outright by the forge.
 			if (error && error === ERRORS[0]) {
@@ -284,7 +286,7 @@ export class SimulatedPush implements PushClient {
 			record(change.id, "sent", { url: result.url });
 			// The webhook confirms it a little later, or never does.
 			confirmations.push(
-				sleep(jitter(1300)).then(() => {
+				sleep(jitter(1300) * this.pace).then(() => {
 					if (error) {
 						this.write(change.id, { status: "failed", error });
 						record(change.id, "failed", { error });
