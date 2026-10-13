@@ -71,6 +71,11 @@ export class Recorder {
 	readonly pointer: Pointer = { x: 0, y: 0, press: 0, ripples: [], visible: false };
 	/** Other people's pointers, drawn with their names. */
 	readonly others: Pointer[] = [];
+	/**
+	 * How fast the page's time runs against the clip's: below 1 is slow
+	 * motion, for something too quick to see (a card turning over).
+	 */
+	speed = 1;
 	private frame = 0;
 	private cdp!: CDPSession;
 	private ripples: { x: number; y: number; born: number }[] = [];
@@ -197,7 +202,7 @@ export class Recorder {
 	 * board as it is when recording starts.
 	 */
 	async tick(): Promise<void> {
-		const ms = 1000 / FPS;
+		const ms = (1000 / FPS) * this.speed;
 		if (this.frame > 0) {
 			await this.page.clock.runFor(ms);
 			await this.page.evaluate(async (ms) => {
