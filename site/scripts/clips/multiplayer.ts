@@ -4,8 +4,8 @@
 // people to the board (the playground's simulated presence: their drags,
 // typing and connector are what anyone else would see), with the clip's
 // own named pointers in place of the board's cursors so they move on the
-// frame clock. The camera leans in for Ana and Ben, then back out for
-// Cleo and the end, with all three's work in view.
+// frame clock. The camera starts close on Ana's and Ben's corner, then
+// eases back for Cleo and the end, with all three's work in view.
 
 import type { Page } from "@playwright/test";
 import { type Keyframe, around } from "./camera.ts";
@@ -31,16 +31,32 @@ const PEOPLE = {
 } as const;
 type Who = keyof typeof PEOPLE;
 
-/** Where things are on the board. */
+/**
+ * Where things are on the board: two columns, compact enough that the
+ * whole board fills a phone's square, with the gap between them wide
+ * enough that a close-up on the right one shows nothing of the left.
+ */
 const AT = {
 	queue: { x: 0, y: 0 },
 	retry: { x: 0, y: 240 },
-	plan: { x: 300, y: 0 },
-	/** Ana's card, off to one side, and where she puts it. */
-	banner: { x: 580, y: 190 },
-	bannerTo: { x: 300, y: 240 },
-	/** Ben's sticky. */
-	sticky: { x: 300, y: 400 },
+	plan: { x: 330, y: 0 },
+	/** Ana's card, loose below the right column, and where she puts it. */
+	banner: { x: 400, y: 450 },
+	bannerTo: { x: 330, y: 240 },
+	/** Ben's sticky, where Ana's card was. */
+	sticky: { x: 330, y: 420 },
+};
+
+/** Where everyone rests, clear of what's on the board and its words, labels and all. */
+const REST = {
+	/** In Ana's corner, beside the gap her card goes into. */
+	ana: { x: 600, y: 300 },
+	/** Below the corner, out of shot until he comes in. */
+	ben: { x: 600, y: 700 },
+	/** Under the left column, out of shot until the camera eases back. */
+	cleo: { x: 100, y: 440 },
+	/** Where Ana goes as the camera eases back: between the right column's sticky and her card. */
+	anaAfter: { x: 520, y: 190 },
 };
 
 const BEN_WRITES = "Needs a design pass";
@@ -159,13 +175,13 @@ async function play(rec: Recorder): Promise<void> {
 	const sticky = toPage(AT.sticky);
 	rec.boxes.sticky = { ...sticky, w: 176 * zoom, h: 176 * zoom };
 
-	const ana = crowd.join("Ana", PEOPLE.ana.color, toPage({ x: 760, y: 420 }));
-	const ben = crowd.join("Ben", PEOPLE.ben.color, toPage({ x: 580, y: 520 }));
-	const cleo = crowd.join("Cleo", PEOPLE.cleo.color, toPage({ x: 70, y: 450 }));
+	const ana = crowd.join("Ana", PEOPLE.ana.color, toPage(REST.ana));
+	const ben = crowd.join("Ben", PEOPLE.ben.color, toPage(REST.ben));
+	const cleo = crowd.join("Cleo", PEOPLE.cleo.color, toPage(REST.cleo));
 
-	// The board, still.
-	await crowd.wait(1.2);
-	rec.mark("lean");
+	// The board, still, as everyone's pointers fade in.
+	await rec.appear();
+	await crowd.wait(0.8);
 
 	// Ana takes the loose card and puts it beside the one it belongs with.
 	// By its lower right, where her name doesn't cover the title.
@@ -199,7 +215,7 @@ async function play(rec: Recorder): Promise<void> {
 	);
 	await crowd.release(ana);
 	rec.mark("moved");
-	await crowd.wait(1.3);
+	await crowd.wait(1.2);
 
 	// Ben writes a sticky, a letter at a time.
 	const corner = toPage({ x: AT.sticky.x + 148, y: AT.sticky.y + 150 });
@@ -230,13 +246,14 @@ async function play(rec: Recorder): Promise<void> {
 		await crowd.wait(BEN_WRITES[i - 1] === " " ? 0.1 : 0.065);
 	}
 	rec.mark("typed");
-	await crowd.wait(1.3);
+	await crowd.wait(1.2);
 
-	// Cleo draws an arrow from one card to the other, and it snaps on.
+	// Cleo draws an arrow from one card to the other, and it snaps on; Ana steps off her card's corner.
 	rec.mark("wide");
 	const from = { x: queue.x + queue.w / 2, y: queue.y + queue.h / 2 };
-	// Ending by the card's lower right, clear of its title; the arrow snaps to its edge.
-	const to = { x: retry.x + retry.w * 0.78, y: retry.y + retry.h * 0.8 };
+	// Letting go just above the card, where her name covers nothing; the arrow snaps to its edge.
+	const to = { x: retry.x + retry.w * 0.66, y: retry.y - 48 * zoom };
+	crowd.move(ana, toPage(REST.anaAfter), { seconds: 1, delay: 0.2 });
 	await crowd.moveTo(cleo, from, { seconds: 1 });
 	await crowd.wait(0.3);
 	await crowd.press(cleo);
@@ -247,7 +264,8 @@ async function play(rec: Recorder): Promise<void> {
 		seconds: 0.95,
 		follow: async (at) => {
 			const p = toBoard(at);
-			const inside = p.x >= r.x && p.x <= r.x + rs.w && p.y >= r.y && p.y <= r.y + rs.h;
+			// Near enough to snap on: over the card, or just above it.
+			const inside = p.x >= r.x && p.x <= r.x + rs.w && p.y >= r.y - 50 && p.y <= r.y + rs.h;
 			await present(page, "cleo", {
 				cursor: p,
 				connecting: {
@@ -272,27 +290,23 @@ async function play(rec: Recorder): Promise<void> {
 	});
 	await crowd.release(cleo);
 	rec.mark("drawn");
-	// All three's work, then dissolve back to the start.
-	await crowd.wait(2.9);
+	// All three's work; the pointers fade, then it dissolves back to the start.
+	await crowd.wait(1.6);
+	await rec.vanish();
+	await crowd.wait(1.0);
 }
 
-/** Wide, in on Ana's and Ben's corner, then back out for Cleo's arrow and the end. */
+/** Close on Ana's and Ben's corner, then back out for Cleo's arrow and the end. */
 function camera({ marks, boxes }: Recording): Keyframe[] {
 	const b = (name: string) => boxes[name]!;
-	// The board as it is, short of the page's edge (where the crop would show a seam).
-	const wide = around([b("queue"), b("retry"), b("plan"), b("banner")], { margin: 32 });
-	const corner = around([b("plan"), b("banner"), b("bannerTo"), b("sticky")], {
-		margin: 30,
-		max: 3,
-	});
+	// Where Ana's card is and goes, and Ben's sticky: the right column, clear of the left.
+	const corner = around([b("banner"), b("bannerTo"), b("sticky")], { margin: 30, max: 3 });
 	const end = around([b("queue"), b("retry"), b("plan"), b("bannerTo"), b("sticky")], {
-		margin: 44,
+		margin: 36,
 		max: 3,
 	});
 	return [
-		{ t: 0, ...wide },
-		{ t: marks.lean!, ...wide },
-		{ t: marks.lean! + 1, ...corner },
+		{ t: 0, ...corner },
 		{ t: marks.wide!, ...corner },
 		{ t: marks.wide! + 1.05, ...end },
 	];
