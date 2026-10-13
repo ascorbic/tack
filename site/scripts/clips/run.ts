@@ -31,12 +31,20 @@ import { Recorder } from "./capture.ts";
 import type { Clip } from "./clip.ts";
 import { encodeGif, encodeMp4 } from "./encode.ts";
 import { clip as autoStack } from "./auto-stack.ts";
+import { clip as dotVoting } from "./dot-voting.ts";
 import { clip as multiplayer } from "./multiplayer.ts";
 import { clip as pasteALink } from "./paste-a-link.ts";
 import { clip as silentReveal } from "./silent-reveal.ts";
 import { clip as stickiesToIssues } from "./stickies-to-issues.ts";
 
-const CLIPS: Clip[] = [stickiesToIssues, pasteALink, silentReveal, multiplayer, autoStack];
+const CLIPS: Clip[] = [
+	stickiesToIssues,
+	pasteALink,
+	silentReveal,
+	multiplayer,
+	autoStack,
+	dotVoting,
+];
 
 const PORT = 5391;
 const root = path.resolve(import.meta.dirname, "../../..");
