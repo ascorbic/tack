@@ -280,6 +280,30 @@ test("keys on a selected sticky are shortcuts, never its text: Enter edits it", 
 	await expect(text).toHaveText("Docs before features first");
 });
 
+test("a click edits a selected sticky only with the select tool in hand", async ({ page }) => {
+	const node = sticky(page, "Docs before features");
+	const field = node.locator("textarea");
+	const at = await centre(node);
+	await page.mouse.click(at.x, at.y);
+	await page.mouse.click(at.x, at.y);
+	await expect(field).toBeFocused();
+	await page.keyboard.press("Escape");
+	await expect(field).toHaveCount(0);
+	// The hand pans, and the connector draws from wherever it's pressed: a
+	// click with either on the selected sticky doesn't open it to type in.
+	for (const key of ["h", "x"]) {
+		await page.keyboard.press("v");
+		await page.locator(".react-flow__pane").click({ position: { x: 40, y: 400 } });
+		await page.mouse.click(at.x, at.y);
+		await expect(node).toHaveClass(/selected/);
+		await page.keyboard.press(key);
+		await expect(node).toHaveClass(/selected/);
+		await page.mouse.click(at.x, at.y);
+		await page.mouse.dblclick(at.x, at.y);
+		await expect(field).toHaveCount(0);
+	}
+});
+
 test("everything typed straight after placing a sticky lands in it", async ({ page }) => {
 	await page.keyboard.press("s");
 	const count = await page.locator(".react-flow__node-sticky").count();

@@ -195,6 +195,11 @@ export function useEditing({
 		return () => clearTimeout(timer);
 	}, [hint]);
 
+	// Clicks edit only with the select tool in hand. With a tool that acts on
+	// whatever's clicked (a stamp, a dot, a comment, a connector), shapes
+	// aren't selectable, and a click on a selected one is the tool's.
+	const pointing = () => store.getState().elementsSelectable;
+
 	const handlers = {
 		onPointerDown: (event: PointerEvent) => {
 			// Only a click on a shape that was selected on its own edits it. One
@@ -209,10 +214,14 @@ export function useEditing({
 		},
 		onClick: (event: MouseEvent) => {
 			const p = press.current;
+			press.current = null;
+			if (!pointing()) return;
 			const moved = p ? Math.hypot(event.clientX - p.x, event.clientY - p.y) > 4 : true;
 			if (p?.wasSelected && !moved && !event.shiftKey) setEditing(true);
 		},
-		onDoubleClick: () => setEditing(true),
+		onDoubleClick: () => {
+			if (pointing()) setEditing(true);
+		},
 	};
 
 	return { editing, setEditing, field, handlers, hint: hint && selected && !editing };
