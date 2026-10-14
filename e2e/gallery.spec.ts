@@ -97,12 +97,36 @@ test("who reacted to a card: a pill per emoji, named, asking, how many, +N and a
 	await expect(pills("total")).toHaveText(["9reactions"]);
 	// As many as fit the foot's width: beside assignees or volunteers, and on a wider card.
 	await expect(pills("fit-assignees")).toHaveText(["👍11", "❤️6", "+4"]);
-	await expect(pills("fit-volunteers")).toHaveText(["👍11", "❤️6", "+4"]);
+	await expect(pills("fit-volunteers")).toHaveText(["👍11", "+5"]);
 	await expect(pills("fit-wide")).toHaveText(["👍11", "😄2", "🎉3", "❤️6", "🚀4", "👀1"]);
 	for (const state of ["fit-assignees", "fit-volunteers", "fit-wide"]) {
 		const group = figure(state).locator(".reaction-pills");
 		expect(await group.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
 	}
+	// From a list, its mark always shows, inside the card, and never folds
+	// into +N: at rest, beside the ghost ✋, the chip, and the chip unfolded.
+	for (const state of ["fit-list", "fit-list-ghost", "fit-list-volunteers", "fit-list-assign"]) {
+		const card = figure(state).locator(".card");
+		const mark = card.locator(".provenance[data-via=list]");
+		await expect(mark).toBeVisible();
+		await mark.scrollIntoViewIfNeeded();
+		const box = (await mark.boundingBox())!;
+		const edge = (await card.boundingBox())!;
+		expect(box.width).toBeGreaterThanOrEqual(19);
+		expect(box.x + box.width).toBeLessThanOrEqual(edge.x + edge.width - 13);
+		// Nothing in the foot covers it.
+		const covered = await mark.evaluate((el) => {
+			const r = el.getBoundingClientRect();
+			const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+			return !hit || !el.contains(hit);
+		});
+		expect(covered).toBe(false);
+	}
+	// With no room to open its label beside the reactions, a tooltip says it.
+	await expect(figure("fit-list").locator(".provenance")).toHaveAttribute(
+		"data-tooltip",
+		"From the “Bugs” list",
+	);
 });
 
 test("every card state renders", async ({ page }) => {
@@ -119,8 +143,8 @@ test("every card state renders", async ({ page }) => {
 	// The first four cards, three more PRs and two discussions. Every PR with checks has a CI bar.
 	await expect(page.locator(".card.compact:not(.link-card)")).toHaveCount(9);
 	await expect(page.locator(".card.compact .ci-bar")).toHaveCount(6);
-	// Selected: the "Selected" card, and two in Volunteers.
-	await expect(page.locator(".card[data-selected=true]:not(.link-card)")).toHaveCount(3);
+	// Selected: the "Selected" card, two in Volunteers, and one from a list in Who reacted.
+	await expect(page.locator(".card[data-selected=true]:not(.link-card)")).toHaveCount(4);
 	await expect(page.locator(".card.loading")).toHaveCount(1);
 	await expect(page.locator(".card.missing")).toHaveCount(9);
 });
@@ -222,7 +246,7 @@ test("every volunteering state renders: the chip, unfolded, yours, staged, many,
 	const section = page.locator("section").filter({
 		has: page.getByRole("heading", { name: "Volunteers", exact: true }),
 	});
-	await expect(section.locator("figure")).toHaveCount(10);
+	await expect(section.locator("figure")).toHaveCount(11);
 	await expect(
 		section
 			.getByRole("group", { name: "Volunteers: Kai Andersen, Priya Shah", exact: true })
@@ -242,13 +266,14 @@ test("every volunteering state renders: the chip, unfolded, yours, staged, many,
 		section.locator("figure", { hasText: figure }).locator(".reaction-pill:visible");
 	const more = (figure: string, at: "rest" | "open") =>
 		section.locator("figure", { hasText: figure }).locator(`.reaction-more > [data-at=${at}]`);
-	await expect(reactions("Two volunteers, at rest")).toHaveCount(3);
+	await expect(reactions("Two volunteers, at rest")).toHaveCount(2);
 	await expect(reactions("Two volunteers, at rest").first()).toHaveText("👍11");
-	await expect(more("Two volunteers, at rest", "rest")).toHaveText("+2");
+	await expect(more("Two volunteers, at rest", "rest")).toHaveText("+3");
 	await expect(more("Two volunteers, at rest", "open")).toHaveCSS("opacity", "0");
 	await expect(reactions("More than fit")).toHaveText(["👍11", "+3"]);
-	// Unfolded to Assign, they're fitted again beside it: those that no longer
-	// fit fold into +N, rather than sliding under the chip.
+	// Unfolded to Assign, which opens at the chip's start over their end where
+	// there's no room to spare after it, they're fitted again: those that no
+	// longer fit fold into +N, rather than sliding under it.
 	await expect(reactions("Yours among them")).toHaveCount(1);
 	await expect(more("Yours among them", "open")).toHaveText("+4");
 	await expect(more("Yours among them", "open")).toHaveCSS("opacity", "1");
@@ -295,12 +320,21 @@ test("every volunteering state renders: the chip, unfolded, yours, staged, many,
 	await expect(unfolded("Two volunteers, at rest")).toHaveCSS("opacity", "1");
 	await page.keyboard.press("Tab");
 	await expect(resting.getByRole("button", { name: "Assign volunteers" })).toBeFocused();
-	// Nobody yet: the hand in a card's head, or a sticky's corner.
-	await expect(
-		section
-			.locator("figure", { hasText: "Nobody yet, selected" })
-			.locator(".volunteer-hand[data-place=head]"),
-	).toHaveCSS("opacity", "1");
+	// Nobody yet: ✋ at the end of a card's foot, where the chip will be, once
+	// it's pointed at or selected (never in its head); or a sticky's corner.
+	await expect(section.locator(".card-head .volunteer-hand")).toHaveCount(0);
+	const nobody = section.locator("figure", { hasText: "Nobody yet, at rest" });
+	await expect(nobody.locator(".card-foot .volunteers[data-ghost]")).toHaveCSS("opacity", "0");
+	const chosen = section.locator("figure", { hasText: "Nobody yet, selected" });
+	const ghost = chosen.locator(".card-foot > .volunteers[data-ghost]");
+	await expect(ghost).toBeVisible();
+	await expect(ghost.getByRole("button", { name: "I’ll take it" })).toBeVisible();
+	// The reactions made room for it, rather than going under it.
+	await expect(chosen.locator(".reaction-pill:visible")).toHaveCount(3);
+	// Pointed at, the card at rest shows it too.
+	await nobody.locator(".card-title").hover();
+	await expect(nobody.locator(".card-foot .volunteers[data-ghost]")).toHaveCSS("opacity", "1");
+	await page.mouse.move(0, 0);
 	await expect(section.locator(".sticky > .volunteer-hand")).toHaveCount(1);
 });
 

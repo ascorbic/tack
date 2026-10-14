@@ -8,6 +8,7 @@ import type { ShapeFont, ShapeProps, TextSize } from "../../shared/shapes.ts";
 import type { Status } from "../activity.ts";
 import { STICKY_COLORS, type ShapeNode } from "../board.ts";
 import { CardView } from "../CardView.tsx";
+import type { CardOrigin } from "../Provenance.tsx";
 import { fakeReactors } from "../../shared/reactions.ts";
 import type { ReactorsState } from "../reactions/reactors.ts";
 import type { ShowReactors } from "../reactions/ReactionPills.tsx";
@@ -80,26 +81,70 @@ const MANY_REACTED: Card = fixture({
 });
 
 /** As many pills as fit the foot's width beside what else is in it (cardFoot.ts). */
-const FITTED: { label: string; state: string; card: Card; volunteers?: number; width?: number }[] =
-	[
-		{
-			label: "Beside three assignees: two, and +4",
-			state: "assignees",
-			card: { ...MANY_REACTED, assignees: [PEOPLE.kai, PEOPLE.priya, PEOPLE.tom] },
-		},
-		{
-			label: "Beside volunteers: two, and +4",
-			state: "volunteers",
-			card: MANY_REACTED,
-			volunteers: 2,
-		},
-		{
-			label: "A wider card, on a phone: all six",
-			state: "wide",
-			card: MANY_REACTED,
-			width: 340,
-		},
-	];
+const FROM_LIST: CardOrigin = { via: "list", label: "From the “Bugs” list" };
+
+const FITTED: {
+	label: string;
+	state: string;
+	card: Card;
+	/** Who's volunteered: none for the chip's ghost. */
+	volunteers?: number;
+	/** The chip offers Assign; and it's unfolded to it. */
+	assign?: boolean;
+	open?: boolean;
+	selected?: boolean;
+	origin?: CardOrigin;
+	width?: number;
+}[] = [
+	{
+		label: "Beside three assignees: two, and +4",
+		state: "assignees",
+		card: { ...MANY_REACTED, assignees: [PEOPLE.kai, PEOPLE.priya, PEOPLE.tom] },
+	},
+	{
+		label: "Beside volunteers: one, and +5",
+		state: "volunteers",
+		card: MANY_REACTED,
+		volunteers: 2,
+	},
+	{
+		label: "A wider card, on a phone: all six",
+		state: "wide",
+		card: MANY_REACTED,
+		width: 340,
+	},
+	{
+		label: "From a list: its mark keeps its place",
+		state: "list",
+		card: MANY_REACTED,
+		origin: FROM_LIST,
+	},
+	{
+		label: "From a list, nobody yet, selected: ✋ beside it",
+		state: "list-ghost",
+		card: MANY_REACTED,
+		origin: FROM_LIST,
+		volunteers: 0,
+		selected: true,
+	},
+	{
+		label: "From a list, with volunteers",
+		state: "list-volunteers",
+		card: MANY_REACTED,
+		origin: FROM_LIST,
+		volunteers: 2,
+		assign: true,
+	},
+	{
+		label: "From a list, unfolded to Assign",
+		state: "list-assign",
+		card: MANY_REACTED,
+		origin: FROM_LIST,
+		volunteers: 2,
+		assign: true,
+		open: true,
+	},
+];
 
 const FITTED_HANDS: ShownVolunteer[] = [
 	{
@@ -731,36 +776,49 @@ function Sections({
 					it has room for and a wider card shows more.
 				</p>
 				<div className="gallery-grid gallery-fitted">
-					{FITTED.map(({ label, state, card, volunteers, width }) => (
-						<figure
-							key={label}
-							data-state={`reactions-fit-${state}`}
-							data-wide={width ? true : undefined}
-						>
-							<CardView
-								card={card}
-								cardKey={card.key}
-								width={width}
-								volunteers={
-									volunteers
-										? {
-												chip: (
-													<VolunteerChip
-														volunteers={FITTED_HANDS.slice(0, volunteers)}
-														me={null}
-														place="card"
-														toggle={{ pressed: false, onToggle: () => {} }}
-													/>
-												),
-												count: volunteers,
-												unfolds: false,
-											}
-										: undefined
-								}
-							/>
-							<figcaption>{label}</figcaption>
-						</figure>
-					))}
+					{FITTED.map(
+						({ label, state, card, volunteers, assign, open, selected, origin, width }) => (
+							<figure
+								key={label}
+								data-state={`reactions-fit-${state}`}
+								data-wide={width ? true : undefined}
+							>
+								<CardView
+									card={card}
+									cardKey={card.key}
+									width={width}
+									selected={selected}
+									origin={origin}
+									volunteers={
+										volunteers === undefined
+											? undefined
+											: {
+													chip: (
+														<VolunteerChip
+															volunteers={FITTED_HANDS.slice(0, volunteers)}
+															me={null}
+															place="card"
+															toggle={{ pressed: false, onToggle: () => {} }}
+															assign={
+																assign
+																	? {
+																			onAssign: () => {},
+																			tooltip: "Stage assigning Kai Andersen, Priya Shah",
+																		}
+																	: undefined
+															}
+															initialOpen={open}
+														/>
+													),
+													count: volunteers,
+													unfolds: !!assign,
+												}
+									}
+								/>
+								<figcaption>{label}</figcaption>
+							</figure>
+						),
+					)}
 				</div>
 			</section>
 
