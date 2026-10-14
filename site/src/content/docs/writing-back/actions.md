@@ -7,7 +7,7 @@ sidebar:
 
 Select something and the bar under the selection offers what you can do with it. It's above the selection when there's no room below, and it never leaves the screen: select a section bigger than the view and the bar stays at the top of it as you move around.
 
-The bar is in groups, with a rule between them. **Settings**, such as a card's labels, milestone and assignees, are icons that say what they are when you hover over them. **Actions** have a word beside their icon: **Make issue**, **Make parent issue**, **Stack**, **Related**, **Close**, **Backlink**, **Summarise**, **Decide** and so on, the main one in colour. The bar is as wide as the window lets it be; when it's narrower than that, the actions that matter least go, whole, into the **…** menu at its end (AI's first, then the rest), and the settings and main action always stay.
+The bar is in groups, with a rule between them. **Settings**, such as a card's labels, milestone and assignees, are icons that say what they are when you hover over them. **Actions** have a word beside their icon: **Make issue**, **Make parent issue**, **Stack**, **Related**, **Assign volunteers**, **Close**, **Backlink**, **Summarise**, **Decide** and so on, the main one in colour. The bar is as wide as the window lets it be; when it's narrower than that, the actions that matter least go, whole, into the **…** menu at its end (AI's first, then the rest), and the settings and main action always stay.
 
 Every action only **stages** changes: nothing is written until someone [pushes](/writing-back/pushing/). Each panel says so: "Not written until pushed."
 
@@ -22,6 +22,7 @@ Actions only appear for what the repository's forge supports. Ones that can't do
 | [Labels](#labels-assignees-and-milestone)                     | <kbd>⌥</kbd> <kbd>L</kbd>              | Cards                                             | Labels added and removed              |
 | [Milestone](#labels-assignees-and-milestone)                  | <kbd>⌥</kbd> <kbd>M</kbd>              | Cards                                             | The milestone                         |
 | [Assign](#labels-assignees-and-milestone)                     | <kbd>⌥</kbd> <kbd>P</kbd>              | Cards                                             | Assignees added and removed           |
+| [Assign volunteers](#assign-volunteers)                       |                                        | Cards people have volunteered for                 | Their volunteers added as assignees   |
 | [Close or reopen](#close-or-reopen)                           | <kbd>⌥</kbd> <kbd>C</kbd>              | Cards                                             | State, with a reason                  |
 | [Blocked by](#blocked-by)                                     | <kbd>⌥</kbd> <kbd>B</kbd>              | A connector, or the two issues it joins           | A blocked-by dependency               |
 | [Comment with a link to this board](/writing-back/backlinks/) | <kbd>⌥</kbd> <kbd>K</kbd>              | Cards                                             | A comment, optionally with a snapshot |
@@ -71,6 +72,17 @@ Select one or more cards.
 - **Milestone** (<kbd>⌥</kbd> <kbd>M</kbd>) picks one of the repository's open milestones, starting on the items' current one (ticked), or **No milestone**, last in the list.
 
 Discussions take labels like issues do, though only labels the repository already has (GitHub can't make a new one on a discussion). They have no assignees or milestones: with only discussions selected those aren't offered, and with some, they say so.
+
+## Assign volunteers
+
+In a session, people put their hands up for the work: ✋ on a card or a sticky adds them to its **Volunteers** row (see [Volunteers](/facilitation/running-a-session/#volunteers)). That's only on the board. To make it real on GitHub, select the cards and choose **Assign volunteers** in the bar, or **Assign** in a card's Volunteers row as you point at it.
+
+- **It adds, never replaces**: whoever's assigned stays assigned, and volunteers already assigned (or already staged) are left as they are. It's one change per item, like **Assign**: "Staged +@kai +@priya on #412".
+- **Only people the repository lets be assigned** are staged. Anyone else is left a volunteer, and the toast says so: "Tom Okafor can't be assigned in acme/app". GitHub allows ten assignees an issue; volunteers past that are left out too.
+- **Volunteers are GitHub people**: a volunteer is whoever's signed in, by their GitHub login, so cards from other forges don't offer it. Discussions have no assignees, so their volunteers stay on the board.
+- **Stickies**: when a sticky is made into an issue (**Make issues**, or as a sub-issue of a **Parent issue**), its volunteers are its assignees, alongside any you pick, and the panel shows them beside each title. The push sheet lists every assignee before anything's written, and once it's pushed, the sticky's volunteers move to its new card.
+
+After the push, assigned volunteers move from the Volunteers row to the card's assignees, and the row goes once everyone in it is assigned. The same happens when someone assigns them on GitHub.
 
 ## Close or reopen
 

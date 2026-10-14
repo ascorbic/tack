@@ -113,6 +113,28 @@ const SHOTS: Shot[] = [
 			await page.waitForTimeout(800);
 		},
 	},
+	// Hands up (volunteers): the rows on cards and stickies, and Assign
+	// volunteers in a selected card's bar, once Jo's hand has gone up.
+	{
+		name: "volunteers",
+		title: "unpic 5.0 planning",
+		url: "/play?scenario=volunteers",
+		width: 1440,
+		height: 720,
+		prepare: async (page) => {
+			await page.waitForTimeout(2500);
+			await page
+				.locator(".react-flow__node-card")
+				.filter({ hasText: "unpic #412" })
+				.locator(".card-head")
+				.click();
+			await page
+				.getByRole("toolbar", { name: "Stage changes" })
+				.getByRole("button", { name: /^Assign volunteers/ })
+				.waitFor();
+			await page.waitForTimeout(800);
+		},
+	},
 	// Staged changes on the board: the marks on each shape.
 	{ name: "writes", title: "unpic 5.0 planning", url: "/play?scenario=push" },
 	{ name: "decisions", title: "Architecture decisions", url: "/play?scenario=decisions" },
