@@ -5239,6 +5239,11 @@ kbd {
 	padding-bottom: 150px;
 }
 
+/* A wider card, as a phone's sheet shows one: two columns' room. */
+.gallery-fitted figure[data-wide] {
+	grid-column: span 2;
+}
+
 .gallery-reactions figcaption {
 	margin-top: 64px;
 }

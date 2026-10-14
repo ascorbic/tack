@@ -95,6 +95,14 @@ test("who reacted to a card: a pill per emoji, named, asking, how many, +N and a
 	await expect(pills("more").last()).toHaveAccessibleName(/^3 more: 😄 2, 🎉 3, 👀 1: 😄 /);
 	// Card data from before each emoji was counted: the total, in words, never an icon.
 	await expect(pills("total")).toHaveText(["9reactions"]);
+	// As many as fit the foot's width: beside assignees or volunteers, and on a wider card.
+	await expect(pills("fit-assignees")).toHaveText(["👍11", "❤️6", "+4"]);
+	await expect(pills("fit-volunteers")).toHaveText(["👍11", "❤️6", "+4"]);
+	await expect(pills("fit-wide")).toHaveText(["👍11", "😄2", "🎉3", "❤️6", "🚀4", "👀1"]);
+	for (const state of ["fit-assignees", "fit-volunteers", "fit-wide"]) {
+		const group = figure(state).locator(".reaction-pills");
+		expect(await group.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
+	}
 });
 
 test("every card state renders", async ({ page }) => {
@@ -228,6 +236,12 @@ test("every volunteering state renders: the chip, unfolded, yours, staged, many,
 			name: "Volunteers: Kai Andersen, Priya Shah (Kai Andersen staged to be assigned)",
 		}),
 	).toBeVisible();
+	// Beside two volunteers, the reactions keep as many pills as fit; beside
+	// a full chip, fewer.
+	const reactions = (figure: string) =>
+		section.locator("figure", { hasText: figure }).locator(".reaction-pill");
+	await expect(reactions("Two volunteers, at rest")).toHaveText(["👍11", "❤️6", "+2"]);
+	await expect(reactions("More than fit")).toHaveText(["👍11", "+3"]);
 	// More than fit fold into +2; yours is ringed; staged is dashed.
 	await expect(section.locator(".volunteer-more")).toHaveText("+2");
 	await expect(section.locator(".volunteer[data-mine]")).toHaveCount(3);

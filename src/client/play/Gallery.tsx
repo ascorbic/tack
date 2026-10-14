@@ -33,11 +33,14 @@ import {
 	ciProgressed,
 	ciStarted,
 	conflictToggled,
+	PEOPLE,
 	reviewed,
 } from "./ci.ts";
 import { DecisionGallery } from "./DecisionGallery.tsx";
 import { StackGallery } from "./StackGallery.tsx";
 import { VolunteerGallery } from "./VolunteerGallery.tsx";
+import type { ShownVolunteer } from "../volunteers/assign.ts";
+import { VolunteerChip } from "../volunteers/Volunteers.tsx";
 import { ImageGallery } from "./images.tsx";
 import {
 	ACCESS_GALLERY,
@@ -75,6 +78,45 @@ const MANY_REACTED: Card = fixture({
 		{ emoji: "👀", count: 1 },
 	],
 });
+
+/** As many pills as fit the foot's width beside what else is in it (cardFoot.ts). */
+const FITTED: { label: string; state: string; card: Card; volunteers?: number; width?: number }[] =
+	[
+		{
+			label: "Beside three assignees: two, and +4",
+			state: "assignees",
+			card: { ...MANY_REACTED, assignees: [PEOPLE.kai, PEOPLE.priya, PEOPLE.tom] },
+		},
+		{
+			label: "Beside volunteers: two, and +4",
+			state: "volunteers",
+			card: MANY_REACTED,
+			volunteers: 2,
+		},
+		{
+			label: "A wider card, on a phone: all six",
+			state: "wide",
+			card: MANY_REACTED,
+			width: 340,
+		},
+	];
+
+const FITTED_HANDS: ShownVolunteer[] = [
+	{
+		shape: "gallery",
+		login: "kai",
+		name: "Kai Andersen",
+		color: "#1f7a6b",
+		at: "2026-10-14T10:00:00Z",
+	},
+	{
+		shape: "gallery",
+		login: "priya",
+		name: "Priya Shah",
+		color: "#b4467a",
+		at: "2026-10-14T10:00:00Z",
+	},
+];
 
 /** Card data cached before Tack read each emoji's count: the total, in words. */
 const TOTAL_ONLY: Card = {
@@ -680,6 +722,41 @@ function Sections({
 					{REACTION_STATES.map(({ label, state, card, show }) => (
 						<figure key={label} data-state={`reactions-${state}`}>
 							<CardView card={card} cardKey={card.key} showReactors={show} />
+							<figcaption>{label}</figcaption>
+						</figure>
+					))}
+				</div>
+				<p className="gallery-note">
+					As many pills as fit the foot’s width beside what else is in it, so a busy foot keeps what
+					it has room for and a wider card shows more.
+				</p>
+				<div className="gallery-grid gallery-fitted">
+					{FITTED.map(({ label, state, card, volunteers, width }) => (
+						<figure
+							key={label}
+							data-state={`reactions-fit-${state}`}
+							data-wide={width ? true : undefined}
+						>
+							<CardView
+								card={card}
+								cardKey={card.key}
+								width={width}
+								volunteers={
+									volunteers
+										? {
+												chip: (
+													<VolunteerChip
+														volunteers={FITTED_HANDS.slice(0, volunteers)}
+														me={null}
+														place="card"
+														toggle={{ pressed: false, onToggle: () => {} }}
+													/>
+												),
+												count: volunteers,
+											}
+										: undefined
+								}
+							/>
 							<figcaption>{label}</figcaption>
 						</figure>
 					))}
