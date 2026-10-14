@@ -75,14 +75,14 @@ Discussions take labels like issues do, though only labels the repository alread
 
 ## Assign volunteers
 
-In a session, people put their hands up for the work: ✋ on a card or a sticky adds them to its **Volunteers** row (see [Volunteers](/facilitation/running-a-session/#volunteers)). That's only on the board. To make it real on GitHub, select the cards and choose **Assign volunteers** in the bar, or **Assign** in a card's Volunteers row as you point at it.
+In a session, people put their hands up for the work: ✋ on a card or a sticky adds their face to its volunteers chip (see [Volunteers](/facilitation/running-a-session/#volunteers)). That's only on the board. To make it real on GitHub, select the cards and choose **Assign volunteers** in the bar, or point at a card's chip (or focus it, or select the card) and it unfolds to **Assign**.
 
 - **It adds, never replaces**: whoever's assigned stays assigned, and volunteers already assigned (or already staged) are left as they are. It's one change per item, like **Assign**: "Staged +@kai +@priya on #412".
 - **Only people the repository lets be assigned** are staged. Anyone else is left a volunteer, and the toast says so: "Tom Okafor can't be assigned in acme/app". GitHub allows ten assignees an issue; volunteers past that are left out too.
 - **Volunteers are GitHub people**: a volunteer is whoever's signed in, by their GitHub login, so cards from other forges don't offer it. Discussions have no assignees, so their volunteers stay on the board.
 - **Stickies**: when a sticky is made into an issue (**Make issues**, or as a sub-issue of a **Parent issue**), its volunteers are its assignees, alongside any you pick, and the panel shows them beside each title. The push sheet lists every assignee before anything's written, and once it's pushed, the sticky's volunteers move to its new card.
 
-After the push, assigned volunteers move from the Volunteers row to the card's assignees, and the row goes once everyone in it is assigned. The same happens when someone assigns them on GitHub.
+After the push, assigned volunteers move from the chip to the card's assignees, and the chip goes once everyone in it is assigned. The same happens when someone assigns them on GitHub.
 
 ## Close or reopen
 
