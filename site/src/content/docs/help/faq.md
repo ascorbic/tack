@@ -47,7 +47,7 @@ Only where it helps and you can see it: naming [stacks](/boards/stacks/), sortin
 
 ## Can I export a board?
 
-Yes: as a PNG or SVG (the whole board, or what's selected), or as JSON to import into a new board, here or on another Tack. A board's owner can also have Tack back it up to a branch on GitHub. See [Export, import and backups](/boards/export/). You can also copy shapes between boards, and pasting them into another app gives plain text: stickies' text and cards' links.
+Yes: as a PNG or SVG (the whole board, or what's selected), or as JSON to import into a new board, here or on another Tack, or to read elsewhere with its votes, stamps and comments. A board's owner can also have Tack back it up to a branch on GitHub. See [Export, import and backups](/boards/export/). You can also copy shapes between boards, and pasting them into another app gives plain text: stickies' text and cards' links.
 
 ## Is there an API?
 
