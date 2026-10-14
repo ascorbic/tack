@@ -222,10 +222,13 @@ describe("cursors in a secret vote", () => {
 		expect(hidesCursors(timed, start + 5 * MIN)).toBe(false);
 	});
 
-	it("only for a vote in the room, not one open over days", () => {
-		expect(hidesCursors(vote({ endsAt: iso(SECRET_CURSORS_MAX_MS) }), start + MIN)).toBe(true);
+	it("only for a quick vote, under an hour", () => {
+		expect(hidesCursors(vote({ endsAt: iso(SECRET_CURSORS_MAX_MS - MIN) }), start + MIN)).toBe(
+			true,
+		);
+		expect(hidesCursors(vote({ endsAt: iso(SECRET_CURSORS_MAX_MS) }), start + MIN)).toBe(false);
 		expect(hidesCursors(vote({ endsAt: iso(86_400_000) }), start + MIN)).toBe(false);
-		// One left open until closed stops hiding them after a working day.
+		// One left open until closed stops hiding them after an hour.
 		expect(hidesCursors(vote(), start + SECRET_CURSORS_MAX_MS - 1)).toBe(true);
 		expect(hidesCursors(vote(), start + SECRET_CURSORS_MAX_MS)).toBe(false);
 	});

@@ -324,8 +324,8 @@ export function StartVoteForm({
 				<span>
 					Hide results until it closes
 					<small>
-						Others’ dots aren’t shown until then, so nobody follows the crowd. In a session, cursors
-						hide too
+						Others’ dots aren’t shown until then, so nobody follows the crowd. In a vote under an
+						hour, cursors hide too
 					</small>
 				</span>
 			</label>
