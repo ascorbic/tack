@@ -1,0 +1,149 @@
+/* Who reacted: the tooltip on stamps and cards' reaction counts. */
+
+.reaction-tip {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 1000;
+	pointer-events: none;
+}
+
+/* Tack's tooltip: its colours, type and corners. Names wrap past 260px. */
+.reaction-tip-body {
+	display: grid;
+	gap: 3px;
+	width: max-content;
+	max-width: 260px;
+	padding: 6px 10px 7px;
+	border-radius: 8px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	box-shadow: var(--shadow-lifted);
+	font-family: var(--font-ui);
+	font-size: 12px;
+	font-weight: 550;
+	line-height: 1.4;
+	letter-spacing: 0;
+	text-align: left;
+	/* A beat of hover before it shows, so passing over a row of stamps
+	   doesn't flicker a tip under the pointer for each. */
+	animation: reaction-tip-in var(--t-quick) var(--ease-out) backwards;
+	animation-delay: calc(260ms * var(--motion));
+	transform-origin: 50% 100%;
+}
+
+.reaction-tip[data-side="below"] .reaction-tip-body {
+	transform-origin: 50% 0;
+}
+
+.reaction-tip-body[data-instant] {
+	animation: none;
+}
+
+@keyframes reaction-tip-in {
+	from {
+		opacity: 0;
+		transform: translateY(3px) scale(0.97);
+	}
+}
+
+.reaction-tip[data-side="below"] .reaction-tip-body {
+	animation-name: reaction-tip-in-below;
+}
+
+@keyframes reaction-tip-in-below {
+	from {
+		opacity: 0;
+		transform: translateY(-3px) scale(0.97);
+	}
+}
+
+/* One reaction: its emoji, then the names, hanging clear of it as they wrap. */
+.reaction-tip-line {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: baseline;
+	gap: 6px;
+}
+
+.reaction-tip-emoji {
+	font-size: 13px;
+	line-height: 1;
+	transform: translateY(1px);
+}
+
+.reaction-tip-names {
+	text-wrap: pretty;
+}
+
+/* A card's count before names arrive: how many, and three dots breathing. */
+.reaction-tip-quiet {
+	color: color-mix(in srgb, var(--on-tooltip) 72%, var(--tooltip));
+	font-weight: 450;
+}
+
+.reaction-tip-loading {
+	display: inline-flex;
+	gap: 3px;
+	margin-left: 6px;
+	vertical-align: middle;
+}
+
+.reaction-tip-loading span {
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background: currentColor;
+	animation: reaction-tip-dot calc(900ms * var(--motion)) var(--ease-out) infinite;
+}
+
+.reaction-tip-loading span:nth-child(2) {
+	animation-delay: calc(150ms * var(--motion));
+}
+
+.reaction-tip-loading span:nth-child(3) {
+	animation-delay: calc(300ms * var(--motion));
+}
+
+@keyframes reaction-tip-dot {
+	0%,
+	100% {
+		opacity: 0.35;
+		transform: none;
+	}
+	40% {
+		opacity: 1;
+		transform: translateY(-1.5px);
+	}
+}
+
+:root[data-motion="reduced"] .reaction-tip-loading span {
+	animation-iteration-count: 1;
+}
+
+/* A card's reaction count: a button now, looking as it did. */
+button.count.reactions {
+	padding: 1px 4px;
+	margin: -1px -4px;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: default;
+	-webkit-touch-callout: none;
+	user-select: none;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+button.count.reactions:hover,
+button.count.reactions[data-open] {
+	background: var(--hover);
+}
+
+/* Stamps hold for a long-press without the browser's callout or selection. */
+.stamp,
+.phone-sheet-stamp {
+	-webkit-touch-callout: none;
+	user-select: none;
+}

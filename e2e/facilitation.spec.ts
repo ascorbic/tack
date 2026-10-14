@@ -88,7 +88,7 @@ test.describe("facilitating a retro", () => {
 		await expect(tool.locator("svg")).toBeVisible();
 		await expect(tool.locator(".tool-stamp-emoji")).toHaveText("❤️");
 		await note.click();
-		const stamp = page.getByRole("button", { name: /^❤️ 1: .*\(including you\)/ });
+		const stamp = page.getByRole("button", { name: "❤️ 1: You" });
 		await expect(stamp).toBeVisible();
 		await expect(stamp).toHaveAttribute("aria-pressed", "true");
 		// Inside the sticky's bottom-right corner, not spilling onto the next shape,
@@ -108,9 +108,11 @@ test.describe("facilitating a retro", () => {
 		await note.click();
 		await expect(stamp).toHaveCount(0);
 		// Seeded stamps from other people count up.
-		await expect(
-			page.getByRole("button", { name: /^🎉 2: Priya Shah, Kai Andersen/ }),
-		).toBeVisible();
+		const party = page.getByRole("button", { name: /^🎉 2: Priya Shah and Kai Andersen/ });
+		await expect(party).toBeVisible();
+		// Pointing at one names who stamped it.
+		await party.hover();
+		await expect(page.getByRole("tooltip")).toHaveText("🎉Priya Shah and Kai Andersen");
 	});
 
 	test("the keyboard reaches all of it", async ({ page }) => {

@@ -691,6 +691,29 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/* Who stamped it, written out under the stamps: an emoji, then the names. */
+.phone-sheet-stampers {
+	display: grid;
+	gap: 6px;
+	margin: -2px 0 0;
+	padding: 0 2px;
+	list-style: none;
+	color: var(--ink-soft);
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.phone-sheet-stampers li {
+	display: grid;
+	grid-template-columns: 22px 1fr;
+	align-items: baseline;
+}
+
+.phone-sheet-stampers-emoji {
+	font-size: 15px;
+	line-height: 1;
+}
+
 @media (max-width: 360px) {
 	.phone-sheet-stamps {
 		grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -6,7 +6,9 @@ import { useUpload } from "../images/insert.ts";
 import { useImageSrc } from "../images/service.ts";
 import { type VoteChoice, castVote, statusOf, tally } from "../../shared/decisions.ts";
 import { type DotVote, ballotOf, dotsLeft, voteFor } from "../../shared/dotvotes.ts";
-import { STAMPS, type StampEmoji } from "../../shared/facilitation.ts";
+import { STAMPS, type StampCount, type StampEmoji } from "../../shared/facilitation.ts";
+import { namePeople } from "../../shared/reactions.ts";
+import { ReactionTip, TipLine, useTip } from "../reactions/ReactionTip.tsx";
 import { type CommentThread, anchorAt, isVisible, starter } from "../../shared/comments.ts";
 import { voterKey } from "../../shared/decisions.ts";
 import { excerpt } from "../../shared/comments.ts";
@@ -109,7 +111,7 @@ export function ShapeSheet({
 			{!readOnly && (
 				<DotVoteRow doc={doc} id={id} user={user} votes={votes} shapes={shapes} toasts={toasts} />
 			)}
-			{!readOnly && shape.type !== "section" && <Stamps doc={doc} id={id} user={user} />}
+			{shape.type !== "section" && <Stamps doc={doc} id={id} user={user} readOnly={readOnly} />}
 			<Comments id={id} box={box} store={store} onOpenThread={onOpenThread} />
 		</div>
 	);
@@ -437,30 +439,93 @@ function DotVoteRow({
 	);
 }
 
-/** Stamps: every one there is, with how many each has, yours pressed. */
-function Stamps({ doc, id, user }: { doc: Y.Doc; id: string; user: User }) {
+/**
+ * Stamps: every one there is, with how many each has, yours pressed (a tap
+ * stamps; a long-press says who), then who stamped each, written out: a
+ * phone has no hover to ask with.
+ */
+function Stamps({
+	doc,
+	id,
+	user,
+	readOnly,
+}: {
+	doc: Y.Doc;
+	id: string;
+	user: User;
+	readOnly: boolean;
+}) {
 	const counts = useStampCounts(doc, user).get(id) ?? [];
 	const byEmoji = new Map(counts.map((count) => [count.emoji, count]));
 	const stamp = (emoji: StampEmoji) => stampShape(doc, id, emoji, user);
 	return (
-		<div className="phone-sheet-stamps" role="group" aria-label="Stamps">
-			{STAMPS.map((emoji) => {
-				const count = byEmoji.get(emoji);
-				return (
-					<button
-						key={emoji}
-						type="button"
-						className="phone-sheet-stamp"
-						aria-pressed={count?.mine ?? false}
-						aria-label={`${emoji}${count ? ` ${count.count}` : ""}`}
-						onClick={() => stamp(emoji)}
-					>
-						<span aria-hidden="true">{emoji}</span>
-						{count && <span className="phone-sheet-stamp-count">{count.count}</span>}
-					</button>
-				);
-			})}
-		</div>
+		<>
+			{!readOnly && (
+				<div className="phone-sheet-stamps" role="group" aria-label="Stamps">
+					{STAMPS.map((emoji) => (
+						<SheetStamp
+							key={emoji}
+							emoji={emoji}
+							count={byEmoji.get(emoji)}
+							onStamp={() => stamp(emoji)}
+						/>
+					))}
+				</div>
+			)}
+			{counts.length > 0 && (
+				<ul className="phone-sheet-stampers" aria-label="Who stamped it">
+					{counts.map((count) => (
+						<li key={count.emoji}>
+							<span className="phone-sheet-stampers-emoji" aria-hidden="true">
+								{count.emoji}
+							</span>
+							<span className="visually-hidden">{count.emoji} </span>
+							{namePeople(count.people, count.count)}
+						</li>
+					))}
+				</ul>
+			)}
+		</>
+	);
+}
+
+function SheetStamp({
+	emoji,
+	count,
+	onStamp,
+}: {
+	emoji: StampEmoji;
+	count: StampCount | undefined;
+	onStamp: () => void;
+}) {
+	const tip = useTip();
+	const names = count ? namePeople(count.people, count.count) : null;
+	const whole = count ? namePeople(count.people, count.count, { whole: true }) : null;
+	return (
+		<>
+			<button
+				type="button"
+				ref={(el) => {
+					tip.ref.current = el;
+				}}
+				className="phone-sheet-stamp"
+				aria-pressed={count?.mine ?? false}
+				aria-label={`${emoji}${count ? ` ${count.count}: ${names}` : ""}`}
+				{...tip.handlers}
+				onClick={(event) => {
+					if (tip.tookClick(event)) return;
+					onStamp();
+				}}
+			>
+				<span aria-hidden="true">{emoji}</span>
+				{count && <span className="phone-sheet-stamp-count">{count.count}</span>}
+			</button>
+			{names && (
+				<ReactionTip tip={tip}>
+					<TipLine emoji={emoji}>{whole}</TipLine>
+				</ReactionTip>
+			)}
+		</>
 	);
 }
 

@@ -22,6 +22,8 @@ import type { ShapeProps } from "../../shared/shapes.ts";
 import type { ShapeNode } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { transactLocal } from "../undo.ts";
+import { namePeople } from "../../shared/reactions.ts";
+import { ReactionTip, TipLine, useTip } from "../reactions/ReactionTip.tsx";
 import { useVoteNow, useStampCounts, useVotes } from "./hooks.ts";
 import { facilitation } from "./store.ts";
 import { useDismissedVotes } from "./Votes.tsx";
@@ -254,18 +256,29 @@ export function VoteRank({ rank }: { rank: Rank }) {
 	);
 }
 
-/** A shape's stamps, counted: click one to add yours, or take it back. */
+/**
+ * A shape's stamps, counted: click one to add yours, or take it back.
+ * Hover, focus or long-press one for who stamped it.
+ */
 export function StampRow({
 	counts,
 	onToggle,
+	showWho,
 }: {
 	counts: StampCount[];
 	onToggle?: (emoji: StampEmoji) => void;
+	/** Show who stamped this one without hovering (the gallery). */
+	showWho?: StampEmoji;
 }) {
 	return (
 		<div className="stamps nodrag nopan" role="group" aria-label="Stamps">
 			{counts.map((count) => (
-				<StampChip key={count.emoji} count={count} onToggle={onToggle} />
+				<StampChip
+					key={count.emoji}
+					count={count}
+					onToggle={onToggle}
+					showWho={showWho === count.emoji}
+				/>
 			))}
 		</div>
 	);
@@ -274,9 +287,11 @@ export function StampRow({
 function StampChip({
 	count,
 	onToggle,
+	showWho = false,
 }: {
 	count: StampCount;
 	onToggle?: (emoji: StampEmoji) => void;
+	showWho?: boolean;
 }) {
 	// Pop when the count goes up while you watch.
 	const [pop, setPop] = useState(0);
@@ -285,34 +300,49 @@ function StampChip({
 		if (count.count > last.current) setPop((n) => n + 1);
 		last.current = count.count;
 	}, [count.count]);
-	const names = count.people.map((p) => p.name).join(", ");
-	const label = `${count.emoji} ${count.count}: ${names}${count.mine ? " (including you)" : ""}`;
+	const tip = useTip();
+	const names = namePeople(count.people, count.count);
 	return (
-		<button
-			type="button"
-			className="stamp"
-			data-mine={count.mine}
-			data-pop={pop > 0 || undefined}
-			key={pop}
-			aria-label={label}
-			aria-pressed={count.mine}
-			data-tooltip={names}
-			disabled={!onToggle}
-			onPointerDown={(event) => event.stopPropagation()}
-			onClick={(event) => {
-				event.stopPropagation();
-				onToggle?.(count.emoji);
-			}}
-		>
-			<span className="stamp-emoji" aria-hidden="true">
-				{count.emoji}
-			</span>
-			{count.count > 1 && (
-				<span className="stamp-count" aria-hidden="true">
-					{count.count}
+		<>
+			<button
+				type="button"
+				ref={(el) => {
+					tip.ref.current = el;
+				}}
+				className="stamp"
+				data-mine={count.mine}
+				data-pop={pop > 0 || undefined}
+				key={pop}
+				aria-label={`${count.emoji} ${count.count}: ${names}`}
+				aria-pressed={count.mine}
+				// Read-only, it still names who stamped it: focusable, not disabled.
+				aria-disabled={onToggle ? undefined : true}
+				{...tip.handlers}
+				onPointerDown={(event) => {
+					event.stopPropagation();
+					tip.handlers.onPointerDown(event);
+				}}
+				onClick={(event) => {
+					event.stopPropagation();
+					if (tip.tookClick(event)) return;
+					onToggle?.(count.emoji);
+				}}
+			>
+				<span className="stamp-emoji" aria-hidden="true">
+					{count.emoji}
 				</span>
-			)}
-		</button>
+				{count.count > 1 && (
+					<span className="stamp-count" aria-hidden="true">
+						{count.count}
+					</span>
+				)}
+			</button>
+			<ReactionTip tip={tip} force={showWho}>
+				<TipLine emoji={count.emoji}>
+					{namePeople(count.people, count.count, { whole: true })}
+				</TipLine>
+			</ReactionTip>
+		</>
 	);
 }
 

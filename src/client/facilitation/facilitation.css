@@ -747,16 +747,16 @@
 	animation: stamp-in var(--t-settle) var(--ease-spring) backwards;
 }
 
-.stamp:disabled {
+.stamp[aria-disabled="true"] {
 	cursor: default;
 }
 
-.stamp:hover:not(:disabled) {
+.stamp:hover:not([aria-disabled="true"]) {
 	transform: translateY(-1px);
 	border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong));
 }
 
-.stamp:active:not(:disabled) {
+.stamp:active:not([aria-disabled="true"]) {
 	transform: scale(0.92);
 }
 

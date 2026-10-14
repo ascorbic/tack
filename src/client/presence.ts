@@ -5,6 +5,7 @@ import type { Status } from "./activity.ts";
 import type { Position, ShapeNode } from "./board.ts";
 import type { Chat } from "./chat.ts";
 import type { View } from "./viewport.ts";
+import { notePresent } from "./reactions/names.ts";
 
 // Ephemeral, per-client state shared through Yjs awareness. None of this is
 // ever written to the document.
@@ -307,6 +308,8 @@ export function usePresence(awareness: Awareness, user: User, hideCursor = false
 					});
 				}
 			}
+			// Their names, for naming who reacted to a card (reactions/names.ts).
+			notePresent(people.map((person) => person.user));
 			setRemote({ drags, people });
 		};
 		onChange();
