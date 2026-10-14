@@ -63,32 +63,52 @@ export interface Named {
  * "Priya Shah, Kai Andersen and Jo Rivera", and past `max` names, "… and 3
  * others". `total` is how many reacted, which may be more than are named.
  * With `whole`, each name's own spaces don't break, so a tooltip wraps
- * between names, never inside one.
+ * between names, never inside one. With `chars`, fewer are named (never
+ * fewer than one) until the phrase fits on a line of that many characters.
  */
 export function namePeople(
 	people: readonly Named[],
 	total = people.length,
-	{ max = MAX_NAMED, whole = false }: { max?: number; whole?: boolean } = {},
+	{ max = MAX_NAMED, whole = false, chars }: { max?: number; whole?: boolean; chars?: number } = {},
 ): string {
 	const ordered = [...people.filter((p) => p.you).slice(0, 1), ...people.filter((p) => !p.you)].map(
 		(p) => (p.you ? "You" : p.name.trim() || "Someone"),
 	);
-	const named = ordered.slice(0, max).map((name) => (whole ? name.replace(/ /g, "\u00a0") : name));
-	const others = Math.max(0, Math.max(total, ordered.length) - named.length);
-	if (named.length === 0) {
-		return others === 1 ? "1 person" : `${others} people`;
+	let count = Math.min(max, ordered.length);
+	let phrase = phraseOf(ordered, count, total);
+	while (chars !== undefined && count > 1 && phrase.length > chars) {
+		phrase = phraseOf(ordered, --count, total);
 	}
-	if (others > 0) {
-		return `${named.join(", ")} and ${others} ${others === 1 ? "other" : "others"}`;
-	}
+	return whole
+		? phrase.replace(/ /g, (space, at: number) => (inName(phrase, at) ? "\u00a0" : space))
+		: phrase;
+}
+
+/** The first `count` of `names` as a phrase, with how many more there are. */
+function phraseOf(names: readonly string[], count: number, total: number): string {
+	const named = names.slice(0, count);
+	const others = Math.max(0, Math.max(total, names.length) - named.length);
+	if (named.length === 0) return others === 1 ? "1 person" : `${others} people`;
+	if (others > 0) return `${named.join(", ")} and ${others} ${others === 1 ? "other" : "others"}`;
 	if (named.length === 1) return named[0]!;
 	return `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`;
+}
+
+/** Whether the space at `at` is inside a name, not between names ("…, " or " and "). */
+function inName(phrase: string, at: number): boolean {
+	if (phrase[at - 1] === ",") return false;
+	if (phrase.startsWith(" and ", at)) return false;
+	if (phrase.slice(at - 4, at) === " and") return false;
+	return true;
 }
 
 /** How many to name on each line when several kinds of reaction share a tooltip. */
 export function namedPerLine(lines: number): number {
 	return lines <= 1 ? MAX_NAMED : Math.max(3, Math.floor(MAX_NAMED / lines));
 }
+
+/** About how many characters fit on one line of a tooltip, after its emoji. */
+export const LINE_CHARS = 40;
 
 /** "👍 You and Kai Andersen": one reaction, with who left it. */
 export function reactionLine(emoji: string, people: readonly Named[], total?: number): string {

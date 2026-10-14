@@ -76,6 +76,19 @@
 	text-wrap: pretty;
 }
 
+/* A card's several reactions: one line each, the names shortened to fit, and
+   cut short only if one name alone is too long. */
+.reaction-tip-line[data-one-line] .reaction-tip-names {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.reaction-tip-body:has([data-one-line]) {
+	max-width: 340px;
+}
+
 /* A card's count before names arrive: how many, and three dots breathing. */
 .reaction-tip-quiet {
 	color: color-mix(in srgb, var(--on-tooltip) 72%, var(--tooltip));

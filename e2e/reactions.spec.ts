@@ -105,7 +105,14 @@ test.describe.serial("who reacted", () => {
 		const tip = lena.getByRole("tooltip");
 		// The fake forge's people: four of 👍, two ❤️, one 🎉, one 🚀.
 		await expect(tip).toContainText("👍");
-		await expect(tip).toContainText("and 1 other");
+		// Each kind on one line, under the count: fewer names rather than a wrap.
+		await expect(tip).toContainText(/👍.+ and \d+\sothers?❤️/);
+		await expect(tip).toHaveAttribute("data-side", "below");
+		await expect(tip.locator(".reaction-tip-line[data-one-line]")).toHaveCount(4);
+		for (const line of await tip.locator(".reaction-tip-names").all()) {
+			const height = await line.evaluate((el) => el.getBoundingClientRect().height);
+			expect(height).toBeLessThan(24);
+		}
 		await expect(tip).toContainText("🚀");
 		await expect(count).toHaveAccessibleName(/^8 reactions: 👍 .+; ❤️ .+; 🎉 .+; 🚀 .+$/);
 		// Asked once: pointing again uses what came back.

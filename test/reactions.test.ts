@@ -8,6 +8,7 @@ import {
 	reactionLine,
 } from "../src/shared/reactions.ts";
 import { toGroups } from "../src/server/forges/github-reactors.ts";
+import { placeTip } from "../src/client/reactions/placement.ts";
 
 const people = (...names: string[]) => names.map((name) => ({ name }));
 
@@ -62,6 +63,49 @@ describe("naming who reacted", () => {
 			{ name: "ola-n" },
 			{ name: "Me", you: true },
 		]);
+	});
+});
+
+describe("a line that must fit", () => {
+	const many = people("Mina Larsen", "ola-n", "Sam Kim", "Ana Ruiz", "Leo Brandt", "Noor Haddad");
+	it("names fewer rather than wrap, and always at least one", () => {
+		expect(namePeople(many, 11, { max: 3, chars: 40 })).toBe(
+			"Mina Larsen, ola-n, Sam Kim and 8 others",
+		);
+		expect(namePeople(many, 11, { max: 3, chars: 31 })).toBe("Mina Larsen, ola-n and 9 others");
+		expect(namePeople(many, 11, { max: 3, chars: 5 })).toBe("Mina Larsen and 10 others");
+	});
+
+	it("keeps names whole, breaking only between them", () => {
+		expect(namePeople(people("Kai Andersen", "Priya Shah"), 5, { whole: true })).toBe(
+			"Kai\u00a0Andersen, Priya\u00a0Shah and 3\u00a0others",
+		);
+	});
+});
+
+describe("where the tooltip goes", () => {
+	const board = { left: 0, top: 56, right: 1280, bottom: 800 };
+	const size = { width: 260, height: 80 };
+	const pill = (left: number, top: number) => ({ left, top, right: left + 40, bottom: top + 18 });
+
+	it("is centred above its pill, or below if there's no room", () => {
+		expect(placeTip(pill(600, 400), size, board)).toEqual({ left: 490, top: 312, side: "above" });
+		expect(placeTip(pill(600, 100), size, board).side).toBe("below");
+	});
+
+	it("prefers below when asked, above when there's no room", () => {
+		expect(placeTip(pill(600, 400), size, board, "below")).toEqual({
+			left: 490,
+			top: 426,
+			side: "below",
+		});
+		expect(placeTip(pill(600, 760), size, board, "below").side).toBe("above");
+	});
+
+	it("lines up with the pill's edge near the board's, never past it", () => {
+		expect(placeTip(pill(92, 400), size, board).left).toBe(84);
+		expect(placeTip(pill(1220, 400), size, board).left).toBe(1268 - 260);
+		expect(placeTip(pill(2, 400), size, board).left).toBe(8);
 	});
 });
 

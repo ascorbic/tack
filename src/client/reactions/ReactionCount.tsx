@@ -1,5 +1,6 @@
 import {
 	type ReactionGroup,
+	LINE_CHARS,
 	namePeople,
 	namedPerLine,
 	namedReactors,
@@ -56,10 +57,11 @@ export function ReactionCount({
 				</svg>
 				{count}
 			</button>
-			<ReactionTip tip={tip} force={force}>
+			{/* Below the count: it sits in the card's foot, so the tip covers none of the card. */}
+			<ReactionTip tip={tip} force={force} prefer="below">
 				{lines.length > 0 ? (
 					lines.map((line) => (
-						<TipLine key={line.emoji} emoji={line.emoji}>
+						<TipLine key={line.emoji} emoji={line.emoji} oneLine={line.oneLine}>
 							{line.names}
 						</TipLine>
 					))
@@ -87,16 +89,19 @@ export function ReactionCount({
  */
 function reactionLines(
 	groups: readonly ReactionGroup[],
-): { emoji: string; names: string; said: string }[] {
+): { emoji: string; names: string; said: string; oneLine: boolean }[] {
 	const self = selfLogin();
 	const shown = groups.filter((group) => group.count > 0);
 	const max = namedPerLine(shown.length);
+	// With several kinds, each is one line: fewer names rather than a wrap.
+	const chars = shown.length > 1 ? LINE_CHARS : undefined;
 	return shown.map((group) => {
 		const people = namedReactors(group.reactors, self, knownName);
 		return {
 			emoji: group.emoji,
-			names: namePeople(people, group.count, { max, whole: true }),
-			said: namePeople(people, group.count, { max }),
+			names: namePeople(people, group.count, { max, whole: true, chars }),
+			said: namePeople(people, group.count, { max, chars }),
+			oneLine: chars !== undefined,
 		};
 	});
 }

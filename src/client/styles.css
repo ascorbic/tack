@@ -5233,9 +5233,9 @@ kbd {
 	color: var(--muted);
 }
 
-/* Room above each card for its who-reacted tooltip, shown without hovering. */
+/* Room below each card for its who-reacted tooltip, shown without hovering. */
 .gallery-reactions figure {
-	padding-top: 112px;
+	padding-bottom: 104px;
 }
 
 .gallery-split {

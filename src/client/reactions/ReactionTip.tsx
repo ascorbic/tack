@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { LONG_PRESS_MS, movedTooFar } from "../touch/gestures.ts";
+import { placeTip } from "./placement.ts";
 import "./reactions.css";
 
 // The tooltip naming who reacted, for stamps on shapes and the reaction
@@ -153,22 +154,21 @@ export function useTip({ tapOpens = false }: { tapOpens?: boolean } = {}): Tip {
 	return { open: opened !== null, ref, handlers, tookClick, id };
 }
 
-/** Space kept between the tip and its pill, and the window's edges. */
-const GAP = 8;
-
 /**
- * The tooltip itself, above its pill (below it near the top of the
- * window), drawn over everything. `force` shows it without hovering, for
- * the gallery and screenshots.
+ * The tooltip itself, centred on its pill on the side it prefers, within
+ * the board (or the window, off the board), drawn over everything. `force`
+ * shows it without hovering, for the gallery and screenshots.
  */
 export function ReactionTip({
 	tip,
 	children,
 	force = false,
+	prefer = "above",
 }: {
 	tip: Tip;
 	children: ReactNode;
 	force?: boolean;
+	prefer?: "above" | "below";
 }) {
 	const box = useRef<HTMLDivElement>(null);
 	const open = tip.open || force;
@@ -180,16 +180,22 @@ export function ReactionTip({
 			const el = box.current;
 			if (anchor && el) {
 				const at = anchor.getBoundingClientRect();
-				const width = el.offsetWidth;
-				const height = el.offsetHeight;
-				const below = at.top - GAP - height < GAP;
-				const top = below ? at.bottom + GAP : at.top - GAP - height;
-				const left = Math.max(
-					GAP,
-					Math.min(window.innerWidth - GAP - width, at.left + at.width / 2 - width / 2),
+				// Within the board, so it never covers the top bar; off it, the window.
+				const board = anchor.closest(".react-flow")?.getBoundingClientRect();
+				const bounds = {
+					left: Math.max(0, board?.left ?? 0),
+					top: Math.max(0, board?.top ?? 0),
+					right: Math.min(window.innerWidth, board?.right ?? window.innerWidth),
+					bottom: Math.min(window.innerHeight, board?.bottom ?? window.innerHeight),
+				};
+				const { left, top, side } = placeTip(
+					at,
+					{ width: el.offsetWidth, height: el.offsetHeight },
+					bounds,
+					prefer,
 				);
-				el.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
-				el.dataset.side = below ? "below" : "above";
+				el.style.transform = `translate(${left}px, ${top}px)`;
+				el.dataset.side = side;
 				// Gone with its pill (scrolled away, or the shape deleted).
 				el.style.visibility = anchor.isConnected && at.width > 0 ? "" : "hidden";
 			}
@@ -197,7 +203,7 @@ export function ReactionTip({
 		};
 		place();
 		return () => cancelAnimationFrame(frame);
-	}, [open, tip.ref]);
+	}, [open, tip.ref, prefer]);
 	if (!open || typeof document === "undefined") return null;
 	return createPortal(
 		<div ref={box} className="reaction-tip" role="tooltip" id={tip.id} data-side="above">
@@ -210,9 +216,18 @@ export function ReactionTip({
 }
 
 /** One line of a tip: an emoji, then who. */
-export function TipLine({ emoji, children }: { emoji: string; children: ReactNode }) {
+export function TipLine({
+	emoji,
+	children,
+	oneLine = false,
+}: {
+	emoji: string;
+	children: ReactNode;
+	/** Keep to one line (the phrase was shortened to fit). */
+	oneLine?: boolean;
+}) {
 	return (
-		<span className="reaction-tip-line">
+		<span className="reaction-tip-line" data-one-line={oneLine || undefined}>
 			<span className="reaction-tip-emoji" aria-hidden="true">
 				{emoji}
 			</span>
