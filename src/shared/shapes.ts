@@ -134,6 +134,8 @@ import type { InboxConfig, Provenance } from "./widgets.ts";
 // |              | in its own clock (facilitation.ts)                           |
 // | stamps       | one key per person, shape and stamp → `Stamp`, so stamps     |
 // |              | never conflict (facilitation.ts)                             |
+// | volunteers   | one key per shape and login → `Volunteer`: hands up for an   |
+// |              | issue or a sticky, board-only until assigned (volunteers.ts) |
 // | dotVotes     | vote id → Y.Map of its settings and a nested `ballots` map   |
 // |              | of voter key → `Ballot` (dotvotes.ts)                         |
 // | prepared     | step id → `PreparedStep`: facilitation a template set up,    |

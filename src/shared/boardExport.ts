@@ -39,7 +39,7 @@ import { TEMPLATE_REPOS_MAX, cleanRepos } from "./templates.ts";
 // | ------------------------------- | -------------------------------------------- |
 // | comments, history, visits       | not in the document; people's own            |
 // | votes on decisions, dot votes,  | who voted for what is theirs, and a session's |
-// | stamps                          |                                              |
+// | stamps, volunteers              |                                              |
 // | face-down stickies              | silent mode's hidden text is its author's    |
 // | staged changes, write-backs     | pending, and only mean something here        |
 // | provenance, inbox dismissals,   | this board's automation state                |

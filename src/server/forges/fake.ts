@@ -32,6 +32,8 @@ const LABELS = [
 	{ name: "good first issue", color: "7057ff" },
 ];
 const STATES = ["open", "open", "closed", "merged", "draft"] as const;
+/** Who can be assigned in every fake repository. */
+const FAKE_PEOPLE = ["kai", "priya", "tom", "jo"];
 
 /** What the fake forge can write: everything but Discussions. */
 const FAKE_WRITES: OperationKind[] = [
@@ -270,7 +272,8 @@ export const fake: ForgeAdapter = {
 			repo: `${repo.host}/${repo.name}`,
 			labels: LABELS,
 			milestones: [{ title: "v1", dueOn: null }],
-			assignees: [],
+			// A made-up team, so assigning (and volunteers) can be tried.
+			assignees: [...FAKE_PEOPLE],
 			discussionCategories: [],
 			watchers: 0,
 			defaultBranch: "main",

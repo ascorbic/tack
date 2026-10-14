@@ -23,6 +23,7 @@ import type { RepoMeta } from "./push.ts";
 import { forgeForHost, itemOf, repoKeyOf } from "./refs.ts";
 import { TITLE_MAX, issueFromText, textFromIssue } from "./issueText.ts";
 import { readShape, shapesMap, transactLocal } from "./shapes.ts";
+import { stickyAssignees, volunteersOn } from "./volunteers.ts";
 
 // Built-in actions (#32): what the selection actions stage. Pure document
 // logic, so it's unit-tested in Node; the UI is in src/client/actions/.
@@ -105,7 +106,9 @@ export function extrasOf(extras: IssueExtras | undefined): {
 /**
  * Stage an `issue.create` in `repo` for each sticky, which becomes the card
  * for its issue, in place, once it's made. Each starts with `extras`
- * (labels, a milestone, assignees), so they need no second push.
+ * (labels, a milestone, assignees), so they need no second push, and with
+ * the sticky's volunteers as assignees too (volunteers.ts): those the
+ * repository lets be assigned, when `assignable` says who.
  */
 export function stageStickyIssues(
 	doc: Y.Doc,
@@ -113,9 +116,10 @@ export function stageStickyIssues(
 	repo: string,
 	stager: Stager,
 	extras?: IssueExtras,
+	options: { assignable?: readonly string[] | null } = {},
 ): StageResult {
 	const result: StageResult = { staged: [], skipped: [] };
-	const fields = extrasOf(extras);
+	const { assignees: picked = [], ...fields } = extrasOf(extras);
 	const batch = new Batcher();
 	transactLocal(doc, () => {
 		// In the order people read the board, so the Changes panel and the
@@ -130,7 +134,20 @@ export function stageStickyIssues(
 				result.skipped.push({ shape: sticky.id, reason: "empty" });
 				continue;
 			}
-			const id = stageChange(doc, { kind: "issue.create", repo, ...issue, ...fields }, stager, {
+			const assignees = stickyAssignees(
+				volunteersOn(doc, sticky.id),
+				repo,
+				picked,
+				options.assignable ?? null,
+			);
+			const op: Operation = {
+				kind: "issue.create",
+				repo,
+				...issue,
+				...fields,
+				...(assignees.length ? { assignees } : {}),
+			};
+			const id = stageChange(doc, op, stager, {
 				shapes: [sticky.id],
 				effect: { kind: "replace", shapes: [sticky.id] },
 				batch,
@@ -413,6 +430,8 @@ export interface ParentOptions {
 	hierarchy?: Hierarchy;
 	/** Default: `add` when there's an existing parent, else `skip`. */
 	mode?: ParentMode;
+	/** Who the repository lets be assigned, for new issues' volunteers (null: unknown). */
+	assignable?: readonly string[] | null;
 }
 
 /** The mode a panel starts in: never a second parent, never a refused write. */
@@ -516,9 +535,21 @@ export function stageParentIssue(
 						result.skipped.push({ shape: child.shape, reason: "empty" });
 						continue;
 					}
+					// Its volunteers are its assignees, as with Make issue.
+					const assignees = stickyAssignees(
+						volunteersOn(doc, child.shape),
+						parent.repo,
+						[],
+						options.assignable ?? null,
+					);
 					const id = stageChange(
 						doc,
-						{ kind: "issue.create", repo: parent.repo, ...issue },
+						{
+							kind: "issue.create",
+							repo: parent.repo,
+							...issue,
+							...(assignees.length ? { assignees } : {}),
+						},
 						stager,
 						{
 							shapes: [child.shape],

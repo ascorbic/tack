@@ -46,6 +46,7 @@ import { linkWrittenDecisions } from "../../shared/decisions.ts";
 import { placeCard } from "../../shared/place.ts";
 import { shapesMap } from "../../shared/shapes.ts";
 import { makeRoomForCards } from "../../shared/swap.ts";
+import { moveVolunteers } from "../../shared/volunteers.ts";
 import { type CreditBoard, creditLine, withCredit } from "../../shared/credit.ts";
 import {
 	type ApplyResult,
@@ -899,6 +900,9 @@ export class PushEngine {
 			card.set("parent", first.get("parent") ?? null);
 			shapes.set(id, card);
 			for (const old of replaced) shapes.delete(old);
+			// A sticky's volunteers are the card's now: those the issue was
+			// made with are its assignees, and the rest are still volunteering.
+			moveVolunteers(doc, gone, id);
 			for (const shape of shapes.values()) {
 				if (shape.get("type") !== "connector") continue;
 				for (const end of ["from", "to"] as const) {

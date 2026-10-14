@@ -1085,6 +1085,7 @@ const OTHER_WORDS: Record<string, string> = {
 	changes: "staged changes",
 	dotVotes: "voted",
 	stamps: "stamped",
+	volunteers: "volunteered",
 	facilitation: "set the timer",
 	rules: "changed rules",
 	ruleLog: "",
@@ -1186,8 +1187,8 @@ export interface StepGroup {
 	merged: StepMeta;
 }
 
-/** Root maps a session touches without changing the board: votes, stamps, the timer. */
-const SESSION_MAPS = new Set(["dotVotes", "stamps", "facilitation"]);
+/** Root maps a session touches without changing the board: votes, stamps, volunteers, the timer. */
+const SESSION_MAPS = new Set(["dotVotes", "stamps", "volunteers", "facilitation"]);
 
 /** A step that only voted, stamped or set the timer. */
 function sessionOnly(step: StepMeta): boolean {
