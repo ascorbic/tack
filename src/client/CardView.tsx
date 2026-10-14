@@ -466,7 +466,7 @@ function LiveCard({
 				)}
 				<ReactionPills
 					card={card}
-					room={reactionRoom(card, origin, liveness)}
+					room={reactionRoom(card, [origin, liveness])}
 					show={showReactors}
 				/>
 				{origin && <ProvenanceBadge origin={origin} />}
@@ -479,16 +479,17 @@ function LiveCard({
 
 /**
  * How many reaction pills fit in a card's foot beside everything else in
- * it ("+N" counts as one): four beside the comment count, fewer for each
- * other thing there, and never fewer than two.
+ * it ("+N" counts as one): four beside the comment count, one fewer for
+ * each other thing there, never fewer than two. `beside` is whatever else
+ * the foot holds (a provenance badge, liveness, another chip): each present
+ * one takes a pill's room.
  */
-function reactionRoom(card: Card, origin: unknown, liveness: unknown): number {
+function reactionRoom(card: Card, beside: readonly unknown[]): number {
 	const others = [
 		card.assignees.length > 0 || (card.kind === "discussion" && card.author),
 		card.discussion?.upvotes !== undefined,
 		card.discussion?.locked,
-		origin,
-		liveness,
+		...beside,
 	].filter(Boolean).length;
 	return Math.max(2, 4 - others);
 }
