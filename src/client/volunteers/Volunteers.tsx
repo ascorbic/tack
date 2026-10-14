@@ -363,6 +363,7 @@ export function useCardVolunteers(
 					/>
 				),
 				count: lingering.value.length,
+				unfolds: offerAssign,
 			}
 		: null;
 	const hand =

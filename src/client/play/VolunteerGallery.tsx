@@ -45,6 +45,7 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 			/>
 		),
 		count: volunteers.length,
+		unfolds: !!options.assign,
 	});
 	return (
 		<section>

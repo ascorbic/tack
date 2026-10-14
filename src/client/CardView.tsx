@@ -211,10 +211,13 @@ export interface CardViewProps {
 	width?: number;
 }
 
-/** The volunteers' chip for a card's foot, and how many it shows (to make room for it). */
+/** The volunteers' chip for a card's foot, and how much room it takes. */
 export interface CardVolunteers {
 	chip: ReactNode;
+	/** How many have volunteered. */
 	count: number;
+	/** It unfolds to Assign as it's pointed at, focused or the card's selected. */
+	unfolds: boolean;
 }
 
 /** How a card arrives: flying in, dropping in, or not at all. */
@@ -301,6 +304,8 @@ function LiveCard({
 	const repoName = card.repo.split("/").at(-1);
 	const checks = card.pull?.checks;
 	const liveness = useLiveness(card.live);
+	// What else is in the foot, which its reactions fit beside.
+	const foot = { volunteers: volunteers?.count, provenance: !!origin, liveness };
 	// The title is a link, but a plain click on a card that isn't selected
 	// yet selects it (people click cards to pick them up, drag and vote):
 	// it opens on a click once selected, or a ⌘/Ctrl-click, as in FigJam.
@@ -486,11 +491,11 @@ function LiveCard({
 				)}
 				<ReactionPills
 					card={card}
-					room={pillRoom(
-						card,
-						{ volunteers: volunteers?.count, provenance: !!origin, liveness },
-						width,
-					)}
+					room={pillRoom(card, foot, width)}
+					unfoldedRoom={
+						volunteers?.unfolds ? pillRoom(card, { ...foot, unfolded: true }, width) : undefined
+					}
+					unfolded={!!selected && !!volunteers?.unfolds}
 					show={showReactors}
 				/>
 				{volunteers?.chip}

@@ -5,6 +5,8 @@ import {
 	morePillWidth,
 	pillRoom,
 	pillWidth,
+	pillsWidth,
+	unfoldPills,
 	volunteersWidth,
 } from "../src/shared/cardFoot.ts";
 import type { ReactionCount } from "../src/shared/reactions.ts";
@@ -57,8 +59,10 @@ describe("a reaction pill's width", () => {
 	});
 
 	it("is the volunteers' chip's, at rest, for up to four faces", () => {
-		expect(volunteersWidth(2)).toBeCloseTo(54, 0);
-		expect(volunteersWidth(4)).toBeCloseTo(78, 0);
+		expect(volunteersWidth(2)).toBeCloseTo(55, 0);
+		expect(volunteersWidth(4)).toBeCloseTo(83, 0);
+		// Unfolded, Assign widens it.
+		expect(volunteersWidth(2, true) - volunteersWidth(2)).toBeGreaterThanOrEqual(47.3);
 		// Past four, three faces and "+N": still four.
 		expect(volunteersWidth(9)).toBe(volunteersWidth(4));
 	});
@@ -149,5 +153,44 @@ describe("the room a card's reactions have", () => {
 			"🚀4",
 			"+2",
 		]);
+	});
+});
+
+describe("pills beside the volunteers' chip as it unfolds to Assign", () => {
+	const text = ({ shown, rest }: ReturnType<typeof fitPills>) => [
+		...shown.map((c) => `${c.emoji}${c.count}`),
+		...(rest.length ? [`+${rest.length}`] : []),
+	];
+
+	it("fold into +N as the chip unfolds, rather than slide under it", () => {
+		const room = pillRoom(card(), { volunteers: 2 });
+		const unfolded = pillRoom(card(), { volunteers: 2, unfolded: true });
+		const { rest, open } = unfoldPills(FOUR, room, unfolded);
+		expect(text(rest)).toEqual(["👍11", "❤️6", "+2"]);
+		// Not even 👍 11 fits beside "+3" and the unfolded chip: "+4" stands for them all.
+		expect(text(open)).toEqual(["+4"]);
+		expect(pillsWidth(open.shown, open.rest.length)).toBeLessThanOrEqual(unfolded);
+		// On a wider card, fewer fold.
+		const wide = unfoldPills(
+			FOUR,
+			pillRoom(card(), { volunteers: 2 }, 340),
+			pillRoom(card(), { volunteers: 2, unfolded: true }, 340),
+		);
+		expect(text(wide.rest)).toEqual(["👍11", "🎉3", "❤️6", "🚀2"]);
+		expect(text(wide.open)).toEqual(["👍11", "❤️6", "+2"]);
+	});
+
+	it("keep only pills that were already shown, in the room there is", () => {
+		for (let room = 100; room <= 300; room += 3) {
+			const unfolded = room - 48;
+			const { rest, open, restWidth, openWidth } = unfoldPills(SIX, room, unfolded);
+			for (const c of open.shown) expect(rest.shown).toContain(c);
+			expect(open.rest.length).toBeGreaterThanOrEqual(rest.rest.length);
+			// The pills' box never narrows by more than the chip widens (so the
+			// chip's far edge never moves back), and always holds what's shown.
+			expect(restWidth - openWidth).toBeLessThanOrEqual(48);
+			expect(openWidth).toBeGreaterThanOrEqual(pillsWidth(open.shown, open.rest.length));
+			expect(openWidth).toBeLessThanOrEqual(Math.max(unfolded, morePillWidth(SIX.length)) + 1);
+		}
 	});
 });

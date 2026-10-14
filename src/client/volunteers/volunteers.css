@@ -194,20 +194,127 @@
 	gap: 8px;
 }
 
-/* On a busy foot (assignees, and several kinds of reaction), the unfolded
-   chip takes its room from the end of the reactions, which slide under it,
-   rather than pushing anything along or the card wider. */
+/* The reactions beside it are fitted twice (cardFoot.ts `unfoldPills`): at
+   rest, and to the room left once Assign unfolds. As it unfolds, the pills
+   that no longer fit fold away into "+N" (fading as they narrow), the count
+   moves on, and the pills' box narrows in step with the chip widening, on
+   the same timing, so nothing is ever cut or covered and the card keeps its
+   size. The box keeps a few pixels' margin for a pill's lift and focus ring. */
 .card-foot:has(> .volunteers) > .reaction-pills {
 	margin: -3px;
 	padding: 3px;
 	overflow: hidden;
 }
 
-/* While it's unfolded, what slides under fades rather than being cut. */
-.card-foot:has(> .volunteers:has(.volunteers-more):is(:hover, :focus-within, [data-open]))
-	> .reaction-pills,
-.card[data-selected="true"] .card-foot:has(> .volunteers .volunteers-more) > .reaction-pills {
-	mask-image: linear-gradient(to right, #000 calc(100% - 8px), transparent);
+.card-foot:has(> .volunteers) > .reaction-pills[data-unfolds] {
+	flex: none;
+	justify-content: safe flex-end;
+	width: calc(var(--pills-rest) + 6px);
+	transition: width var(--t-base) var(--ease-out);
+}
+
+.reaction-pills[data-unfolds] .reaction-pill:is([data-folds], [data-appears]) {
+	flex: none;
+	max-width: var(--pill-w);
+	overflow: hidden;
+	white-space: nowrap;
+	transition:
+		max-width var(--t-base) var(--ease-out),
+		padding var(--t-base) var(--ease-out),
+		border-width var(--t-base) var(--ease-out),
+		margin var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out),
+		visibility var(--t-base) var(--ease-out),
+		transform var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out);
+}
+
+/* Folded away: no width, and no gap after it, and out of the way of the
+   keyboard and screen readers. */
+.reaction-pills[data-unfolds] .reaction-pill[data-appears],
+.card-foot:has(> .volunteers .volunteers-more):has(
+		> .volunteers:is(:hover, :focus-within, [data-open])
+	)
+	> .reaction-pills
+	.reaction-pill[data-folds],
+.card[data-selected="true"]
+	.card-foot:has(> .volunteers .volunteers-more)
+	> .reaction-pills
+	.reaction-pill[data-folds] {
+	max-width: 0;
+	margin-right: -4px;
+	padding-inline: 0;
+	border-width: 0;
+	opacity: 0;
+	visibility: hidden;
+}
+
+/* Pointed at, the box narrows only as far as the chip widens, so the chip's
+   far edge stays under the pointer (the pills that are left keep beside it). */
+.card-foot:has(> .volunteers .volunteers-more):has(> .volunteers:hover)
+	> .reaction-pills[data-unfolds] {
+	width: calc(var(--pills-open) + 6px);
+}
+
+/* Selected, focused or tapped open, it closes up to the pills. */
+.card-foot:has(> .volunteers .volunteers-more):has(> .volunteers:is(:focus-within, [data-open]))
+	> .reaction-pills[data-unfolds],
+.card[data-selected="true"]
+	.card-foot:has(> .volunteers .volunteers-more)
+	> .reaction-pills[data-unfolds] {
+	width: calc(var(--pills-fit) + 6px);
+}
+
+.card-foot:has(> .volunteers .volunteers-more):has(
+		> .volunteers:is(:hover, :focus-within, [data-open])
+	)
+	> .reaction-pills
+	.reaction-pill[data-appears],
+.card[data-selected="true"]
+	.card-foot:has(> .volunteers .volunteers-more)
+	> .reaction-pills
+	.reaction-pill[data-appears] {
+	max-width: var(--pill-w);
+	margin-right: 0;
+	padding-inline: 7px;
+	border-width: 1px;
+	opacity: 1;
+	visibility: visible;
+}
+
+/* "+N" counts on as more fold into it: the two counts cross-fade in place. */
+.reaction-more {
+	display: inline-grid;
+}
+
+.reaction-more > span {
+	grid-area: 1 / 1;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.reaction-more > [data-at="open"],
+.card-foot:has(> .volunteers .volunteers-more):has(
+		> .volunteers:is(:hover, :focus-within, [data-open])
+	)
+	.reaction-more
+	> [data-at="rest"],
+.card[data-selected="true"]
+	.card-foot:has(> .volunteers .volunteers-more)
+	.reaction-more
+	> [data-at="rest"] {
+	opacity: 0;
+}
+
+.card-foot:has(> .volunteers .volunteers-more):has(
+		> .volunteers:is(:hover, :focus-within, [data-open])
+	)
+	.reaction-more
+	> [data-at="open"],
+.card[data-selected="true"]
+	.card-foot:has(> .volunteers .volunteers-more)
+	.reaction-more
+	> [data-at="open"] {
+	opacity: 1;
 }
 
 /* The hand leading the chip: round, and always there. */

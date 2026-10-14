@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Card } from "../../shared/cards.ts";
 import {
 	type ReactionCount,
@@ -11,7 +11,7 @@ import {
 	reactionCount,
 	topReactions,
 } from "../../shared/reactions.ts";
-import { fitPills } from "../../shared/cardFoot.ts";
+import { fitPills, morePillWidth, pillWidth, unfoldPills } from "../../shared/cardFoot.ts";
 import { knownName, selfLogin } from "./names.ts";
 import { ReactionTip, TipLine, useTip } from "./ReactionTip.tsx";
 import { type ReactorsState, useReactors } from "./reactors.ts";
@@ -36,14 +36,30 @@ export interface ShowReactors {
 	state?: ReactorsState;
 }
 
+/** How a pill folds as the volunteers' chip beside it unfolds (see volunteers.css). */
+interface Fold {
+	/** Shown at rest, folded into "+N" while the chip's unfolded. */
+	folds?: boolean;
+	/** Folded at rest, shown while the chip's unfolded. */
+	appears?: boolean;
+	/** Its width, in pixels, to narrow from or widen to. */
+	width: number;
+}
+
 export function ReactionPills({
 	card,
 	room,
+	unfoldedRoom,
+	unfolded = false,
 	show,
 }: {
 	card: Pick<Card, "key" | "reactions" | "reactionCounts">;
 	/** How wide the pills may be, in pixels, "+N" included (see cardFoot.ts). */
 	room: number;
+	/** How wide while the volunteers' chip beside them is unfolded to Assign, if it can be. */
+	unfoldedRoom?: number;
+	/** It's unfolded for now (the card's selected): "+N" names what it holds then. */
+	unfolded?: boolean;
 	show?: ShowReactors;
 }) {
 	const total = card.reactions;
@@ -65,27 +81,63 @@ export function ReactionPills({
 			</span>
 		);
 	}
-	const { shown, rest } = fitPills(counts, room);
+	const fitted = unfoldedRoom === undefined ? null : unfoldPills(counts, room, unfoldedRoom);
+	const { shown, rest } = fitted?.rest ?? fitPills(counts, room);
+	const open = fitted?.open ?? { shown, rest };
+	const kept = new Set(open.shown.map((c) => c.emoji));
+	// "+N" names what it holds as things are: at rest, or unfolded.
+	const folded = unfolded ? open.rest : rest;
 	return (
-		<span className="reaction-pills" role="group" aria-label="Reactions">
+		<span
+			className="reaction-pills"
+			role="group"
+			aria-label="Reactions"
+			data-unfolds={fitted ? true : undefined}
+			style={
+				fitted
+					? ({
+							"--pills-rest": `${fitted.restWidth}px`,
+							"--pills-open": `${fitted.openWidth}px`,
+							"--pills-fit": `${fitted.fitWidth}px`,
+						} as CSSProperties)
+					: undefined
+			}
+		>
 			{shown.map((count) => (
 				<EmojiPill
 					key={count.emoji}
 					cardKey={card.key}
 					total={total}
 					count={count}
+					fold={
+						fitted && !kept.has(count.emoji)
+							? { folds: true, width: pillWidth(count.count) }
+							: undefined
+					}
 					show={show?.pill === count.emoji ? show : undefined}
 				/>
 			))}
-			{rest.length > 0 && (
+			{open.rest.length > 0 && (
 				<GroupPill
 					cardKey={card.key}
 					total={total}
-					emojis={rest.map((c) => c.emoji)}
-					label={`${rest.length} more: ${rest.map((c) => `${c.emoji} ${c.count}`).join(", ")}`}
+					emojis={folded.map((c) => c.emoji)}
+					label={`${folded.length} more: ${folded.map((c) => `${c.emoji} ${c.count}`).join(", ")}`}
+					fold={
+						fitted && rest.length === 0
+							? { appears: true, width: morePillWidth(open.rest.length) }
+							: undefined
+					}
 					show={show?.pill === "more" ? show : undefined}
 				>
-					<span className="reaction-pill-count">+{rest.length}</span>
+					<span className="reaction-pill-count reaction-more">
+						{rest.length > 0 && (
+							<span data-at={rest.length !== open.rest.length ? "rest" : undefined}>
+								+{rest.length}
+							</span>
+						)}
+						{rest.length !== open.rest.length && <span data-at="open">+{open.rest.length}</span>}
+					</span>
 				</GroupPill>
 			)}
 		</span>
@@ -97,11 +149,13 @@ function EmojiPill({
 	cardKey,
 	total,
 	count,
+	fold,
 	show,
 }: {
 	cardKey: string;
 	total: number;
 	count: ReactionCount;
+	fold?: Fold;
 	show?: ShowReactors;
 }) {
 	const tip = useTip({ tapOpens: true });
@@ -115,6 +169,7 @@ function EmojiPill({
 			tip={tip}
 			label={`${count.emoji} ${count.count}${names ? `: ${names.said}` : ""}`}
 			force={Boolean(show)}
+			fold={fold}
 			pill={
 				<>
 					<span className="reaction-pill-emoji" aria-hidden="true">
@@ -147,6 +202,7 @@ function GroupPill({
 	total,
 	emojis,
 	label,
+	fold,
 	show,
 	children,
 }: {
@@ -154,6 +210,7 @@ function GroupPill({
 	total: number;
 	emojis: string[] | null;
 	label: string;
+	fold?: Fold;
 	show?: ShowReactors;
 	children: ReactNode;
 }) {
@@ -181,6 +238,7 @@ function GroupPill({
 					: label
 			}
 			force={Boolean(show)}
+			fold={fold}
 			more
 			pill={children}
 		>
@@ -201,6 +259,7 @@ function Pill({
 	tip,
 	label,
 	force,
+	fold,
 	more = false,
 	pill,
 	children,
@@ -208,6 +267,7 @@ function Pill({
 	tip: ReturnType<typeof useTip>;
 	label: string;
 	force: boolean;
+	fold?: Fold;
 	more?: boolean;
 	pill: ReactNode;
 	children: ReactNode;
@@ -221,6 +281,9 @@ function Pill({
 				}}
 				className="reaction-pill nodrag nopan"
 				data-more={more || undefined}
+				data-folds={fold?.folds || undefined}
+				data-appears={fold?.appears || undefined}
+				style={fold ? ({ "--pill-w": `${fold.width}px` } as CSSProperties) : undefined}
 				data-open={tip.open || force || undefined}
 				aria-label={label}
 				{...tip.handlers}

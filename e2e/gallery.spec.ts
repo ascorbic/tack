@@ -239,9 +239,19 @@ test("every volunteering state renders: the chip, unfolded, yours, staged, many,
 	// Beside two volunteers, the reactions keep as many pills as fit; beside
 	// a full chip, fewer.
 	const reactions = (figure: string) =>
-		section.locator("figure", { hasText: figure }).locator(".reaction-pill");
-	await expect(reactions("Two volunteers, at rest")).toHaveText(["👍11", "❤️6", "+2"]);
+		section.locator("figure", { hasText: figure }).locator(".reaction-pill:visible");
+	const more = (figure: string, at: "rest" | "open") =>
+		section.locator("figure", { hasText: figure }).locator(`.reaction-more > [data-at=${at}]`);
+	await expect(reactions("Two volunteers, at rest")).toHaveCount(3);
+	await expect(reactions("Two volunteers, at rest").first()).toHaveText("👍11");
+	await expect(more("Two volunteers, at rest", "rest")).toHaveText("+2");
+	await expect(more("Two volunteers, at rest", "open")).toHaveCSS("opacity", "0");
 	await expect(reactions("More than fit")).toHaveText(["👍11", "+3"]);
+	// Unfolded to Assign, they're fitted again beside it: those that no longer
+	// fit fold into +N, rather than sliding under the chip.
+	await expect(reactions("Yours among them")).toHaveCount(1);
+	await expect(more("Yours among them", "open")).toHaveText("+4");
+	await expect(more("Yours among them", "open")).toHaveCSS("opacity", "1");
 	// More than fit fold into +2; yours is ringed; staged is dashed.
 	await expect(section.locator(".volunteer-more")).toHaveText("+2");
 	await expect(section.locator(".volunteer[data-mine]")).toHaveCount(3);
@@ -265,9 +275,19 @@ test("every volunteering state renders: the chip, unfolded, yours, staged, many,
 	const resting = section.locator("figure", { hasText: "Two volunteers, at rest" });
 	await resting.scrollIntoViewIfNeeded();
 	const before = await resting.locator(".card").boundingBox();
+	const chipBefore = await resting.locator(".volunteers").boundingBox();
 	await resting.locator(".volunteers").hover();
 	await expect(unfolded("Two volunteers, at rest")).toHaveCSS("opacity", "1");
 	expect(await resting.locator(".card").boundingBox()).toEqual(before);
+	// The pills fold into +4 beside it, and its far edge stays put under the pointer.
+	await expect(reactions("Two volunteers, at rest")).toHaveCount(1);
+	await expect(more("Two volunteers, at rest", "open")).toHaveCSS("opacity", "1");
+	const chipAfter = await resting.locator(".volunteers").boundingBox();
+	expect(chipAfter!.x + chipAfter!.width).toBeGreaterThanOrEqual(
+		chipBefore!.x + chipBefore!.width - 0.5,
+	);
+	const pills = resting.locator(".reaction-pills");
+	expect(await pills.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
 	// From the keyboard: focusing the chip's hand unfolds it, and Tab reaches Assign.
 	await page.mouse.move(0, 0);
 	await expect(unfolded("Two volunteers, at rest")).toHaveCSS("opacity", "0");

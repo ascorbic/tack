@@ -50,29 +50,70 @@ export function morePillWidth(n: number): number {
 	return 2 + 7 + (1 + digits(n)) * 11 * DIGIT + 7;
 }
 
+/** Pills side by side: those `shown`, then "+N" for `folded` more, if any. */
+export function pillsWidth(shown: readonly ReactionCount[], folded: number): number {
+	const pills = shown.length + (folded > 0 ? 1 : 0);
+	return (
+		shown.reduce((sum, c) => sum + pillWidth(c.count), 0) +
+		(folded > 0 ? morePillWidth(folded) : 0) +
+		PILL_GAP * Math.max(0, pills - 1)
+	);
+}
+
+/** Which reactions have a pill of their own, and which fold into "+N". */
+export interface FittedPills {
+	shown: ReactionCount[];
+	rest: ReactionCount[];
+}
+
 /**
  * Which of a card's reactions get a pill of their own in `room` pixels:
  * all of them if they fit, in GitHub's order; otherwise as many of the most
  * left as fit beside a "+N" pill for the rest, still in GitHub's order.
- * At least one keeps its pill, however little room there is.
+ * At least `least` keep their pills, however little room there is: one at
+ * rest, so a card always says what it's mostly had; none beside the
+ * unfolded volunteers' chip, where "+N" alone stands for them all.
  */
-export function fitPills(
-	counts: readonly ReactionCount[],
-	room: number,
-): { shown: ReactionCount[]; rest: ReactionCount[] } {
+export function fitPills(counts: readonly ReactionCount[], room: number, least = 1): FittedPills {
 	const ordered = orderCounts(counts);
-	const width = (pills: readonly ReactionCount[], more: number) =>
-		pills.reduce((sum, c) => sum + pillWidth(c.count), 0) +
-		(more > 0 ? morePillWidth(more) : 0) +
-		PILL_GAP * Math.max(0, pills.length + (more > 0 ? 1 : 0) - 1);
-	if (width(ordered, 0) <= room) return { shown: ordered, rest: [] };
-	for (let keep = ordered.length - 1; keep >= 1; keep--) {
+	if (pillsWidth(ordered, 0) <= room) return { shown: ordered, rest: [] };
+	const floor = Math.min(least, ordered.length);
+	for (let keep = ordered.length - 1; keep >= floor; keep--) {
 		const top = new Set(topReactions(ordered, keep).map((c) => c.emoji));
 		const shown = ordered.filter((c) => top.has(c.emoji));
 		const rest = ordered.filter((c) => !top.has(c.emoji));
-		if (keep === 1 || width(shown, rest.length) <= room) return { shown, rest };
+		if (keep === floor || pillsWidth(shown, rest.length) <= room) return { shown, rest };
 	}
 	return { shown: ordered, rest: [] };
+}
+
+/**
+ * A card's pills at rest, and as they are while the volunteers' chip beside
+ * them is unfolded to Assign: fitted again to the room that leaves, so those
+ * that no longer fit fold into "+N" rather than slide under the chip.
+ * `fitWidth` is what they take then; `openWidth` is their box while the
+ * chip's only pointed at, narrowing by no more than the chip widens, so the
+ * chip's far edge never moves back from under the pointer that unfolded it
+ * (which would fold it again, and so on).
+ */
+export function unfoldPills(
+	counts: readonly ReactionCount[],
+	room: number,
+	unfoldedRoom: number,
+): {
+	rest: FittedPills;
+	open: FittedPills;
+	restWidth: number;
+	fitWidth: number;
+	openWidth: number;
+} {
+	const rest = fitPills(counts, room);
+	const open = fitPills(counts, unfoldedRoom, 0);
+	const restWidth = pillsWidth(rest.shown, rest.rest.length);
+	const fitWidth = pillsWidth(open.shown, open.rest.length);
+	// A pixel to spare, so the chip's edge errs outwards.
+	const openWidth = Math.max(fitWidth, restWidth - (room - unfoldedRoom) + 1);
+	return { rest, open, restWidth, fitWidth, openWidth };
 }
 
 /** A count with its 12px icon (comments, upvotes), in 11.5px tabular figures. */
@@ -85,15 +126,23 @@ function facesWidth(n: number): number {
 	return n * 14;
 }
 
-/** The volunteers' chip at rest: border, padding, ✋, then 18px faces overlapping by 6px. */
-export function volunteersWidth(volunteers: number): number {
-	return 2 + 4 + 20 + 4 + Math.min(volunteers, MAX_FACES) * 12;
+/**
+ * The volunteers' chip at rest: border, padding, a 19px ✋, then 18px faces,
+ * each over the last by 4px, and wider by "Assign" when it's unfolded.
+ */
+export function volunteersWidth(volunteers: number, unfolded = false): number {
+	return 2 + 4 + 19 + 2 + Math.min(volunteers, MAX_FACES) * 14 + (unfolded ? ASSIGN_WIDTH : 0);
 }
+
+/** What "Assign" adds to the volunteers' chip as it unfolds: a button of 11px text. */
+const ASSIGN_WIDTH = 48;
 
 /** What else a card's foot holds beside its own data. */
 export interface FootExtras {
 	/** How many have volunteered: the chip after the reactions. */
 	volunteers?: number;
+	/** The chip unfolded to Assign. */
+	unfolded?: boolean;
 	/** A provenance badge (what brought the card), at rest: its glyph. */
 	provenance?: boolean;
 	/** "Not live", or "Live" just after it became so. */
@@ -117,7 +166,7 @@ export function pillRoom(
 		discussion?.upvotes !== undefined ? countWidth(discussion.upvotes) + 1 : 0,
 		countWidth(card.comments),
 		discussion?.locked ? 12 : 0,
-		extras.volunteers ? volunteersWidth(extras.volunteers) : 0,
+		extras.volunteers ? volunteersWidth(extras.volunteers, extras.unfolded) : 0,
 		extras.provenance ? 20 : 0,
 		extras.liveness === "lazy" ? 65 : extras.liveness === "upgraded" ? 47 : 0,
 	].filter((w) => w > 0);

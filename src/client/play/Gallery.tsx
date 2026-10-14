@@ -753,6 +753,7 @@ function Sections({
 													/>
 												),
 												count: volunteers,
+												unfolds: false,
 											}
 										: undefined
 								}
