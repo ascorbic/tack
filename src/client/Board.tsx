@@ -1430,6 +1430,15 @@ export function Board({
 		if (tool !== "sticky") setGhost(null);
 	}, [tool]);
 
+	// Picking up a tool that puts something on whatever you click (a stamp, a
+	// dot, a comment) puts the selection down, as FigJam's stamps do: shapes
+	// can't be selected with it in hand, and the selection's toolbars would
+	// only float over the shapes you're clicking.
+	useEffect(() => {
+		if (tool !== "stamp" && tool !== "vote" && tool !== "comment") return;
+		setSelected((current) => (current.size === 0 ? current : new Set()));
+	}, [tool]);
+
 	// A word about the last click with a tool, in place of its hint for a moment.
 	const [toolNote, setToolNote] = useState<{ text: string; key: number } | null>(null);
 	const showToolNote = useCallback(

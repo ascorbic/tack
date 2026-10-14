@@ -115,6 +115,47 @@ test.describe("facilitating a retro", () => {
 		await expect(page.getByRole("tooltip")).toHaveText("🎉Priya Shah and Kai Andersen");
 	});
 
+	test("a selected sticky takes a stamp, and its stamps stay on top of it", async ({ page }) => {
+		const note = page.locator(".react-flow__node", { hasText: "Reviews were fast" });
+		const selected = page.locator(".react-flow__node.selected");
+		await note.click();
+		await expect(note).toHaveClass(/selected/);
+		// Picking up the stamp puts the selection down, so a click is the stamp's.
+		await page
+			.getByRole("toolbar", { name: "Tools" })
+			.getByRole("button", { name: "Stamp" })
+			.click();
+		await expect(selected).toHaveCount(0);
+		await page.getByRole("radio", { name: "Stamp ❤️" }).click();
+		await note.click();
+		const stamp = page.getByRole("button", { name: "❤️ 1: You" });
+		await expect(stamp).toBeVisible();
+		// It stamped the sticky rather than opening it to type in.
+		await expect(note.locator("textarea")).toHaveCount(0);
+		await stamp.click();
+		await expect(stamp).toHaveCount(0);
+
+		// Several selected, by shortcut: each click stamps the one clicked.
+		const docs = page.locator(".react-flow__node", { hasText: "Docs site redesign" });
+		await page.keyboard.press("v");
+		await note.click();
+		await docs.click({ modifiers: ["Shift"] });
+		await expect(selected).toHaveCount(2);
+		await page.keyboard.press("m");
+		await expect(selected).toHaveCount(0);
+		await note.click();
+		await docs.click();
+		await expect(page.getByRole("button", { name: "❤️ 1: You" })).toHaveCount(2);
+
+		// Selecting a stamped shape lifts it over the others: its stamps rise
+		// with it, still there to add to.
+		await page.keyboard.press("v");
+		await page.locator(".react-flow__node", { hasText: "The 5.0 beta" }).click();
+		await expect(selected).toHaveCount(1);
+		await page.getByRole("button", { name: /^🎉 2: Priya Shah and Kai Andersen/ }).click();
+		await expect(page.getByRole("button", { name: /^🎉 3: You, / })).toBeVisible();
+	});
+
 	test("the keyboard reaches all of it", async ({ page }) => {
 		// ⇧T opens the menu at the timer, ready to type what it's for.
 		await page.keyboard.press("Shift+T");
@@ -277,6 +318,34 @@ test.describe("dot voting", () => {
 		await results.getByRole("button", { name: "Close vote" }).click();
 		await expect(results).toContainText("Closed");
 		await expect(results.getByRole("button", { name: "Reopen…" })).toBeVisible();
+	});
+
+	test("a selected card takes dots, and they show over it", async ({ page }) => {
+		const bar = page.getByRole("region", { name: "Vote on “Next quarter”" });
+		const card = page.locator(".react-flow__node", { hasText: "An emdash image plugin" });
+		await card.click();
+		await expect(card).toHaveClass(/selected/);
+		await bar.getByRole("button", { name: "Place dots" }).click();
+		await expect(page.locator(".react-flow__node.selected")).toHaveCount(0);
+		await card.click();
+		await expect(bar.getByRole("img", { name: "2 of 3 dots left" })).toBeVisible();
+		await bar.getByRole("button", { name: "Done" }).click();
+		// Selected again, it doesn't cover its dots.
+		await card.click();
+		await expect(card).toHaveClass(/selected/);
+		const dots = page.locator(".vote-dots-anchor[data-lifted]");
+		await expect(dots).toHaveCount(1);
+		// Dots don't take clicks outside voting, so let one for a moment to see
+		// what's on top where it is.
+		const covered = await dots.evaluate((anchor) => {
+			const dot = anchor.querySelector<HTMLElement>(".vote-dot")!;
+			const box = dot.getBoundingClientRect();
+			dot.style.pointerEvents = "auto";
+			const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+			dot.style.pointerEvents = "";
+			return top !== dot;
+		});
+		expect(covered).toBe(false);
 	});
 
 	test("a closed vote keeps out of the way while another's open", async ({ page }) => {

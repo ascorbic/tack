@@ -67,9 +67,13 @@ test.describe("comments", () => {
 	test("the comment tool pins a comment to whatever's clicked, and it follows", async ({
 		page,
 	}) => {
+		const sticky = page.locator(".react-flow__node", { hasText: "Pairing on the web component" });
+		// Picking up the tool puts down what was selected, so the click is the tool's.
+		await sticky.click();
+		await expect(sticky).toHaveClass(/selected/);
 		await page.keyboard.press("b");
 		await expect(page.locator(".canvas")).toHaveAttribute("data-tool", "comment");
-		const sticky = page.locator(".react-flow__node", { hasText: "Pairing on the web component" });
+		await expect(page.locator(".react-flow__node.selected")).toHaveCount(0);
 		const box = (await sticky.boundingBox())!;
 		await page.mouse.click(box.x + 40, box.y + 40);
 		const composer = popover(page).getByRole("combobox", { name: "Add a comment" });

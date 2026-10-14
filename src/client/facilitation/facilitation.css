@@ -903,10 +903,20 @@
 	filter: drop-shadow(0 0 0.5px var(--accent)) drop-shadow(0 6px 14px rgb(0 0 0 / 10%));
 }
 
-/* Stamping, voting or picking a section, a click is for the whole shape:
-   links in it (a card's title) neither open nor take focus. */
-.canvas:is([data-tool="stamp"], [data-tool="vote"], [data-picking]) .react-flow__node a {
+/* Stamping, voting, commenting or picking a section, a click is for the
+   whole shape: links and buttons in it (a card's title, its reactions, a
+   sticky's hand) neither open, press nor take focus, and what only shows as
+   you point at a shape (the hand) stays away. */
+.canvas:is([data-tool="stamp"], [data-tool="vote"], [data-tool="comment"], [data-picking])
+	.react-flow__node
+	:is(a, button) {
 	pointer-events: none;
+}
+
+.canvas:is([data-tool="stamp"], [data-tool="vote"], [data-tool="comment"], [data-picking])
+	.react-flow__node
+	:is(.volunteer-hand, .volunteers-assign) {
+	opacity: 0;
 }
 
 /* Dots, in a row. */
