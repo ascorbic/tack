@@ -3,10 +3,13 @@ import * as Y from "yjs";
 import type { Card } from "../src/shared/cards.ts";
 import {
 	closeVote,
+	cursorsHidden,
 	dotsLeft,
 	formatRemaining,
+	hidesCursors,
 	isOpen,
 	nextVoteEnd,
+	SECRET_CURSORS_MAX_MS,
 	placeDot,
 	readVotes,
 	reactionVotes,
@@ -192,5 +195,45 @@ describe("formatRemaining", () => {
 		expect(formatRemaining(4 * 60_000 + 30_000)).toBe("4:30");
 		expect(formatRemaining(44_100)).toBe("0:45");
 		expect(formatRemaining(-1)).toBe("0s");
+	});
+});
+
+describe("cursors in a secret vote", () => {
+	const start = Date.parse("2026-10-12T10:00:00Z");
+	const iso = (ms: number) => new Date(start + ms).toISOString();
+	const MIN = 60_000;
+	const vote = (over: Partial<{ hidden: boolean; endsAt: string; closedAt: string }> = {}) => ({
+		hidden: true,
+		startedAt: iso(0),
+		...over,
+	});
+
+	it("hides them while a vote with hidden results is open", () => {
+		expect(hidesCursors(vote({ endsAt: iso(5 * MIN) }), start + MIN)).toBe(true);
+		expect(hidesCursors(vote(), start + MIN)).toBe(true);
+		// Results on show: nothing to give away.
+		expect(hidesCursors(vote({ hidden: false }), start + MIN)).toBe(false);
+	});
+
+	it("brings them back when it closes, by hand or by time", () => {
+		expect(hidesCursors(vote({ closedAt: iso(2 * MIN) }), start + 3 * MIN)).toBe(false);
+		const timed = vote({ endsAt: iso(5 * MIN) });
+		expect(hidesCursors(timed, start + 5 * MIN - 1)).toBe(true);
+		expect(hidesCursors(timed, start + 5 * MIN)).toBe(false);
+	});
+
+	it("only for a vote in the room, not one open over days", () => {
+		expect(hidesCursors(vote({ endsAt: iso(SECRET_CURSORS_MAX_MS) }), start + MIN)).toBe(true);
+		expect(hidesCursors(vote({ endsAt: iso(86_400_000) }), start + MIN)).toBe(false);
+		// One left open until closed stops hiding them after a working day.
+		expect(hidesCursors(vote(), start + SECRET_CURSORS_MAX_MS - 1)).toBe(true);
+		expect(hidesCursors(vote(), start + SECRET_CURSORS_MAX_MS)).toBe(false);
+	});
+
+	it("any vote hiding them hides them", () => {
+		const votes = [vote({ hidden: false }), vote({ endsAt: iso(2 * MIN) })];
+		expect(cursorsHidden(votes, start + MIN)).toBe(true);
+		expect(cursorsHidden(votes, start + 3 * MIN)).toBe(false);
+		expect(cursorsHidden([], start)).toBe(false);
 	});
 });

@@ -180,6 +180,41 @@ export function nextVoteEnd(
 	return next;
 }
 
+/**
+ * The longest a vote with hidden results hides cursors: a session's length,
+ * a working day at most. A hidden vote left open over days doesn't take
+ * everyone's cursors away for the whole of it.
+ */
+export const SECRET_CURSORS_MAX_MS = 8 * 3_600_000;
+
+/**
+ * Whether a vote hides everyone's cursors at `now`: its results are hidden,
+ * it's open (`isOpen`), and it's a vote in the room, set to close within a
+ * working day of starting, or open until closed and started less than a
+ * working day ago. Watching someone's pointer go to a card and click would
+ * give their vote away, so while one's on nobody's pointer is sent
+ * (`usePresence`). Read the clock with `useVoteNow`, so cursors come back
+ * the moment a timed vote ends.
+ */
+export function hidesCursors(
+	vote: Pick<DotVote, "hidden" | "closedAt" | "endsAt" | "startedAt">,
+	now: number,
+): boolean {
+	if (!vote.hidden || !isOpen(vote, now)) return false;
+	const started = Date.parse(vote.startedAt);
+	// How long it was set to run for, not whether it's over: that's `isOpen`'s.
+	if (vote.endsAt) return Date.parse(vote.endsAt) - started <= SECRET_CURSORS_MAX_MS;
+	return now - started < SECRET_CURSORS_MAX_MS;
+}
+
+/** Whether any of these votes hides cursors at `now`. */
+export function cursorsHidden(
+	votes: readonly Pick<DotVote, "hidden" | "closedAt" | "endsAt" | "startedAt">[],
+	now: number,
+): boolean {
+	return votes.some((vote) => hidesCursors(vote, now));
+}
+
 /** When it closed: closed by someone, or when its window ended. */
 export function closedAt(vote: DotVote, now: number): string | null {
 	if (vote.closedAt) return vote.closedAt;
