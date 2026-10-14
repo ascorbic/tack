@@ -30,7 +30,7 @@ Releases, milestones, commits and code links aren't cards (nor are discussions o
 - **The head**: an icon for the kind and state, the repository's name and number (`unpic #412`), and the state: **Open**, **Closed**, **Merged**, **Draft** or **Not planned**.
 - **The title**. Clicking a card selects it, as with any shape; clicking the title of a card that's already selected opens the item on GitHub, and so does <kbd>⌘</kbd>-clicking it (<kbd>Ctrl</kbd> on Windows and Linux). The **↗** beside the state opens it straight away.
 - Up to four **labels**, in their colours.
-- **The foot**: up to three assignees, the comment count, the reaction count, where the card came from (see [Where cards come from](/automation/provenance/)), and whether it's live.
+- **The foot**: up to three assignees, the comment count, the reaction count (point at it, tab to it or tap it to see who reacted, by reaction: Tack asks GitHub then, and shows just the count if it can't), where the card came from (see [Where cards come from](/automation/provenance/)), and whether it's live.
 
 Pull requests also show:
 
