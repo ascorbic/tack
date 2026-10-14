@@ -701,6 +701,17 @@
 	z-index: 6;
 }
 
+/* React Flow lifts a selected shape over the rest (by 1000), so its marks
+   rise with it: otherwise selecting a shape, or clicking it with the stamp
+   tool, would hide its stamps and dots beneath it. */
+.stamps-anchor[data-lifted] {
+	z-index: 1005;
+}
+
+.vote-dots-anchor[data-lifted] {
+	z-index: 1006;
+}
+
 .stamps {
 	display: flex;
 	flex-wrap: wrap;

@@ -132,6 +132,7 @@ export function MarksLayer({
 							me={me}
 							readOnly={readOnly}
 							voting={voting && vote !== null}
+							lifted={node.selected === true}
 						/>
 					);
 				})}
@@ -153,6 +154,7 @@ const ShapeMarks = memo(function ShapeMarks({
 	me,
 	readOnly,
 	voting,
+	lifted,
 }: {
 	doc: Y.Doc;
 	id: string;
@@ -166,7 +168,13 @@ const ShapeMarks = memo(function ShapeMarks({
 	me: Stamper;
 	readOnly: boolean;
 	voting: boolean;
+	/**
+	 * The shape is selected, so React Flow has lifted it over the others (by
+	 * 1000): its marks rise with it, or it would cover them.
+	 */
+	lifted: boolean;
 }) {
+	const lift = lifted || undefined;
 	return (
 		<>
 			{voting && (
@@ -177,7 +185,11 @@ const ShapeMarks = memo(function ShapeMarks({
 				/>
 			)}
 			{vote && (
-				<div className="vote-dots-anchor" style={{ transform: `translate(${x + w}px, ${y}px)` }}>
+				<div
+					className="vote-dots-anchor"
+					data-lifted={lift}
+					style={{ transform: `translate(${x + w}px, ${y}px)` }}
+				>
 					<VoteDots
 						vote={vote}
 						shape={id}
@@ -191,12 +203,20 @@ const ShapeMarks = memo(function ShapeMarks({
 				</div>
 			)}
 			{rank && (
-				<div className="vote-dots-anchor" style={{ transform: `translate(${x + w}px, ${y}px)` }}>
+				<div
+					className="vote-dots-anchor"
+					data-lifted={lift}
+					style={{ transform: `translate(${x + w}px, ${y}px)` }}
+				>
 					<VoteRank rank={rank} />
 				</div>
 			)}
 			{counts && (
-				<div className="stamps-anchor" style={{ transform: `translate(${x + w}px, ${y + h}px)` }}>
+				<div
+					className="stamps-anchor"
+					data-lifted={lift}
+					style={{ transform: `translate(${x + w}px, ${y + h}px)` }}
+				>
 					<StampRow
 						counts={counts}
 						onToggle={readOnly ? undefined : (emoji) => stampShape(doc, id, emoji, me)}
