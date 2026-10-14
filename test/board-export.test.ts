@@ -28,12 +28,17 @@ import {
 	splitImages,
 	summariseExport,
 } from "../src/shared/boardExport.ts";
-import { castVote } from "../src/shared/decisions.ts";
+import type { Card, MissingCard } from "../src/shared/cards.ts";
+import type { CommentThread } from "../src/shared/comments.ts";
+import { addDecision, castVote } from "../src/shared/decisions.ts";
+import { closeVote, placeDot, readVotes, startVote } from "../src/shared/dotvotes.ts";
+import { stampsMap, toggleStamp } from "../src/shared/facilitation.ts";
 import { hashImage } from "../src/shared/images.ts";
 import { preparedMap, readPrepared } from "../src/shared/prepared.ts";
 import { addRule, listRules, scopeRepos, setScopeRepos } from "../src/shared/rules.ts";
 import { addShape, shapesMap } from "../src/shared/shapes.ts";
 import { readShapes } from "../src/shared/structure.ts";
+import { toggleVolunteer, volunteersMap } from "../src/shared/volunteers.ts";
 
 const BY = { name: "Priya Shah", color: "#b4467a", login: "priya" };
 const NOW = "2026-10-11T09:00:00.000Z";
@@ -221,6 +226,413 @@ describe("exporting a board", () => {
 			"planning-q4-cafe-2026-10-11.json",
 		);
 		expect(exportFileName("✨", "png", new Date(NOW))).toBe("board-2026-10-11.png");
+	});
+});
+
+describe("what people did on a board", () => {
+	const KAI = { name: "Kai", color: "#123456", login: "kai" };
+	const PRIYA = { name: "Priya Shah", color: "#b4467a", login: "priya" };
+	const at = (minute: number) => `2026-10-11T09:${String(minute).padStart(2, "0")}:00.000Z`;
+
+	function item(key: string, extra: Partial<Card> = {}): Card {
+		return {
+			key,
+			forge: "github",
+			host: "github.com",
+			repo: key.slice("github.com/".length).split("#")[0] ?? "",
+			item: `#${key.split("#")[1]}`,
+			kind: "issue",
+			title: "Uploads fail on Safari",
+			state: "open",
+			stateReason: null,
+			labels: [{ name: "bug", color: "d73a4a" }],
+			assignees: [{ login: "kai", avatarUrl: "https://avatars.example/kai" }],
+			author: { login: "priya", avatarUrl: "https://avatars.example/priya" },
+			comments: 4,
+			reactions: 3,
+			thumbsUp: { count: 2, logins: ["kai", "zed"] },
+			url: `https://github.com/${key.slice("github.com/".length).replace("#", "/issues/")}`,
+			updatedAt: at(1),
+			...extra,
+		};
+	}
+
+	const cards = (key: string): Card | MissingCard | undefined =>
+		key.includes("/secret") ? { key, missing: true, reason: "private" } : item(key);
+
+	function author(login: string, name: string | null): CommentThread["messages"][number]["author"] {
+		return { id: login.length, login, name, avatarUrl: `https://avatars.example/${login}` };
+	}
+
+	const THREADS: CommentThread[] = [
+		{
+			id: "t1",
+			anchor: { x: 30, y: 50, shape: "n1", dx: 10, dy: 10 },
+			createdAt: Date.parse(at(10)),
+			updatedAt: Date.parse(at(12)),
+			resolved: null,
+			messages: [
+				{
+					id: "m1",
+					author: author("priya", "Priya Shah"),
+					body: "Can we ship this @kai?",
+					at: Date.parse(at(10)),
+					mentions: ["kai"],
+				},
+				{
+					id: "m2",
+					author: author("kai", null),
+					body: "",
+					at: Date.parse(at(11)),
+					deleted: true,
+				},
+				{
+					id: "m3",
+					author: author("kai", null),
+					body: "Yes, Friday",
+					at: Date.parse(at(12)),
+					editedAt: Date.parse(at(13)),
+				},
+			],
+		},
+		// On a card from a repository the exporter can't read: stays out.
+		{
+			id: "t2",
+			anchor: { x: 600, y: 300, shape: "c2", dx: 0, dy: 0 },
+			createdAt: Date.parse(at(14)),
+			updatedAt: Date.parse(at(14)),
+			resolved: null,
+			messages: [
+				{
+					id: "m4",
+					author: author("kai", "Kai"),
+					body: "About the secret",
+					at: Date.parse(at(14)),
+				},
+			],
+		},
+		// A free pin, resolved.
+		{
+			id: "t3",
+			anchor: { x: -40, y: 900 },
+			createdAt: Date.parse(at(15)),
+			updatedAt: Date.parse(at(16)),
+			resolved: { by: author("priya", "Priya Shah"), at: Date.parse(at(16)) },
+			messages: [
+				{ id: "m5", author: author("kai", "Kai"), body: "Parking this", at: Date.parse(at(15)) },
+			],
+		},
+		// Everything in it deleted: gone.
+		{
+			id: "t4",
+			anchor: { x: 0, y: 0 },
+			createdAt: Date.parse(at(17)),
+			updatedAt: Date.parse(at(17)),
+			resolved: null,
+			messages: [
+				{ id: "m6", author: author("kai", "Kai"), body: "", at: Date.parse(at(17)), deleted: true },
+			],
+		},
+	];
+
+	/** The retro board after a session: three dot votes, stamps, hands up. */
+	function session(): { doc: Y.Doc; votes: string[] } {
+		const doc = board();
+		const open = startVote(doc, { scope: "s1", dots: 3, reactions: true, by: BY, at: at(2) });
+		placeDot(doc, open, KAI, "n1", at(3));
+		placeDot(doc, open, KAI, "n1", at(3));
+		placeDot(doc, open, KAI, "c1", at(3));
+		placeDot(doc, open, PRIYA, "c1", at(4));
+		// Face down, so it isn't in the file, and nor are its dots.
+		placeDot(doc, open, PRIYA, "n2", at(4));
+		closeVote(doc, open, BY, at(5));
+		const secret = startVote(doc, { scope: null, hidden: true, by: BY, at: at(7) });
+		placeDot(doc, secret, KAI, "n1", at(7));
+		const sealed = startVote(doc, {
+			scope: null,
+			title: "Next",
+			hidden: true,
+			endsAt: at(8),
+			by: BY,
+			at: at(6),
+		});
+		placeDot(doc, sealed, PRIYA, "c1", at(7));
+		toggleStamp(doc, "n1", "👍", KAI, at(20));
+		toggleStamp(doc, "n1", "👍", PRIYA, at(21));
+		toggleStamp(doc, "n1", "🎉", PRIYA, at(22));
+		toggleStamp(doc, "c2", "👀", KAI, at(23));
+		toggleVolunteer(doc, "c1", { ...KAI, avatarUrl: "https://avatars.example/kai" }, at(24));
+		toggleVolunteer(doc, "c1", PRIYA, at(25));
+		toggleVolunteer(doc, "c2", PRIYA, at(25));
+		addDecision(doc, "d2", { x: 900, y: 400, title: "Weekly releases" });
+		castVote(doc, "d2", KAI, "agree");
+		castVote(doc, "d2", PRIYA, "disagree");
+		return { doc, votes: [open, sealed, secret] };
+	}
+
+	it("stays out unless asked for", () => {
+		const { doc } = session();
+		const { data } = exportBoard(doc, { title: "Retro", now: NOW });
+		expect(data).not.toHaveProperty("activity");
+		const json = serialiseExport(data);
+		expect(json).not.toContain("Friday");
+		expect(json).not.toContain("👍");
+	});
+
+	it("holds votes' results, stamps, hands up, comments and items, for the shapes in the file", () => {
+		const { doc, votes } = session();
+		const [open, sealed, secret] = votes;
+		const { data } = exportBoard(doc, {
+			title: "Retro",
+			now: at(30),
+			includeCard: readable,
+			activity: { cards, threads: THREADS },
+		});
+		const activity = data.activity;
+		expect(activity?.votes).toEqual([
+			{
+				id: open,
+				scope: "s1",
+				dots: 3,
+				hidden: false,
+				reactions: true,
+				startedAt: at(2),
+				closedAt: at(5),
+				voters: 2,
+				// zed's 👍 counts; kai's doesn't, as kai voted here.
+				results: [
+					{
+						shape: "c1",
+						rank: 1,
+						dots: 2,
+						reactions: 1,
+						total: 3,
+						by: [
+							{ name: "Kai", login: "kai", dots: 1 },
+							{ name: "Priya Shah", login: "priya", dots: 1 },
+						],
+						reactors: ["zed"],
+					},
+					{
+						shape: "n1",
+						rank: 2,
+						dots: 2,
+						reactions: 0,
+						total: 2,
+						by: [{ name: "Kai", login: "kai", dots: 2 }],
+						reactors: [],
+					},
+				],
+			},
+			// Hidden, and closed when its time ran out: totals, never who.
+			{
+				id: sealed,
+				title: "Next",
+				scope: null,
+				dots: 3,
+				hidden: true,
+				reactions: false,
+				startedAt: at(6),
+				endsAt: at(8),
+				closedAt: at(8),
+				voters: 1,
+				results: [{ shape: "c1", rank: 1, dots: 1, reactions: 0, total: 1 }],
+			},
+			// Hidden and still open: only how many have voted.
+			{
+				id: secret,
+				scope: null,
+				dots: 3,
+				hidden: true,
+				reactions: false,
+				startedAt: at(7),
+				voters: 1,
+			},
+		]);
+		// d1 was decided before anyone voted: decided decisions don't take votes.
+		expect(activity?.decisions).toEqual([
+			{
+				shape: "d2",
+				agree: [{ name: "Kai", login: "kai" }],
+				disagree: [{ name: "Priya Shah", login: "priya" }],
+			},
+		]);
+		expect(activity?.stamps).toEqual([
+			{
+				shape: "n1",
+				emoji: "👍",
+				people: [
+					{ name: "Kai", login: "kai" },
+					{ name: "Priya Shah", login: "priya" },
+				],
+			},
+			{ shape: "n1", emoji: "🎉", people: [{ name: "Priya Shah", login: "priya" }] },
+		]);
+		expect(activity?.volunteers).toEqual([
+			{
+				shape: "c1",
+				people: [
+					{ name: "Kai", login: "kai" },
+					{ name: "Priya Shah", login: "priya" },
+				],
+			},
+		]);
+		expect(activity?.comments).toEqual([
+			{
+				id: "t1",
+				shape: "n1",
+				x: 30,
+				y: 50,
+				messages: [
+					{
+						author: { name: "Priya Shah", login: "priya" },
+						body: "Can we ship this @kai?",
+						at: at(10),
+					},
+					{
+						author: { name: "kai", login: "kai" },
+						body: "Yes, Friday",
+						at: at(12),
+						editedAt: at(13),
+					},
+				],
+			},
+			{
+				id: "t3",
+				x: -40,
+				y: 900,
+				resolved: { by: { name: "Priya Shah", login: "priya" }, at: at(16) },
+				messages: [{ author: { name: "Kai", login: "kai" }, body: "Parking this", at: at(15) }],
+			},
+		]);
+		expect(activity?.items).toEqual([
+			{
+				key: "github.com/acme/app#1",
+				kind: "issue",
+				title: "Uploads fail on Safari",
+				state: "open",
+				url: "https://github.com/acme/app/issues/1",
+				labels: ["bug"],
+				assignees: ["kai"],
+				author: "priya",
+				comments: 4,
+				reactions: 3,
+				thumbsUp: 2,
+				updatedAt: at(1),
+			},
+		]);
+		const json = serialiseExport(data);
+		expect(json).not.toContain("secret");
+		expect(json).not.toContain("👀");
+	});
+
+	it("says what a discussion has, and leaves out items it has no data for", () => {
+		const doc = new Y.Doc();
+		addShape(doc, "c", {
+			type: "card",
+			x: 0,
+			y: 0,
+			z: "a0",
+			parent: null,
+			ref: "github.com/acme/app#9",
+		});
+		addShape(doc, "u", {
+			type: "card",
+			x: 0,
+			y: 0,
+			z: "a1",
+			parent: null,
+			ref: "github.com/acme/app#10",
+		});
+		const discussion = item("github.com/acme/app#9", {
+			kind: "discussion",
+			title: "Multi-tenancy",
+			state: "closed",
+			stateReason: "resolved",
+			milestone: { title: "1.0", dueOn: null },
+			discussion: {
+				category: { name: "Ideas", emoji: "💡", answerable: false },
+				answered: false,
+				upvotes: 13,
+				locked: false,
+			},
+		});
+		const { data } = exportBoard(doc, {
+			title: "Ideas",
+			activity: { cards: (key) => (key === discussion.key ? discussion : undefined), threads: [] },
+		});
+		expect(data.activity?.items).toEqual([
+			{
+				key: "github.com/acme/app#9",
+				kind: "discussion",
+				title: "Multi-tenancy",
+				state: "closed",
+				stateReason: "resolved",
+				url: "https://github.com/acme/app/issues/9",
+				labels: ["bug"],
+				assignees: ["kai"],
+				author: "priya",
+				comments: 4,
+				reactions: 3,
+				thumbsUp: 2,
+				milestone: "1.0",
+				category: "Ideas",
+				upvotes: 13,
+				answered: false,
+				updatedAt: at(1),
+			},
+		]);
+		expect(data.activity).toMatchObject({ votes: [], stamps: [], volunteers: [], comments: [] });
+	});
+
+	it("is counted for the dialog, and left behind by an import", () => {
+		const { doc } = session();
+		const { data } = exportBoard(doc, {
+			title: "Retro",
+			includeCard: readable,
+			activity: { cards, threads: THREADS },
+		});
+		expect(summariseExport(data).activity).toEqual({
+			votes: 3,
+			stamps: 3,
+			volunteers: 2,
+			comments: 2,
+			items: 1,
+		});
+		expect(summariseExport(exportBoard(doc, { title: "Retro" }).data)).not.toHaveProperty(
+			"activity",
+		);
+		const read = readBoardExport(serialiseExport(data));
+		expect(read.ok).toBe(true);
+		if (!read.ok) return;
+		expect(read.data).not.toHaveProperty("activity");
+		const copy = new Y.Doc();
+		importBoard(copy, read.data, { by: BY, newId: counter() });
+		expect(readVotes(copy)).toEqual([]);
+		expect(stampsMap(copy).size).toBe(0);
+		expect(volunteersMap(copy).size).toBe(0);
+	});
+
+	it("doesn't count towards what an import may weigh", () => {
+		const { doc } = session();
+		const long = "x".repeat(BOARD_EXPORT_MAX_BYTES);
+		const { data } = exportBoard(doc, {
+			title: "Retro",
+			activity: {
+				cards,
+				threads: [
+					{
+						id: "long",
+						anchor: { x: 0, y: 0 },
+						createdAt: 0,
+						updatedAt: 0,
+						resolved: null,
+						messages: [{ id: "m", author: author("kai", "Kai"), body: long, at: 0 }],
+					},
+				],
+			},
+		});
+		expect(readBoardExport(serialiseExport(data)).ok).toBe(true);
 	});
 });
 

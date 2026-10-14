@@ -104,7 +104,7 @@ test.describe("exporting from the playground", () => {
 		const dialog = await openExport(page);
 		await dialog.getByRole("radio", { name: "JSON" }).click();
 		await expect(dialog).toContainText(/\d+ cards/);
-		await expect(dialog).toContainText("Comments, history, votes");
+		await expect(dialog).toContainText("History and staged changes stay here");
 		const [json] = await Promise.all([
 			page.waitForEvent("download"),
 			dialog.getByRole("button", { name: "Download JSON" }).click(),
@@ -117,6 +117,49 @@ test.describe("exporting from the playground", () => {
 		await expect(dialog).toBeHidden();
 		const next = await openExport(page);
 		await expect(next.getByRole("radio", { name: "JSON" })).toHaveAttribute("aria-checked", "true");
+	});
+
+	test("with what people did, when asked, for reading but not importing", async ({ page }) => {
+		await openScenario(page, "vote");
+		const dialog = await openExport(page);
+		await dialog.getByRole("radio", { name: "JSON" }).click();
+		const include = dialog.getByRole("switch", { name: "Include votes, stamps and comments" });
+		await expect(include).not.toBeChecked();
+		await expect(dialog).toContainText("for reading the board elsewhere");
+		await dialog.getByText("Include votes, stamps and comments").click();
+		await expect(include).toBeChecked();
+		await expect(dialog).toContainText("2 votes");
+		await expect(dialog).toContainText("except in hidden votes");
+		const [json] = await Promise.all([
+			page.waitForEvent("download"),
+			dialog.getByRole("button", { name: "Download JSON" }).click(),
+		]);
+		const text = (await saved(json)).toString();
+		const { activity } = JSON.parse(text) as {
+			activity: {
+				votes: { hidden: boolean; closedAt?: string; results?: { by?: unknown[] }[] }[];
+				items: { title: string }[];
+			};
+		};
+		const [hidden, open] = [
+			activity.votes.find((vote) => vote.hidden),
+			activity.votes.find((vote) => !vote.hidden),
+		];
+		// Closed, so its results are in, but never who voted for what.
+		expect(hidden?.closedAt).toBeDefined();
+		expect(hidden?.results?.length).toBeGreaterThan(0);
+		for (const row of hidden?.results ?? []) expect(row).not.toHaveProperty("by");
+		expect(open?.closedAt).toBeUndefined();
+		expect(open?.results?.[0]?.by?.length).toBeGreaterThan(0);
+		expect(activity.items.length).toBeGreaterThan(0);
+		// Importing it leaves what people did behind.
+		const read = readBoardExport(text);
+		expect(read.ok && read.data).not.toHaveProperty("activity");
+		await expect(dialog).toBeHidden();
+		const next = await openExport(page);
+		await expect(
+			next.getByRole("switch", { name: "Include votes, stamps and comments" }),
+		).toBeChecked();
 	});
 });
 

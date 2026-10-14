@@ -3,6 +3,11 @@ import * as v from "valibot";
 import * as Y from "yjs";
 import { isDate } from "./actionItems.ts";
 import { type CreatedBoard, MAX_TITLE, type Visibility } from "./boards.ts";
+import { type Card, type CardKind, type CardState, type MissingCard, isMissing } from "./cards.ts";
+import { type CommentAuthor, type CommentThread, liveMessages } from "./comments.ts";
+import { readVotes as readDecisionVotes, tally } from "./decisions.ts";
+import { closedAt, readVotes, tallyVote, turnout } from "./dotvotes.ts";
+import { type StampEmoji, stampCounts, stampsMap } from "./facilitation.ts";
 import { IMAGE_HASH, IMAGE_LIMITS, IMAGE_TYPES, type ImageType, isImageHash } from "./images.ts";
 import { type PreparedPlan, preparedMap, readPrepared, readStep } from "./prepared.ts";
 import { LINK_LIMITS, linkUrl, readPreview } from "./linkPreview.ts";
@@ -18,6 +23,7 @@ import {
 import { type ShapeType, shapesMap } from "./shapes.ts";
 import { isStackable } from "./stacks.ts";
 import { TEMPLATE_REPOS_MAX, cleanRepos } from "./templates.ts";
+import { readVolunteers, volunteersMap } from "./volunteers.ts";
 
 // A board as a file (#59): its shapes (cards, stickies, text, sections,
 // connectors, decisions, widgets, action items, stacks, images), rules and
@@ -49,6 +55,14 @@ import { TEMPLATE_REPOS_MAX, cleanRepos } from "./templates.ts";
 //
 // Every property is copied by name (`KEEP`), so a property added to shapes
 // later stays out of exports until it's added here on purpose.
+//
+// A download may also carry what people did on the board, when the exporter
+// asks (`activity`): dot votes' results, decisions' votes, stamps, hands up,
+// comments and the items its cards show, for reading the board somewhere
+// else. It's only ever about shapes in the file, and says no more than the
+// board shows anyone who can open it: a hidden vote never names who voted,
+// and gives no results until it closes. Backups never carry it. Importing
+// drops it unread, and it doesn't count towards what an import may weigh.
 //
 // Importing (`readBoardExport`, then `importBoard`) checks everything with
 // Valibot, gives every shape, rule and step a fresh id (references remapped,
@@ -108,6 +122,93 @@ export interface BoardExport {
 	 * uploads them to the board an import makes (`splitImages`).
 	 */
 	images?: ExportedImage[];
+	/** What people did on the board, when the exporter asked for it. Never imported. */
+	activity?: ExportedActivity;
+}
+
+/** What people did on a board, about the shapes in its export (by their ids). */
+export interface ExportedActivity {
+	/** Dot votes, oldest first. */
+	votes: ExportedVote[];
+	/** Decisions' agree and disagree votes, for decisions anyone's voted on. */
+	decisions: { shape: string; agree: ExportedPerson[]; disagree: ExportedPerson[] }[];
+	/** Stamps, by shape and kind, in the order people stamped. */
+	stamps: { shape: string; emoji: StampEmoji; people: ExportedPerson[] }[];
+	/** Hands up, by shape, in the order people put them up. */
+	volunteers: { shape: string; people: ExportedPerson[] }[];
+	/** Comment threads still showing, oldest first. */
+	comments: ExportedThread[];
+	/** What the cards (and decisions' and action items' links) show, as the exporter saw it. */
+	items: ExportedItem[];
+}
+
+export interface ExportedPerson {
+	name: string;
+	login?: string;
+}
+
+export interface ExportedVote {
+	id: string;
+	title?: string;
+	/** The section it covers, or null for the whole board. */
+	scope: string | null;
+	/** Dots per person. */
+	dots: number;
+	hidden: boolean;
+	/** Whether 👍 reactions on cards' items counted as votes. */
+	reactions: boolean;
+	startedAt: string;
+	endsAt?: string;
+	/** When it closed; absent while it's open. */
+	closedAt?: string;
+	/** How many people have put dots down. */
+	voters: number;
+	/** Most votes first. Absent while a hidden vote is open. */
+	results?: ExportedResult[];
+}
+
+export interface ExportedResult {
+	shape: string;
+	/** 1 for the most votes; shapes tied share a rank. */
+	rank: number;
+	dots: number;
+	reactions: number;
+	total: number;
+	/** Who put dots on it: never for a hidden vote. */
+	by?: (ExportedPerson & { dots: number })[];
+	/** Whose 👍 counted, where known: never for a hidden vote. */
+	reactors?: string[];
+}
+
+export interface ExportedThread {
+	id: string;
+	/** The shape it's pinned to; absent for a pin on the canvas. */
+	shape?: string;
+	x: number;
+	y: number;
+	resolved?: { by: ExportedPerson; at: string };
+	messages: { author: ExportedPerson; body: string; at: string; editedAt?: string }[];
+}
+
+export interface ExportedItem {
+	key: string;
+	kind: CardKind;
+	title: string;
+	state: CardState;
+	stateReason?: string;
+	url: string;
+	labels: string[];
+	assignees: string[];
+	author?: string;
+	comments: number;
+	reactions: number;
+	thumbsUp?: number;
+	milestone?: string;
+	/** Discussions: their category, upvotes and whether they're answered. */
+	category?: string;
+	upvotes?: number;
+	answered?: boolean;
+	updatedAt: string;
 }
 
 /** An image file in an export. */
@@ -171,12 +272,19 @@ export interface ExportOptions {
 	 * Cards it refuses are left out; decisions and action items lose the link.
 	 */
 	includeCard?: (key: string) => boolean;
+	/** Carry what people did on the board too (`ExportedActivity`). */
+	activity?: {
+		/** The items cards show, as the exporter sees them. */
+		cards: (key: string) => Card | MissingCard | undefined;
+		/** The board's comment threads, which aren't in the document. */
+		threads: Iterable<CommentThread>;
+	};
 }
 
 /** A board's document as an export, and what was left out. */
 export function exportBoard(
 	doc: Y.Doc,
-	{ title, now = new Date().toISOString(), includeCard = () => true }: ExportOptions,
+	{ title, now = new Date().toISOString(), includeCard = () => true, activity }: ExportOptions,
 ): { data: BoardExport; omitted: ExportOmissions } {
 	const omitted: ExportOmissions = { cards: 0, faceDown: 0 };
 	const entries: { id: string; z: string; props: Record<string, unknown> }[] = [];
@@ -268,8 +376,170 @@ export function exportBoard(
 			rules,
 			prepared,
 			...(scopeRepos(doc).length ? { repos: scopeRepos(doc) } : {}),
+			...(activity
+				? { activity: exportActivity(doc, shapes, { ...activity, includeCard, now }) }
+				: {}),
 		},
 		omitted,
+	};
+}
+
+function person({ name, login }: { name: string; login?: string }): ExportedPerson {
+	return login ? { name, login } : { name };
+}
+
+function commenter(author: CommentAuthor): ExportedPerson {
+	return { name: author.name ?? author.login, login: author.login };
+}
+
+const iso = (ms: number) => new Date(ms).toISOString();
+
+/** What people did on the board, about the shapes an export kept. */
+function exportActivity(
+	doc: Y.Doc,
+	shapes: readonly ExportedShape[],
+	{
+		cards,
+		threads,
+		includeCard,
+		now,
+	}: NonNullable<ExportOptions["activity"]> & {
+		includeCard: (key: string) => boolean;
+		now: string;
+	},
+): ExportedActivity {
+	// Where each shape is in the file, to list what's about them in the same order.
+	const at = new Map(shapes.map((shape, i) => [shape.id, i]));
+	const kept = new Set(at.keys());
+	const byShape = (a: { shape: string }, b: { shape: string }) =>
+		(at.get(a.shape) ?? 0) - (at.get(b.shape) ?? 0);
+	// The tally reads only items the exporter may: anyone else's 👍s aren't theirs to count.
+	const readable = (key: string) => (includeCard(key) ? cards(key) : undefined);
+
+	const votes = readVotes(doc).map((vote): ExportedVote => {
+		const closed = closedAt(vote, Date.parse(now));
+		const out: ExportedVote = {
+			id: vote.id,
+			...(vote.title ? { title: vote.title } : {}),
+			scope: vote.scope,
+			dots: vote.dots,
+			hidden: vote.hidden,
+			reactions: vote.reactions,
+			startedAt: vote.startedAt,
+			...(vote.endsAt ? { endsAt: vote.endsAt } : {}),
+			...(closed ? { closedAt: closed } : {}),
+			voters: turnout(vote).voters,
+		};
+		if (vote.hidden && !closed) return out;
+		out.results = tallyVote(vote, doc, readable)
+			.filter((row) => kept.has(row.shape))
+			.map((row) => ({
+				shape: row.shape,
+				rank: row.rank,
+				dots: row.dots,
+				reactions: row.reactions,
+				total: row.total,
+				...(vote.hidden
+					? {}
+					: {
+							by: row.dotters.map((dotter) => ({ ...person(dotter), dots: dotter.dots })),
+							reactors: row.reactors,
+						}),
+			}));
+		return out;
+	});
+
+	const decisions: ExportedActivity["decisions"] = [];
+	const items: ExportedItem[] = [];
+	const seen = new Set<string>();
+	for (const shape of shapes) {
+		if (shape.type === "decision") {
+			const votes = shapesMap(doc).get(shape.id)?.get("votes");
+			const { agree, disagree, total } = tally(readDecisionVotes(votes));
+			if (total > 0) {
+				decisions.push({
+					shape: shape.id,
+					agree: agree.map(person),
+					disagree: disagree.map(person),
+				});
+			}
+		}
+		// Shapes in the file keep only refs the exporter may read.
+		const ref = typeof shape.ref === "string" ? shape.ref : null;
+		if (!ref || seen.has(ref)) continue;
+		seen.add(ref);
+		const card = cards(ref);
+		if (card && !isMissing(card)) items.push(exportItem(card));
+	}
+
+	const stamps: ExportedActivity["stamps"] = [];
+	for (const [shape, counts] of stampCounts(stampsMap(doc).entries(), null)) {
+		if (!kept.has(shape)) continue;
+		for (const count of counts) {
+			stamps.push({ shape, emoji: count.emoji, people: count.people.map(person) });
+		}
+	}
+	stamps.sort(byShape);
+
+	const volunteers: ExportedActivity["volunteers"] = [];
+	for (const [shape, people] of readVolunteers(volunteersMap(doc).entries())) {
+		if (kept.has(shape)) volunteers.push({ shape, people: people.map(person) });
+	}
+	volunteers.sort(byShape);
+
+	const ids = new Set(shapesMap(doc).keys());
+	const comments: ExportedThread[] = [];
+	for (const thread of [...threads].sort((a, b) => a.createdAt - b.createdAt)) {
+		const messages = liveMessages(thread);
+		if (messages.length === 0) continue;
+		const { shape, x, y } = thread.anchor;
+		// On a shape the file left out (a card the exporter can't read, a face-down sticky):
+		// the thread's about it. A shape that's been deleted leaves a pin on the canvas.
+		if (shape && ids.has(shape) && !kept.has(shape)) continue;
+		comments.push({
+			id: thread.id,
+			...(shape && kept.has(shape) ? { shape } : {}),
+			x,
+			y,
+			...(thread.resolved
+				? { resolved: { by: commenter(thread.resolved.by), at: iso(thread.resolved.at) } }
+				: {}),
+			messages: messages.map((message) => ({
+				author: commenter(message.author),
+				body: message.body,
+				at: iso(message.at),
+				...(message.editedAt ? { editedAt: iso(message.editedAt) } : {}),
+			})),
+		});
+	}
+
+	return { votes, decisions, stamps, volunteers, comments, items };
+}
+
+function exportItem(card: Card): ExportedItem {
+	const discussion = card.discussion;
+	return {
+		key: card.key,
+		kind: card.kind,
+		title: card.title,
+		state: card.state,
+		...(card.stateReason ? { stateReason: card.stateReason } : {}),
+		url: card.url,
+		labels: card.labels.map((label) => label.name),
+		assignees: card.assignees.map((assignee) => assignee.login),
+		...(card.author ? { author: card.author.login } : {}),
+		comments: card.comments,
+		reactions: card.reactions,
+		...(card.thumbsUp ? { thumbsUp: card.thumbsUp.count } : {}),
+		...(card.milestone ? { milestone: card.milestone.title } : {}),
+		...(discussion
+			? {
+					category: discussion.category.name,
+					...(discussion.upvotes !== undefined ? { upvotes: discussion.upvotes } : {}),
+					answered: discussion.answered,
+				}
+			: {}),
+		updatedAt: card.updatedAt,
 	};
 }
 
@@ -554,9 +824,13 @@ export function readBoardExport(input: unknown): ReadResult {
 		} catch {
 			return { ok: false, error: { reason: "not_json" } };
 		}
-		// Past the limit only with images, which are weighed apart.
+		// Past the limit only with images and activity, which are weighed apart (activity's dropped).
 		if (bytes > BOARD_EXPORT_MAX_BYTES) {
-			const { images: _images, ...rest } = (raw ?? {}) as Record<string, unknown>;
+			const {
+				images: _images,
+				activity: _activity,
+				...rest
+			} = (raw ?? {}) as Record<string, unknown>;
 			if (new TextEncoder().encode(JSON.stringify(rest)).byteLength > BOARD_EXPORT_MAX_BYTES) {
 				return { ok: false, error: { reason: "too_large" } };
 			}
@@ -633,16 +907,32 @@ export interface ExportSummary {
 	counts: Partial<Record<ShapeType, number>>;
 	rules: number;
 	prepared: number;
+	/** What people did, counted, when the export carries it: stamps and hands up by person. */
+	activity?: { votes: number; stamps: number; volunteers: number; comments: number; items: number };
 }
 
 export function summariseExport(data: BoardExport): ExportSummary {
 	const counts: Partial<Record<ShapeType, number>> = {};
 	for (const shape of data.shapes) counts[shape.type] = (counts[shape.type] ?? 0) + 1;
+	const { activity } = data;
+	const people = (groups: readonly { people: readonly unknown[] }[]) =>
+		groups.reduce((n, group) => n + group.people.length, 0);
 	return {
 		shapes: data.shapes.length,
 		counts,
 		rules: data.rules.length,
 		prepared: data.prepared.length,
+		...(activity
+			? {
+					activity: {
+						votes: activity.votes.length,
+						stamps: people(activity.stamps),
+						volunteers: people(activity.volunteers),
+						comments: activity.comments.length,
+						items: activity.items.length,
+					},
+				}
+			: {}),
 	};
 }
 
