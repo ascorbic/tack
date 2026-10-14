@@ -311,11 +311,23 @@ export function toggleStamp(
 	return true;
 }
 
+/** Someone who stamped a shape, for naming them (see reactions.ts). */
+export interface StampPerson {
+	name: string;
+	color: string;
+	login?: string;
+	/** It's you: named "You", first. */
+	you?: boolean;
+	/** When they stamped it, ISO 8601. */
+	at: string;
+}
+
 /** One kind of stamp on a shape: how many, who, and whether you're among them. */
 export interface StampCount {
 	emoji: StampEmoji;
 	count: number;
-	people: { name: string; color: string }[];
+	/** Who, you first, then in the order they stamped it. */
+	people: StampPerson[];
 	mine: boolean;
 	/** The latest of them, ISO 8601, to tell a new stamp from an old one. */
 	latest: string;
@@ -340,12 +352,24 @@ export function stampCounts(
 			);
 		}
 		count.count++;
-		count.people.push({ name: value.name, color: value.color });
-		if (mine !== null && key.endsWith(`\n${mine}`)) count.mine = true;
+		const you = mine !== null && key.endsWith(`\n${mine}`);
+		count.people.push({
+			name: value.name,
+			color: value.color,
+			...(value.login ? { login: value.login } : {}),
+			...(you ? { you } : {}),
+			at: typeof value.at === "string" ? value.at : "",
+		});
+		if (you) count.mine = true;
 		if (value.at > count.latest) count.latest = value.at;
 	}
 	const out = new Map<string, StampCount[]>();
 	for (const [shape, counts] of byShape) {
+		for (const count of counts.values()) {
+			count.people.sort(
+				(a, b) => Number(b.you ?? false) - Number(a.you ?? false) || a.at.localeCompare(b.at),
+			);
+		}
 		out.set(
 			shape,
 			[...counts.values()].sort((a, b) => STAMPS.indexOf(a.emoji) - STAMPS.indexOf(b.emoji)),

@@ -108,6 +108,20 @@ describe("stamps", () => {
 		expect(stampCounts(stampsMap(a), BY).get("s1")?.[1]?.mine).toBe(false);
 	});
 
+	it("say who, you first, then in the order they stamped", () => {
+		const doc = new Y.Doc();
+		const jo = { name: "Jo Rivera", color: "#5b5fc7", login: "jo" };
+		toggleStamp(doc, "s1", "👍", jo, "2026-10-10T10:00:02Z");
+		toggleStamp(doc, "s1", "👍", BY, "2026-10-10T10:00:01Z");
+		toggleStamp(doc, "s1", "👍", kai, "2026-10-10T10:00:03Z");
+		const [thumbs] = stampCounts(stampsMap(doc), { ...kai, login: "kai" }).get("s1")!;
+		expect(thumbs!.people.map((p) => [p.name, p.login, p.you ?? false])).toEqual([
+			["Kai", "Kai", true],
+			["Priya", undefined, false],
+			["Jo Rivera", "jo", false],
+		]);
+	});
+
 	it("toggle off, and logins match whatever their case", () => {
 		const doc = new Y.Doc();
 		expect(toggleStamp(doc, "s1", "❤️", kai)).toBe(true);
