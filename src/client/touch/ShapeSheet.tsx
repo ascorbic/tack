@@ -1,4 +1,12 @@
-import { type CSSProperties, useContext, useEffect, useMemo, useState } from "react";
+import {
+	type CSSProperties,
+	useContext,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import type * as Y from "yjs";
 import { imageSize, imageState } from "../../shared/images.ts";
 import { ImageView } from "../images/ImageNode.tsx";
@@ -121,6 +129,24 @@ export function ShapeSheet({
 	);
 }
 
+/**
+ * How wide an element is laid out, as it changes: the sheet's card is as
+ * wide as the phone, and its reactions fit that (cardFoot.ts).
+ */
+function useWidth<T extends HTMLElement>() {
+	const ref = useRef<T>(null);
+	const [width, setWidth] = useState<number | undefined>(undefined);
+	useLayoutEffect(() => {
+		const el = ref.current;
+		if (!el) return;
+		setWidth(el.clientWidth || undefined);
+		const observer = new ResizeObserver(() => setWidth(el.clientWidth || undefined));
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
+	return { ref, width };
+}
+
 /** The shape, as big as the sheet allows. */
 function ShapeFace({
 	doc,
@@ -135,13 +161,14 @@ function ShapeFace({
 }) {
 	const shape = node.data.shape;
 	const card = useCard(shape.type === "card" ? (shape.ref ?? "") : "");
+	const sheetCard = useWidth<HTMLDivElement>();
 	const texts = useSilentTexts();
 	const links = useContext(ServicesContext)?.links;
 	switch (shape.type) {
 		case "card":
 			return (
-				<div className="phone-sheet-card">
-					<CardView card={card} cardKey={shape.ref ?? ""} selected />
+				<div className="phone-sheet-card" ref={sheetCard.ref}>
+					<CardView card={card} cardKey={shape.ref ?? ""} selected width={sheetCard.width} />
 				</div>
 			);
 		case "sticky": {
