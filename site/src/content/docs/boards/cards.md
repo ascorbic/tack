@@ -30,7 +30,9 @@ Releases, milestones, commits and code links aren't cards (nor are discussions o
 - **The head**: an icon for the kind and state, the repository's name and number (`unpic #412`), and the state: **Open**, **Closed**, **Merged**, **Draft** or **Not planned**.
 - **The title**. Clicking a card selects it, as with any shape; clicking the title of a card that's already selected opens the item on GitHub, and so does <kbd>⌘</kbd>-clicking it (<kbd>Ctrl</kbd> on Windows and Linux). The **↗** beside the state opens it straight away.
 - Up to four **labels**, in their colours.
-- **The foot**: up to three assignees, the comment count, the reaction count (point at it, tab to it or tap it to see who reacted, by reaction: Tack asks GitHub then, and shows just the count if it can't), where the card came from (see [Where cards come from](/automation/provenance/)), and whether it's live.
+- **The foot**: up to three assignees, the comment count, the reactions as GitHub shows them (a pill for each emoji with its count, such as 👍 11 ❤️ 6 🎉 3; when there are more kinds than fit, the most left keep their pills and the rest fold into **+N**), where the card came from (see [Where cards come from](/automation/provenance/)), and whether it's live.
+
+Point at a reaction pill, tab to it or tap it to see who left it: "👍 Kai Andersen, Priya Shah and 9 others", with you first as "You". Tack asks GitHub then, once for the card, and says just how many if it can't (signed out with no app installed, or a forge that doesn't say). In a list or a grid of mini cards, and zoomed out, a card shows its top reaction or two instead. GitLab cards show 👍 and 👎; Forgejo and Tangled cards don't count reactions.
 
 Pull requests also show:
 
