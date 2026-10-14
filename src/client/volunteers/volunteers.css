@@ -221,11 +221,12 @@
 	background: transparent;
 }
 
+/* As wide as the hand it stands in for. */
 .volunteers-mark {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
+	width: 19px;
 }
 
 .volunteers-who {
@@ -344,10 +345,14 @@
 
 /* Faces ---------------------------------------------------------------------- */
 
+/* Each face over the last by 4px: a little less than other stacks of faces,
+   whose borders are inside them, since these wear rings outside (an accent
+   one for yours), so every initial still shows. Keep in step with
+   cardFoot.ts. */
 .volunteer-stack {
 	display: inline-flex;
 	align-items: center;
-	padding-left: 4px;
+	padding-left: 2px;
 }
 
 .volunteer {
@@ -358,7 +363,7 @@
 	justify-content: center;
 	width: 18px;
 	height: 18px;
-	margin-left: -6px;
+	margin-left: -4px;
 	border-radius: 50%;
 	background: var(--avatar, var(--muted));
 	box-shadow: 0 0 0 1.5px var(--volunteer-ring, var(--surface));
