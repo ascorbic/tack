@@ -2,7 +2,7 @@ import type { Card } from "../../shared/cards.ts";
 import { CardView } from "../CardView.tsx";
 import { StickyView } from "../StickyNode.tsx";
 import type { ShownVolunteer } from "../volunteers/assign.ts";
-import { HandButton, VolunteerChip } from "../volunteers/Volunteers.tsx";
+import { HandButton, VolunteerChip, roomFor } from "../volunteers/Volunteers.tsx";
 
 // Every state of volunteering on a card and a sticky (volunteers/), in
 // `/play/cards`: the chip at rest and unfolded, for a viewer, yours among them, staged to be assigned,
@@ -45,7 +45,7 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 				initialOpen={options.open}
 			/>
 		),
-		count: volunteers.length,
+		count: roomFor(volunteers.length, !options.viewer && !options.mine),
 		unfolds: !!options.assign,
 	});
 	return (

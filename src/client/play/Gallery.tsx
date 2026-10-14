@@ -41,7 +41,7 @@ import { DecisionGallery } from "./DecisionGallery.tsx";
 import { StackGallery } from "./StackGallery.tsx";
 import { VolunteerGallery } from "./VolunteerGallery.tsx";
 import type { ShownVolunteer } from "../volunteers/assign.ts";
-import { VolunteerChip } from "../volunteers/Volunteers.tsx";
+import { VolunteerChip, roomFor } from "../volunteers/Volunteers.tsx";
 import { ImageGallery } from "./images.tsx";
 import {
 	ACCESS_GALLERY,
@@ -810,7 +810,7 @@ function Sections({
 															initialOpen={open}
 														/>
 													),
-													count: volunteers,
+													count: roomFor(volunteers, true),
 													unfolds: !!assign,
 												}
 									}

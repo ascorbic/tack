@@ -274,6 +274,17 @@ export function VolunteerChip({
 	);
 }
 
+/**
+ * How many faces a card's foot keeps room for: everyone's, and yours too
+ * while you could put your hand up, so pressing ✋ moves nothing (the chip
+ * grows into room already kept for it, as the ghost is the chip with you in
+ * it). Otherwise your face could leave the reactions too little room, they
+ * would fold, and the chip would slide out from under the pointer.
+ */
+export function roomFor(faces: number, couldJoin: boolean): number {
+	return faces > 0 && couldJoin ? faces + 1 : faces;
+}
+
 /** How long the chip takes to fade away; keep in step with volunteers.css. */
 const LEAVE_MS = 220;
 
@@ -350,6 +361,7 @@ export function useCardVolunteers(shape: string, card: Card | null): CardVolunte
 	};
 	const toggles = canVolunteer && !assigned;
 	if (!lingering.value && !toggles) return null;
+	const faces = lingering.value?.length ?? 0;
 	// The same chip throughout, so the ghost becomes it in place as you press it.
 	return {
 		chip: (
@@ -371,7 +383,7 @@ export function useCardVolunteers(shape: string, card: Card | null): CardVolunte
 				}
 			/>
 		),
-		count: lingering.value?.length ?? 0,
+		count: roomFor(faces, toggles && !mine),
 		unfolds: offerAssign,
 	};
 }

@@ -216,7 +216,10 @@ export interface CardViewProps {
  */
 export interface CardVolunteers {
 	chip: ReactNode;
-	/** How many have volunteered: none for the ghost. */
+	/**
+	 * How many faces to keep room for (`roomFor`): those who've volunteered,
+	 * and yours if you could; none for the ghost.
+	 */
 	count: number;
 	/** It unfolds to Assign as it's pointed at, focused or the card's selected. */
 	unfolds: boolean;
