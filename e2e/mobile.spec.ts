@@ -758,7 +758,7 @@ test.describe("on a tablet", () => {
 		expect(Math.abs(moved.x - start.x)).toBeGreaterThan(40);
 	});
 
-	test("a finger volunteers on a selected card: the hand shows once it's selected", async ({
+	test("a finger volunteers from the chip, and a tap on the faces unfolds Assign", async ({
 		page,
 		browserName,
 	}) => {
@@ -770,14 +770,24 @@ test.describe("on a tablet", () => {
 		await expect(ci).toHaveClass(/selected/);
 		await page.keyboard.press("Shift+Digit2");
 		await settleCanvas(page);
+		const more = ci.locator(".volunteers-more");
+		// Selected, Assign has unfolded.
+		await expect(more).toHaveCSS("opacity", "1");
 		const hand = ci.getByRole("button", { name: "I’ll take it" });
-		await expect(hand).toHaveCSS("opacity", "1");
 		await tap(await centre(hand));
 		await expect(hand).toHaveAttribute("aria-pressed", "true");
 		await expect(ci.locator(".volunteer")).toHaveCount(2);
-		// Not selected, the hand's out of a finger's way again.
+		// Not selected, it folds away; no hover to ask with, so a tap on the
+		// faces unfolds it.
 		await page.keyboard.press("Escape");
-		await expect(hand).toHaveCSS("pointer-events", "none");
+		await expect(ci).not.toHaveClass(/selected/);
+		await expect(more).toHaveCSS("opacity", "0");
+		await tap(await centre(ci.locator(".volunteers-who")));
+		await expect(more).toHaveCSS("opacity", "1");
+		await expect(ci.getByRole("button", { name: "Assign volunteers" })).toHaveCSS(
+			"pointer-events",
+			"auto",
+		);
 	});
 
 	test("a section's bar fits across the tablet, words and all, with the rest in …", async ({

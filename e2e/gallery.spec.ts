@@ -208,13 +208,13 @@ test("cards from other forges say how they're kept up to date", async ({ page })
 	await expect(figures.nth(5).getByRole("button")).toHaveCount(0);
 });
 
-test("every volunteering state renders: the row, yours, staged, many, and the hand", async ({
+test("every volunteering state renders: the chip, unfolded, yours, staged, many, and the hand", async ({
 	page,
 }) => {
 	const section = page.locator("section").filter({
 		has: page.getByRole("heading", { name: "Volunteers", exact: true }),
 	});
-	await expect(section.locator("figure")).toHaveCount(8);
+	await expect(section.locator("figure")).toHaveCount(10);
 	await expect(
 		section
 			.getByRole("group", { name: "Volunteers: Kai Andersen, Priya Shah", exact: true })
@@ -232,15 +232,35 @@ test("every volunteering state renders: the row, yours, staged, many, and the ha
 	await expect(section.locator(".volunteer-more")).toHaveText("+2");
 	await expect(section.locator(".volunteer[data-mine]")).toHaveCount(3);
 	await expect(section.locator(".volunteer[data-staged]")).toHaveCount(2);
-	// Selected: your hand and Assign show; at rest they wait for a pointer.
+	// At rest, ✋ and the faces; Assign unfolds when it's pointed at, or the
+	// card's selected. Your hand leads the chip, pressed while it's up.
+	const unfolded = (figure: string) =>
+		section.locator("figure", { hasText: figure }).locator(".volunteers-more");
+	await expect(unfolded("Two volunteers, at rest")).toHaveCSS("opacity", "0");
+	await expect(unfolded("Pointed at")).toHaveCSS("opacity", "1");
+	await expect(unfolded("Yours among them")).toHaveCSS("opacity", "1");
 	const yours = section.locator("figure", { hasText: "Yours among them" });
-	await expect(yours.getByRole("button", { name: "Assign volunteers" })).toHaveCSS("opacity", "1");
 	await expect(yours.getByRole("button", { name: "I’ll take it" })).toHaveAttribute(
 		"aria-pressed",
 		"true",
 	);
+	// A viewer sees who, with nothing to press.
+	const viewer = section.locator("figure", { hasText: "For a viewer" });
+	await expect(viewer.locator(".volunteers").getByRole("button")).toHaveCount(0);
+	// Hovering the chip unfolds it too, and the card doesn't move.
 	const resting = section.locator("figure", { hasText: "Two volunteers, at rest" });
-	await expect(resting.getByRole("button", { name: "I’ll take it" })).toHaveCSS("opacity", "0");
+	await resting.scrollIntoViewIfNeeded();
+	const before = await resting.locator(".card").boundingBox();
+	await resting.locator(".volunteers").hover();
+	await expect(unfolded("Two volunteers, at rest")).toHaveCSS("opacity", "1");
+	expect(await resting.locator(".card").boundingBox()).toEqual(before);
+	// From the keyboard: focusing the chip's hand unfolds it, and Tab reaches Assign.
+	await page.mouse.move(0, 0);
+	await expect(unfolded("Two volunteers, at rest")).toHaveCSS("opacity", "0");
+	await resting.getByRole("button", { name: "I’ll take it" }).focus();
+	await expect(unfolded("Two volunteers, at rest")).toHaveCSS("opacity", "1");
+	await page.keyboard.press("Tab");
+	await expect(resting.getByRole("button", { name: "Assign volunteers" })).toBeFocused();
 	// Nobody yet: the hand in a card's head, or a sticky's corner.
 	await expect(
 		section

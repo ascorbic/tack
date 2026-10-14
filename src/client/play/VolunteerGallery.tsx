@@ -2,10 +2,10 @@ import type { Card } from "../../shared/cards.ts";
 import { CardView } from "../CardView.tsx";
 import { StickyView } from "../StickyNode.tsx";
 import type { ShownVolunteer } from "../volunteers/assign.ts";
-import { HandButton, VolunteersRow } from "../volunteers/Volunteers.tsx";
+import { HandButton, VolunteerChip } from "../volunteers/Volunteers.tsx";
 
 // Every state of volunteering on a card and a sticky (volunteers/), in
-// `/play/cards`: the row at rest, yours among them, staged to be assigned,
+// `/play/cards`: the chip at rest and unfolded, for a viewer, yours among them, staged to be assigned,
 // many, and the hand before anyone's volunteered.
 
 const noop = () => {};
@@ -30,37 +30,59 @@ const ASSIGN = { onAssign: noop, tooltip: "Stage assigning Kai Andersen, Priya S
 
 export function VolunteerGallery({ card }: { card: Card | undefined }) {
 	if (!card) return null;
-	const row = (
+	const chip = (
 		volunteers: ShownVolunteer[],
-		options: { mine?: boolean; assign?: boolean } = {},
+		options: { mine?: boolean; assign?: boolean; open?: boolean; viewer?: boolean } = {},
 	) => (
-		<VolunteersRow
+		<VolunteerChip
 			volunteers={volunteers}
 			me="ana"
 			place="card"
-			toggle={{ pressed: !!options.mine, onToggle: noop }}
+			toggle={options.viewer ? undefined : { pressed: !!options.mine, onToggle: noop }}
 			assign={options.assign ? ASSIGN : undefined}
+			initialOpen={options.open}
 		/>
 	);
 	return (
 		<section>
 			<h2>Volunteers</h2>
 			<p className="gallery-note">
-				Hands up for the work, on the board only: hover or select a card or sticky and ✋ to
-				volunteer, again to withdraw. Assign stages them as the item’s assignees; the dashed ring is
-				staged, and once it’s pushed they’re among its assignees instead.
+				Hands up for the work, on the board only: ✋ and who’s volunteered, beside a card’s
+				reactions. Point at it, focus it or select the card and Assign unfolds, to stage them as the
+				item’s assignees; the dashed ring is staged, and once it’s pushed they’re among its
+				assignees instead. ✋ puts your hand up, or takes it down.
 			</p>
 			<div className="gallery-grid">
 				<figure>
-					<CardView card={card} cardKey={card.key} volunteers={row([KAI, PRIYA])} />
-					<figcaption>Two volunteers, at rest</figcaption>
+					<CardView
+						card={card}
+						cardKey={card.key}
+						volunteers={chip([KAI, PRIYA], { assign: true })}
+					/>
+					<figcaption>Two volunteers, at rest: ✋ and faces</figcaption>
+				</figure>
+				<figure>
+					<CardView
+						card={card}
+						cardKey={card.key}
+						volunteers={chip([KAI, PRIYA], { assign: true, open: true })}
+					/>
+					<figcaption>Pointed at: Assign unfolds</figcaption>
+				</figure>
+				<figure>
+					<CardView
+						card={card}
+						cardKey={card.key}
+						volunteers={chip([KAI, PRIYA], { viewer: true })}
+					/>
+					<figcaption>For a viewer: who, and nothing to press</figcaption>
 				</figure>
 				<figure>
 					<CardView
 						card={card}
 						cardKey={card.key}
 						selected
-						volunteers={row([YOU, KAI, PRIYA], { mine: true, assign: true })}
+						volunteers={chip([YOU, KAI, PRIYA], { mine: true, assign: true })}
 					/>
 					<figcaption>Yours among them, selected: withdraw, or Assign</figcaption>
 				</figure>
@@ -68,7 +90,7 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 					<CardView
 						card={card}
 						cardKey={card.key}
-						volunteers={row([hand("kai", "Kai Andersen", "#1f7a6b", true), PRIYA])}
+						volunteers={chip([hand("kai", "Kai Andersen", "#1f7a6b", true), PRIYA])}
 					/>
 					<figcaption>Kai staged to be assigned</figcaption>
 				</figure>
@@ -76,7 +98,7 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 					<CardView
 						card={card}
 						cardKey={card.key}
-						volunteers={row([KAI, PRIYA, TOM, JO, YOU], { mine: true })}
+						volunteers={chip([KAI, PRIYA, TOM, JO, YOU], { mine: true })}
 					/>
 					<figcaption>More than fit: +2</figcaption>
 				</figure>
@@ -97,7 +119,7 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 						color="pink"
 						author={KAI}
 						volunteers={
-							<VolunteersRow
+							<VolunteerChip
 								volunteers={[KAI, TOM]}
 								me="ana"
 								place="sticky"
@@ -114,7 +136,7 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 						author={PRIYA}
 						selected
 						volunteers={
-							<VolunteersRow
+							<VolunteerChip
 								volunteers={[YOU, hand("jo", "Jo Rivera", "#5b5fc7", true)]}
 								me="ana"
 								place="sticky"
