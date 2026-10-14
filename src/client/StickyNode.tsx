@@ -5,13 +5,16 @@ import {
 	type ReactNode,
 	type Ref,
 	memo,
+	useCallback,
 	useContext,
 	useEffect,
 	useRef,
 	useState,
+	useSyncExternalStore,
 } from "react";
 import type * as Y from "yjs";
 import { type Author, type ShapeFont, shapesMap } from "../shared/shapes.ts";
+import { stampCounts, stampRowWidth, stampsMap } from "../shared/facilitation.ts";
 import { silentOf } from "../shared/silent.ts";
 import { isFresh, type ShapeNode, setStickyText, takeFocus } from "./board.ts";
 import { DocContext } from "./DocContext.ts";
@@ -67,6 +70,12 @@ export interface StickyViewProps {
 	volunteers?: ReactNode;
 	/** The hand to volunteer with: after the author, or in the corner without one. */
 	hand?: ReactNode;
+	/**
+	 * How wide the stamps in its bottom-right corner are (the marks layer
+	 * draws them, Marks.tsx): the foot leaves them that much room, so its
+	 * author's name gives way to them rather than going under them.
+	 */
+	stampRoom?: number;
 }
 
 /** A sticky note, without any board behaviour (the gallery uses it too). */
@@ -87,6 +96,7 @@ export function StickyView({
 	flip = null,
 	volunteers,
 	hand,
+	stampRoom = 0,
 	...handlers
 }: StickyViewProps) {
 	const foot = !!author || !!volunteers;
@@ -161,7 +171,10 @@ export function StickyView({
 				)}
 			</div>
 			{foot && (
-				<div className="sticky-foot">
+				<div
+					className="sticky-foot"
+					style={stampRoom > 0 ? { paddingRight: stampRoom } : undefined}
+				>
 					{author && (
 						<span
 							className="sticky-author"
@@ -199,6 +212,7 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 		if (flip) setEnter(false);
 	}, [flip]);
 	const volunteers = useStickyVolunteers(data.id, faceDown);
+	const stampRoom = useStampRoom(doc, data.id);
 	const { editing, setEditing, field, handlers, hint } = useEditing({
 		id: data.id,
 		selected: !!selected && !faceDown,
@@ -223,6 +237,7 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 				field={field}
 				volunteers={volunteers.chip}
 				hand={editing ? null : volunteers.hand}
+				stampRoom={stampRoom}
 				onText={(text) => doc && setStickyText(doc, data.id, text)}
 				onStopEditing={() => {
 					if (mine) facilitation.flush(data.id);
@@ -234,6 +249,29 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 		</>
 	);
 });
+
+/**
+ * How wide a sticky's stamps are (the marks layer draws them in its
+ * bottom-right corner, Marks.tsx), for its foot to keep clear of: a number,
+ * so only a change to its own stamps' width draws the sticky again.
+ */
+function useStampRoom(doc: Y.Doc | null, id: string): number {
+	const subscribe = useCallback(
+		(listener: () => void) => {
+			if (!doc) return () => {};
+			const map = stampsMap(doc);
+			map.observe(listener);
+			return () => map.unobserve(listener);
+		},
+		[doc],
+	);
+	const read = useCallback(() => {
+		if (!doc) return 0;
+		const counts = stampCounts(stampsMap(doc).entries(), null).get(id);
+		return counts ? stampRowWidth(counts) : 0;
+	}, [doc, id]);
+	return useSyncExternalStore(subscribe, read);
+}
 
 /** How long the reveal's wave takes to cross a section, before motion scaling. */
 const WAVE_MS = 700;

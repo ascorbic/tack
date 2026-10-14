@@ -651,6 +651,25 @@ test("every facilitation, silent mode and dot voting state renders", async ({ pa
 	}
 	await expect(page.locator(".spotlight-pill")).toHaveCount(3);
 	await expect(page.locator("figure[data-state=stamps] .stamp")).toHaveCount(3);
+	// Stamps beside a sticky's author and volunteers: the foot leaves them
+	// room, on one centre line, and the faces' rings stay inside the chip.
+	for (const state of ["stamps-foot", "stamps-foot-full"]) {
+		const figure = page.locator(`figure[data-state=${state}]`);
+		const chip = (await figure.locator(".volunteers").boundingBox())!;
+		const stamp = (await figure.locator(".stamp").first().boundingBox())!;
+		expect(chip.x + chip.width).toBeLessThanOrEqual(stamp.x - 4);
+		expect(Math.abs(chip.y + chip.height / 2 - (stamp.y + stamp.height / 2))).toBeLessThanOrEqual(
+			1,
+		);
+		for (const face of await figure.locator(".volunteer").all()) {
+			const box = (await face.boundingBox())!;
+			expect(box.y - 1).toBeGreaterThanOrEqual(chip.y + 1);
+			expect(box.y + box.height + 1).toBeLessThanOrEqual(chip.y + chip.height - 1);
+		}
+	}
+	// With less room, the author's name gives way.
+	const name = page.locator("figure[data-state=stamps-foot-full] .sticky-author-name");
+	expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
 	// Who stamped it, shown as hovering does: you first.
 	await expect(page.getByRole("tooltip").filter({ hasText: "👍" })).toHaveText(
 		"👍You, Priya Shah, Kai Andersen and Tom Okafor",

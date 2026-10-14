@@ -8,6 +8,7 @@ import {
 	highFives,
 	readTimer,
 	stampCounts,
+	stampRowWidth,
 	stampsMap,
 	timeLeft,
 	timerDone,
@@ -127,6 +128,15 @@ describe("stamps", () => {
 		expect(toggleStamp(doc, "s1", "❤️", kai)).toBe(true);
 		expect(toggleStamp(doc, "s1", "❤️", { ...kai, login: "kai" })).toBe(false);
 		expect(stampsMap(doc).size).toBe(0);
+	});
+
+	// As Chromium and WebKit draw them: Geist Mono, and an emoji's box.
+	it("take the room in a row their pills do, to within half a pixel", () => {
+		expect(stampRowWidth([])).toBe(0);
+		expect(stampRowWidth([{ count: 1 }])).toBeCloseTo(31.5, 0);
+		expect(stampRowWidth([{ count: 2 }])).toBeCloseTo(42.4, 0);
+		expect(stampRowWidth([{ count: 2 }, { count: 1 }])).toBeCloseTo(42.4 + 4 + 31.5, 0);
+		expect(stampRowWidth([{ count: 12 }])).toBeGreaterThan(stampRowWidth([{ count: 9 }]));
 	});
 });
 

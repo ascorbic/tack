@@ -7,6 +7,7 @@ import {
 	type StampEmoji,
 	type Timer,
 	stampCounts,
+	stampRowWidth,
 	stampsMap,
 	toggleStamp,
 } from "../../shared/facilitation.ts";
@@ -23,6 +24,8 @@ import { TimerView } from "../facilitation/Timer.tsx";
 import { CursorsHiddenNote, StartVoteForm, TallyView, VoteBar } from "../facilitation/Votes.tsx";
 import { StickyView } from "../StickyNode.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
+import type { ShownVolunteer } from "../volunteers/assign.ts";
+import { VolunteerChip } from "../volunteers/Volunteers.tsx";
 import { JO, KAI, PRIYA, TOM, VOTE_CARDS } from "./facilitationScenarios.ts";
 import "../facilitation/facilitation.css";
 import "./facilitationGallery.css";
@@ -36,6 +39,25 @@ import "./facilitationGallery.css";
 const NOW = Date.parse("2026-10-10T15:00:00Z");
 const ME = { name: "Ana Costa", color: "#3b4cca", login: "ana" };
 const noop = () => {};
+
+/** Hands up on a sticky, for its foot. */
+function hands(people: { login?: string; name: string; color: string }[], mine: boolean) {
+	const volunteers = people.map((p): ShownVolunteer => ({
+		shape: "s",
+		login: p.login ?? p.name,
+		name: p.name,
+		color: p.color,
+		at: "2026-10-10T10:00:00Z",
+	}));
+	return (
+		<VolunteerChip
+			volunteers={volunteers}
+			me={ME.login}
+			place="sticky"
+			toggle={{ pressed: mine, onToggle: noop }}
+		/>
+	);
+}
 
 function timer(over: Partial<Timer>): Timer {
 	return {
@@ -285,6 +307,22 @@ export default function FacilitationGallery() {
 					</Figure>
 					<Figure label="Yours among them" state="stamps-mine">
 						<ShapeWithMarks stamps={stamps([PRIYA, "✅"], [ME, "✅"], [ME, "🔥"], [KAI, "👀"])} />
+					</Figure>
+					<Figure label="Beside its author and who’s volunteered" state="stamps-foot">
+						<ShapeWithMarks
+							color="yellow"
+							author={KAI}
+							volunteers={hands([ME, JO], true)}
+							stamps={stamps([TOM, "❤️"])}
+						/>
+					</Figure>
+					<Figure label="Less room: the author’s name gives way" state="stamps-foot-full">
+						<ShapeWithMarks
+							color="pink"
+							author={KAI}
+							volunteers={hands([PRIYA, TOM], false)}
+							stamps={stamps([TOM, "❤️"], [JO, "🎉"], [PRIYA, "🎉"])}
+						/>
 					</Figure>
 					<Figure label="Who stamped it: hover, focus or long-press" state="stamps-who">
 						<ShapeWithMarks
@@ -568,24 +606,39 @@ function TallyStage({ children }: { children: ReactNode }) {
 	return <div className="facilitation-gallery-panel">{children}</div>;
 }
 
-/** A sticky with stamps along its bottom edge, or dots in its corner. */
+/**
+ * A sticky with stamps in its bottom-right corner, as the board draws them
+ * (its foot making room), or dots in its top-right corner.
+ */
 function ShapeWithMarks({
 	stamps,
 	vote,
 	shape,
 	showWho,
+	color = "blue",
+	author = TOM,
+	volunteers,
 }: {
 	stamps?: StampCount[];
 	vote?: DotVote;
 	shape?: string;
 	/** Show who stamped this one, as hovering it does. */
 	showWho?: StampEmoji;
+	color?: string;
+	author?: { name: string; color: string };
+	volunteers?: ReactNode;
 }) {
 	return (
 		<div className="facilitation-gallery-shape">
-			<StickyView text="Docs search finds the wrong page" color="blue" author={TOM} />
+			<StickyView
+				text="Docs search finds the wrong page"
+				color={color}
+				author={author}
+				volunteers={volunteers}
+				stampRoom={stamps ? stampRowWidth(stamps) : 0}
+			/>
 			{stamps && (
-				<div className="facilitation-gallery-stamps">
+				<div className="stamps-anchor facilitation-gallery-stamps">
 					<StampRow counts={stamps} onToggle={noop} showWho={showWho} />
 				</div>
 			)}

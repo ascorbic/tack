@@ -1,4 +1,5 @@
 import type * as Y from "yjs";
+import { toggleStamp } from "../../shared/facilitation.ts";
 import { addShape, nextZ } from "../../shared/shapes.ts";
 import { addSection } from "../../shared/structure.ts";
 import { toggleVolunteer } from "../../shared/volunteers.ts";
@@ -8,7 +9,7 @@ import { PEOPLE } from "./push.ts";
 import type { SimulatedBoard } from "./simulator.ts";
 
 // Volunteering (`/play?scenario=volunteers`): a planning session where
-// people have put their hands up for issues and stickies. Select a card
+// people have put their hands up for issues and stickies, some stamped too. Select a card
 // with volunteers and Assign volunteers, or the stickies and Make issue,
 // then push; Jo puts a hand up as you watch.
 
@@ -65,6 +66,10 @@ export function seedVolunteers(doc: Y.Doc): void {
 		toggleVolunteer(doc, guide, person("jo"), at(4));
 		toggleVolunteer(doc, playground, person("kai"), at(3));
 		toggleVolunteer(doc, playground, person("tom"), at(2));
+		// Stamps beside the volunteers, along each sticky's foot.
+		toggleStamp(doc, guide, "❤️", person("tom"), at(5));
+		toggleStamp(doc, playground, "🎉", person("priya"), at(4));
+		toggleStamp(doc, playground, "🎉", person("jo"), at(3));
 		// Sections last: each takes in what's already on it.
 		addSection(doc, { x: 0, y: 30, w: 960, h: 380 }, { title: "Up for grabs", color: "blue" });
 		addSection(doc, { x: 1020, y: 30, w: 460, h: 380 }, { title: "New ideas", color: "yellow" });

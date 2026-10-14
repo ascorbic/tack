@@ -333,6 +333,23 @@ export interface StampCount {
 	latest: string;
 }
 
+/**
+ * How wide a shape's row of stamps is on the board, at rest: each pill's
+ * border, padding, 14px emoji in its 1.25em box and, past one, a gap and its
+ * count in 11.5px mono (0.6em a digit), 4px apart. Worked out, not measured,
+ * as a card's foot is (cardFoot.ts), so a sticky's foot makes room for them
+ * on first paint. Keep in step with facilitation.css (`.stamps`, `.stamp`).
+ */
+export function stampRowWidth(counts: readonly Pick<StampCount, "count">[]): number {
+	if (counts.length === 0) return 0;
+	const pills = counts.reduce(
+		(sum, { count }) =>
+			sum + 2 + 6 + 14 * 1.25 + (count > 1 ? 3 + String(count).length * 11.5 * 0.6 + 7 : 6),
+		0,
+	);
+	return pills + 4 * (counts.length - 1);
+}
+
 /** Stamps by shape, counted, in the order of `STAMPS`. */
 export function stampCounts(
 	stamps: Iterable<[string, unknown]>,
