@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
 	type Card,
 	type DiscussionCategory,
@@ -200,6 +200,10 @@ export interface CardViewProps {
 	unmatched?: CardUnmatched | null;
 	/** Show who reacted without hovering, as this (the gallery). */
 	showReactors?: ReactorsState;
+	/** Who's volunteered for it, on the board: a row above its foot (volunteers/). */
+	volunteers?: ReactNode;
+	/** The hand to volunteer with, in its head beside ↗, while nobody has. */
+	hand?: ReactNode;
 }
 
 /** How a card arrives: flying in, dropping in, or not at all. */
@@ -218,6 +222,8 @@ export function CardView({
 	origin,
 	unmatched,
 	showReactors,
+	volunteers,
+	hand,
 }: CardViewProps) {
 	if (!card)
 		return <LoadingCard cardKey={cardKey} selected={selected} enter={enter} entrance={entrance} />;
@@ -232,6 +238,8 @@ export function CardView({
 			origin={origin}
 			unmatched={unmatched}
 			showReactors={showReactors}
+			volunteers={volunteers}
+			hand={hand}
 		/>
 	);
 }
@@ -245,6 +253,8 @@ function LiveCard({
 	origin,
 	unmatched,
 	showReactors,
+	volunteers,
+	hand,
 }: {
 	card: Card;
 	selected?: boolean;
@@ -254,6 +264,8 @@ function LiveCard({
 	origin?: CardOrigin | null;
 	unmatched?: CardUnmatched | null;
 	showReactors?: ReactorsState;
+	volunteers?: ReactNode;
+	hand?: ReactNode;
 }) {
 	const { counts, newLabels, total } = useChanges(card);
 	/** Key and flag for an element that animates when `field` changes. */
@@ -354,6 +366,7 @@ function LiveCard({
 					)}
 					{stateLabel(card)}
 				</span>
+				{hand}
 				{card.url && (
 					<a
 						className="card-open nodrag"
@@ -404,6 +417,7 @@ function LiveCard({
 				</div>
 			)}
 			{card.pull && <PullStatus pull={card.pull} forge={card.forge} />}
+			{volunteers}
 			<div className="card-foot">
 				{card.assignees.length > 0 && (
 					<span className="avatars">

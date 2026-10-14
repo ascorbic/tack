@@ -2,6 +2,7 @@ import type { NodeProps } from "@xyflow/react";
 import {
 	type PointerEvent,
 	type MouseEvent,
+	type ReactNode,
 	type Ref,
 	memo,
 	useContext,
@@ -21,6 +22,7 @@ import { STICKY_FONT_SIZES } from "./textFit.ts";
 import { EditHint } from "./EditHint.tsx";
 import { useEditing } from "./useEditing.ts";
 import { useFitText } from "./useFitText.ts";
+import { useStickyVolunteers } from "./volunteers/Volunteers.tsx";
 
 /**
  * The text area inside a sticky: its size less padding, and less the author
@@ -61,6 +63,10 @@ export interface StickyViewProps {
 	hidden?: boolean;
 	/** Turning over at the reveal: a new number each time, and when in the wave. */
 	flip?: { n: number; delay: number } | null;
+	/** Who's volunteered, after the author's name (volunteers/): it takes a line. */
+	volunteers?: ReactNode;
+	/** The hand to volunteer with: after the author, or in the corner without one. */
+	hand?: ReactNode;
 }
 
 /** A sticky note, without any board behaviour (the gallery uses it too). */
@@ -79,12 +85,15 @@ export function StickyView({
 	faceDown = false,
 	hidden = false,
 	flip = null,
+	volunteers,
+	hand,
 	...handlers
 }: StickyViewProps) {
+	const foot = !!author || !!volunteers;
 	const fit = useFitText(
 		text,
 		font,
-		author ? TEXT_BOX : TEXT_BOX_NO_AUTHOR,
+		foot ? TEXT_BOX : TEXT_BOX_NO_AUTHOR,
 		STICKY_FONT_SIZES,
 		"sticky-type",
 	);
@@ -151,15 +160,21 @@ export function StickyView({
 					</div>
 				)}
 			</div>
-			{author && (
-				<span
-					className="sticky-author"
-					style={{ "--author": author.color || "var(--muted)" } as React.CSSProperties}
-					title={author.name}
-				>
-					<span className="sticky-author-name">{author.name || "Someone"}</span>
-				</span>
+			{foot && (
+				<div className="sticky-foot">
+					{author && (
+						<span
+							className="sticky-author"
+							style={{ "--author": author.color || "var(--muted)" } as React.CSSProperties}
+							title={author.name}
+						>
+							<span className="sticky-author-name">{author.name || "Someone"}</span>
+						</span>
+					)}
+					{volunteers ?? hand}
+				</div>
 			)}
+			{!foot && hand}
 		</div>
 	);
 }
@@ -183,6 +198,7 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 	useEffect(() => {
 		if (flip) setEnter(false);
 	}, [flip]);
+	const volunteers = useStickyVolunteers(data.id, faceDown);
 	const { editing, setEditing, field, handlers, hint } = useEditing({
 		id: data.id,
 		selected: !!selected && !faceDown,
@@ -205,6 +221,8 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 				editing={editing}
 				enter={enter}
 				field={field}
+				volunteers={volunteers.row}
+				hand={editing ? null : volunteers.hand}
 				onText={(text) => doc && setStickyText(doc, data.id, text)}
 				onStopEditing={() => {
 					if (mine) facilitation.flush(data.id);

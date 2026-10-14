@@ -280,7 +280,7 @@ export function Avatar({
 }
 
 /** A signed-in person's GitHub picture, fading in over their initials once it loads. */
-function AvatarImage({ src }: { src: string }) {
+export function AvatarImage({ src }: { src: string }) {
 	const [state, setState] = useState<"loading" | "loaded" | "failed">("loading");
 	if (state === "failed") return null;
 	return (

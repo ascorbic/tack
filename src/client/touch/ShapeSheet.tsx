@@ -32,6 +32,7 @@ import { isMissing, kindName } from "../../shared/cards.ts";
 import { linkText, readPreview } from "../../shared/linkPreview.ts";
 import { ServicesContext } from "../actions/services.ts";
 import { LinkView } from "../links/LinkView.tsx";
+import { VolunteerSheetRow } from "../volunteers/Volunteers.tsx";
 
 // What a phone shows when you tap a shape (#67): the shape itself, big
 // enough to read; its votes (a dot vote around it, or a decision's own);
@@ -110,6 +111,9 @@ export function ShapeSheet({
 			<ShapeFace doc={doc} node={node} user={user} readOnly={readOnly} />
 			{!readOnly && (
 				<DotVoteRow doc={doc} id={id} user={user} votes={votes} shapes={shapes} toasts={toasts} />
+			)}
+			{!readOnly && (shape.type === "card" || (shape.type === "sticky" && !silentOf(shape))) && (
+				<VolunteerSheetRow doc={doc} shape={id} user={user} />
 			)}
 			{shape.type !== "section" && <Stamps doc={doc} id={id} user={user} readOnly={readOnly} />}
 			<Comments id={id} box={box} store={store} onOpenThread={onOpenThread} />

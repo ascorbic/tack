@@ -1,0 +1,475 @@
+/* Volunteers (Volunteers.tsx): a raised hand on a card or a sticky, and the
+   row of who's put theirs up. The row is board data, not the forge's, so it
+   sits in a soft tint of its own, apart from what GitHub says about the item. */
+
+/* The hand ------------------------------------------------------------------ */
+
+.volunteer-hand {
+	position: relative;
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		color var(--t-quick) var(--ease-out),
+		transform var(--t-base) var(--ease-spring);
+}
+
+/* A bigger target than it looks, for fingers. */
+.volunteer-hand::before {
+	content: "";
+	position: absolute;
+	inset: -5px;
+}
+
+.hand-icon {
+	display: block;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transform-origin: 50% 90%;
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.volunteer-hand:hover {
+	background: var(--hover);
+	color: var(--ink);
+}
+
+.volunteer-hand:hover .hand-icon {
+	transform: rotate(-8deg) translateY(-1px);
+}
+
+.volunteer-hand:active {
+	transform: scale(0.9);
+}
+
+.volunteer-hand[aria-pressed="true"] {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.volunteer-hand[aria-pressed="true"] .hand-icon {
+	fill: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.volunteer-hand[aria-disabled="true"] {
+	cursor: default;
+}
+
+/* Up it goes: a little wave. */
+.volunteer-hand[data-wave] .hand-icon {
+	animation: hand-wave calc(760ms * var(--motion)) var(--ease-out);
+}
+
+@keyframes hand-wave {
+	0% {
+		transform: translateY(3px) scale(0.8);
+	}
+	25% {
+		transform: translateY(-2px) rotate(-16deg) scale(1.12);
+	}
+	45% {
+		transform: rotate(13deg) scale(1.08);
+	}
+	65% {
+		transform: rotate(-8deg);
+	}
+	85% {
+		transform: rotate(4deg);
+	}
+}
+
+/* Shown as you hover, focus or select what it's on, and to fingers once it's
+   selected: never a click on something you couldn't see. */
+.volunteer-hand[data-place="head"],
+.volunteers .volunteer-hand,
+.volunteers-assign,
+.volunteer-hand[data-place="sticky"] {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.card:hover .volunteer-hand,
+.card[data-selected="true"] .volunteer-hand,
+.card:hover .volunteers-assign,
+.card[data-selected="true"] .volunteers-assign,
+.sticky:hover .volunteer-hand,
+.sticky[data-selected="true"] .volunteer-hand,
+.volunteer-hand:focus-visible,
+.volunteers-assign:focus-visible,
+.volunteers:focus-within .volunteer-hand,
+.volunteers:focus-within .volunteers-assign {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* In a card's head, beside ↗: the same size and step. */
+.volunteer-hand[data-place="head"] {
+	width: 20px;
+	height: 20px;
+	margin: -2px -2px -2px 0;
+	border-radius: 6px;
+}
+
+/* Tooltips ------------------------------------------------------------------ */
+
+.volunteer-hand[data-tooltip]::after,
+.volunteers-assign[data-tooltip]::after,
+.volunteers-who[data-tooltip]::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	bottom: calc(100% + 8px);
+	left: 50%;
+	z-index: 3;
+	width: max-content;
+	max-width: 240px;
+	padding: 5px 9px;
+	border-radius: 7px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 12px;
+	font-weight: 550;
+	line-height: 1.4;
+	letter-spacing: 0;
+	text-align: left;
+	white-space: normal;
+	opacity: 0;
+	transform: translate(-50%, 4px);
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.volunteer-hand[data-tooltip]:is(:hover, :focus-visible)::after,
+.volunteers-assign[data-tooltip]:is(:hover, :focus-visible)::after,
+.volunteers-who[data-tooltip]:hover::after {
+	opacity: 1;
+	transform: translate(-50%, 0);
+	transition-delay: calc(300ms * var(--motion));
+}
+
+/* The row --------------------------------------------------------------- */
+
+.volunteers[data-place="card"] {
+	display: grid;
+	grid-template-rows: 1fr;
+	margin-top: 10px;
+}
+
+.volunteers-inner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 0;
+}
+
+.volunteers[data-place="card"] .volunteers-inner {
+	height: 30px;
+	padding: 0 4px 0 9px;
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* The first hand goes up: the row unfolds, and the card grows to fit. */
+.volunteers[data-enter] {
+	animation: volunteers-in var(--t-settle) var(--ease-spring);
+}
+
+.volunteers[data-enter] .volunteers-inner,
+.volunteers[data-leaving] .volunteers-inner {
+	overflow: hidden;
+}
+
+@keyframes volunteers-in {
+	from {
+		grid-template-rows: 0fr;
+		margin-top: 0;
+		opacity: 0;
+	}
+}
+
+/* The last goes down: it folds away (keep in step with LEAVE_MS). */
+.volunteers[data-place="card"][data-leaving] {
+	grid-template-rows: 0fr;
+	margin-top: 0;
+	opacity: 0;
+	transition:
+		grid-template-rows var(--t-base) var(--ease-out),
+		margin-top var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.volunteers[data-place="sticky"][data-leaving] {
+	opacity: 0;
+	transition: opacity var(--t-base) var(--ease-out);
+}
+
+.volunteers-label {
+	flex: none;
+	color: var(--ink-soft);
+	font-size: 11px;
+	font-weight: 620;
+	letter-spacing: 0.01em;
+}
+
+.volunteers-who {
+	position: relative;
+	display: inline-flex;
+	min-width: 0;
+	cursor: default;
+}
+
+.volunteers-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	margin-left: auto;
+}
+
+.volunteers-assign {
+	position: relative;
+	height: 22px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: var(--accent);
+	font: inherit;
+	font-size: 11.5px;
+	font-weight: 620;
+	cursor: pointer;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out);
+}
+
+.volunteers-assign:hover {
+	background: var(--accent-soft);
+}
+
+.volunteers-assign:active {
+	transform: scale(0.96);
+}
+
+/* Faces ---------------------------------------------------------------------- */
+
+.volunteer-stack {
+	display: inline-flex;
+	align-items: center;
+	padding-left: 5px;
+}
+
+.volunteer {
+	position: relative;
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin-left: -5px;
+	border-radius: 50%;
+	background: var(--avatar, var(--muted));
+	box-shadow: 0 0 0 2px var(--volunteer-ring, var(--surface));
+	color: #fff;
+	font-size: 8.5px;
+	font-weight: 680;
+	letter-spacing: 0.02em;
+	line-height: 1;
+}
+
+.volunteer .avatar-image {
+	border-radius: 50%;
+}
+
+.volunteer-more {
+	background: var(--chip);
+	color: var(--ink-soft);
+	font-size: 9px;
+}
+
+/* Yours: ringed in the accent, so you see you're in at a glance. */
+.volunteer[data-mine] {
+	z-index: 1;
+	box-shadow:
+		0 0 0 2px var(--volunteer-ring, var(--surface)),
+		0 0 0 3.5px var(--accent);
+}
+
+/* Staged to be assigned: a dashed ring, as staged things are drawn. */
+.volunteer[data-staged]::after {
+	content: "";
+	position: absolute;
+	inset: -3.5px;
+	border: 1.5px dashed var(--accent);
+	border-radius: 50%;
+}
+
+/* A hand going up while you watch: the face pops in. */
+.volunteer[data-new] {
+	animation: volunteer-pop var(--t-settle) var(--ease-spring) backwards;
+}
+
+@keyframes volunteer-pop {
+	from {
+		opacity: 0;
+		transform: translateY(6px) scale(0.4);
+	}
+}
+
+/* On a sticky ------------------------------------------------------------------ */
+
+/* The sticky's last line: its author, then who's volunteered. */
+.sticky-foot {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	height: 14px;
+}
+
+.sticky-foot .sticky-author {
+	flex: 0 1 auto;
+}
+
+.volunteers[data-place="sticky"] {
+	flex: none;
+	--volunteer-ring: var(--sticky);
+}
+
+.volunteers[data-place="sticky"] .volunteers-inner {
+	gap: 3px;
+}
+
+.volunteers[data-place="sticky"] .volunteer {
+	width: 18px;
+	height: 18px;
+	font-size: 8px;
+}
+
+.volunteers[data-place="sticky"] .volunteer-hand,
+.sticky-foot > .volunteer-hand {
+	width: 20px;
+	height: 20px;
+	margin: -3px 0;
+	color: var(--sticky-ink-soft);
+}
+
+.volunteers[data-place="sticky"] .volunteer-hand:hover,
+.sticky-foot > .volunteer-hand:hover {
+	background: rgb(0 0 0 / 7%);
+	color: var(--sticky-ink);
+}
+
+/* A sticky with no author line: the hand waits in its lower left corner. */
+.sticky > .volunteer-hand {
+	position: absolute;
+	left: 10px;
+	bottom: 9px;
+	color: var(--sticky-ink-soft);
+}
+
+.sticky > .volunteer-hand:hover {
+	background: rgb(0 0 0 / 7%);
+	color: var(--sticky-ink);
+}
+
+/* On a phone's sheet ----------------------------------------------------------- */
+
+.phone-sheet-volunteers {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px 12px;
+}
+
+.phone-sheet-volunteer {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	padding: 0 16px 0 14px;
+	border: 1px solid var(--line-strong);
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 15px;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		background var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out);
+}
+
+.phone-sheet-volunteer[aria-pressed="true"] {
+	border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.phone-sheet-volunteer[aria-pressed="true"] .hand-icon {
+	fill: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.phone-sheet-volunteer-who {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	color: var(--ink-soft);
+	font-size: 14px;
+}
+
+/* In "Make issues": who each new issue is made assigned to. */
+.issue-preview-volunteers {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: 3px;
+	color: var(--muted);
+}
+
+.issue-preview-volunteers .volunteer {
+	width: 18px;
+	height: 18px;
+	font-size: 8px;
+}
+
+/* On a sticky, a small hand before the faces says what they are. */
+.volunteers-mark {
+	display: inline-flex;
+	margin-right: -2px;
+	color: var(--sticky-ink-soft);
+}
+
+/* On a sticky with volunteers, the hand leads them, always there. */
+.volunteers[data-place="sticky"] .volunteer-hand {
+	opacity: 1;
+	pointer-events: auto;
+	width: 18px;
+	margin: -3px 1px -3px -2px;
+}
+
+/* Fingers (tablets): the hand's and Assign's targets grow to a fingertip's. */
+.app[data-touch] .volunteer-hand::before,
+.app[data-touch] .volunteers-assign::before {
+	content: "";
+	position: absolute;
+	inset: -11px;
+}

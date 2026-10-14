@@ -14,6 +14,8 @@ import { LinkNode } from "./links/LinkNode.tsx";
 import { ImageNode } from "./images/ImageNode.tsx";
 import { StackNode } from "./stacks/StackNode.tsx";
 import { useLinked } from "./widgets/store.ts";
+import { useCardVolunteers } from "./volunteers/Volunteers.tsx";
+import { isMissing } from "../shared/cards.ts";
 import { WidgetNode } from "./widgets/WidgetNode.tsx";
 
 export { DocContext };
@@ -36,6 +38,8 @@ export const CardNode = memo(function CardNode({ data, selected }: NodeProps<Sha
 	);
 	// Someone's pointing at this item's row in a list (#38).
 	const linked = useLinked(key, "row");
+	// Who's put their hand up for it, on this board.
+	const volunteers = useCardVolunteers(data.id, card && !isMissing(card) ? card : null);
 	return (
 		<div className="card-link" data-linked={linked || undefined}>
 			<CardView
@@ -47,6 +51,8 @@ export const CardNode = memo(function CardNode({ data, selected }: NodeProps<Sha
 				entrance={entrance}
 				origin={origin}
 				unmatched={unmatched}
+				volunteers={volunteers.row}
+				hand={volunteers.hand}
 			/>
 		</div>
 	);
