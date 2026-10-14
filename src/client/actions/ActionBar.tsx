@@ -119,6 +119,15 @@ import { undoToast } from "./toast.ts";
 import { useChangesUI } from "../changes/context.ts";
 import { MARK_DOT_ZOOM } from "../changes/StagedMarks.tsx";
 import { useChangeList } from "../changes/store.ts";
+import {
+	canAssign,
+	leftOutInWords,
+	planFor,
+	shownVolunteers,
+	stagePlan,
+} from "../volunteers/assign.ts";
+import { useVolunteers } from "../volunteers/store.ts";
+import { HandIcon } from "../volunteers/Volunteers.tsx";
 
 // The selection's actions (#32, #33): a small bar under the selection that
 // offers what it can become on the forge. Stickies become issues, a section
@@ -556,6 +565,37 @@ export function ActionBar(props: ActionBarProps) {
 		sectionItems,
 	]);
 
+	// Volunteers on the selected cards (volunteers/): "Assign volunteers"
+	// stages them as assignees, where the cards' items can take them.
+	const allVolunteers = useVolunteers(doc);
+	const volunteering = useMemo(() => {
+		const items = cards.flatMap((c) => {
+			const volunteers = allVolunteers.get(c.shape) ?? [];
+			const shown = shownVolunteers(doc, c.card, volunteers);
+			return shown.length > 0 ? [{ shape: c.shape, card: c.card, volunteers, shown }] : [];
+		});
+		const assignable = items.filter((item) =>
+			canAssign(item.card, metas.get(repoKeyOf(item.card.key))?.meta),
+		);
+		// Volunteers only on discussions (or forges whose people aren't
+		// GitHub's): nothing to assign, so nothing offered.
+		if (assignable.length === 0) return null;
+		const plan = planFor(doc, assignable, (repo) => metas.get(repo)?.meta);
+		const open = assignable.some((item) => item.shown.some((v) => !v.staged));
+		const action: Omit<Action, "id"> & { id: string } = {
+			id: "assignVolunteers",
+			label: "Assign volunteers: stage them as assignees",
+			icon: <HandIcon size={16} />,
+			...(!open
+				? { text: "Staged", unavailable: "Their volunteers are staged to be assigned" }
+				: plan.edits.length === 0
+					? { unavailable: leftOutInWords(plan) || "Every volunteer is assigned already" }
+					: {}),
+		};
+		return { action, plan };
+		// `staged` (every change) is here so it's worked out again as changes are staged.
+	}, [cards, allVolunteers, metas, doc, staged]);
+
 	/** Stickies to action items, in place: no panel, one undo step. */
 	const makeActionItems = () => {
 		const made = transactLocal(doc, () =>
@@ -744,6 +784,20 @@ export function ActionBar(props: ActionBarProps) {
 			});
 		}
 	}
+	// Cards people have volunteered for: their volunteers as assignees, at
+	// once, as one undo step. First of the actions after the main one.
+	if (volunteering) {
+		sources.push({
+			action: volunteering.action,
+			pressed: false,
+			run: () => {
+				if (volunteering.action.unavailable) return;
+				const { staged: done, message } = stagePlan(doc, volunteering.plan, stager);
+				if (done > 0) toast(message);
+				else toasts.show({ message });
+			},
+		});
+	}
 	for (const action of actions) {
 		sources.push({
 			action,
@@ -765,7 +819,7 @@ export function ActionBar(props: ActionBarProps) {
 		].join("|"),
 		paneWidth > 0 ? paneWidth - 2 * BAR_MARGIN : null,
 	);
-	if (actions.length === 0 && !lone) return null;
+	if (actions.length === 0 && !lone && !volunteering) return null;
 
 	/** The selected shape the bar is about, to go back to from the bar. */
 	const shapeElement = () =>
@@ -851,6 +905,7 @@ export function ActionBar(props: ActionBarProps) {
 							id: s.id,
 							text: s.data.shape.text ?? "",
 							color: s.data.shape.color,
+							volunteers: allVolunteers.get(s.id),
 						}))}
 						staged={staged}
 						repos={options}
@@ -863,19 +918,35 @@ export function ActionBar(props: ActionBarProps) {
 								setStickyText(doc, id, textFromIssue({ title, body: issue?.body })),
 							);
 						}}
-						onStage={(repo, extras) => {
+						onStage={(repo, extras, assignable) => {
+							// The stickies' volunteers become their issues' assignees, as
+							// far as the repository lets them.
 							const result = stageStickyIssues(
 								doc,
 								stickies.map((s) => ({ id: s.id, text: s.data.shape.text ?? "" })),
 								repo,
 								stager,
 								extras,
+								{ assignable },
 							);
 							rememberRepo(repo);
 							close();
 							const labels = extras.labels?.length ?? 0;
+							const picked = extras.assignees?.length ?? 0;
+							const volunteered = listChanges(doc)
+								.filter((change) => result.staged.includes(change.id))
+								.reduce(
+									(n, change) =>
+										n +
+										Math.max(
+											0,
+											(change.op.kind === "issue.create" ? (change.op.assignees?.length ?? 0) : 0) -
+												picked,
+										),
+									0,
+								);
 							toast(
-								`Staged ${count(result.staged.length, "issue")} for ${repoName(repo)}${labels ? `, with ${count(labels, "label")}` : ""}`,
+								`Staged ${count(result.staged.length, "issue")} for ${repoName(repo)}${labels ? `, with ${count(labels, "label")}` : ""}${volunteered ? `, assigned to ${volunteered === 1 ? "its volunteer" : `${volunteered} volunteers`}` : ""}`,
 							);
 						}}
 					/>
@@ -1512,7 +1583,8 @@ function ParentPanel({
 			initialRepo={likely ?? recentRepos()[0] ?? options[0]?.repo ?? null}
 			existing={existing ? { label: existing.label, title: existing.title } : null}
 			checking={checking}
-			onStage={(repo, title, mode) => {
+			onStage={(repo, title, mode, assignable) => {
+				// New sub-issues from stickies are assigned to their volunteers.
 				const result = stageParentIssue(
 					doc,
 					{
@@ -1529,7 +1601,7 @@ function ParentPanel({
 					},
 					items.map((i) => i.input),
 					stagerFor(user),
-					{ hierarchy, mode },
+					{ hierarchy, mode, assignable },
 				);
 				rememberRepo(repo);
 				const moved = result.moved > 0 ? `, moving ${result.moved}` : "";

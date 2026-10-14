@@ -23,6 +23,8 @@ import {
 } from "./pickers.tsx";
 import { Notice, PopoverHead, SUBMIT_HINT } from "./Popover.tsx";
 import { useRepoMeta } from "./services.ts";
+import { type Volunteer, namesInWords, stickyAssignees } from "../../shared/volunteers.ts";
+import { HandIcon, VolunteerStack } from "../volunteers/Volunteers.tsx";
 
 // Panels for making issues: stickies into issues, and a parent issue with
 // sub-issues from a section or a selection.
@@ -72,6 +74,31 @@ export interface StickyPreview {
 	id: string;
 	text: string;
 	color?: string;
+	/** Who's volunteered for it: its issue's assignees, as far as the repository allows. */
+	volunteers?: readonly Volunteer[];
+}
+
+/** A new issue's volunteers, who it's made assigned to, beside its title. */
+function PreviewVolunteers({
+	volunteers,
+	repo,
+	meta,
+}: {
+	volunteers: readonly Volunteer[];
+	repo: string | null;
+	meta: RepoMeta | null;
+}) {
+	if (!repo) return null;
+	const logins = stickyAssignees(volunteers, repo, [], meta?.assignees ?? null);
+	const assigned = volunteers.filter((v) => logins.includes(v.login));
+	if (assigned.length === 0) return null;
+	const label = `Assigned to its ${assigned.length === 1 ? "volunteer" : "volunteers"}: ${namesInWords(assigned, null)}`;
+	return (
+		<span className="issue-preview-volunteers" role="img" aria-label={label} title={label}>
+			<HandIcon size={12} />
+			<VolunteerStack volunteers={assigned} me={null} />
+		</span>
+	);
 }
 
 type Extra = "labels" | "milestone" | "assignees";
@@ -240,7 +267,8 @@ export function MakeIssuesPanel({
 	/** For the gallery: what's picked, and which picker is open. */
 	initialExtras?: IssueExtras;
 	initialExtra?: Extra | null;
-	onStage: (repo: string, extras: IssueExtras) => void;
+	/** `assignable`: who the repository lets be assigned, for the stickies' volunteers (null: unknown). */
+	onStage: (repo: string, extras: IssueExtras, assignable: readonly string[] | null) => void;
 	/** Reword a sticky's title, writing it back to the sticky. */
 	onTitle?: (sticky: string, title: string) => void;
 }) {
@@ -260,7 +288,9 @@ export function MakeIssuesPanel({
 			stickies.flatMap((sticky) => {
 				if (staged.has(sticky.id)) return [];
 				const issue = issueFromText(sticky.text);
-				return issue ? [{ ...issue, id: sticky.id, color: sticky.color }] : [];
+				return issue
+					? [{ ...issue, id: sticky.id, color: sticky.color, volunteers: sticky.volunteers ?? [] }]
+					: [];
 			}),
 		[stickies, staged],
 	);
@@ -274,7 +304,7 @@ export function MakeIssuesPanel({
 			className="issue-panel"
 			onSubmit={(event) => {
 				event.preventDefault();
-				if (repo && n > 0 && !access.blocked) onStage(repo, extras);
+				if (repo && n > 0 && !access.blocked) onStage(repo, extras, access.meta?.assignees ?? null);
 			}}
 		>
 			<PopoverHead
@@ -310,6 +340,9 @@ export function MakeIssuesPanel({
 								/>
 							) : (
 								<span className="issue-preview-title">{issue.title}</span>
+							)}
+							{issue.volunteers.length > 0 && (
+								<PreviewVolunteers volunteers={issue.volunteers} repo={repo} meta={meta} />
 							)}
 							{issue.body && (
 								<button
@@ -428,7 +461,12 @@ export function ParentIssuePanel({
 	/** Still finding out which already have a parent. */
 	checking?: boolean;
 	initialMode?: ParentMode;
-	onStage: (repo: string, title: string, mode: ParentMode) => void;
+	onStage: (
+		repo: string,
+		title: string,
+		mode: ParentMode,
+		assignable: readonly string[] | null,
+	) => void;
 }) {
 	const [title, setTitle] = useState(initialTitle);
 	const [repo, setRepo] = useState(initialRepo);
@@ -478,7 +516,7 @@ export function ParentIssuePanel({
 			data-mode={mode}
 			onSubmit={(event) => {
 				event.preventDefault();
-				if (ready && repo) onStage(repo, title, mode);
+				if (ready && repo) onStage(repo, title, mode, access.meta?.assignees ?? null);
 			}}
 		>
 			<PopoverHead

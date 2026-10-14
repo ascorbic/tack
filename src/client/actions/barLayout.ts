@@ -52,6 +52,7 @@ export const WORDS: Readonly<Record<string, string>> = {
 	groupThese: "Auto-stack",
 	fitSection: "Fit",
 	expandRelated: "Related",
+	assignVolunteers: "Assign volunteers",
 	closeReopen: "Close…",
 	backlink: "Backlink",
 	blockedBy: "Blocked by",
@@ -74,6 +75,8 @@ export const PRIORITY: readonly string[] = [
 	"carryOver",
 	"parentIssue",
 	"expandRelated",
+	// People put their hands up for these: what the session's for.
+	"assignVolunteers",
 	"stackThese",
 	"unstack",
 	"closeReopen",

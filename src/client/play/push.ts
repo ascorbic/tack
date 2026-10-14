@@ -13,6 +13,7 @@ import {
 } from "../../shared/changes.ts";
 import type { AuditEntry, PushRequest, RepoMeta } from "../../shared/push.ts";
 import { addShape, nextZ, shapesMap } from "../../shared/shapes.ts";
+import { moveVolunteers } from "../../shared/volunteers.ts";
 import type { Card } from "../../shared/cards.ts";
 import { cardStore } from "../cardStore.ts";
 import type { Loaded, PushClient, PushResult } from "../changes/api.ts";
@@ -427,7 +428,8 @@ export class SimulatedPush implements PushClient {
 		const parent = (first.get("parent") as string | null | undefined) ?? null;
 		this.doc.transact(() => {
 			for (const id of shapes) map.delete(id);
-			addShape(this.doc, crypto.randomUUID(), {
+			const card = crypto.randomUUID();
+			addShape(this.doc, card, {
 				type: "card",
 				ref: key,
 				x,
@@ -435,6 +437,8 @@ export class SimulatedPush implements PushClient {
 				z: nextZ(this.doc),
 				parent,
 			});
+			// As the server does: a sticky's volunteers are its card's now.
+			moveVolunteers(this.doc, new Set(shapes), card);
 		}, SERVER_ORIGIN);
 	}
 }
