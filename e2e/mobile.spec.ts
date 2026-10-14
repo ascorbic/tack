@@ -492,17 +492,17 @@ test.describe("on a phone", () => {
 		await expect(page.getByRole("tooltip")).toHaveCount(0);
 	});
 
-	test("tapping a card's reaction count says who reacted", async ({ page }) => {
+	test("tapping a card's reaction pill says who left it", async ({ page }) => {
 		await openScenario(page, "comments");
 		await page.locator(".react-flow__node-card").filter({ hasText: "Drop Node 18" }).tap();
 		const sheet = page.getByRole("dialog", { name: "Card" });
-		const count = sheet.locator("button.count.reactions");
+		const thumbs = sheet.locator(".reaction-pill").first();
 		// A tap does nothing else there, so a tap opens it, and another puts it away.
-		await count.tap();
+		await thumbs.tap();
 		const tip = page.locator(".reaction-tip");
-		await expect(tip).toContainText("👍");
-		await expect(count).toHaveAccessibleName(/reactions: 👍 /);
-		await count.tap();
+		await expect(tip).toContainText(/^👍.+/);
+		await expect(thumbs).toHaveAccessibleName(/^👍 11: .+/);
+		await thumbs.tap();
 		await expect(tip).toHaveCount(0);
 	});
 

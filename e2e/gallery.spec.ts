@@ -77,19 +77,24 @@ test("stacks are theme cards: stickies, issues and pull requests a line each, or
 	);
 });
 
-test("who reacted to a card: named, asking, and just how many", async ({ page }) => {
+test("who reacted to a card: a pill per emoji, named, asking, how many, +N and a total", async ({
+	page,
+}) => {
+	const figure = (state: string) => page.locator(`figure[data-state=reactions-${state}]`);
+	const pills = (state: string) => figure(state).locator(".reaction-pill");
+	await expect(pills("ready")).toHaveText(["👍5", "🎉1", "❤️2", "🚀1"]);
+	await expect(pills("ready").first()).toHaveAccessibleName(/^👍 5: .+/);
 	const tips = page.locator(".reaction-tip");
-	await expect(tips).toHaveCount(3);
-	await expect(tips.filter({ hasText: "🚀" })).toContainText("👍");
+	await expect(tips).toHaveCount(5);
 	await expect(
 		tips.filter({ has: page.getByRole("status", { name: "Loading names" }) }),
-	).toHaveText("9 reactions");
-	await expect(
-		page.locator("figure[data-state=reactions-ready] button.count.reactions"),
-	).toHaveAccessibleName(/^9 reactions: 👍 .+; ❤️ /);
-	await expect(
-		page.locator("figure[data-state=reactions-unavailable] button.count.reactions"),
-	).toHaveAccessibleName("9 reactions");
+	).toHaveText("❤️2 people");
+	await expect(tips.filter({ hasText: "1 person" })).toHaveText("🎉1 person");
+	// More kinds than fit: the most left keep their pills, the rest fold into +N.
+	await expect(pills("more")).toHaveText(["👍11", "❤️6", "🚀4", "+3"]);
+	await expect(pills("more").last()).toHaveAccessibleName(/^3 more: 😄 2, 🎉 3, 👀 1: 😄 /);
+	// Card data from before each emoji was counted: the total, in words, never an icon.
+	await expect(pills("total")).toHaveText(["9reactions"]);
 });
 
 test("every card state renders", async ({ page }) => {

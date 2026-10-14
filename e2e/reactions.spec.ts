@@ -96,34 +96,36 @@ test.describe.serial("who reacted", () => {
 		await expect(gus.getByRole("tooltip")).toHaveCount(0);
 	});
 
-	test("a card's reaction count names who reacted to its item, asked for on hover", async () => {
-		const count = lena.locator(".react-flow__node-card button.count.reactions");
-		await expect(count).toHaveAccessibleName("8 reactions");
+	test("a card shows each reaction as GitHub does, and a pill names who left it", async () => {
+		const card = lena.locator(".react-flow__node-card");
+		const pills = card.getByRole("group", { name: "Reactions" }).getByRole("button");
+		// The fake forge's #8: four 👍, two ❤️, one 🎉, one 🚀, in GitHub's order.
+		await expect(pills).toHaveText(["👍4", "🎉1", "❤️2", "🚀1"]);
+		const thumbs = pills.first();
+		await expect(thumbs).toHaveAccessibleName("👍 4");
 		const asked = lena.waitForRequest((request) => request.url().includes("/reactors?key="));
-		await count.hover();
+		await thumbs.hover();
 		await asked;
 		const tip = lena.getByRole("tooltip");
-		// The fake forge's people: four of 👍, two ❤️, one 🎉, one 🚀.
-		await expect(tip).toContainText("👍");
-		// Each kind on one line, under the count: fewer names rather than a wrap.
-		await expect(tip).toContainText(/👍.+ and \d+\sothers?❤️/);
+		// Who left that one, on one line under its pill: fewer names rather than a wrap.
+		await expect(tip).toContainText(/^👍.+/);
+		await expect(tip).not.toContainText("❤️");
 		await expect(tip).toHaveAttribute("data-side", "below");
-		await expect(tip.locator(".reaction-tip-line[data-one-line]")).toHaveCount(4);
-		for (const line of await tip.locator(".reaction-tip-names").all()) {
-			const height = await line.evaluate((el) => el.getBoundingClientRect().height);
-			expect(height).toBeLessThan(24);
-		}
-		await expect(tip).toContainText("🚀");
-		await expect(count).toHaveAccessibleName(/^8 reactions: 👍 .+; ❤️ .+; 🎉 .+; 🚀 .+$/);
-		// Asked once: pointing again uses what came back.
+		const line = await tip
+			.locator(".reaction-tip-names")
+			.evaluate((el) => el.getBoundingClientRect().height);
+		expect(line).toBeLessThan(24);
+		await expect(thumbs).toHaveAccessibleName(/^👍 4: .+/);
+		// Asked once for the whole card: another pill uses what came back.
 		let again = 0;
 		lena.on("request", (request) => {
 			if (request.url().includes("/reactors?key=")) again++;
 		});
 		await lena.mouse.move(10, 400);
 		await expect(tip).toHaveCount(0);
-		await count.hover();
-		await expect(tip).toContainText("🚀");
+		await pills.nth(3).hover();
+		await expect(tip).toContainText(/^🚀.+/);
+		await expect(pills.nth(3)).toHaveAccessibleName(/^🚀 1: .+/);
 		expect(again).toBe(0);
 		await lena.mouse.move(10, 400);
 	});
@@ -135,9 +137,9 @@ test.describe.serial("who reacted", () => {
 		await expect(gus.getByRole("tooltip")).toHaveText("👍You and Lena Lindqvist");
 		await gus.keyboard.press("Escape");
 		await expect(gus.getByRole("tooltip")).toHaveCount(0);
-		const count = gus.locator(".react-flow__node-card button.count.reactions");
-		await count.focus();
-		await expect(gus.getByRole("tooltip")).toContainText("🎉");
-		await expect(count).toHaveAccessibleName(/^8 reactions: 👍 /);
+		const party = gus.locator(".react-flow__node-card .reaction-pill").nth(1);
+		await party.focus();
+		await expect(gus.getByRole("tooltip")).toContainText(/^🎉.+/);
+		await expect(party).toHaveAccessibleName(/^🎉 1: .+/);
 	});
 });

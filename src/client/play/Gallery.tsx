@@ -10,6 +10,7 @@ import { STICKY_COLORS, type ShapeNode } from "../board.ts";
 import { CardView } from "../CardView.tsx";
 import { fakeReactors } from "../../shared/reactions.ts";
 import type { ReactorsState } from "../reactions/reactors.ts";
+import type { ShowReactors } from "../reactions/ReactionPills.tsx";
 import type { LinkPreview } from "../../shared/linkPreview.ts";
 import { LinkView, type LinkViewProps } from "../links/LinkView.tsx";
 import { cannedPreview, playLinks } from "./links.ts";
@@ -50,23 +51,86 @@ import {
 import { PROVENANCE_GALLERY } from "./related.ts";
 
 /** A card people have reacted to, for "Who reacted". */
-const REACTED: Card = {
-	...fixture({
-		repo: "tack/cirrus",
-		item: "#58",
-		title: "Cache map tiles at the edge",
-		reactions: 9,
-		comments: 4,
-	}),
+const REACTED: Card = fixture({
+	repo: "tack/cirrus",
+	item: "#58",
+	title: "Cache map tiles at the edge",
+	reactions: 9,
+	comments: 4,
+});
+
+/** Six kinds of reaction: more than fit, so "+N". */
+const MANY_REACTED: Card = fixture({
+	repo: "tack/emdash",
+	item: "#203",
+	title: "A plugin hook for rewriting links at build time",
+	comments: 12,
+	reactions: 27,
+	reactionCounts: [
+		{ emoji: "👍", count: 11 },
+		{ emoji: "😄", count: 2 },
+		{ emoji: "🎉", count: 3 },
+		{ emoji: "❤️", count: 6 },
+		{ emoji: "🚀", count: 4 },
+		{ emoji: "👀", count: 1 },
+	],
+});
+
+/** Card data cached before Tack read each emoji's count: the total, in words. */
+const TOTAL_ONLY: Card = {
+	...REACTED,
+	item: "#61",
+	key: "fake.tack/tack/cirrus#61",
+	reactionCounts: undefined,
 };
 
-const REACTION_STATES: { label: string; state: ReactorsState }[] = [
+const READY = (card: Card): ReactorsState => ({
+	status: "ready",
+	groups: [
+		...fakeReactors(card.key, card.reactions),
+		{
+			emoji: "😄",
+			count: 2,
+			reactors: [
+				{ login: "jo", name: "Jo Rivera" },
+				{ login: "sam-k", name: "Sam Kim" },
+			],
+		},
+		{ emoji: "👀", count: 1, reactors: [{ login: "noor", name: "Noor Haddad" }] },
+	],
+});
+
+const REACTION_STATES: { label: string; state: string; card: Card; show: ShowReactors }[] = [
 	{
-		label: "Who reacted, on hover",
-		state: { status: "ready", groups: fakeReactors(REACTED.key, REACTED.reactions) },
+		label: "👍: who, on hover",
+		state: "ready",
+		card: REACTED,
+		show: { pill: "👍", state: READY(REACTED) },
 	},
-	{ label: "Asking the forge", state: { status: "loading" } },
-	{ label: "The forge can’t say: how many", state: { status: "unavailable" } },
+	{
+		label: "Asking the forge",
+		state: "loading",
+		card: REACTED,
+		show: { pill: "❤️", state: { status: "loading" } },
+	},
+	{
+		label: "The forge can’t say: how many",
+		state: "unavailable",
+		card: REACTED,
+		show: { pill: "🎉", state: { status: "unavailable" } },
+	},
+	{
+		label: "More than fit: +N",
+		state: "more",
+		card: MANY_REACTED,
+		show: { pill: "more", state: READY(MANY_REACTED) },
+	},
+	{
+		label: "Cached before each emoji was counted",
+		state: "total",
+		card: TOTAL_ONLY,
+		show: { pill: "total", state: READY(TOTAL_ONLY) },
+	},
 ];
 
 const MISSING: { label: string; card: MissingCard }[] = [
@@ -607,14 +671,15 @@ function Sections({
 			<section>
 				<h2>Who reacted</h2>
 				<p className="gallery-note">
-					Hovering, focusing or tapping a card’s reaction count asks the forge who reacted: three
-					dots while it does, then each reaction’s people (fewer each when there are several), or
-					just how many when it can’t say.
+					A pill for each emoji, in GitHub’s order, looking as stamps do; past the room, the most
+					left keep theirs and the rest fold into +N. Hovering, focusing or tapping one asks the
+					forge who left it: three dots while it does, then their names, or just how many when it
+					can’t say.
 				</p>
 				<div className="gallery-grid gallery-reactions">
-					{REACTION_STATES.map(({ label, state }) => (
-						<figure key={label} data-state={`reactions-${state.status}`}>
-							<CardView card={REACTED} cardKey={REACTED.key} showReactors={state} />
+					{REACTION_STATES.map(({ label, state, card, show }) => (
+						<figure key={label} data-state={`reactions-${state}`}>
+							<CardView card={card} cardKey={card.key} showReactors={show} />
 							<figcaption>{label}</figcaption>
 						</figure>
 					))}
