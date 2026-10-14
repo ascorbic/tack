@@ -102,27 +102,18 @@
 	}
 }
 
-/* Before anyone's volunteered, the hand waits until you point at, focus or
-   select what it's on (and fingers until it's selected): never a click on
-   something you couldn't see. */
-.volunteer-hand:is([data-place="head"], [data-place="sticky"]) {
+/* Before anyone's volunteered, a sticky's hand waits until you point at,
+   focus or select it: never a click on something you couldn't see. (A
+   card's is the chip's ghost, below.) */
+.volunteer-hand[data-place="sticky"] {
 	opacity: 0;
 	pointer-events: none;
 }
 
-:is(.card:hover, .card[data-selected="true"], .sticky:hover, .sticky[data-selected="true"])
-	.volunteer-hand,
+:is(.sticky:hover, .sticky[data-selected="true"]) .volunteer-hand,
 .volunteer-hand:focus-visible {
 	opacity: 1;
 	pointer-events: auto;
-}
-
-/* In a card's head, beside ↗: the same size and step. */
-.volunteer-hand[data-place="head"] {
-	width: 20px;
-	height: 20px;
-	margin: -2px -2px -2px 0;
-	border-radius: 6px;
 }
 
 /* Tooltips ------------------------------------------------------------------ */
@@ -188,27 +179,102 @@
 	background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
-/* Beside the reactions, the foot draws its things a little closer, so the
-   chip has room to unfold without moving them. */
-.card-foot:has(> .volunteers) {
-	gap: 8px;
+/* Beside the reactions, the chip (or its ghost) sits a little closer than
+   the foot's other things are to each other. */
+.card-foot > .volunteers {
+	margin-left: -4px;
 }
 
-/* The reactions beside it are fitted twice (cardFoot.ts `unfoldPills`): at
-   rest, and to the room left once Assign unfolds. As it unfolds, the pills
-   that no longer fit fold away into "+N" (fading as they narrow), the count
-   moves on, and the pills' box narrows in step with the chip widening, on
-   the same timing, so nothing is ever cut or covered and the card keeps its
-   size. The box keeps a few pixels' margin for a pill's lift and focus ring. */
+/* Nobody yet: the chip's ghost, ✋ and a dashed circle where your face will
+   be, at the foot's end. It takes no room (its gap and border too) until
+   you point at or select the card, or tab to it; then it eases open, and
+   the reactions make room for it (`data-unfolds="ghost"`). It's as wide as
+   the chip with you in it, so pressing it moves nothing: it becomes the
+   chip in place, the same element, its outline filling in and your face
+   in the circle. Keep its width in step with cardFoot.ts. */
+.volunteers[data-ghost] {
+	max-width: 2px;
+	margin-left: -14px;
+	padding-inline: 0;
+	border-style: dashed;
+	background: transparent;
+	color: var(--muted);
+	opacity: 0;
+	overflow: hidden;
+	transition:
+		max-width var(--t-base) var(--ease-out),
+		margin var(--t-base) var(--ease-out),
+		padding var(--t-base) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+/* Until it shows, it can't be pressed by a pointer; the keyboard can still
+   reach it, and that shows it. */
+.volunteers[data-ghost] .volunteer-hand {
+	pointer-events: none;
+}
+
+/* Where your face will be. */
+.volunteer.volunteer-placeholder {
+	border: 1.5px dashed var(--line-strong);
+	background: var(--surface);
+	box-shadow: none;
+}
+
+/* What opens beside the reactions: the ghost, as the card's pointed at,
+   selected or the ghost's focused; or Assign over their end (`data-assign
+   ="start"`), as the chip's pointed at, focused or tapped open, or the
+   card's selected. Either way the reactions are fitted again to the room
+   left (cardFoot.ts `unfoldPills`): those that no longer fit fold into
+   "+N", fading as they narrow, and "+N" counts on, so nothing is ever cut
+   or covered, and the card keeps its size. "+N" focused keeps it open, so
+   it doesn't fold away from the keyboard. */
+:is(
+		.card:is(:hover, [data-selected="true"]) .card-foot:has(> .volunteers[data-ghost]),
+		.card-foot:has(> .volunteers[data-ghost]:focus-within),
+		.card-foot:has(> .volunteers .volunteers-more):has(
+				> .volunteers:is(:hover, :focus-within, [data-open])
+			),
+		.card[data-selected="true"] .card-foot:has(> .volunteers .volunteers-more),
+		.card-foot:has(> .reaction-pills[data-unfolds] .reaction-pill[data-appears]:focus-visible)
+	)
+	> .volunteers[data-ghost] {
+	max-width: 41px;
+	margin-left: -4px;
+	padding-inline: 1px 3px;
+	opacity: 1;
+	/* Room for the hand's tooltip, once it's open. */
+	overflow: visible;
+}
+
+:is(
+		.card:is(:hover, [data-selected="true"]) .card-foot:has(> .volunteers[data-ghost]),
+		.card-foot:has(> .volunteers[data-ghost]:focus-within),
+		.card-foot:has(> .reaction-pills[data-unfolds] .reaction-pill[data-appears]:focus-visible)
+	)
+	> .volunteers[data-ghost]
+	.volunteer-hand {
+	pointer-events: auto;
+}
+
+.volunteers[data-ghost]:hover {
+	border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong));
+	background: var(--surface);
+}
+
+/* The box keeps a few pixels' margin for a pill's lift and focus ring. */
 .card-foot:has(> .volunteers) > .reaction-pills {
 	margin: -3px;
 	padding: 3px;
 	overflow: hidden;
 }
 
+/* Its width is set, so it never moves the chip: Assign opens over its end,
+   and only the ghost, which takes room of its own, narrows it. */
 .card-foot:has(> .volunteers) > .reaction-pills[data-unfolds] {
 	flex: none;
-	justify-content: safe flex-end;
 	width: calc(var(--pills-rest) + 6px);
 	transition: width var(--t-base) var(--ease-out);
 }
@@ -221,7 +287,6 @@
 	transition:
 		max-width var(--t-base) var(--ease-out),
 		padding var(--t-base) var(--ease-out),
-		border-width var(--t-base) var(--ease-out),
 		margin var(--t-base) var(--ease-out),
 		opacity var(--t-base) var(--ease-out),
 		visibility var(--t-base) var(--ease-out),
@@ -230,54 +295,55 @@
 }
 
 /* Folded away: no width, and no gap after it, and out of the way of the
-   keyboard and screen readers. */
+   keyboard and screen readers. Its border stays (a border eases in whole
+   pixels, so it would jump) and its margin takes it back. */
 .reaction-pills[data-unfolds] .reaction-pill[data-appears],
-.card-foot:has(> .volunteers .volunteers-more):has(
-		> .volunteers:is(:hover, :focus-within, [data-open])
+:is(
+		.card:is(:hover, [data-selected="true"]) .card-foot:has(> .volunteers[data-ghost]),
+		.card-foot:has(> .volunteers[data-ghost]:focus-within),
+		.card-foot:has(> .volunteers .volunteers-more):has(
+				> .volunteers:is(:hover, :focus-within, [data-open])
+			),
+		.card[data-selected="true"] .card-foot:has(> .volunteers .volunteers-more),
+		.card-foot:has(> .reaction-pills[data-unfolds] .reaction-pill[data-appears]:focus-visible)
 	)
-	> .reaction-pills
-	.reaction-pill[data-folds],
-.card[data-selected="true"]
-	.card-foot:has(> .volunteers .volunteers-more)
-	> .reaction-pills
+	> .reaction-pills[data-unfolds]
 	.reaction-pill[data-folds] {
-	max-width: 0;
-	margin-right: -4px;
+	max-width: 2px;
+	margin-right: -6px;
 	padding-inline: 0;
-	border-width: 0;
 	opacity: 0;
 	visibility: hidden;
 }
 
-/* Pointed at, the box narrows only as far as the chip widens, so the chip's
-   far edge stays under the pointer (the pills that are left keep beside it). */
-.card-foot:has(> .volunteers .volunteers-more):has(> .volunteers:hover)
-	> .reaction-pills[data-unfolds] {
-	width: calc(var(--pills-open) + 6px);
+/* "+N" comes last, so it takes its room back from the gap before it. */
+.reaction-pills[data-unfolds] .reaction-pill[data-appears] {
+	margin-inline: -6px 0;
 }
 
-/* Selected, focused or tapped open, it closes up to the pills. */
-.card-foot:has(> .volunteers .volunteers-more):has(> .volunteers:is(:focus-within, [data-open]))
-	> .reaction-pills[data-unfolds],
-.card[data-selected="true"]
-	.card-foot:has(> .volunteers .volunteers-more)
-	> .reaction-pills[data-unfolds] {
+:is(
+		.card:is(:hover, [data-selected="true"]) .card-foot:has(> .volunteers[data-ghost]),
+		.card-foot:has(> .volunteers[data-ghost]:focus-within),
+		.card-foot:has(> .reaction-pills[data-unfolds] .reaction-pill[data-appears]:focus-visible)
+	)
+	> .reaction-pills[data-unfolds="ghost"] {
 	width: calc(var(--pills-fit) + 6px);
 }
 
-.card-foot:has(> .volunteers .volunteers-more):has(
-		> .volunteers:is(:hover, :focus-within, [data-open])
+:is(
+		.card:is(:hover, [data-selected="true"]) .card-foot:has(> .volunteers[data-ghost]),
+		.card-foot:has(> .volunteers[data-ghost]:focus-within),
+		.card-foot:has(> .volunteers .volunteers-more):has(
+				> .volunteers:is(:hover, :focus-within, [data-open])
+			),
+		.card[data-selected="true"] .card-foot:has(> .volunteers .volunteers-more),
+		.card-foot:has(> .reaction-pills[data-unfolds] .reaction-pill[data-appears]:focus-visible)
 	)
-	> .reaction-pills
-	.reaction-pill[data-appears],
-.card[data-selected="true"]
-	.card-foot:has(> .volunteers .volunteers-more)
-	> .reaction-pills
+	> .reaction-pills[data-unfolds]
 	.reaction-pill[data-appears] {
 	max-width: var(--pill-w);
-	margin-right: 0;
+	margin-inline: 0;
 	padding-inline: 7px;
-	border-width: 1px;
 	opacity: 1;
 	visibility: visible;
 }
@@ -293,25 +359,31 @@
 }
 
 .reaction-more > [data-at="open"],
-.card-foot:has(> .volunteers .volunteers-more):has(
-		> .volunteers:is(:hover, :focus-within, [data-open])
+:is(
+		.card:is(:hover, [data-selected="true"]) .card-foot:has(> .volunteers[data-ghost]),
+		.card-foot:has(> .volunteers[data-ghost]:focus-within),
+		.card-foot:has(> .volunteers .volunteers-more):has(
+				> .volunteers:is(:hover, :focus-within, [data-open])
+			),
+		.card[data-selected="true"] .card-foot:has(> .volunteers .volunteers-more),
+		.card-foot:has(> .reaction-pills[data-unfolds] .reaction-pill[data-appears]:focus-visible)
 	)
-	.reaction-more
-	> [data-at="rest"],
-.card[data-selected="true"]
-	.card-foot:has(> .volunteers .volunteers-more)
+	.reaction-pills[data-unfolds]
 	.reaction-more
 	> [data-at="rest"] {
 	opacity: 0;
 }
 
-.card-foot:has(> .volunteers .volunteers-more):has(
-		> .volunteers:is(:hover, :focus-within, [data-open])
+:is(
+		.card:is(:hover, [data-selected="true"]) .card-foot:has(> .volunteers[data-ghost]),
+		.card-foot:has(> .volunteers[data-ghost]:focus-within),
+		.card-foot:has(> .volunteers .volunteers-more):has(
+				> .volunteers:is(:hover, :focus-within, [data-open])
+			),
+		.card[data-selected="true"] .card-foot:has(> .volunteers .volunteers-more),
+		.card-foot:has(> .reaction-pills[data-unfolds] .reaction-pill[data-appears]:focus-visible)
 	)
-	.reaction-more
-	> [data-at="open"],
-.card[data-selected="true"]
-	.card-foot:has(> .volunteers .volunteers-more)
+	.reaction-pills[data-unfolds]
 	.reaction-more
 	> [data-at="open"] {
 	opacity: 1;
@@ -343,10 +415,12 @@
 	cursor: default;
 }
 
-/* "Assign" unfolds at the chip's end as you point at, focus or select what
-   it's on (or tap the faces): the chip's own width eases, and the card around
-   it doesn't move, since the chip is the foot's last pill before what sits
-   at its right edge. */
+/* "Assign" unfolds as you point at, focus or select what it's on (or tap
+   the faces). Where the foot has room to spare, at the chip's end: the
+   chip's own width eases, and nothing else moves. Where it hasn't
+   (`data-assign="start"`), at its start, over the end of the reactions,
+   which fold away beneath it: the chip itself doesn't move or change, so
+   the ✋ and faces you're pointing at stay exactly where they were. */
 .volunteers-more {
 	position: relative;
 	display: grid;
@@ -392,6 +466,60 @@
 .card[data-selected="true"] .volunteers-assign,
 .volunteers:is(:hover, :focus-within, [data-open]) .volunteers-assign {
 	pointer-events: auto;
+}
+
+/* At its start: a segment of the same capsule, opening leftwards from the
+   chip's edge, which squares off to meet it. */
+.card-foot[data-assign="start"] > .volunteers {
+	border-radius: 11px;
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		border-radius var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out),
+		scale var(--t-base) var(--ease-out);
+}
+
+.card-foot[data-assign="start"] .volunteers-more {
+	position: absolute;
+	top: -1px;
+	right: calc(100% + 1px);
+	bottom: -1px;
+	display: flex;
+	align-items: center;
+	width: 0;
+	padding-left: 2px;
+	border: 1px solid var(--line-strong);
+	border-right: 0;
+	border-radius: 11px 0 0 11px;
+	background: var(--surface);
+	pointer-events: none;
+	transition:
+		width var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+.card-foot[data-assign="start"] .volunteers-fold {
+	flex: 1;
+}
+
+/* As wide as Assign (keep in step with cardFoot.ts). */
+.card[data-selected="true"] .card-foot[data-assign="start"] .volunteers-more,
+.card-foot[data-assign="start"]
+	.volunteers:is(:hover, :focus-within, [data-open])
+	.volunteers-more {
+	width: 50px;
+	pointer-events: auto;
+}
+
+.card[data-selected="true"] .card-foot[data-assign="start"] > .volunteers,
+.card-foot[data-assign="start"] > .volunteers:is(:hover, :focus-within, [data-open]) {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.card-foot[data-assign="start"] .volunteers-assign {
+	margin: 0 1px 0 0;
 }
 
 /* Who Assign would stage, over it (the fold clips the button's own). */

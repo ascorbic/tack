@@ -28,8 +28,10 @@ import "./volunteers.css";
 
 // Volunteering on the board (volunteers.ts): a raised hand on a card or a
 // sticky ("I'll take it") that appears as you hover, focus or select it, and
-// a chip of ✋ and who's volunteered that stays once anyone has. On an issue's
-// card, "Assign" stages them as its assignees.
+// a chip of ✋ and who's volunteered that stays once anyone has. Both live in
+// the foot: on a card, the hand is the chip's ghost at the foot's end, which
+// becomes the chip as you press it; on a sticky, it follows the author. On
+// an issue's card, "Assign" stages them as its assignees.
 
 /** A raised hand, open palm forward. */
 export function HandIcon({ size = 14 }: { size?: number }) {
@@ -57,8 +59,8 @@ export function HandButton({
 }: {
 	pressed: boolean;
 	onToggle?: () => void;
-	/** In the card's head (nobody yet), leading the chip of faces, or floating on a sticky. */
-	place: "head" | "chip" | "sticky";
+	/** Leading the chip of faces (or its ghost, on a card nobody's volunteered for), or on a sticky. */
+	place: "chip" | "sticky";
 	/** Why it can't be pressed, if it can't. */
 	disabled?: string;
 }) {
@@ -158,6 +160,8 @@ export function VolunteerStack({
 				/>
 			))}
 			{more > 0 && <span className="volunteer volunteer-more">+{more}</span>}
+			{/* Nobody yet: a dashed circle where your face will be. */}
+			{volunteers.length === 0 && <span className="volunteer volunteer-placeholder" />}
 		</span>
 	);
 }
@@ -203,17 +207,21 @@ export function VolunteerChip({
 	/** Unfolded to start with: the gallery's pointed-at state. */
 	initialOpen?: boolean;
 }) {
-	const label = volunteersLabel(volunteers, me);
+	// Nobody yet, on a card: the chip's ghost, ✋ and a dashed circle where
+	// your face will be, which becomes the chip in place as you press it.
+	const ghost = volunteers.length === 0;
+	const label = ghost ? undefined : volunteersLabel(volunteers, me);
 	// Fingers have no hover: a tap on the faces opens it, as pointing does.
 	const [open, setOpen] = useState(initialOpen);
 	return (
 		<span
 			className="volunteers nodrag nopan"
 			data-place={place}
+			data-ghost={ghost || undefined}
 			data-open={open || undefined}
 			data-leaving={leaving || undefined}
 			data-enter={enter || undefined}
-			role="group"
+			role={ghost ? undefined : "group"}
 			aria-label={label}
 			onBlur={(event) => {
 				if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
@@ -302,13 +310,11 @@ function useArrived(count: number): boolean {
 }
 
 /**
- * A card's volunteering: the chip of who's volunteered (or null), and the
- * hand for its head when nobody has yet.
+ * A card's volunteering, for its foot: the chip of who's volunteered; or,
+ * while nobody has, its ghost (✋ alone, shown as you point at, focus or
+ * select the card) for those who can volunteer; or null.
  */
-export function useCardVolunteers(
-	shape: string,
-	card: Card | null,
-): { chip: CardVolunteers | null; hand: ReactNode } {
+export function useCardVolunteers(shape: string, card: Card | null): CardVolunteers | null {
 	const { doc, user, me, volunteers, mine, canVolunteer, toggle } = useVolunteering(shape);
 	const changes = useChangesUI();
 	const history = useContext(HistoryContext);
@@ -342,35 +348,32 @@ export function useCardVolunteers(
 		if (staged > 0 && history) undoToast(toasts, history, message);
 		else toasts.show({ message });
 	};
-	const chip = lingering.value
-		? {
-				chip: (
-					<VolunteerChip
-						volunteers={lingering.value}
-						me={me}
-						place="card"
-						leaving={lingering.leaving}
-						enter={arrived}
-						toggle={canVolunteer && !assigned ? { pressed: mine, onToggle: toggle } : undefined}
-						assign={
-							offerAssign
-								? {
-										onAssign: () => void assign(),
-										tooltip: `Stage assigning ${namesInWords(open, me)}`,
-									}
-								: undefined
-						}
-					/>
-				),
-				count: lingering.value.length,
-				unfolds: offerAssign,
-			}
-		: null;
-	const hand =
-		canVolunteer && !assigned && shown.length === 0 && !lingering.value ? (
-			<HandButton place="head" pressed={mine} onToggle={toggle} />
-		) : null;
-	return { chip, hand };
+	const toggles = canVolunteer && !assigned;
+	if (!lingering.value && !toggles) return null;
+	// The same chip throughout, so the ghost becomes it in place as you press it.
+	return {
+		chip: (
+			<VolunteerChip
+				volunteers={lingering.value ?? []}
+				me={me}
+				place="card"
+				leaving={lingering.leaving}
+				// Someone else's hand pops the chip in; yours grows it from the ghost you pressed.
+				enter={arrived && !mine}
+				toggle={toggles ? { pressed: mine, onToggle: toggle } : undefined}
+				assign={
+					offerAssign
+						? {
+								onAssign: () => void assign(),
+								tooltip: `Stage assigning ${namesInWords(open, me)}`,
+							}
+						: undefined
+				}
+			/>
+		),
+		count: lingering.value?.length ?? 0,
+		unfolds: offerAssign,
+	};
 }
 
 /**

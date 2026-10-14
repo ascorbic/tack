@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+	ASSIGN_WIDTH,
 	CARD_WIDTH,
+	GHOST_WIDTH,
 	fitPills,
 	morePillWidth,
 	pillRoom,
 	pillWidth,
 	pillsWidth,
+	planFoot,
+	provenanceLabelWidth,
 	unfoldPills,
 	volunteersWidth,
 } from "../src/shared/cardFoot.ts";
@@ -27,21 +31,26 @@ const SIX: ReactionCount[] = [
 	{ emoji: "👀", count: 1 },
 ];
 
-const card = (over: Partial<Parameters<typeof pillRoom>[0]> = {}) => ({
+const total = (counts: readonly ReactionCount[]) => counts.reduce((sum, c) => sum + c.count, 0);
+
+const card = (over: Record<string, unknown> = {}, counts: ReactionCount[] = FOUR) => ({
 	assignees: [],
 	author: null,
 	comments: 14,
 	discussion: undefined,
+	reactions: total(counts),
+	reactionCounts: counts,
 	...over,
 });
 
 const face = (login: string) => ({ login, avatarUrl: "" });
 
 /** What a foot shows: each pill's text, "+N" last. */
-function pills(counts: readonly ReactionCount[], room: number): string[] {
-	const { shown, rest } = fitPills(counts, room);
-	return [...shown.map((c) => `${c.emoji}${c.count}`), ...(rest.length ? [`+${rest.length}`] : [])];
-}
+const text = ({ shown, rest }: ReturnType<typeof fitPills>) => [
+	...shown.map((c) => `${c.emoji}${c.count}`),
+	...(rest.length ? [`+${rest.length}`] : []),
+];
+const pills = (counts: readonly ReactionCount[], room: number) => text(fitPills(counts, room));
 
 describe("a reaction pill's width", () => {
 	// As Chromium draws them, in Geist Mono and a colour emoji font.
@@ -58,13 +67,12 @@ describe("a reaction pill's width", () => {
 		expect(pillWidth(1000)).toBeGreaterThan(pillWidth(999));
 	});
 
-	it("is the volunteers' chip's, at rest, for up to four faces", () => {
+	it("is the volunteers' chip's for up to four faces, and its ghost is the chip with you in it", () => {
 		expect(volunteersWidth(2)).toBeCloseTo(55, 0);
 		expect(volunteersWidth(4)).toBeCloseTo(83, 0);
-		// Unfolded, Assign widens it.
-		expect(volunteersWidth(2, true) - volunteersWidth(2)).toBeGreaterThanOrEqual(47.3);
 		// Past four, three faces and "+N": still four.
 		expect(volunteersWidth(9)).toBe(volunteersWidth(4));
+		expect(GHOST_WIDTH).toBe(volunteersWidth(1));
 	});
 });
 
@@ -79,8 +87,8 @@ describe("fitting reaction pills to a card's foot", () => {
 		expect(pills(SIX, 100)).toEqual(["👍11", "+5"]);
 	});
 
-	it("keeps one pill, however little room there is", () => {
-		expect(pills(SIX, 0)).toEqual(["👍11", "+5"]);
+	it("folds them all into +N where not one fits, but keeps a lone kind's pill", () => {
+		expect(pills(SIX, 60)).toEqual(["+6"]);
 		expect(pills([{ emoji: "👍", count: 3 }], 0)).toEqual(["👍3"]);
 	});
 
@@ -94,13 +102,9 @@ describe("fitting reaction pills to a card's foot", () => {
 	});
 
 	it("fits within the room it's given", () => {
-		for (let room = 80; room <= 300; room += 1) {
+		for (let room = 30; room <= 300; room += 1) {
 			const { shown, rest } = fitPills(SIX, room);
-			const width =
-				shown.reduce((sum, c) => sum + pillWidth(c.count), 0) +
-				(rest.length ? morePillWidth(rest.length) : 0) +
-				4 * (shown.length + (rest.length ? 1 : 0) - 1);
-			expect(width).toBeLessThanOrEqual(room);
+			expect(pillsWidth(shown, rest.length)).toBeLessThanOrEqual(room);
 		}
 	});
 });
@@ -113,12 +117,12 @@ describe("the room a card's reactions have", () => {
 		expect(pills(SIX, pillRoom(card()))).toEqual(["👍11", "❤️6", "🚀4", "+3"]);
 	});
 
-	it("leaves a busy foot's volunteers room, while keeping as many pills as fit", () => {
-		// Before, a count said one pill and +3 here.
+	it("leaves the volunteers' chip room, a little closer than the rest", () => {
+		const plain = pillRoom(card());
 		const two = pillRoom(card(), { volunteers: 2 });
-		expect(pills(FOUR, two)).toEqual(["👍11", "❤️6", "+2"]);
-		const many = pillRoom(card(), { volunteers: 5 });
-		expect(pills(FOUR, many)).toEqual(["👍11", "+3"]);
+		expect(plain - two).toBeCloseTo(volunteersWidth(2) + 12 - 4);
+		expect(pills(FOUR, two)).toEqual(["👍11", "+3"]);
+		expect(pills(FOUR, pillRoom(card(), { volunteers: 2 }, 280))).toEqual(["👍11", "❤️6", "+2"]);
 	});
 
 	it("makes room for assignees, upvotes, a lock, provenance and liveness", () => {
@@ -137,7 +141,7 @@ describe("the room a card's reactions have", () => {
 				answered: false,
 				upvotes: 24,
 				locked: true,
-			} as never,
+			},
 		});
 		expect(pillRoom(discussion)).toBeLessThan(plain - 14 - 30 - 12 - 3 * 12);
 	});
@@ -146,51 +150,83 @@ describe("the room a card's reactions have", () => {
 		expect(pills(SIX, pillRoom(card(), {}, 340))).toHaveLength(6);
 		expect(pills(SIX, pillRoom(card(), {}, CARD_WIDTH))).toEqual(["👍11", "❤️6", "🚀4", "+3"]);
 		expect(pills(SIX, pillRoom(card(), {}, 200))).toEqual(["👍11", "❤️6", "+4"]);
-		expect(pills(SIX, pillRoom(card(), { volunteers: 2 }, 340))).toEqual([
-			"👍11",
-			"🎉3",
-			"❤️6",
-			"🚀4",
-			"+2",
-		]);
 	});
 });
 
-describe("pills beside the volunteers' chip as it unfolds to Assign", () => {
-	const text = ({ shown, rest }: ReturnType<typeof fitPills>) => [
-		...shown.map((c) => `${c.emoji}${c.count}`),
-		...(rest.length ? [`+${rest.length}`] : []),
-	];
+describe("a card's foot as the ghost ✋ shows or Assign opens", () => {
+	it("makes room for the ghost by folding the fewest left into +N", () => {
+		const plan = planFoot(card(), { volunteers: 0 });
+		expect(plan.room - plan.unfold!.room).toBeCloseTo(GHOST_WIDTH + 12 - 4);
+		expect(plan.unfold?.kind).toBe("ghost");
+		const { rest, open } = unfoldPills(FOUR, plan.room, plan.unfold!.room);
+		expect(text(rest)).toEqual(["👍11", "🎉3", "❤️6", "🚀2"]);
+		expect(text(open)).toEqual(["👍11", "❤️6", "+2"]);
+		// Where there's room, nothing folds.
+		const two = FOUR.slice(0, 2);
+		const roomy = planFoot(card({}, two), { volunteers: 0 });
+		expect(text(unfoldPills(two, roomy.room, roomy.unfold!.room).open)).toEqual(["👍11", "🎉3"]);
+	});
 
-	it("fold into +N as the chip unfolds, rather than slide under it", () => {
-		const room = pillRoom(card(), { volunteers: 2 });
-		const unfolded = pillRoom(card(), { volunteers: 2, unfolded: true });
-		const { rest, open } = unfoldPills(FOUR, room, unfolded);
-		expect(text(rest)).toEqual(["👍11", "❤️6", "+2"]);
-		// Not even 👍 11 fits beside "+3" and the unfolded chip: "+4" stands for them all.
-		expect(text(open)).toEqual(["+4"]);
-		expect(pillsWidth(open.shown, open.rest.length)).toBeLessThanOrEqual(unfolded);
-		// On a wider card, fewer fold.
-		const wide = unfoldPills(
-			FOUR,
-			pillRoom(card(), { volunteers: 2 }, 340),
-			pillRoom(card(), { volunteers: 2, unfolded: true }, 340),
+	it("leaves the reactions just as they were once you press it: the chip with you in it is the ghost's size", () => {
+		const ghost = planFoot(card({}, SIX), { volunteers: 0 });
+		const you = planFoot(card({}, SIX), { volunteers: 1 });
+		expect(you.room).toBeCloseTo(ghost.unfold!.room);
+		const shown = unfoldPills(SIX, ghost.room, ghost.unfold!.room);
+		expect(pillsWidth(fitPills(SIX, you.room).shown, fitPills(SIX, you.room).rest.length)).toBe(
+			shown.fitWidth,
 		);
-		expect(text(wide.rest)).toEqual(["👍11", "🎉3", "❤️6", "🚀2"]);
-		expect(text(wide.open)).toEqual(["👍11", "❤️6", "+2"]);
+	});
+
+	it("opens Assign at the chip's end where there's room, and at its start over the reactions where there isn't", () => {
+		// No reactions: room to spare.
+		expect(planFoot(card({}, []), { volunteers: 2, unfolds: true }).assign).toBe("end");
+		// No Assign to open: nothing changes.
+		expect(planFoot(card(), { volunteers: 2 }).assign).toBeUndefined();
+		const busy = planFoot(card(), { volunteers: 2, unfolds: true });
+		expect(busy.assign).toBe("start");
+		expect(busy.spare).toBeLessThan(ASSIGN_WIDTH);
+		const { rest, open, more } = unfoldPills(FOUR, busy.room, busy.unfold!.room);
+		expect(text(rest)).toEqual(["👍11", "+3"]);
+		// Not even 👍 11 fits beside "+3" under Assign: "+4" stands for them all.
+		expect(text(open)).toEqual(["+4"]);
+		expect(more).toBe(true);
+		// On a wider card, fewer fold.
+		const wide = planFoot(card(), { volunteers: 2, unfolds: true }, 340);
+		const widened = unfoldPills(FOUR, wide.room, wide.unfold!.room);
+		expect(text(widened.rest)).toEqual(["👍11", "🎉3", "❤️6", "🚀2"]);
+		expect(text(widened.open)).toEqual(["👍11", "❤️6", "+2"]);
+	});
+
+	it("folds even +N where there's no room for it under Assign", () => {
+		const lone = [{ emoji: "👍", count: 11 }];
+		const plan = planFoot(card({ assignees: [face("a"), face("b"), face("c")] }, lone), {
+			volunteers: 4,
+			unfolds: true,
+		});
+		expect(plan.assign).toBe("start");
+		const { open, more, fitWidth } = unfoldPills(lone, plan.room, plan.unfold!.room);
+		expect(text(open)).toEqual(["+1"]);
+		expect(more).toBe(false);
+		expect(fitWidth).toBe(0);
 	});
 
 	it("keep only pills that were already shown, in the room there is", () => {
 		for (let room = 100; room <= 300; room += 3) {
-			const unfolded = room - 48;
-			const { rest, open, restWidth, openWidth } = unfoldPills(SIX, room, unfolded);
+			const unfolded = room - 49;
+			const { rest, open, more, fitWidth } = unfoldPills(SIX, room, unfolded);
 			for (const c of open.shown) expect(rest.shown).toContain(c);
 			expect(open.rest.length).toBeGreaterThanOrEqual(rest.rest.length);
-			// The pills' box never narrows by more than the chip widens (so the
-			// chip's far edge never moves back), and always holds what's shown.
-			expect(restWidth - openWidth).toBeLessThanOrEqual(48);
-			expect(openWidth).toBeGreaterThanOrEqual(pillsWidth(open.shown, open.rest.length));
-			expect(openWidth).toBeLessThanOrEqual(Math.max(unfolded, morePillWidth(SIX.length)) + 1);
+			if (more || open.shown.length) expect(fitWidth).toBeLessThanOrEqual(unfolded);
 		}
+	});
+
+	it("says how much room a provenance label has, at rest and opened", () => {
+		const plan = planFoot(card(), { volunteers: 0, provenance: true });
+		expect(plan.spare).toBeLessThan(provenanceLabelWidth("From the “Bugs” list"));
+		const empty = planFoot(card({}, []), { provenance: true });
+		expect(empty.spare).toBeGreaterThan(provenanceLabelWidth("From the “Bugs” list"));
+		// The ghost ✋ takes some of it as it shows.
+		const ghost = planFoot(card({}, []), { volunteers: 0, provenance: true });
+		expect(ghost.openSpare).toBeCloseTo(empty.spare - GHOST_WIDTH - 8);
 	});
 });

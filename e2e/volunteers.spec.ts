@@ -1,5 +1,5 @@
 import type { Browser, Locator, Page } from "@playwright/test";
-import { expect, settleCanvas, test } from "./fixtures.ts";
+import { expect, openScenario, settleCanvas, test } from "./fixtures.ts";
 
 // Volunteering on a real board, as two people in separate browsers signed in
 // with /auth/dev: hands up on an issue's card show for both, either can
@@ -73,7 +73,7 @@ const sticky = (page: Page) => page.locator(".react-flow__node-sticky");
 const volunteers = (shape: Locator) => shape.getByRole("group", { name: /^Volunteers: / });
 const faces = (shape: Locator) => shape.locator(".volunteer-stack .volunteer");
 
-/** Your hand, on a shape: in its head before anyone's volunteered, then in the row. */
+/** Your hand, on a shape: in its foot, as the chip's ghost before anyone's volunteered, then in the chip. */
 async function raiseHand(shape: Locator) {
 	await shape.hover();
 	await shape.getByRole("button", { name: "I’ll take it" }).click();
@@ -122,9 +122,20 @@ test.describe.serial("volunteering", () => {
 	});
 
 	test("two people volunteer and both show, for both; withdrawing takes yours back", async () => {
-		// Nobody yet: no row, and the hand waits in the head until you point.
+		// Nobody yet: no chip, and ✋ waits at the end of the foot, where the
+		// chip will be, until you point; never in the head.
 		await expect(volunteers(card(kai))).toHaveCount(0);
+		await expect(card(kai).locator(".card-head .volunteer-hand")).toHaveCount(0);
+		const ghost = card(kai).locator(".card-foot > .volunteers[data-ghost]");
+		await expect(ghost).toHaveCSS("opacity", "0");
+		await card(kai).hover();
+		await expect(ghost).toHaveCSS("opacity", "1");
+		// Pressed, it becomes the chip in place: the same element, with your face.
+		const chip = await ghost.elementHandle();
 		await raiseHand(card(kai));
+		await expect
+			.poll(() => chip?.evaluate((el) => el.isConnected && !el.hasAttribute("data-ghost")))
+			.toBe(true);
 		await expect(volunteers(card(kai))).toHaveAttribute("aria-label", "Volunteers: You");
 		await expect(volunteers(card(priya))).toHaveAttribute("aria-label", "Volunteers: Kai Andersen");
 
@@ -223,4 +234,61 @@ test.describe.serial("volunteering", () => {
 			volunteers(card(priya).filter({ hasText: "Made on the fake forge" })),
 		).toHaveAttribute("aria-label", "Volunteers: Kai Andersen");
 	});
+});
+
+test("pointing at ✋ or a face, then clicking, does what was under the pointer: nothing moves as Assign opens", async ({
+	page,
+}) => {
+	await openScenario(page, "volunteers");
+	await page.addStyleTag({ content: ".play-panel { display: none !important; }" });
+	const staged = () =>
+		page.evaluate(
+			() =>
+				(
+					window as unknown as { tackPlayground: { doc: import("yjs").Doc } }
+				).tackPlayground.doc.getMap("changes").size,
+		);
+	// #377: Jo's hand is up, and the foot has no room to spare after the chip,
+	// so Assign opens at its start.
+	const card = page
+		.locator(".react-flow__node-card")
+		.filter({ has: page.locator(".mono", { hasText: "#377" }) });
+	const chip = card.getByRole("group", { name: /^Volunteers: / });
+	await expect(chip).toBeVisible();
+	await expect(card.locator(".card-foot")).toHaveAttribute("data-assign", "start");
+	const before = await staged();
+
+	// Point at ✋ and click without moving: you volunteer, and nothing's staged.
+	const hand = chip.getByRole("button", { name: "I’ll take it" });
+	const box = (await hand.boundingBox())!;
+	const faces = (await chip.locator(".volunteer-stack").boundingBox())!;
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+	await expect(card.locator(".volunteers-more")).toHaveCSS("opacity", "1");
+	expect(await hand.boundingBox()).toEqual(box);
+	expect(await chip.locator(".volunteer-stack").boundingBox()).toEqual(faces);
+	await page.mouse.down();
+	await page.mouse.up();
+	await expect(hand).toHaveAttribute("aria-pressed", "true");
+	expect(await staged()).toBe(before);
+
+	// And again: you withdraw.
+	await page.mouse.down();
+	await page.mouse.up();
+	await expect(hand).toHaveAttribute("aria-pressed", "false");
+	expect(await staged()).toBe(before);
+
+	// Point at a face and click: it names who, and nothing moves or is staged.
+	// (Pressed, the hand kept focus, which keeps Assign open: let it go.)
+	await hand.evaluate((el) => (el as HTMLElement).blur());
+	await page.mouse.move(5, 450);
+	await expect(card.locator(".volunteers-more")).toHaveCSS("opacity", "0");
+	const jo = chip.locator(".volunteer-stack .volunteer").first();
+	const at = (await jo.boundingBox())!;
+	await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+	await expect(card.locator(".volunteers-more")).toHaveCSS("opacity", "1");
+	expect(await jo.boundingBox()).toEqual(at);
+	await page.mouse.down();
+	await page.mouse.up();
+	await expect(hand).toHaveAttribute("aria-pressed", "false");
+	expect(await staged()).toBe(before);
 });

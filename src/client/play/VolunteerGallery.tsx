@@ -6,7 +6,8 @@ import { HandButton, VolunteerChip } from "../volunteers/Volunteers.tsx";
 
 // Every state of volunteering on a card and a sticky (volunteers/), in
 // `/play/cards`: the chip at rest and unfolded, for a viewer, yours among them, staged to be assigned,
-// many, and the hand before anyone's volunteered.
+// many, and before anyone's volunteered: on a card, the chip's ghost (✋ at the
+// foot's end, as you point at or select it), which becomes the chip.
 
 const noop = () => {};
 
@@ -54,7 +55,9 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 				Hands up for the work, on the board only: ✋ and who’s volunteered, beside a card’s
 				reactions. Point at it, focus it or select the card and Assign unfolds, to stage them as the
 				item’s assignees; the dashed ring is staged, and once it’s pushed they’re among its
-				assignees instead. ✋ puts your hand up, or takes it down.
+				assignees instead. ✋ puts your hand up, or takes it down. Before anyone has, ✋ waits at
+				the end of a card’s foot, where the chip will be, as you point at, focus or select it, and
+				becomes the chip as you press it.
 			</p>
 			<div className="gallery-grid">
 				<figure>
@@ -107,13 +110,12 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 					<figcaption>More than fit: +2</figcaption>
 				</figure>
 				<figure>
-					<CardView
-						card={card}
-						cardKey={card.key}
-						selected
-						hand={<HandButton place="head" pressed={false} onToggle={noop} />}
-					/>
-					<figcaption>Nobody yet, selected: the hand beside ↗</figcaption>
+					<CardView card={card} cardKey={card.key} volunteers={chip([])} />
+					<figcaption>Nobody yet, at rest: nothing until you point</figcaption>
+				</figure>
+				<figure>
+					<CardView card={card} cardKey={card.key} selected volunteers={chip([])} />
+					<figcaption>Nobody yet, selected: ✋ where the chip will be</figcaption>
 				</figure>
 			</div>
 			<div className="gallery-grid stickies">

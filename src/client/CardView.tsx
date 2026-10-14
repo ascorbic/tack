@@ -5,7 +5,7 @@ import {
 	type MissingCard,
 	isMissing,
 } from "../shared/cards.ts";
-import { pillRoom } from "../shared/cardFoot.ts";
+import { planFoot } from "../shared/cardFoot.ts";
 import { forgeForHost, forgeName, sentenceCase } from "../shared/refs.ts";
 import { cardStore } from "./cardStore.ts";
 import { type Entrance, entranceStyle } from "./entering.ts";
@@ -202,8 +202,6 @@ export interface CardViewProps {
 	showReactors?: ShowReactors;
 	/** Who's volunteered for it, on the board: a chip after its reactions (volunteers/). */
 	volunteers?: CardVolunteers | null;
-	/** The hand to volunteer with, in its head beside ↗, while nobody has. */
-	hand?: ReactNode;
 	/**
 	 * How wide it's drawn, where that isn't the board's 252px (a phone's
 	 * sheet): its reactions fit the room that leaves in its foot.
@@ -211,10 +209,14 @@ export interface CardViewProps {
 	width?: number;
 }
 
-/** The volunteers' chip for a card's foot, and how much room it takes. */
+/**
+ * The volunteers' chip for a card's foot, and how much room it takes: or,
+ * with nobody yet, its ghost (✋ alone), which shows as you point at, focus
+ * or select the card.
+ */
 export interface CardVolunteers {
 	chip: ReactNode;
-	/** How many have volunteered. */
+	/** How many have volunteered: none for the ghost. */
 	count: number;
 	/** It unfolds to Assign as it's pointed at, focused or the card's selected. */
 	unfolds: boolean;
@@ -240,7 +242,6 @@ export function CardView({
 	unmatched,
 	showReactors,
 	volunteers,
-	hand,
 	width,
 }: CardViewProps) {
 	if (!card)
@@ -257,7 +258,6 @@ export function CardView({
 			unmatched={unmatched}
 			showReactors={showReactors}
 			volunteers={volunteers}
-			hand={hand}
 			width={width}
 		/>
 	);
@@ -273,7 +273,6 @@ function LiveCard({
 	unmatched,
 	showReactors,
 	volunteers,
-	hand,
 	width,
 }: {
 	card: Card;
@@ -285,7 +284,6 @@ function LiveCard({
 	unmatched?: CardUnmatched | null;
 	showReactors?: ShowReactors;
 	volunteers?: CardVolunteers | null;
-	hand?: ReactNode;
 	width?: number;
 }) {
 	const { counts, newLabels, total } = useChanges(card);
@@ -304,8 +302,20 @@ function LiveCard({
 	const repoName = card.repo.split("/").at(-1);
 	const checks = card.pull?.checks;
 	const liveness = useLiveness(card.live);
-	// What else is in the foot, which its reactions fit beside.
-	const foot = { volunteers: volunteers?.count, provenance: !!origin, liveness };
+	// How the foot lays out (cardFoot.ts): the room its reactions have, at
+	// rest and while the volunteers' ghost ✋ shows or Assign opens over them,
+	// and where Assign opens.
+	const foot = planFoot(
+		card,
+		{
+			volunteers: volunteers?.count,
+			unfolds: volunteers?.unfolds,
+			provenance: !!origin,
+			liveness,
+		},
+		width,
+	);
+	const unfold = foot.unfold;
 	// The title is a link, but a plain click on a card that isn't selected
 	// yet selects it (people click cards to pick them up, drag and vote):
 	// it opens on a click once selected, or a ⌘/Ctrl-click, as in FigJam.
@@ -392,7 +402,6 @@ function LiveCard({
 					)}
 					{stateLabel(card)}
 				</span>
-				{hand}
 				{card.url && (
 					<a
 						className="card-open nodrag"
@@ -443,7 +452,7 @@ function LiveCard({
 				</div>
 			)}
 			{card.pull && <PullStatus pull={card.pull} forge={card.forge} />}
-			<div className="card-foot">
+			<div className="card-foot" data-assign={foot.assign}>
 				{card.assignees.length > 0 && (
 					<span className="avatars">
 						{card.assignees.slice(0, 3).map((a) => (
@@ -491,11 +500,11 @@ function LiveCard({
 				)}
 				<ReactionPills
 					card={card}
-					room={pillRoom(card, foot, width)}
-					unfoldedRoom={
-						volunteers?.unfolds ? pillRoom(card, { ...foot, unfolded: true }, width) : undefined
-					}
-					unfolded={!!selected && !!volunteers?.unfolds}
+					room={foot.room}
+					unfold={unfold}
+					// Anyone pointing at "+N" beside the ghost is pointing at the card, so
+					// it's showing: "+N" names what it holds then.
+					unfolded={!!unfold && (!!selected || unfold.kind === "ghost")}
 					show={showReactors}
 				/>
 				{volunteers?.chip}

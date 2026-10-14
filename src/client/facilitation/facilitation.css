@@ -915,7 +915,7 @@
 
 .canvas:is([data-tool="stamp"], [data-tool="vote"], [data-tool="comment"], [data-picking])
 	.react-flow__node
-	:is(.volunteer-hand, .volunteers-assign) {
+	:is(.volunteer-hand, .volunteers-assign, .volunteers[data-ghost]) {
 	opacity: 0;
 }
 

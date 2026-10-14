@@ -49,16 +49,19 @@ interface Fold {
 export function ReactionPills({
 	card,
 	room,
-	unfoldedRoom,
+	unfold,
 	unfolded = false,
 	show,
 }: {
 	card: Pick<Card, "key" | "reactions" | "reactionCounts">;
 	/** How wide the pills may be, in pixels, "+N" included (see cardFoot.ts). */
 	room: number;
-	/** How wide while the volunteers' chip beside them is unfolded to Assign, if it can be. */
-	unfoldedRoom?: number;
-	/** It's unfolded for now (the card's selected): "+N" names what it holds then. */
+	/**
+	 * How wide while the volunteers' chip beside them is unfolded to Assign
+	 * ("chip"), or its ghost is showing ("ghost"), where either can be.
+	 */
+	unfold?: { kind: "chip" | "ghost"; room: number };
+	/** It's unfolded whenever "+N" can be pointed at or focused: "+N" names what it holds then. */
 	unfolded?: boolean;
 	show?: ShowReactors;
 }) {
@@ -81,23 +84,25 @@ export function ReactionPills({
 			</span>
 		);
 	}
-	const fitted = unfoldedRoom === undefined ? null : unfoldPills(counts, room, unfoldedRoom);
+	const fitted = unfold ? unfoldPills(counts, room, unfold.room) : null;
 	const { shown, rest } = fitted?.rest ?? fitPills(counts, room);
 	const open = fitted?.open ?? { shown, rest };
+	// Whether "+N" shows while open: not where even it has no room.
+	const moreOpen = fitted ? fitted.more : rest.length > 0;
 	const kept = new Set(open.shown.map((c) => c.emoji));
-	// "+N" names what it holds as things are: at rest, or unfolded.
-	const folded = unfolded ? open.rest : rest;
+	// "+N" names what it holds as things are: at rest, or open.
+	const folded = unfolded && moreOpen ? open.rest : rest;
+	const twoCounts = rest.length > 0 && moreOpen && rest.length !== open.rest.length;
 	return (
 		<span
 			className="reaction-pills"
 			role="group"
 			aria-label="Reactions"
-			data-unfolds={fitted ? true : undefined}
+			data-unfolds={unfold?.kind}
 			style={
 				fitted
 					? ({
 							"--pills-rest": `${fitted.restWidth}px`,
-							"--pills-open": `${fitted.openWidth}px`,
 							"--pills-fit": `${fitted.fitWidth}px`,
 						} as CSSProperties)
 					: undefined
@@ -117,26 +122,30 @@ export function ReactionPills({
 					show={show?.pill === count.emoji ? show : undefined}
 				/>
 			))}
-			{open.rest.length > 0 && (
+			{(rest.length > 0 || moreOpen) && (
 				<GroupPill
 					cardKey={card.key}
 					total={total}
 					emojis={folded.map((c) => c.emoji)}
 					label={`${folded.length} more: ${folded.map((c) => `${c.emoji} ${c.count}`).join(", ")}`}
 					fold={
-						fitted && rest.length === 0
-							? { appears: true, width: morePillWidth(open.rest.length) }
-							: undefined
+						!fitted
+							? undefined
+							: rest.length === 0
+								? { appears: true, width: morePillWidth(open.rest.length) }
+								: !moreOpen
+									? { folds: true, width: morePillWidth(rest.length) }
+									: undefined
 					}
 					show={show?.pill === "more" ? show : undefined}
 				>
 					<span className="reaction-pill-count reaction-more">
 						{rest.length > 0 && (
-							<span data-at={rest.length !== open.rest.length ? "rest" : undefined}>
-								+{rest.length}
-							</span>
+							<span data-at={twoCounts ? "rest" : undefined}>+{rest.length}</span>
 						)}
-						{rest.length !== open.rest.length && <span data-at="open">+{open.rest.length}</span>}
+						{(rest.length === 0 || twoCounts) && (
+							<span data-at={twoCounts ? "open" : undefined}>+{open.rest.length}</span>
+						)}
 					</span>
 				</GroupPill>
 			)}

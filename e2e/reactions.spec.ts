@@ -123,9 +123,14 @@ test.describe.serial("who reacted", () => {
 		});
 		await lena.mouse.move(10, 400);
 		await expect(tip).toHaveCount(0);
-		await pills.nth(3).hover();
-		await expect(tip).toContainText(/^🚀.+/);
-		await expect(pills.nth(3)).toHaveAccessibleName(/^🚀 1: .+/);
+		// Pointed at, the card shows ✋ at its foot's end, and the fewest left
+		// fold into +N to make room: it names them.
+		await card.locator(".card-title").hover();
+		await expect(card.locator(".volunteers[data-ghost]")).toBeVisible();
+		await expect(pills).toHaveText(["👍4", "❤️2", "+2"]);
+		await pills.nth(2).hover();
+		await expect(tip).toContainText("🚀");
+		await expect(pills.nth(2)).toHaveAccessibleName(/^2 more: 🎉 1, 🚀 1: .+/);
 		expect(again).toBe(0);
 		await lena.mouse.move(10, 400);
 	});
