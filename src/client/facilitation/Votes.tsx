@@ -34,7 +34,7 @@ import { DocContext } from "../DocContext.ts";
 import { initials } from "../People.tsx";
 import type { ToastStore } from "../Toasts.tsx";
 import { transactLocal } from "../undo.ts";
-import { useServerNow, useVotes } from "./hooks.ts";
+import { useVoteNow, useVotes } from "./hooks.ts";
 import { CloseIcon, DotsIcon, TallyIcon } from "./icons.tsx";
 import { facilitation, useFacilitator } from "./store.ts";
 
@@ -86,7 +86,7 @@ export function useVoteUI() {
 export function useVoteOpen(id: string | null): boolean {
 	const doc = useContext(DocContext);
 	const votes = useVotes(doc ?? NO_DOC);
-	const now = useServerNow(30_000);
+	const now = useVoteNow(votes, 30_000);
 	return id !== null && votes.some((vote) => vote.scope === id && isOpen(vote, now));
 }
 
@@ -439,7 +439,7 @@ export function VoteBars({
 	toasts?: ToastStore;
 }) {
 	const votes = useVotes(doc);
-	const now = useServerNow(1000, votes.length > 0);
+	const now = useVoteNow(votes, 1000);
 	const dismissed = useDismissedVotes();
 	const { control } = useVoteControl();
 	useResultsOnClose(votes, now);
@@ -722,7 +722,7 @@ export function TallyPanel({
 	onReveal: (shape: string) => void;
 }) {
 	const votes = useVotes(doc);
-	const now = useServerNow(1000);
+	const now = useVoteNow(votes, 1000);
 	const vote = votes.find((v) => v.id === voteId);
 	const { control, remove } = useVoteControl();
 	// Live card data (for 👍) re-tallies as it arrives.

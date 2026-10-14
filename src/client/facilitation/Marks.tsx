@@ -22,7 +22,7 @@ import type { ShapeProps } from "../../shared/shapes.ts";
 import type { ShapeNode } from "../board.ts";
 import { cardStore } from "../cardStore.ts";
 import { transactLocal } from "../undo.ts";
-import { useServerNow, useStampCounts, useVotes } from "./hooks.ts";
+import { useVoteNow, useStampCounts, useVotes } from "./hooks.ts";
 import { facilitation } from "./store.ts";
 import { useDismissedVotes } from "./Votes.tsx";
 
@@ -79,7 +79,7 @@ export function MarksLayer({
 }) {
 	const stamps = useStampCounts(doc, me);
 	const votes = useVotes(doc);
-	const now = useServerNow(30_000, votes.length > 0);
+	const now = useVoteNow(votes, 30_000);
 	const open = useMemo(() => votes.filter((vote) => isOpen(vote, now)), [votes, now]);
 	const shapes = useMemo(
 		() => new Map(nodes.map((node) => [node.id, node.data.shape] as const)),

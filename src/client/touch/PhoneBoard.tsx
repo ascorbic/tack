@@ -14,7 +14,7 @@ import {
 	setStickyText,
 } from "../board.ts";
 import { commentStore, useComments, useCommentUI } from "../comments/store.ts";
-import { useServerNow, useVotes } from "../facilitation/hooks.ts";
+import { useVoteNow, useVotes } from "../facilitation/hooks.ts";
 import { facilitation } from "../facilitation/store.ts";
 import { scaledDuration } from "../motion.ts";
 import { type User, authorFor } from "../presence.ts";
@@ -74,7 +74,7 @@ export function PhoneBoard({
 	const thread = ui.open ? threads.get(ui.open) : undefined;
 	const node = shape ? nodes.find((n) => n.id === shape) : undefined;
 	const allVotes = useVotes(doc);
-	const now = useServerNow(30_000, allVotes.length > 0);
+	const now = useVoteNow(allVotes, 30_000);
 	const votes = useMemo(() => allVotes.filter((vote) => isOpen(vote, now)), [allVotes, now]);
 	const shapes = useMemo(
 		() =>

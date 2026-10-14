@@ -62,7 +62,7 @@ import { listKey } from "./display/keys.ts";
 import { moveInList } from "../shared/display.ts";
 import { DisplayPreview, previewStore } from "./display/Preview.tsx";
 import { useDisplay } from "./display/useDisplay.ts";
-import { useServerNow, useStampCounts, useVotes } from "./facilitation/hooks.ts";
+import { useVoteNow, useStampCounts, useVotes } from "./facilitation/hooks.ts";
 import { isOpen } from "../shared/dotvotes.ts";
 import { useCanvasCommands } from "./commands.ts";
 import { ConnectorLayer } from "./connectors.tsx";
@@ -853,7 +853,7 @@ export function Board({
 	// Stamps and dots, counted inline on rows and mini cards (#72).
 	const stampCounts = useStampCounts(doc, user);
 	const allVotes = useVotes(doc);
-	const voteNow = useServerNow(30_000, allVotes.length > 0);
+	const voteNow = useVoteNow(allVotes, 30_000);
 	const displayMarks = useMemo(
 		() => ({
 			doc,

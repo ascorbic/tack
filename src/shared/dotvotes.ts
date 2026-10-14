@@ -152,10 +152,32 @@ export function readVotes(doc: Y.Doc): DotVote[] {
 	return votes.sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
 }
 
-/** Whether a vote is open at `now` (epoch ms). */
+/**
+ * Whether a vote is open at `now` (epoch ms): the one reading of it. A vote
+ * whose `endsAt` has passed is closed though nothing writes `closedAt`, so
+ * read it through here (or `closedAt` below), never from the fields.
+ */
 export function isOpen(vote: Pick<DotVote, "closedAt" | "endsAt">, now: number): boolean {
 	if (vote.closedAt) return false;
 	return !vote.endsAt || Date.parse(vote.endsAt) > now;
+}
+
+/**
+ * The next moment one of these votes ends by itself after `now` (epoch ms),
+ * or null. Clocks wake then, so everything reading `isOpen` turns over at
+ * once rather than at its next tick.
+ */
+export function nextVoteEnd(
+	votes: readonly Pick<DotVote, "closedAt" | "endsAt">[],
+	now: number,
+): number | null {
+	let next: number | null = null;
+	for (const vote of votes) {
+		if (vote.closedAt || !vote.endsAt) continue;
+		const end = Date.parse(vote.endsAt);
+		if (end > now && (next === null || end < next)) next = end;
+	}
+	return next;
 }
 
 /** When it closed: closed by someone, or when its window ended. */

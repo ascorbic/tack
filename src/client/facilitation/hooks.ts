@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type * as Y from "yjs";
-import { type DotVote, dotVotesMap, readVotes } from "../../shared/dotvotes.ts";
+import { type DotVote, dotVotesMap, nextVoteEnd, readVotes } from "../../shared/dotvotes.ts";
 import {
 	type StampCount,
 	type Stamper,
@@ -10,7 +10,7 @@ import {
 	stampCounts,
 	stampsMap,
 } from "../../shared/facilitation.ts";
-import { facilitation } from "./store.ts";
+import { facilitation, useClockOffset } from "./store.ts";
 
 /** A value read from the document, re-read whenever `observe` says it changed. */
 function useDocValue<T>(
@@ -88,5 +88,36 @@ export function useServerNow(ms = 1000, active = true): number {
 		const timer = setInterval(() => setNow(facilitation.serverNow()), ms);
 		return () => clearInterval(timer);
 	}, [ms, active]);
+	return now;
+}
+
+/** setTimeout's longest wait; a vote ending later is woken for in steps. */
+const LONGEST_WAIT = 2 ** 31 - 1;
+
+/**
+ * The server's clock for anything reading whether votes are open: it ticks
+ * every `ms`, and also wakes the moment the next of `votes` ends by itself,
+ * or the moment our idea of the server's clock moves, so the bar, the
+ * results and the ranks all see a vote close together.
+ */
+export function useVoteNow(votes: readonly DotVote[], ms: number): number {
+	const [now, setNow] = useState(() => facilitation.serverNow());
+	const offset = useClockOffset();
+	const active = votes.length > 0;
+	useEffect(() => {
+		if (!active) return;
+		setNow(facilitation.serverNow());
+		const timer = setInterval(() => setNow(facilitation.serverNow()), ms);
+		return () => clearInterval(timer);
+	}, [ms, active, offset]);
+	const end = nextVoteEnd(votes, now);
+	// Waking a little early (the wait was too long for one timer) just waits
+	// again for what's left.
+	useEffect(() => {
+		if (end === null) return;
+		const wait = Math.min(LONGEST_WAIT, Math.max(0, end - facilitation.serverNow()) + 1);
+		const timer = setTimeout(() => setNow(facilitation.serverNow()), wait);
+		return () => clearTimeout(timer);
+	}, [end, now]);
 	return now;
 }

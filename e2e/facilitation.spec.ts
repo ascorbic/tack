@@ -277,6 +277,10 @@ test.describe("dot voting", () => {
 		await expect(bar).toContainText(/closes in \d+h/);
 		await play(page, "+1 day").click();
 		await expect(bar).toContainText("Vote closed");
+		// Its ranks land on the cards at the same moment, not at a later tick.
+		await expect(page.getByRole("img", { name: /^1st of \d+: 16 votes$/ })).toBeVisible({
+			timeout: 2000,
+		});
 		// The latest to close shows in full; older ones stay small.
 		await expect(bar).not.toHaveAttribute("data-compact");
 		await expect(page.getByRole("region", { name: "Vote on “Release name”" })).toHaveAttribute(
@@ -328,6 +332,44 @@ test.describe("dot voting", () => {
 		await form.getByRole("button", { name: "Start voting" }).click();
 		await expect(page.locator(".vote-bar[data-open=true]")).toContainText(/closes in (2:5\d|3:00)/);
 	});
+});
+
+// Playwright's clock has to be installed before the page loads.
+test("when a timed vote's time is up, the bar, results and ranks all close at once", async ({
+	page,
+}) => {
+	await page.clock.install();
+	await openScenario(page, "vote");
+	await page
+		.getByRole("region", { name: "Vote on “Next quarter”" })
+		.getByRole("button", { name: "Close vote" })
+		.click();
+	await page
+		.locator(".section-title", { hasText: "Next quarter" })
+		.click({ position: { x: 12, y: 8 } });
+	await page.getByRole("button", { name: "Vote", exact: true }).click();
+	const form = page.getByRole("dialog", { name: "Dot vote on “Next quarter”" });
+	await form.getByText("Custom").click();
+	await form.getByRole("spinbutton", { name: "Minutes until the vote closes" }).fill("1");
+	await form.getByRole("button", { name: "Start voting" }).click();
+	const bar = page.locator(".vote-bar[data-open=true]");
+	await bar.getByRole("button", { name: "Place dots" }).click();
+	const card = page.locator(".react-flow__node", { hasText: "An emdash image plugin" });
+	await card.click();
+	await bar.getByRole("button", { name: "Done" }).click();
+	const rank = page.getByRole("img", { name: "1st of 1: 1 vote" });
+	await expect(rank).toHaveCount(0);
+
+	// Stop time, then let exactly a minute pass: only a wake-up at the
+	// vote's end (not the next of the ranks' 30-second ticks) closes it.
+	await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 500);
+	await page.clock.runFor(60_000);
+	const closed = page.getByRole("region", { name: "Vote on “Next quarter”" }).first();
+	await expect(closed).toContainText("Vote closed");
+	await expect(rank).toBeVisible();
+	const results = page.getByRole("dialog", { name: "Vote results" });
+	await expect(results).toContainText("Closed");
+	await expect(results.getByRole("button", { name: "Reopen…" })).toBeVisible();
 });
 
 test("on a board without sections, silent mode makes one in view", async ({ page }) => {

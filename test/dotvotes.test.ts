@@ -6,6 +6,7 @@ import {
 	dotsLeft,
 	formatRemaining,
 	isOpen,
+	nextVoteEnd,
 	placeDot,
 	readVotes,
 	reactionVotes,
@@ -108,6 +109,22 @@ describe("dot votes", () => {
 		reopenVote(doc, id);
 		expect(vote().endsAt).toBeUndefined();
 		expect(isOpen(vote(), Date.parse("2030-01-01T00:00:00Z"))).toBe(true);
+	});
+
+	it("know when the next one ends by itself", () => {
+		const now = Date.parse("2026-10-12T16:00:00Z");
+		const votes = [
+			{ endsAt: "2026-10-12T18:00:00Z" },
+			{ endsAt: "2026-10-12T17:00:00Z", closedAt: "2026-10-12T15:00:00Z" },
+			{ endsAt: "2026-10-12T15:00:00Z" },
+			{ endsAt: "2026-10-12T17:30:00Z" },
+			{},
+		];
+		expect(nextVoteEnd(votes, now)).toBe(Date.parse("2026-10-12T17:30:00Z"));
+		expect(nextVoteEnd(votes, Date.parse("2026-10-12T17:30:00Z"))).toBe(
+			Date.parse("2026-10-12T18:00:00Z"),
+		);
+		expect(nextVoteEnd(votes, Date.parse("2026-10-12T18:00:00Z"))).toBeNull();
 	});
 
 	it("tally the winners, sharing ranks on ties", () => {
