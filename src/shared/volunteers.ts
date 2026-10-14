@@ -27,7 +27,7 @@ import { parseRepoKey, repoKeyOf } from "./refs.ts";
 //
 // A volunteer the item has as an assignee is shown as one, among the card's
 // assignees, rather than as a volunteer: so once "Assign volunteers" is
-// pushed and lands, the volunteers row empties into the assignees, and it
+// pushed and lands, the volunteers chip empties into the assignees, and it
 // does the same when someone assigns them on GitHub.
 
 /** Someone who's put their hand up for a shape. */

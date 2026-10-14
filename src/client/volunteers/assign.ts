@@ -20,7 +20,7 @@ import {
 } from "../../shared/volunteers.ts";
 import { repoName } from "../actions/selection.ts";
 
-// "Assign volunteers", from a card's volunteers row or the selection bar:
+// "Assign volunteers", from a card's volunteers chip or the selection bar:
 // stage each card's volunteers as its assignees (planAssignments in
 // volunteers.ts), as one undoable step, like the Assign picker does.
 

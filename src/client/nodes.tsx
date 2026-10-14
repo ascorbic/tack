@@ -51,7 +51,7 @@ export const CardNode = memo(function CardNode({ data, selected }: NodeProps<Sha
 				entrance={entrance}
 				origin={origin}
 				unmatched={unmatched}
-				volunteers={volunteers.row}
+				volunteers={volunteers.chip}
 				hand={volunteers.hand}
 			/>
 		</div>

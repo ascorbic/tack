@@ -26,7 +26,7 @@ import "./volunteers.css";
 
 // Volunteering on the board (volunteers.ts): a raised hand on a card or a
 // sticky ("I'll take it") that appears as you hover, focus or select it, and
-// a row of who's volunteered that stays once anyone has. On an issue's
+// a chip of ✋ and who's volunteered that stays once anyone has. On an issue's
 // card, "Assign" stages them as its assignees.
 
 /** A raised hand, open palm forward. */
@@ -55,8 +55,8 @@ export function HandButton({
 }: {
 	pressed: boolean;
 	onToggle?: () => void;
-	/** In the card's head (nobody yet), the row, or floating on a sticky. */
-	place: "head" | "row" | "sticky";
+	/** In the card's head (nobody yet), leading the chip of faces, or floating on a sticky. */
+	place: "head" | "chip" | "sticky";
 	/** Why it can't be pressed, if it can't. */
 	disabled?: string;
 }) {
@@ -82,12 +82,19 @@ export function HandButton({
 				onToggle();
 			}}
 		>
-			<HandIcon size={place === "sticky" ? 13 : 14} />
+			{place === "chip" ? (
+				// In the chip, the emoji itself, as reactions are.
+				<span className="volunteers-emoji" aria-hidden="true">
+					✋
+				</span>
+			) : (
+				<HandIcon size={place === "sticky" ? 13 : 14} />
+			)}
 		</button>
 	);
 }
 
-/** Someone's face in the row: their avatar over their initials, in their colour. */
+/** Someone's face in the chip: their avatar over their initials, in their colour. */
 function Face({
 	volunteer,
 	mine,
@@ -170,10 +177,10 @@ export function volunteersLabel(volunteers: readonly ShownVolunteer[], me: strin
 }
 
 /**
- * The row on a card or under a sticky's author: who's volunteered, and
- * (as you hover) your hand and "Assign".
+ * The chip in a card's foot, or after a sticky's author: ✋ and who's volunteered,
+ * unfolding to "Assign" as you point at, focus or select what it's on.
  */
-export function VolunteersRow({
+export function VolunteerChip({
 	volunteers,
 	me,
 	place,
@@ -181,6 +188,7 @@ export function VolunteersRow({
 	assign,
 	leaving = false,
 	enter = false,
+	initialOpen = false,
 }: {
 	volunteers: readonly ShownVolunteer[];
 	me: string | null;
@@ -193,41 +201,56 @@ export function VolunteersRow({
 	leaving?: boolean;
 	/** Arriving, as the first hand goes up while you watch. */
 	enter?: boolean;
+	/** Unfolded to start with: the gallery's pointed-at state. */
+	initialOpen?: boolean;
 }) {
 	const label = volunteersLabel(volunteers, me);
+	// Fingers have no hover: a tap on the faces opens it, as pointing does.
+	const [open, setOpen] = useState(initialOpen);
 	return (
-		<div
-			className="volunteers"
+		<span
+			className="volunteers nodrag nopan"
 			data-place={place}
+			data-open={open || undefined}
 			data-leaving={leaving || undefined}
 			data-enter={enter || undefined}
 			role="group"
 			aria-label={label}
+			onBlur={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+			}}
 		>
-			<div className="volunteers-inner">
-				{place === "card" ? (
-					<span className="volunteers-label" aria-hidden="true">
-						Volunteers
-					</span>
-				) : toggle ? (
-					// No room for the word on a sticky: your hand says whose faces
-					// these are, and stays, so it's never two hands side by side.
-					<HandButton place="row" pressed={toggle.pressed} onToggle={toggle.onToggle} />
-				) : (
-					<span className="volunteers-mark" aria-hidden="true">
-						<HandIcon size={11} />
-					</span>
-				)}
-				<span className="volunteers-who" data-tooltip={label}>
-					<VolunteerStack volunteers={volunteers} me={me} />
+			{toggle ? (
+				// Your hand leads the faces: it says whose they are, and puts yours
+				// up or down.
+				<HandButton place="chip" pressed={toggle.pressed} onToggle={toggle.onToggle} />
+			) : (
+				<span className="volunteers-mark volunteers-emoji" aria-hidden="true">
+					✋
 				</span>
-				<span className="volunteers-actions">
-					{assign && (
+			)}
+			<span
+				className="volunteers-who"
+				data-tooltip={label}
+				onPointerDown={(event) => {
+					if (event.pointerType === "touch" && assign) event.stopPropagation();
+				}}
+				onClick={(event) => {
+					if (!assign) return;
+					event.stopPropagation();
+					setOpen((was) => !was);
+				}}
+			>
+				<VolunteerStack volunteers={volunteers} me={me} />
+			</span>
+			{assign && (
+				// Unfolds as you point at, focus or select what it's on.
+				<span className="volunteers-more" data-tooltip={assign.tooltip}>
+					<span className="volunteers-fold">
 						<button
 							type="button"
-							className="volunteers-assign nodrag nopan"
+							className="volunteers-assign"
 							aria-label="Assign volunteers"
-							data-tooltip={assign.tooltip}
 							onPointerDown={(event) => event.stopPropagation()}
 							onDoubleClick={(event) => event.stopPropagation()}
 							onClick={(event) => {
@@ -237,17 +260,14 @@ export function VolunteersRow({
 						>
 							Assign
 						</button>
-					)}
-					{toggle && place === "card" && (
-						<HandButton place="row" pressed={toggle.pressed} onToggle={toggle.onToggle} />
-					)}
+					</span>
 				</span>
-			</div>
-		</div>
+			)}
+		</span>
 	);
 }
 
-/** How long the row takes to fold away; keep in step with volunteers.css. */
+/** How long the chip takes to fade away; keep in step with volunteers.css. */
 const LEAVE_MS = 220;
 
 /** What a shape's volunteering needs from the board: who you are, and whether you can. */
@@ -268,12 +288,12 @@ function useVolunteering(shape: string) {
 
 /**
  * Whether a list was empty and now isn't, while this was showing: the
- * moment to animate a row in, rather than on load.
+ * moment to pop the chip in, rather than on load.
  */
 function useArrived(count: number): boolean {
 	const [before, setBefore] = useState(count);
 	const [arrived, setArrived] = useState(false);
-	// Worked out as it renders, so the row's first frame already animates.
+	// Worked out as it renders, so the chip's first frame already animates.
 	const now = before === 0 && count > 0 ? true : count === 0 ? false : arrived;
 	if (before !== count) {
 		setBefore(count);
@@ -283,13 +303,13 @@ function useArrived(count: number): boolean {
 }
 
 /**
- * A card's volunteering: the row of who's volunteered (or null), and the
+ * A card's volunteering: the chip of who's volunteered (or null), and the
  * hand for its head when nobody has yet.
  */
 export function useCardVolunteers(
 	shape: string,
 	card: Card | null,
-): { row: ReactNode; hand: ReactNode } {
+): { chip: ReactNode; hand: ReactNode } {
 	const { doc, user, me, volunteers, mine, canVolunteer, toggle } = useVolunteering(shape);
 	const changes = useChangesUI();
 	const history = useContext(HistoryContext);
@@ -323,8 +343,8 @@ export function useCardVolunteers(
 		if (staged > 0 && history) undoToast(toasts, history, message);
 		else toasts.show({ message });
 	};
-	const row = lingering.value ? (
-		<VolunteersRow
+	const chip = lingering.value ? (
+		<VolunteerChip
 			volunteers={lingering.value}
 			me={me}
 			place="card"
@@ -345,7 +365,7 @@ export function useCardVolunteers(
 		canVolunteer && !assigned && shown.length === 0 && !lingering.value ? (
 			<HandButton place="head" pressed={mine} onToggle={toggle} />
 		) : null;
-	return { row, hand };
+	return { chip, hand };
 }
 
 /**
@@ -355,13 +375,13 @@ export function useCardVolunteers(
 export function useStickyVolunteers(
 	shape: string,
 	faceDown: boolean,
-): { row: ReactNode; hand: ReactNode } {
+): { chip: ReactNode; hand: ReactNode } {
 	const { doc, me, volunteers, mine, canVolunteer, toggle } = useVolunteering(shape);
 	const changes = useChangesUI();
 	useShapeChanges(changes?.store ?? null, shape);
 	const lingering = useLinger(volunteers.length > 0 ? volunteers : null, LEAVE_MS);
 	// Face down, it's nobody's to take on yet.
-	if (faceDown) return { row: null, hand: null };
+	if (faceDown) return { chip: null, hand: null };
 	const issue = doc ? pendingIssueFor(doc, shape) : null;
 	const assignees = issue?.op.kind === "issue.create" ? (issue.op.assignees ?? []) : [];
 	const shown = (lingering.value ?? []).map((v): ShownVolunteer =>
@@ -369,13 +389,13 @@ export function useStickyVolunteers(
 	);
 	if (shown.length === 0) {
 		return {
-			row: null,
+			chip: null,
 			hand: canVolunteer ? <HandButton place="sticky" pressed={mine} onToggle={toggle} /> : null,
 		};
 	}
 	return {
-		row: (
-			<VolunteersRow
+		chip: (
+			<VolunteerChip
 				volunteers={shown}
 				me={me}
 				place="sticky"

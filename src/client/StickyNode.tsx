@@ -221,7 +221,7 @@ export const StickyNode = memo(function StickyNode({ data, selected }: NodeProps
 				editing={editing}
 				enter={enter}
 				field={field}
-				volunteers={volunteers.row}
+				volunteers={volunteers.chip}
 				hand={editing ? null : volunteers.hand}
 				onText={(text) => doc && setStickyText(doc, data.id, text)}
 				onStopEditing={() => {

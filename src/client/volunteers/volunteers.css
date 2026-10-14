@@ -1,6 +1,7 @@
-/* Volunteers (Volunteers.tsx): a raised hand on a card or a sticky, and the
-   row of who's put theirs up. The row is board data, not the forge's, so it
-   sits in a soft tint of its own, apart from what GitHub says about the item. */
+/* Volunteers (Volunteers.tsx): a raised hand on a card or a sticky, and a
+   chip of who's put theirs up: ✋ and their faces, a sibling of a card's
+   reaction pills, unfolding to "Assign" as you point at, focus or select
+   what it's on. */
 
 /* The hand ------------------------------------------------------------------ */
 
@@ -32,15 +33,24 @@
 	inset: -5px;
 }
 
-.hand-icon {
+.hand-icon,
+.volunteers-emoji {
 	display: block;
+	transform-origin: 50% 90%;
+	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.hand-icon {
 	fill: none;
 	stroke: currentColor;
 	stroke-width: 1.4;
 	stroke-linecap: round;
 	stroke-linejoin: round;
-	transform-origin: 50% 90%;
-	transition: transform var(--t-base) var(--ease-spring);
+}
+
+.volunteers-emoji {
+	font-size: 12px;
+	line-height: 1;
 }
 
 .volunteer-hand:hover {
@@ -48,8 +58,8 @@
 	color: var(--ink);
 }
 
-.volunteer-hand:hover .hand-icon {
-	transform: rotate(-8deg) translateY(-1px);
+.volunteer-hand:hover :is(.hand-icon, .volunteers-emoji) {
+	transform: rotate(-10deg) translateY(-1px);
 }
 
 .volunteer-hand:active {
@@ -70,7 +80,7 @@
 }
 
 /* Up it goes: a little wave. */
-.volunteer-hand[data-wave] .hand-icon {
+.volunteer-hand[data-wave] :is(.hand-icon, .volunteers-emoji) {
 	animation: hand-wave calc(760ms * var(--motion)) var(--ease-out);
 }
 
@@ -92,26 +102,17 @@
 	}
 }
 
-/* Shown as you hover, focus or select what it's on, and to fingers once it's
-   selected: never a click on something you couldn't see. */
-.volunteer-hand[data-place="head"],
-.volunteers .volunteer-hand,
-.volunteers-assign,
-.volunteer-hand[data-place="sticky"] {
+/* Before anyone's volunteered, the hand waits until you point at, focus or
+   select what it's on (and fingers until it's selected): never a click on
+   something you couldn't see. */
+.volunteer-hand:is([data-place="head"], [data-place="sticky"]) {
 	opacity: 0;
 	pointer-events: none;
 }
 
-.card:hover .volunteer-hand,
-.card[data-selected="true"] .volunteer-hand,
-.card:hover .volunteers-assign,
-.card[data-selected="true"] .volunteers-assign,
-.sticky:hover .volunteer-hand,
-.sticky[data-selected="true"] .volunteer-hand,
-.volunteer-hand:focus-visible,
-.volunteers-assign:focus-visible,
-.volunteers:focus-within .volunteer-hand,
-.volunteers:focus-within .volunteers-assign {
+:is(.card:hover, .card[data-selected="true"], .sticky:hover, .sticky[data-selected="true"])
+	.volunteer-hand,
+.volunteer-hand:focus-visible {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -127,7 +128,6 @@
 /* Tooltips ------------------------------------------------------------------ */
 
 .volunteer-hand[data-tooltip]::after,
-.volunteers-assign[data-tooltip]::after,
 .volunteers-who[data-tooltip]::after {
 	content: attr(data-tooltip);
 	position: absolute;
@@ -155,76 +155,77 @@
 }
 
 .volunteer-hand[data-tooltip]:is(:hover, :focus-visible)::after,
-.volunteers-assign[data-tooltip]:is(:hover, :focus-visible)::after,
 .volunteers-who[data-tooltip]:hover::after {
 	opacity: 1;
 	transform: translate(-50%, 0);
 	transition-delay: calc(300ms * var(--motion));
 }
 
-/* The row --------------------------------------------------------------- */
+/* The chip --------------------------------------------------------------- */
 
-.volunteers[data-place="card"] {
-	display: grid;
-	grid-template-rows: 1fr;
-	margin-top: 10px;
-}
-
-.volunteers-inner {
-	display: flex;
+/* As a reaction pill is: ✋, then the faces. */
+.volunteers {
+	position: relative;
+	display: inline-flex;
+	flex: none;
 	align-items: center;
+	height: 22px;
+	padding: 0 3px 0 1px;
+	border: 1px solid var(--line-strong);
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--ink-soft);
+	transition:
+		border-color var(--t-quick) var(--ease-out),
+		background var(--t-quick) var(--ease-out),
+		opacity var(--t-base) var(--ease-out),
+		scale var(--t-base) var(--ease-out);
+}
+
+/* Yours is up: the chip wears the accent, as your stamps do. */
+.volunteers:has(.volunteer-hand[aria-pressed="true"]) {
+	border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+	background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+/* Beside the reactions, the foot draws its things a little closer, so the
+   chip has room to unfold without moving them. */
+.card-foot:has(> .volunteers) {
 	gap: 8px;
-	min-height: 0;
 }
 
-.volunteers[data-place="card"] .volunteers-inner {
-	height: 30px;
-	padding: 0 4px 0 9px;
-	border-radius: 9px;
-	background: color-mix(in srgb, var(--accent) 6%, var(--surface));
-	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-/* The first hand goes up: the row unfolds, and the card grows to fit. */
-.volunteers[data-enter] {
-	animation: volunteers-in var(--t-settle) var(--ease-spring);
-}
-
-.volunteers[data-enter] .volunteers-inner,
-.volunteers[data-leaving] .volunteers-inner {
+/* On a busy foot (assignees, and several kinds of reaction), the unfolded
+   chip takes its room from the end of the reactions, which slide under it,
+   rather than pushing anything along or the card wider. */
+.card-foot:has(> .volunteers) > .reaction-pills {
+	margin: -3px;
+	padding: 3px;
 	overflow: hidden;
 }
 
-@keyframes volunteers-in {
-	from {
-		grid-template-rows: 0fr;
-		margin-top: 0;
-		opacity: 0;
-	}
+/* While it's unfolded, what slides under fades rather than being cut. */
+.card-foot:has(> .volunteers:has(.volunteers-more):is(:hover, :focus-within, [data-open]))
+	> .reaction-pills,
+.card[data-selected="true"] .card-foot:has(> .volunteers .volunteers-more) > .reaction-pills {
+	mask-image: linear-gradient(to right, #000 calc(100% - 8px), transparent);
 }
 
-/* The last goes down: it folds away (keep in step with LEAVE_MS). */
-.volunteers[data-place="card"][data-leaving] {
-	grid-template-rows: 0fr;
-	margin-top: 0;
-	opacity: 0;
-	transition:
-		grid-template-rows var(--t-base) var(--ease-out),
-		margin-top var(--t-base) var(--ease-out),
-		opacity var(--t-base) var(--ease-out);
+/* The hand leading the chip: round, and always there. */
+.volunteers .volunteer-hand {
+	width: 19px;
+	height: 19px;
+	border-radius: 999px;
 }
 
-.volunteers[data-place="sticky"][data-leaving] {
-	opacity: 0;
-	transition: opacity var(--t-base) var(--ease-out);
+.volunteers .volunteer-hand[aria-pressed="true"] {
+	background: transparent;
 }
 
-.volunteers-label {
-	flex: none;
-	color: var(--ink-soft);
-	font-size: 11px;
-	font-weight: 620;
-	letter-spacing: 0.01em;
+.volunteers-mark {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
 }
 
 .volunteers-who {
@@ -234,28 +235,85 @@
 	cursor: default;
 }
 
-.volunteers-actions {
-	display: inline-flex;
-	align-items: center;
-	gap: 2px;
-	margin-left: auto;
+/* "Assign" unfolds at the chip's end as you point at, focus or select what
+   it's on (or tap the faces): the chip's own width eases, and the card around
+   it doesn't move, since the chip is the foot's last pill before what sits
+   at its right edge. */
+.volunteers-more {
+	position: relative;
+	display: grid;
+	grid-template-columns: 0fr;
+	opacity: 0;
+	transition:
+		grid-template-columns var(--t-base) var(--ease-out),
+		opacity var(--t-base) var(--ease-out);
+}
+
+/* What folds: clipped to the column as it eases open. */
+.volunteers-fold {
+	display: flex;
+	min-width: 0;
+	overflow: hidden;
 }
 
 .volunteers-assign {
 	position: relative;
-	height: 22px;
-	padding: 0 8px;
+	flex: none;
+	height: 18px;
+	margin-left: 1px;
+	padding: 0 5px;
 	border: 0;
-	border-radius: 7px;
+	border-radius: 999px;
 	background: transparent;
 	color: var(--accent);
 	font: inherit;
-	font-size: 11.5px;
-	font-weight: 620;
+	font-size: 11px;
+	font-weight: 650;
+	white-space: nowrap;
+	pointer-events: none;
 	cursor: pointer;
+	transition: background var(--t-quick) var(--ease-out);
+}
+
+.card[data-selected="true"] .volunteers-more,
+.volunteers:is(:hover, :focus-within, [data-open]) .volunteers-more {
+	grid-template-columns: 1fr;
+	opacity: 1;
+}
+
+.card[data-selected="true"] .volunteers-assign,
+.volunteers:is(:hover, :focus-within, [data-open]) .volunteers-assign {
+	pointer-events: auto;
+}
+
+/* Who Assign would stage, over it (the fold clips the button's own). */
+.volunteers-more[data-tooltip]::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	bottom: calc(100% + 8px);
+	left: 50%;
+	z-index: 3;
+	width: max-content;
+	max-width: 240px;
+	padding: 5px 9px;
+	border-radius: 7px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 12px;
+	font-weight: 550;
+	line-height: 1.4;
+	opacity: 0;
+	transform: translate(-50%, 4px);
+	pointer-events: none;
 	transition:
 		opacity var(--t-quick) var(--ease-out),
-		background var(--t-quick) var(--ease-out);
+		transform var(--t-quick) var(--ease-out);
+}
+
+.volunteers-more[data-tooltip]:has(.volunteers-assign:is(:hover, :focus-visible))::after {
+	opacity: 1;
+	transform: translate(-50%, 0);
+	transition-delay: calc(300ms * var(--motion));
 }
 
 .volunteers-assign:hover {
@@ -266,12 +324,30 @@
 	transform: scale(0.96);
 }
 
+/* The first hand goes up while you watch: the chip pops in. */
+.volunteers[data-enter] {
+	animation: volunteers-in var(--t-settle) var(--ease-spring);
+}
+
+@keyframes volunteers-in {
+	from {
+		opacity: 0;
+		scale: 0.6;
+	}
+}
+
+/* The last goes down: it shrinks away (keep in step with LEAVE_MS). */
+.volunteers[data-leaving] {
+	opacity: 0;
+	scale: 0.8;
+}
+
 /* Faces ---------------------------------------------------------------------- */
 
 .volunteer-stack {
 	display: inline-flex;
 	align-items: center;
-	padding-left: 5px;
+	padding-left: 4px;
 }
 
 .volunteer {
@@ -280,14 +356,14 @@
 	flex: none;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
-	height: 20px;
-	margin-left: -5px;
+	width: 18px;
+	height: 18px;
+	margin-left: -6px;
 	border-radius: 50%;
 	background: var(--avatar, var(--muted));
-	box-shadow: 0 0 0 2px var(--volunteer-ring, var(--surface));
+	box-shadow: 0 0 0 1.5px var(--volunteer-ring, var(--surface));
 	color: #fff;
-	font-size: 8.5px;
+	font-size: 8px;
 	font-weight: 680;
 	letter-spacing: 0.02em;
 	line-height: 1;
@@ -300,22 +376,22 @@
 .volunteer-more {
 	background: var(--chip);
 	color: var(--ink-soft);
-	font-size: 9px;
+	font-size: 8.5px;
 }
 
 /* Yours: ringed in the accent, so you see you're in at a glance. */
 .volunteer[data-mine] {
 	z-index: 1;
 	box-shadow:
-		0 0 0 2px var(--volunteer-ring, var(--surface)),
-		0 0 0 3.5px var(--accent);
+		0 0 0 1.5px var(--volunteer-ring, var(--surface)),
+		0 0 0 3px var(--accent);
 }
 
 /* Staged to be assigned: a dashed ring, as staged things are drawn. */
 .volunteer[data-staged]::after {
 	content: "";
 	position: absolute;
-	inset: -3.5px;
+	inset: -3px;
 	border: 1.5px dashed var(--accent);
 	border-radius: 50%;
 }
@@ -347,33 +423,39 @@
 	flex: 0 1 auto;
 }
 
+/* On paper, the chip is a lighter patch of it, without a rule. */
 .volunteers[data-place="sticky"] {
-	flex: none;
-	--volunteer-ring: var(--sticky);
-}
-
-.volunteers[data-place="sticky"] .volunteers-inner {
-	gap: 3px;
+	--volunteer-ring: color-mix(in srgb, var(--sticky) 55%, white);
+	height: 20px;
+	margin: -3px 0;
+	border-color: transparent;
+	background: var(--volunteer-ring);
+	color: var(--sticky-ink-soft);
 }
 
 .volunteers[data-place="sticky"] .volunteer {
-	width: 18px;
-	height: 18px;
-	font-size: 8px;
+	width: 16px;
+	height: 16px;
+	font-size: 7.5px;
 }
 
-.volunteers[data-place="sticky"] .volunteer-hand,
+.volunteers[data-place="sticky"] .volunteer-hand {
+	width: 18px;
+	height: 18px;
+}
+
+.volunteers[data-place="sticky"] .volunteer-hand:hover,
+.sticky-foot > .volunteer-hand:hover,
+.sticky > .volunteer-hand:hover {
+	background: rgb(0 0 0 / 7%);
+	color: var(--sticky-ink);
+}
+
 .sticky-foot > .volunteer-hand {
 	width: 20px;
 	height: 20px;
 	margin: -3px 0;
 	color: var(--sticky-ink-soft);
-}
-
-.volunteers[data-place="sticky"] .volunteer-hand:hover,
-.sticky-foot > .volunteer-hand:hover {
-	background: rgb(0 0 0 / 7%);
-	color: var(--sticky-ink);
 }
 
 /* A sticky with no author line: the hand waits in its lower left corner. */
@@ -382,11 +464,6 @@
 	left: 10px;
 	bottom: 9px;
 	color: var(--sticky-ink-soft);
-}
-
-.sticky > .volunteer-hand:hover {
-	background: rgb(0 0 0 / 7%);
-	color: var(--sticky-ink);
 }
 
 /* On a phone's sheet ----------------------------------------------------------- */
@@ -436,6 +513,12 @@
 	font-size: 14px;
 }
 
+.phone-sheet-volunteer-who .volunteer {
+	width: 22px;
+	height: 22px;
+	font-size: 9.5px;
+}
+
 /* In "Make issues": who each new issue is made assigned to. */
 .issue-preview-volunteers {
 	display: inline-flex;
@@ -443,27 +526,6 @@
 	align-items: center;
 	gap: 3px;
 	color: var(--muted);
-}
-
-.issue-preview-volunteers .volunteer {
-	width: 18px;
-	height: 18px;
-	font-size: 8px;
-}
-
-/* On a sticky, a small hand before the faces says what they are. */
-.volunteers-mark {
-	display: inline-flex;
-	margin-right: -2px;
-	color: var(--sticky-ink-soft);
-}
-
-/* On a sticky with volunteers, the hand leads them, always there. */
-.volunteers[data-place="sticky"] .volunteer-hand {
-	opacity: 1;
-	pointer-events: auto;
-	width: 18px;
-	margin: -3px 1px -3px -2px;
 }
 
 /* Fingers (tablets): the hand's and Assign's targets grow to a fingertip's. */

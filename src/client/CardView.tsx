@@ -199,7 +199,7 @@ export interface CardViewProps {
 	unmatched?: CardUnmatched | null;
 	/** Show who reacted without hovering, as this (the gallery). */
 	showReactors?: ShowReactors;
-	/** Who's volunteered for it, on the board: a row above its foot (volunteers/). */
+	/** Who's volunteered for it, on the board: a chip after its reactions (volunteers/). */
 	volunteers?: ReactNode;
 	/** The hand to volunteer with, in its head beside ↗, while nobody has. */
 	hand?: ReactNode;
@@ -417,7 +417,6 @@ function LiveCard({
 				</div>
 			)}
 			{card.pull && <PullStatus pull={card.pull} forge={card.forge} />}
-			{volunteers}
 			<div className="card-foot">
 				{card.assignees.length > 0 && (
 					<span className="avatars">
@@ -466,9 +465,11 @@ function LiveCard({
 				)}
 				<ReactionPills
 					card={card}
-					room={reactionRoom(card, [origin, liveness])}
+					// The volunteers' chip (✋ and faces) takes about two pills' room.
+					room={reactionRoom(card, [origin, liveness, volunteers, volunteers])}
 					show={showReactors}
 				/>
+				{volunteers}
 				{origin && <ProvenanceBadge origin={origin} />}
 				{liveness && <Liveness state={liveness} card={card} />}
 			</div>
