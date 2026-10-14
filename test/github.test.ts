@@ -248,6 +248,46 @@ describe("👍 reactions, which dot votes count", () => {
 	});
 });
 
+describe("each reaction's count, for a card's pills", () => {
+	it("comes from GraphQL's reaction groups, in GitHub's order", () => {
+		const card = normaliseGqlPull(
+			pull({
+				reactionGroups: [
+					{ content: "THUMBS_UP", reactors: { totalCount: 11 } },
+					{ content: "THUMBS_DOWN", reactors: { totalCount: 0 } },
+					{ content: "HEART", reactors: { totalCount: 6 } },
+					{ content: "HOORAY", reactors: { totalCount: 3 } },
+					{ content: "ROCKET", reactors: { totalCount: 2 } },
+				],
+			}),
+		);
+		expect(card.reactionCounts).toEqual([
+			{ emoji: "👍", count: 11 },
+			{ emoji: "🎉", count: 3 },
+			{ emoji: "❤️", count: 6 },
+			{ emoji: "🚀", count: 2 },
+		]);
+		// Cached answers from before: the total alone.
+		expect(normaliseGqlPull(pull()).reactionCounts).toBeUndefined();
+	});
+
+	it("comes from REST and webhooks' reactions object", () => {
+		const card = normaliseIssue("acme/widgets", {
+			number: 5,
+			title: "t",
+			state: "open",
+			html_url: "https://github.com/acme/widgets/issues/5",
+			updated_at: "2026-01-01T00:00:00Z",
+			reactions: { total_count: 6, "+1": 3, "-1": 0, laugh: 1, eyes: 2, heart: 0 },
+		});
+		expect(card.reactionCounts).toEqual([
+			{ emoji: "👍", count: 3 },
+			{ emoji: "😄", count: 1 },
+			{ emoji: "👀", count: 2 },
+		]);
+	});
+});
+
 describe("When items were opened and closed, their milestone and size", () => {
 	it("come from GraphQL where asked for", () => {
 		const card = normaliseGqlPull(

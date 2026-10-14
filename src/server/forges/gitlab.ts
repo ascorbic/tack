@@ -1,3 +1,4 @@
+import { orderCounts } from "../../shared/reactions.ts";
 import {
 	type Card,
 	type CardState,
@@ -96,6 +97,11 @@ export function normaliseGitLab(
 		author: item.author ? person(item.author) : null,
 		comments: item.user_notes_count ?? 0,
 		reactions: upvotes + (item.downvotes ?? 0),
+		// GitLab counts 👍 and 👎 on the item itself; other award emoji take a request each.
+		reactionCounts: orderCounts([
+			{ emoji: "👍", count: upvotes },
+			{ emoji: "👎", count: item.downvotes ?? 0 },
+		]),
 		thumbsUp: { count: upvotes },
 		url: item.web_url,
 		updatedAt: iso(item.updated_at),

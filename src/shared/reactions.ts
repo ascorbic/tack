@@ -31,6 +31,88 @@ export const GITHUB_REACTIONS: Readonly<Record<string, string>> = {
 	EYES: "👀",
 };
 
+/** Every reaction there is, in the order GitHub shows them. */
+export const REACTION_ORDER: readonly string[] = Object.values(GITHUB_REACTIONS);
+
+/** GitHub's REST and webhook reaction counts' keys, as emoji. */
+export const GITHUB_REST_REACTIONS: Readonly<Record<string, string>> = {
+	"+1": "👍",
+	"-1": "👎",
+	laugh: "😄",
+	hooray: "🎉",
+	confused: "😕",
+	heart: "❤️",
+	rocket: "🚀",
+	eyes: "👀",
+};
+
+/** How many of one reaction an item has: a card's pill (👍 11). */
+export interface ReactionCount {
+	emoji: string;
+	count: number;
+}
+
+/** Counts in GitHub's order, without the ones nobody left. */
+export function orderCounts(counts: Iterable<ReactionCount>): ReactionCount[] {
+	const rank = (emoji: string) => {
+		const at = REACTION_ORDER.indexOf(emoji);
+		return at === -1 ? REACTION_ORDER.length : at;
+	};
+	return [...counts].filter((c) => c.count > 0).sort((a, b) => rank(a.emoji) - rank(b.emoji));
+}
+
+/** GitHub's REST `reactions` object (`{ "+1": 3, heart: 1, … }`) as counts. */
+export function restCounts(reactions: Record<string, unknown> | null | undefined): ReactionCount[] {
+	if (!reactions) return [];
+	return orderCounts(
+		Object.entries(GITHUB_REST_REACTIONS).map(([key, emoji]) => ({
+			emoji,
+			count: typeof reactions[key] === "number" ? (reactions[key] as number) : 0,
+		})),
+	);
+}
+
+/** GitHub GraphQL's `reactionGroups { content reactors { totalCount } }` as counts. */
+export function groupCounts(
+	groups: readonly { content: string; reactors?: { totalCount: number } | null }[],
+): ReactionCount[] {
+	return orderCounts(
+		groups.flatMap((group) => {
+			const emoji = GITHUB_REACTIONS[group.content];
+			return emoji ? [{ emoji, count: group.reactors?.totalCount ?? 0 }] : [];
+		}),
+	);
+}
+
+/**
+ * Which of a card's reactions get a pill of their own when only `room` fit:
+ * the most left (in GitHub's order, as they show), and the rest folded
+ * into "+N". All of them when they fit.
+ */
+export function pillsFor(
+	counts: readonly ReactionCount[],
+	room: number,
+): { shown: ReactionCount[]; rest: ReactionCount[] } {
+	const ordered = orderCounts(counts);
+	if (ordered.length <= room) return { shown: ordered, rest: [] };
+	const top = new Set(topReactions(ordered, Math.max(1, room - 1)).map((c) => c.emoji));
+	return {
+		shown: ordered.filter((c) => top.has(c.emoji)),
+		rest: ordered.filter((c) => !top.has(c.emoji)),
+	};
+}
+
+/** The `top` most left, shown in GitHub's order. */
+export function topReactions(counts: readonly ReactionCount[], top: number): ReactionCount[] {
+	const best = new Set(
+		orderCounts(counts)
+			.sort((a, b) => b.count - a.count)
+			.slice(0, top)
+			.map((c) => c.emoji),
+	);
+	return orderCounts(counts).filter((c) => best.has(c.emoji));
+}
+
 /** Someone who reacted on a forge: their login, and their name where the forge has one. */
 export interface Reactor {
 	login: string;
@@ -170,6 +252,11 @@ const FAKE_REACTORS: Reactor[] = [
 	{ login: "ines-m", name: "Inês Moreau" },
 	{ login: "felix-w" },
 ];
+
+/** The fake forge's (and the playground's) counts for an item: those of `fakeReactors`. */
+export function fakeReactionCounts(key: string, count: number): ReactionCount[] {
+	return orderCounts(fakeReactors(key, count).map(({ emoji, count }) => ({ emoji, count })));
+}
 
 /**
  * Who reacted to an item on the fake forge (and in the playground): `count`

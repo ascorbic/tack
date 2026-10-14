@@ -9,6 +9,7 @@ import {
 	type Reviewer,
 	type ReviewState,
 } from "../../shared/cards.ts";
+import { groupCounts } from "../../shared/reactions.ts";
 import { itemKey } from "../../shared/refs.ts";
 import type { RepoIdentity } from "./types.ts";
 import { categoryEmoji } from "./github-emoji.ts";
@@ -38,6 +39,7 @@ const COMMON = `
 	assignees(first: 5) { nodes { login avatarUrl } }
 	comments { totalCount }
 	reactions { totalCount }
+	reactionGroups { content reactors { totalCount } }
 	thumbsUp: reactions(content: THUMBS_UP, first: 50) { totalCount nodes { user { login } } }`;
 
 const COUNTS = `
@@ -105,6 +107,7 @@ fragment TackDiscussion on Discussion {
 	labels(first: 10) { nodes { name color } }
 	comments { totalCount }
 	reactions { totalCount }
+	reactionGroups { content reactors { totalCount } }
 	thumbsUp: reactions(content: THUMBS_UP, first: 50) { totalCount nodes { user { login } } }
 	discussionClosed: closed
 	discussionStateReason: stateReason
@@ -141,6 +144,8 @@ interface Common {
 	assignees: { nodes: Actor[] };
 	comments: { totalCount: number };
 	reactions: { totalCount: number };
+	/** How many of each reaction (a card's pills). Absent from older fixtures. */
+	reactionGroups?: { content: string; reactors?: { totalCount: number } | null }[] | null;
 	/** 👍 reactions and who left them (dot votes count them, #48). Absent from older fixtures. */
 	thumbsUp?: { totalCount: number; nodes: { user: { login: string } | null }[] };
 }
@@ -491,6 +496,7 @@ function base(node: GqlBase): Omit<Card, "kind" | "state" | "stateReason"> {
 		author: node.author ? { login: node.author.login, avatarUrl: node.author.avatarUrl } : null,
 		comments: node.comments.totalCount,
 		reactions: node.reactions.totalCount,
+		...(node.reactionGroups ? { reactionCounts: groupCounts(node.reactionGroups) } : {}),
 		...(node.thumbsUp
 			? {
 					thumbsUp: {

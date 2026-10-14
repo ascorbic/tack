@@ -9,7 +9,7 @@ import {
 	sortResults,
 } from "../../shared/search.ts";
 import type { RelatedResult } from "../../shared/widgets.ts";
-import { fakeReactors } from "../../shared/reactions.ts";
+import { fakeReactionCounts, fakeReactors } from "../../shared/reactions.ts";
 import type { ApplyResult, ForgeAdapter } from "./types.ts";
 
 // A synthetic forge at `fake.tack`, for stress tests and tests. Items are
@@ -121,6 +121,7 @@ function fakeDiscussion(
 		labels: i % 3 === 0 ? [] : LABELS.slice(1, 1 + (i % 3)),
 		comments: (i * 7) % 23,
 		reactions: i % 5,
+		reactionCounts: fakeReactionCounts(common.key, i % 5),
 		discussion: {
 			category,
 			answered,
@@ -190,6 +191,7 @@ export function fakeCard(repo: string, n: number): Card {
 		labels: LABELS.slice(0, (n % 3) + 1),
 		comments: n % 17,
 		reactions: n % 9,
+		reactionCounts: fakeReactionCounts(common.key, n % 9),
 	};
 }
 

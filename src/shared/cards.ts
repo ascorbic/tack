@@ -1,3 +1,4 @@
+import type { ReactionCount } from "./reactions.ts";
 import type { ForgeId } from "./refs.ts";
 
 // Normalised, forge-neutral card data. This is what travels to clients over
@@ -32,7 +33,15 @@ export interface Card {
 	assignees: { login: string; avatarUrl: string }[];
 	author: { login: string; avatarUrl: string } | null;
 	comments: number;
+	/** Every reaction, all kinds together. */
 	reactions: number;
+	/**
+	 * Reactions by emoji, in GitHub's order, without the ones nobody left
+	 * (see src/shared/reactions.ts): a card shows a pill for each. Absent in
+	 * card data cached before Tack read them, and from forges that don't say:
+	 * the card shows the total alone until it's next fetched.
+	 */
+	reactionCounts?: ReactionCount[];
 	/**
 	 * 👍 reactions on the item, which dot votes can count (#48): how many,
 	 * and who, where the forge said (GitHub's GraphQL does; REST and webhook

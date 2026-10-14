@@ -42,12 +42,43 @@ const REACTION_CONTENTS = [
 	"EYES",
 ];
 
+/** Every reaction on an item, by GraphQL content: its 👍 and the rest. */
+function reactionsOf(item: {
+	thumbsUp?: string[];
+	reactions?: Record<string, string[]>;
+}): Record<string, string[]> {
+	return { ...item.reactions, THUMBS_UP: item.thumbsUp ?? item.reactions?.THUMBS_UP ?? [] };
+}
+
+/** GraphQL's `reactionGroups`, counted. */
+function gqlGroups(item: { thumbsUp?: string[]; reactions?: Record<string, string[]> }) {
+	const all = reactionsOf(item);
+	return REACTION_CONTENTS.map((content) => ({
+		content,
+		reactors: { totalCount: all[content]?.length ?? 0 },
+	}));
+}
+
+/** REST's `reactions` object, counted. */
+function restReactions(item: { thumbsUp?: string[]; reactions?: Record<string, string[]> }) {
+	const all = reactionsOf(item);
+	const n = (content: string) => all[content]?.length ?? 0;
+	return {
+		total_count: Object.values(all).reduce((sum, logins) => sum + logins.length, 0),
+		"+1": n("THUMBS_UP"),
+		"-1": n("THUMBS_DOWN"),
+		laugh: n("LAUGH"),
+		hooray: n("HOORAY"),
+		confused: n("CONFUSED"),
+		heart: n("HEART"),
+		rocket: n("ROCKET"),
+		eyes: n("EYES"),
+	};
+}
+
 /** Every reaction on an item: its 👍 and the rest. */
 function reactionTotal(item: FakeItem): number {
-	const others = Object.entries(item.reactions ?? {})
-		.filter(([content]) => content !== "THUMBS_UP")
-		.reduce((n, [, logins]) => n + logins.length, 0);
-	return (item.thumbsUp?.length ?? 0) + others;
+	return restReactions(item).total_count;
 }
 
 export interface FakeUser {
@@ -1533,7 +1564,8 @@ export class FakeGitHub {
 			},
 			labels: { nodes: d.labels ?? [] },
 			comments: { totalCount: d.comments?.length ?? 0 },
-			reactions: { totalCount: 0 },
+			reactions: { totalCount: restReactions(d).total_count },
+			reactionGroups: gqlGroups(d),
 			thumbsUp: { totalCount: 0, nodes: [] },
 			discussionClosed: d.closed ?? false,
 			discussionStateReason: d.closed ? (d.stateReason ?? "RESOLVED") : null,
@@ -2233,6 +2265,7 @@ export class FakeGitHub {
 			},
 			comments: { totalCount: 0 },
 			reactions: { totalCount: reactionTotal(item) },
+			reactionGroups: gqlGroups(item),
 			thumbsUp: {
 				totalCount: item.thumbsUp?.length ?? 0,
 				nodes: (item.thumbsUp ?? []).map((login) => ({ user: { login } })),
@@ -2306,7 +2339,7 @@ export class FakeGitHub {
 			updated_at: item.updatedAt,
 			node_id: `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`,
 			comments: 0,
-			reactions: { total_count: reactionTotal(item), "+1": item.thumbsUp?.length ?? 0 },
+			reactions: restReactions(item),
 			labels: item.labels ?? [],
 			assignees: (item.assignees ?? []).map((login) => ({
 				login,

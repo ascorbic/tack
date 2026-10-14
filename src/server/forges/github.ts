@@ -1,6 +1,7 @@
 import type { Card, CardState, MissingCard, PullDetails } from "../../shared/cards.ts";
 import { OPERATION_KINDS } from "../../shared/changes.ts";
 import { type ItemMention, mentionsIn } from "../../shared/mentions.ts";
+import { restCounts } from "../../shared/reactions.ts";
 import { itemKey } from "../../shared/refs.ts";
 import { forgetRepoToken, isInstalled, repoToken, watchInstallation } from "../github/tokens.ts";
 import { log } from "../log.ts";
@@ -67,7 +68,7 @@ export interface GitHubIssueLike {
 	labels?: ({ name?: string; color?: string } | string)[];
 	assignees?: { login: string; avatar_url: string }[] | null;
 	user?: { login: string; avatar_url: string } | null;
-	reactions?: { total_count?: number; "+1"?: number };
+	reactions?: { total_count?: number; "+1"?: number } & Record<string, unknown>;
 	pull_request?: { merged_at?: string | null } | null;
 	draft?: boolean;
 	merged?: boolean;
@@ -103,7 +104,7 @@ export interface GitHubDiscussionLike {
 	category?: { name: string; emoji?: string | null; is_answerable?: boolean } | null;
 	user?: { login: string; avatar_url: string } | null;
 	labels?: { name?: string; color?: string }[];
-	reactions?: { total_count?: number; "+1"?: number };
+	reactions?: { total_count?: number; "+1"?: number } & Record<string, unknown>;
 	repository_url?: string;
 }
 
@@ -174,6 +175,7 @@ export function normaliseDiscussion(
 			: null,
 		comments: discussion.comments ?? 0,
 		reactions: discussion.reactions?.total_count ?? 0,
+		...(discussion.reactions ? { reactionCounts: restCounts(discussion.reactions) } : {}),
 		...(typeof discussion.reactions?.["+1"] === "number"
 			? { thumbsUp: { count: discussion.reactions["+1"] } }
 			: {}),
@@ -271,6 +273,7 @@ export function normaliseIssue(
 		author: issue.user ? { login: issue.user.login, avatarUrl: issue.user.avatar_url } : null,
 		comments: issue.comments ?? 0,
 		reactions: issue.reactions?.total_count ?? 0,
+		...(issue.reactions ? { reactionCounts: restCounts(issue.reactions) } : {}),
 		// REST and webhooks count 👍 but don't say who (GraphQL does).
 		...(typeof issue.reactions?.["+1"] === "number"
 			? { thumbsUp: { count: issue.reactions["+1"] } }
