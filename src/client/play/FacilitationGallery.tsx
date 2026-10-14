@@ -4,6 +4,7 @@ import { type DotVote, placeDot, readVotes, startVote, tallyVote } from "../../s
 import {
 	EMOTES,
 	type StampCount,
+	type StampEmoji,
 	type Timer,
 	stampCounts,
 	stampsMap,
@@ -284,6 +285,12 @@ export default function FacilitationGallery() {
 					</Figure>
 					<Figure label="Yours among them" state="stamps-mine">
 						<ShapeWithMarks stamps={stamps([PRIYA, "✅"], [ME, "✅"], [ME, "🔥"], [KAI, "👀"])} />
+					</Figure>
+					<Figure label="Who stamped it: hover, focus or long-press" state="stamps-who">
+						<ShapeWithMarks
+							stamps={stamps([PRIYA, "👍"], [KAI, "👍"], [ME, "👍"], [TOM, "👍"], [JO, "🎉"])}
+							showWho="👍"
+						/>
 					</Figure>
 					<Figure label="Dots on a shape" state="dots">
 						<ShapeWithMarks vote={board.open} shape={board.c1} />
@@ -566,17 +573,20 @@ function ShapeWithMarks({
 	stamps,
 	vote,
 	shape,
+	showWho,
 }: {
 	stamps?: StampCount[];
 	vote?: DotVote;
 	shape?: string;
+	/** Show who stamped this one, as hovering it does. */
+	showWho?: StampEmoji;
 }) {
 	return (
 		<div className="facilitation-gallery-shape">
 			<StickyView text="Docs search finds the wrong page" color="blue" author={TOM} />
 			{stamps && (
 				<div className="facilitation-gallery-stamps">
-					<StampRow counts={stamps} onToggle={noop} />
+					<StampRow counts={stamps} onToggle={noop} showWho={showWho} />
 				</div>
 			)}
 			{vote && shape && (

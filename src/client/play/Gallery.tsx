@@ -8,6 +8,8 @@ import type { ShapeFont, ShapeProps, TextSize } from "../../shared/shapes.ts";
 import type { Status } from "../activity.ts";
 import { STICKY_COLORS, type ShapeNode } from "../board.ts";
 import { CardView } from "../CardView.tsx";
+import { fakeReactors } from "../../shared/reactions.ts";
+import type { ReactorsState } from "../reactions/reactors.ts";
 import type { LinkPreview } from "../../shared/linkPreview.ts";
 import { LinkView, type LinkViewProps } from "../links/LinkView.tsx";
 import { cannedPreview, playLinks } from "./links.ts";
@@ -42,8 +44,29 @@ import {
 	GALLERY_CARDS,
 	LABELS,
 	PULL_GALLERY,
+	fixture,
 } from "./fixtures.ts";
 import { PROVENANCE_GALLERY } from "./related.ts";
+
+/** A card people have reacted to, for "Who reacted". */
+const REACTED: Card = {
+	...fixture({
+		repo: "tack/cirrus",
+		item: "#58",
+		title: "Cache map tiles at the edge",
+		reactions: 9,
+		comments: 4,
+	}),
+};
+
+const REACTION_STATES: { label: string; state: ReactorsState }[] = [
+	{
+		label: "Who reacted, on hover",
+		state: { status: "ready", groups: fakeReactors(REACTED.key, REACTED.reactions) },
+	},
+	{ label: "Asking the forge", state: { status: "loading" } },
+	{ label: "The forge can’t say: how many", state: { status: "unavailable" } },
+];
 
 const MISSING: { label: string; card: MissingCard }[] = [
 	{
@@ -574,6 +597,23 @@ function Sections({
 					{MISSING.map(({ label, card }) => (
 						<figure key={card.reason}>
 							<CardView card={card} cardKey={card.key} />
+							<figcaption>{label}</figcaption>
+						</figure>
+					))}
+				</div>
+			</section>
+
+			<section>
+				<h2>Who reacted</h2>
+				<p className="gallery-note">
+					Hovering, focusing or tapping a card’s reaction count asks the forge who reacted: three
+					dots while it does, then each reaction’s people (fewer each when there are several), or
+					just how many when it can’t say.
+				</p>
+				<div className="gallery-grid gallery-reactions">
+					{REACTION_STATES.map(({ label, state }) => (
+						<figure key={label} data-state={`reactions-${state.status}`}>
+							<CardView card={REACTED} cardKey={REACTED.key} showReactors={state} />
 							<figcaption>{label}</figcaption>
 						</figure>
 					))}

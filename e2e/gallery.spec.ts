@@ -77,6 +77,21 @@ test("stacks are theme cards: stickies, issues and pull requests a line each, or
 	);
 });
 
+test("who reacted to a card: named, asking, and just how many", async ({ page }) => {
+	const tips = page.locator(".reaction-tip");
+	await expect(tips).toHaveCount(3);
+	await expect(tips.filter({ hasText: "🚀" })).toContainText("👍");
+	await expect(
+		tips.filter({ has: page.getByRole("status", { name: "Loading names" }) }),
+	).toHaveText("9 reactions");
+	await expect(
+		page.locator("figure[data-state=reactions-ready] button.count.reactions"),
+	).toHaveAccessibleName(/^9 reactions: 👍 .+; ❤️ /);
+	await expect(
+		page.locator("figure[data-state=reactions-unavailable] button.count.reactions"),
+	).toHaveAccessibleName("9 reactions");
+});
+
 test("every card state renders", async ({ page }) => {
 	const cards = page.locator("section", { hasText: /^Cards/ }).locator("figure");
 	await expect(cards).toHaveCount(CARDS.length);
@@ -500,6 +515,10 @@ test("every facilitation, silent mode and dot voting state renders", async ({ pa
 	}
 	await expect(page.locator(".spotlight-pill")).toHaveCount(3);
 	await expect(page.locator("figure[data-state=stamps] .stamp")).toHaveCount(3);
+	// Who stamped it, shown as hovering does: you first.
+	await expect(page.getByRole("tooltip").filter({ hasText: "👍" })).toHaveText(
+		"👍You, Priya Shah, Kai Andersen and Tom Okafor",
+	);
 	await expect(page.locator("figure[data-state=dots-hidden] .vote-dot")).toHaveCount(1);
 	await expect(page.getByRole("menu", { name: "Emotes" }).getByRole("menuitem")).toHaveCount(8);
 	await expect(
