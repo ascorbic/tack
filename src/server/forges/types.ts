@@ -11,6 +11,7 @@ import type {
 	SearchResult,
 } from "../../shared/widgets.ts";
 import type { ForgeId, ItemRef } from "../../shared/refs.ts";
+import type { ReactorsResult } from "../../shared/reactions.ts";
 
 /** What a forge supports, so the UI can offer only what will work. */
 export interface ForgeCapabilities {
@@ -354,6 +355,12 @@ export interface ForgeAdapter {
 	): Promise<SearchResult | QueryError>;
 	/** Items related to one item. */
 	related?(key: string, env: Env, auth?: ReadAuth): Promise<RelatedResult | QueryError>;
+	/**
+	 * Who reacted to an item, by kind of reaction: the first few of each
+	 * (`MAX_NAMED`), with names where the forge has them. Asked when someone
+	 * hovers a card's reaction count (src/server/reactors.ts).
+	 */
+	reactors?(key: string, env: Env, auth?: ReadAuth): Promise<ReactorsResult | QueryError>;
 	/** A repository's latest release and what's merged since. */
 	release?(repo: RepoIdentity, env: Env, auth?: ReadAuth): Promise<ReleaseResult | QueryError>;
 

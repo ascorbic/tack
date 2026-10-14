@@ -239,6 +239,12 @@ const ROWS: Row[] = [
 			call(a, "GET", `/api/boards/${privateBoard}/related?key=fake.tack/acme/app%231`),
 	},
 	{
+		route: "GET /api/boards/:id/reactors",
+		allowed: privateReaders,
+		request: (a) =>
+			call(a, "GET", `/api/boards/${privateBoard}/reactors?key=fake.tack/acme/app%231`),
+	},
+	{
 		// Reading a page for a link card: editors, signed in. A private address is
 		// refused without fetching anything, so the answer is a `blocked` preview.
 		route: "POST /api/boards/:id/unfurl",

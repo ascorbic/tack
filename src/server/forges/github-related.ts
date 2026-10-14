@@ -128,7 +128,7 @@ function toCard(node: Item | null | undefined): Card | null {
 }
 
 /** Run a query, or say why it couldn't run. */
-async function run<T>(
+export async function run<T>(
 	token: string,
 	name: string,
 	query: string,
@@ -189,12 +189,12 @@ async function run<T>(
 	return body.data;
 }
 
-function isError(value: unknown): value is QueryError {
+export function isError(value: unknown): value is QueryError {
 	return typeof value === "object" && value !== null && (value as QueryError).kind === "error";
 }
 
 /** The token to read with: the viewer's own, else the app's (or `GITHUB_TOKEN`). */
-async function readToken(env: Env, repo: string, auth?: ReadAuth): Promise<string | null> {
+export async function readToken(env: Env, repo: string, auth?: ReadAuth): Promise<string | null> {
 	return auth?.token ?? (await repoToken(env, `${HOST}/${repo}`.toLowerCase()));
 }
 

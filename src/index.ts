@@ -16,6 +16,7 @@ import { handleHistory } from "./server/history.ts";
 import { handleImages } from "./server/images.ts";
 import { handleItemSearch } from "./server/itemSearch.ts";
 import { handleLinks } from "./server/links/routes.ts";
+import { handleReactors } from "./server/reactors.ts";
 import { handleRelated } from "./server/related.ts";
 import { handleSnapshots } from "./server/snapshots.ts";
 import { handleWebhook } from "./server/webhooks.ts";
@@ -73,6 +74,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 	// What's related to a card, as the viewer may see it (Expand related).
 	const related = await handleRelated(request, env);
 	if (related) return related;
+
+	// Who reacted to a card's item, asked when its reaction count is hovered.
+	const reactors = await handleReactors(request, env);
+	if (reactors) return reactors;
 
 	// Searching for issues and pull requests to add, as the viewer (the card tool).
 	const search = await handleItemSearch(request, env);

@@ -169,3 +169,6 @@ function decode(value: string): string | null {
 		return null;
 	}
 }
+
+// Shared with who-reacted (reactors.ts), which asks the same way.
+export { decode as decodeParam, error as queryErrorResponse, route as repoRoute, NO_ACCESS };

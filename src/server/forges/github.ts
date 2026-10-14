@@ -19,6 +19,7 @@ import {
 	replyGitHub,
 	unreactGitHub,
 } from "./github-commands.ts";
+import { reactorsGitHub } from "./github-reactors.ts";
 import { relatedGitHub, releaseGitHub } from "./github-related.ts";
 import { searchGitHub } from "./github-search.ts";
 import {
@@ -624,6 +625,8 @@ export const github: ForgeAdapter = {
 	// Reading for widgets (M3): see github-related.ts.
 	related: relatedGitHub,
 	release: releaseGitHub,
+	// Who reacted, for a card's reaction count: see github-reactors.ts.
+	reactors: reactorsGitHub,
 	// Widgets (M3): see github-search.ts.
 	search: (query, env, auth) => searchGitHub(query, env, auth),
 

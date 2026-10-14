@@ -30,6 +30,26 @@ import { type Request, Response } from "miniflare";
 import type { Card } from "../src/shared/cards.ts";
 import { matchSearch, parseSearch } from "../src/shared/search.ts";
 
+/** GitHub's reaction contents, in its order. */
+const REACTION_CONTENTS = [
+	"THUMBS_UP",
+	"THUMBS_DOWN",
+	"LAUGH",
+	"HOORAY",
+	"CONFUSED",
+	"HEART",
+	"ROCKET",
+	"EYES",
+];
+
+/** Every reaction on an item: its 👍 and the rest. */
+function reactionTotal(item: FakeItem): number {
+	const others = Object.entries(item.reactions ?? {})
+		.filter(([content]) => content !== "THUMBS_UP")
+		.reduce((n, [, logins]) => n + logins.length, 0);
+	return (item.thumbsUp?.length ?? 0) + others;
+}
+
 export interface FakeUser {
 	id: number;
 	login: string;
@@ -91,6 +111,11 @@ export interface FakeItem {
 	mentions?: number[];
 	/** Logins who reacted 👍. */
 	thumbsUp?: string[];
+	/**
+	 * Every reaction, by GraphQL content (`HEART`, `ROCKET`…), as the logins
+	 * who left it: who reacted (`TackReactors`). 👍 are `thumbsUp`'s.
+	 */
+	reactions?: Record<string, string[]>;
 	/** Pull requests: their size. */
 	additions?: number;
 	deletions?: number;
@@ -183,6 +208,8 @@ export interface FakeDiscussion {
 	/** Comments, oldest first. */
 	comments?: { body: string; login: string; createdAt: string }[];
 	author?: string;
+	/** Reactions, by GraphQL content, as the logins who left them (see `FakeItem`). */
+	reactions?: Record<string, string[]>;
 }
 
 /** Categories' emoji, as GitHub gives them: a shortcode, and HTML. */
@@ -1908,6 +1935,7 @@ export class FakeGitHub {
 		errors: unknown[] = [],
 	) {
 		if (operation === "TackRelated") return this.relatedGraphQL(variables, auth);
+		if (operation === "TackReactors") return this.reactorsGraphQL(variables, auth, errors);
 		if (operation === "TackRelease") return this.releaseGraphQL(variables, auth);
 		if (operation === "TackMergedSince") return this.mergedSinceGraphQL(variables, auth);
 		const ids = (variables.ids as string[] | undefined) ?? [];
@@ -1992,6 +2020,46 @@ export class FakeGitHub {
 	}
 
 	/** What's related to an item (src/server/forges/github-related.ts). */
+	/** Who reacted to an item or discussion, as `reactionGroups` with their first `reactors`. */
+	private reactorsGraphQL(variables: Record<string, unknown>, auth: string, errors: unknown[]) {
+		const repo = this.repoByName(`${String(variables.owner)}/${String(variables.name)}`);
+		if (!repo || !this.canSee(repo, auth)) return { repository: null };
+		const number = Number(variables.number);
+		const groups = (reactions: Record<string, string[]>) =>
+			REACTION_CONTENTS.map((content) => {
+				const logins = reactions[content] ?? [];
+				return {
+					content,
+					reactors: {
+						totalCount: logins.length,
+						nodes: logins.slice(0, 10).map((login) => {
+							const account = this.accounts.get(login.toLowerCase());
+							return { __typename: "User", login, name: account?.name ?? null };
+						}),
+					},
+				};
+			});
+		const item = this.items.get(`${repo.id}#${number}`);
+		const d = item ? undefined : this.discussion(repo.id, number);
+		// As GitHub does: the one that isn't there is null, with an error saying so.
+		if (!item) errors.push({ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"] });
+		if (!d) errors.push({ type: "NOT_FOUND", path: ["repository", "discussion"] });
+		return {
+			repository: {
+				issueOrPullRequest: item
+					? {
+							__typename: item.kind === "pull" ? "PullRequest" : "Issue",
+							reactionGroups: groups({
+								...item.reactions,
+								THUMBS_UP: item.thumbsUp ?? [],
+							}),
+						}
+					: null,
+				discussion: d ? { reactionGroups: groups(d.reactions ?? {}) } : null,
+			},
+		};
+	}
+
 	private relatedGraphQL(variables: Record<string, unknown>, auth: string) {
 		const repo = this.repoByName(`${String(variables.owner)}/${String(variables.name)}`);
 		if (!repo || !this.canSee(repo, auth)) return { repository: null };
@@ -2164,7 +2232,7 @@ export class FakeGitHub {
 				})),
 			},
 			comments: { totalCount: 0 },
-			reactions: { totalCount: item.thumbsUp?.length ?? 0 },
+			reactions: { totalCount: reactionTotal(item) },
 			thumbsUp: {
 				totalCount: item.thumbsUp?.length ?? 0,
 				nodes: (item.thumbsUp ?? []).map((login) => ({ user: { login } })),
@@ -2238,7 +2306,7 @@ export class FakeGitHub {
 			updated_at: item.updatedAt,
 			node_id: `${item.kind === "pull" ? "PR" : "I"}_${repo.id}_${item.number}`,
 			comments: 0,
-			reactions: { total_count: item.thumbsUp?.length ?? 0, "+1": item.thumbsUp?.length ?? 0 },
+			reactions: { total_count: reactionTotal(item), "+1": item.thumbsUp?.length ?? 0 },
 			labels: item.labels ?? [],
 			assignees: (item.assignees ?? []).map((login) => ({
 				login,

@@ -9,6 +9,7 @@ import {
 	sortResults,
 } from "../../shared/search.ts";
 import type { RelatedResult } from "../../shared/widgets.ts";
+import { fakeReactors } from "../../shared/reactions.ts";
 import type { ApplyResult, ForgeAdapter } from "./types.ts";
 
 // A synthetic forge at `fake.tack`, for stress tests and tests. Items are
@@ -284,6 +285,17 @@ export const fake: ForgeAdapter = {
 
 	async listDirectory() {
 		return [];
+	},
+
+	// Who reacted: made-up people, as many as the card counts (`fakeReactors`).
+	async reactors(key) {
+		const parsed = parseRepoKey(repoKeyOf(key));
+		const n = Number(itemOf(key)?.slice(1));
+		if (!parsed || !Number.isInteger(n) || n < 1) {
+			return { kind: "error", reason: "invalid", message: "Not a fake.tack item." };
+		}
+		const card = fakeCard(parsed.repo, n);
+		return { kind: "reactors", key: card.key, groups: fakeReactors(card.key, card.reactions) };
 	},
 
 	async related(key) {
