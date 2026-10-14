@@ -134,24 +134,104 @@
 	animation-iteration-count: 1;
 }
 
-/* A card's reaction count: a button now, looking as it did. */
-button.count.reactions {
-	padding: 1px 4px;
-	margin: -1px -4px;
-	border: 0;
-	border-radius: 6px;
-	background: none;
-	color: inherit;
+/* A card's reactions: a pill per emoji, as stamps look (their border,
+   surface and rounding), a size down to sit in the card's foot. */
+.reaction-pills {
+	display: inline-flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.reaction-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	height: 22px;
+	padding: 0 7px 0 5px;
+	border: 1px solid var(--line-strong);
+	border-radius: 999px;
+	background: var(--surface);
+	color: var(--ink-soft);
 	font: inherit;
+	line-height: 1;
 	cursor: default;
 	-webkit-touch-callout: none;
 	user-select: none;
-	transition: background var(--t-quick) var(--ease-out);
+	transition:
+		transform var(--t-quick) var(--ease-out),
+		border-color var(--t-quick) var(--ease-out);
 }
 
-button.count.reactions:hover,
-button.count.reactions[data-open] {
-	background: var(--hover);
+.reaction-pill:hover,
+.reaction-pill[data-open] {
+	transform: translateY(-1px);
+	border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong));
+}
+
+.reaction-pill:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.reaction-pill-emoji {
+	font-size: 12px;
+}
+
+.reaction-pill-count {
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+}
+
+.reaction-pill[data-more] {
+	padding: 0 7px;
+}
+
+.reaction-pill-word {
+	margin-left: 1px;
+	font-size: 11px;
+	font-weight: 550;
+}
+
+/* The top one or two, small and still, where pills wouldn't fit: list rows,
+   mini cards and cards zoomed out. */
+.top-reactions {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--ink-soft);
+	font-size: 10.5px;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.top-reaction {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.top-reaction-emoji {
+	font-size: 11px;
+}
+
+/* Zoomed out the card grows its type; its reactions grow with it. */
+.card.compact .top-reactions {
+	gap: 12px;
+	font-size: 18px;
+}
+
+.card.compact .top-reaction {
+	gap: 4px;
+}
+
+.card.compact .top-reaction-emoji {
+	font-size: 19px;
 }
 
 /* Stamps hold for a long-press without the browser's callout or selection. */
@@ -159,4 +239,9 @@ button.count.reactions[data-open] {
 .phone-sheet-stamp {
 	-webkit-touch-callout: none;
 	user-select: none;
+}
+
+/* On a mini card, at the head's far end, before any stamps and dots. */
+.display-mini-head .top-reactions {
+	margin-left: auto;
 }

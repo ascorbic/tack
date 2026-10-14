@@ -24,6 +24,7 @@ import { StateIcon, cardTone, stateLabel } from "../CardView.tsx";
 import { useCard } from "../cardStore.ts";
 import { DocContext, ReadOnlyContext } from "../DocContext.ts";
 import { StampRow, VoteDots, stampShape } from "../facilitation/Marks.tsx";
+import { TopReactions } from "../reactions/ReactionPills.tsx";
 import { facilitation, useSilentTexts } from "../facilitation/store.ts";
 import { initials } from "../People.tsx";
 import { useEditing } from "../useEditing.ts";
@@ -194,6 +195,7 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 					{tier === "full" && card?.discussion?.upvotes !== undefined && (
 						<Upvotes count={card.discussion.upvotes} />
 					)}
+					{tier === "full" && card && <TopReactions card={card} top={1} />}
 					<DisplayMarks id={id} compact />
 				</span>
 				<span className="display-mini-title">
@@ -266,6 +268,7 @@ const CardItem = memo(function CardItem({ id, shape, kind, selected, tier, enter
 			{tier === "full" && card?.discussion?.upvotes !== undefined && (
 				<Upvotes count={card.discussion.upvotes} />
 			)}
+			{tier === "full" && card && <TopReactions card={card} />}
 			{tier === "full" && card && card.assignees.length > 0 && (
 				<span
 					className="display-avatars"

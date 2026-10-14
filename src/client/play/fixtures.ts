@@ -1,5 +1,6 @@
 import type { Card, DiscussionCategory, DiscussionDetails } from "../../shared/cards.ts";
 import type { RepoDiscussionCategory } from "../../shared/push.ts";
+import { fakeReactionCounts } from "../../shared/reactions.ts";
 import { itemKey } from "../../shared/refs.ts";
 import { PEOPLE, makeChecks, pullDetails, reviewer } from "./ci.ts";
 
@@ -14,8 +15,9 @@ let next = 400;
 export function fixture(overrides: Overrides): Card {
 	const item = overrides.item ?? `#${next++}`;
 	const repo = overrides.repo ?? REPO;
+	const key = itemKey({ host: "fake.tack", repo, item });
 	return {
-		key: itemKey({ host: "fake.tack", repo, item }),
+		key,
 		forge: "fake",
 		host: "fake.tack",
 		repo,
@@ -30,6 +32,8 @@ export function fixture(overrides: Overrides): Card {
 		reactions: 0,
 		url: `https://fake.tack/${repo}/${item.slice(1)}`,
 		updatedAt: new Date().toISOString(),
+		// Each reaction's count, as the fake forge's people left them.
+		reactionCounts: fakeReactionCounts(key, overrides.reactions ?? 0),
 		...overrides,
 	};
 }

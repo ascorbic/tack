@@ -16,8 +16,7 @@ import {
 } from "./Provenance.tsx";
 import { CiBar, PullStatus } from "./PullStatus.tsx";
 import { safeUrl } from "./changes/inline.ts";
-import { ReactionCount } from "./reactions/ReactionCount.tsx";
-import type { ReactorsState } from "./reactions/reactors.ts";
+import { ReactionPills, type ShowReactors, TopReactions } from "./reactions/ReactionPills.tsx";
 
 const STATE_LABEL: Record<Card["state"], string> = {
 	open: "Open",
@@ -199,7 +198,7 @@ export interface CardViewProps {
 	/** It no longer matches the inbox or rule that brought it. */
 	unmatched?: CardUnmatched | null;
 	/** Show who reacted without hovering, as this (the gallery). */
-	showReactors?: ReactorsState;
+	showReactors?: ShowReactors;
 	/** Who's volunteered for it, on the board: a row above its foot (volunteers/). */
 	volunteers?: ReactNode;
 	/** The hand to volunteer with, in its head beside ↗, while nobody has. */
@@ -263,7 +262,7 @@ function LiveCard({
 	entrance?: Entrance | null;
 	origin?: CardOrigin | null;
 	unmatched?: CardUnmatched | null;
-	showReactors?: ReactorsState;
+	showReactors?: ShowReactors;
 	volunteers?: ReactNode;
 	hand?: ReactNode;
 }) {
@@ -322,6 +321,7 @@ function LiveCard({
 				<span className="compact-title">
 					<span className="compact-number">{card.item}</span> {card.title}
 				</span>
+				<TopReactions card={card} />
 				{checks && checks.state !== "none" && <CiBar checks={checks} />}
 			</article>
 		);
@@ -464,20 +464,33 @@ function LiveCard({
 						<span className="visually-hidden">Locked</span>
 					</span>
 				)}
-				{card.reactions > 0 && (
-					<ReactionCount
-						cardKey={card.key}
-						count={card.reactions}
-						force={showReactors !== undefined}
-						state={showReactors}
-					/>
-				)}
+				<ReactionPills
+					card={card}
+					room={reactionRoom(card, origin, liveness)}
+					show={showReactors}
+				/>
 				{origin && <ProvenanceBadge origin={origin} />}
 				{liveness && <Liveness state={liveness} card={card} />}
 			</div>
 			{unmatched && <UnmatchedBand unmatched={unmatched} card={card} />}
 		</article>
 	);
+}
+
+/**
+ * How many reaction pills fit in a card's foot beside everything else in
+ * it ("+N" counts as one): four beside the comment count, fewer for each
+ * other thing there, and never fewer than two.
+ */
+function reactionRoom(card: Card, origin: unknown, liveness: unknown): number {
+	const others = [
+		card.assignees.length > 0 || (card.kind === "discussion" && card.author),
+		card.discussion?.upvotes !== undefined,
+		card.discussion?.locked,
+		origin,
+		liveness,
+	].filter(Boolean).length;
+	return Math.max(2, 4 - others);
 }
 
 /** Who answered a discussion, for the Answered chip's tooltip. */

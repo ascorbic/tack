@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
 	MAX_NAMED,
+	fakeReactionCounts,
 	fakeReactors,
+	pillsFor,
+	topReactions,
 	isReactorsResult,
 	namePeople,
 	namedReactors,
@@ -106,6 +109,41 @@ describe("where the tooltip goes", () => {
 		expect(placeTip(pill(92, 400), size, board).left).toBe(84);
 		expect(placeTip(pill(1220, 400), size, board).left).toBe(1268 - 260);
 		expect(placeTip(pill(2, 400), size, board).left).toBe(8);
+	});
+});
+
+describe("a card's reaction pills", () => {
+	const counts = [
+		{ emoji: "👍", count: 11 },
+		{ emoji: "😄", count: 2 },
+		{ emoji: "🎉", count: 3 },
+		{ emoji: "❤️", count: 6 },
+		{ emoji: "🚀", count: 4 },
+		{ emoji: "👀", count: 1 },
+	];
+	it("are all shown when they fit, in GitHub's order", () => {
+		expect(pillsFor(counts.slice(0, 3), 4)).toEqual({ shown: counts.slice(0, 3), rest: [] });
+	});
+
+	it("fold the fewest left into +N when they don't", () => {
+		const { shown, rest } = pillsFor(counts, 4);
+		expect(shown.map((c) => c.emoji)).toEqual(["👍", "❤️", "🚀"]);
+		expect(rest.map((c) => c.emoji)).toEqual(["😄", "🎉", "👀"]);
+	});
+
+	it("show the top one or two where pills don't fit, in GitHub's order", () => {
+		expect(topReactions(counts, 2).map((c) => c.emoji)).toEqual(["👍", "❤️"]);
+		expect(topReactions(counts, 1)).toEqual([{ emoji: "👍", count: 11 }]);
+	});
+
+	it("are the fake forge's people's, adding up to its count", () => {
+		const fake = fakeReactionCounts("fake.tack/tack/cirrus#8", 8);
+		expect(fake).toEqual([
+			{ emoji: "👍", count: 4 },
+			{ emoji: "🎉", count: 1 },
+			{ emoji: "❤️", count: 2 },
+			{ emoji: "🚀", count: 1 },
+		]);
 	});
 });
 
