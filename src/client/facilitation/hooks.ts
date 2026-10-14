@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type * as Y from "yjs";
-import { type DotVote, dotVotesMap, nextVoteEnd, readVotes } from "../../shared/dotvotes.ts";
+import {
+	type DotVote,
+	cursorsHidden,
+	dotVotesMap,
+	nextVoteEnd,
+	readVotes,
+} from "../../shared/dotvotes.ts";
 import {
 	type StampCount,
 	type Stamper,
@@ -120,4 +126,16 @@ export function useVoteNow(votes: readonly DotVote[], ms: number): number {
 		return () => clearTimeout(timer);
 	}, [end, now]);
 	return now;
+}
+
+/**
+ * Whether a vote with hidden results is on in the room, so nobody's cursor
+ * is sent or shown (`cursorsHidden`). On the votes' clock, it changes the
+ * moment a timed vote ends; a minute's tick is plenty for a live vote
+ * reaching a working day.
+ */
+export function useCursorsHidden(doc: Y.Doc): boolean {
+	const votes = useVotes(doc);
+	const now = useVoteNow(votes, 60_000);
+	return cursorsHidden(votes, now);
 }

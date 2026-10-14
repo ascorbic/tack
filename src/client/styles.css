@@ -3872,6 +3872,12 @@ a.card-title {
 	z-index: 6;
 	overflow: hidden;
 	pointer-events: none;
+	transition: opacity var(--t-settle) var(--ease-out);
+}
+
+/* A secret vote is on: cursors fade where they stood (Cursors.tsx). */
+.cursors-layer[data-hidden] {
+	opacity: 0;
 }
 
 .cursors-viewport {

@@ -19,7 +19,7 @@ import { StampRow, VoteDots } from "../facilitation/Marks.tsx";
 import { SilentBadgeView } from "../facilitation/Silent.tsx";
 import { SpotlightIndicator, type SpotlightState } from "../facilitation/Spotlight.tsx";
 import { TimerView } from "../facilitation/Timer.tsx";
-import { StartVoteForm, TallyView, VoteBar } from "../facilitation/Votes.tsx";
+import { CursorsHiddenNote, StartVoteForm, TallyView, VoteBar } from "../facilitation/Votes.tsx";
 import { StickyView } from "../StickyNode.tsx";
 import { ThemeToggle } from "../ThemeToggle.tsx";
 import { JO, KAI, PRIYA, TOM, VOTE_CARDS } from "./facilitationScenarios.ts";
@@ -433,6 +433,23 @@ export default function FacilitationGallery() {
 							onResults={noop}
 							onDismiss={noop}
 						/>
+					</Figure>
+					<Figure label="Secret vote: everyone’s cursors hidden" state="vote-cursors-hidden">
+						<div className="vote-bars">
+							<VoteBar
+								vote={board.hidden}
+								scopeTitle="“Next quarter”"
+								user={ME}
+								now={NOW}
+								readOnly={false}
+								voting={false}
+								onVoting={noop}
+								onClose={noop}
+								onResults={noop}
+								onDismiss={noop}
+							/>
+							<CursorsHiddenNote />
+						</div>
 					</Figure>
 					<Figure label="Open for days, nobody’s voted" state="vote-days">
 						<VoteBar

@@ -119,6 +119,17 @@ export function FacilitationPlay({
 				}),
 			);
 		},
+		/** A secret vote in the room: everyone's cursors go while it's on. */
+		secretVote: () => {
+			const person = someone();
+			const scope = sections()[0]?.id ?? null;
+			person.doc.transact(() =>
+				startBoardVote(person, scope, {
+					endsAt: new Date(facilitator.now() + 2 * 60_000).toISOString(),
+					hidden: true,
+				}),
+			);
+		},
 		voteAround: () => {
 			for (const person of others(3)) void voteAround(person, facilitator.now());
 		},
@@ -186,6 +197,9 @@ export function FacilitationPlay({
 				</button>
 				<button type="button" onClick={() => actions.vote(1, true)}>
 					Hidden vote, a day
+				</button>
+				<button type="button" onClick={actions.secretVote}>
+					Secret vote, 2 minutes
 				</button>
 				<button type="button" onClick={actions.voteAround}>
 					People vote

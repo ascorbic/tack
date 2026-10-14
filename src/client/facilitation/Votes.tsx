@@ -34,8 +34,9 @@ import { DocContext } from "../DocContext.ts";
 import { initials } from "../People.tsx";
 import type { ToastStore } from "../Toasts.tsx";
 import { transactLocal } from "../undo.ts";
+import { useLinger } from "../useLinger.ts";
 import { useVoteNow, useVotes } from "./hooks.ts";
-import { CloseIcon, DotsIcon, TallyIcon } from "./icons.tsx";
+import { CloseIcon, CursorOffIcon, DotsIcon, TallyIcon } from "./icons.tsx";
 import { facilitation, useFacilitator } from "./store.ts";
 
 // Dot voting's UI (#48): starting a vote (on a section, from its header, or
@@ -322,7 +323,10 @@ export function StartVoteForm({
 				<input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
 				<span>
 					Hide results until it closes
-					<small>Others’ dots aren’t shown until then, so nobody follows the crowd</small>
+					<small>
+						Others’ dots aren’t shown until then, so nobody follows the crowd. In a session, cursors
+						hide too
+					</small>
 				</span>
 			</label>
 			<label className="vote-toggle">
@@ -429,6 +433,7 @@ export function VoteBars({
 	voting,
 	onVoting,
 	toasts,
+	cursorsHidden = false,
 }: {
 	doc: Y.Doc;
 	user: Stamper;
@@ -437,6 +442,8 @@ export function VoteBars({
 	voting: boolean;
 	onVoting: (on: boolean) => void;
 	toasts?: ToastStore;
+	/** A secret vote has everyone's cursors hidden (`useCursorsHidden`). */
+	cursorsHidden?: boolean;
 }) {
 	const votes = useVotes(doc);
 	const now = useVoteNow(votes, 1000);
@@ -450,6 +457,7 @@ export function VoteBars({
 		if (voting && !anyOpen) onVoting(false);
 	}, [voting, anyOpen, onVoting]);
 	useVoteReminders(votes, user, now, toasts, readOnly);
+	const note = useLinger(cursorsHidden || null, CURSORS_NOTE_FADE_MS);
 	if (shown.length === 0) return null;
 	// Closed votes keep out of the way: while one's open, or behind the
 	// latest to close, each is a small results chip in a row of its own.
@@ -481,10 +489,24 @@ export function VoteBars({
 	return (
 		<div className="vote-bars">
 			{full.map((vote) => bar(vote, false))}
+			{note.value && <CursorsHiddenNote leaving={note.leaving} />}
 			{chips.length > 0 && (
 				<div className="vote-bars-closed">{chips.map((vote) => bar(vote, true))}</div>
 			)}
 		</div>
+	);
+}
+
+/** How long the cursors note takes to fade away (`.vote-cursors-note`). */
+const CURSORS_NOTE_FADE_MS = 560;
+
+/** Why everyone's cursors vanished: a secret vote is on. */
+export function CursorsHiddenNote({ leaving = false }: { leaving?: boolean }) {
+	return (
+		<p className="vote-cursors-note" data-leaving={leaving || undefined}>
+			<CursorOffIcon size={13} />
+			Cursors hidden while voting
+		</p>
 	);
 }
 

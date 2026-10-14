@@ -516,10 +516,13 @@ test("every facilitation, silent mode and dot voting state renders", async ({ pa
 			.locator("figure[data-state=silent-empty]")
 			.getByRole("button", { name: "End silent mode" }),
 	).toBeVisible();
-	await expect(page.locator(".vote-bar")).toHaveCount(6);
+	await expect(page.locator(".vote-bar")).toHaveCount(7);
 	await expect(
 		page.locator("figure[data-state=vote-closed] .vote-bar[data-open=false]"),
 	).toBeVisible();
+	await expect(page.locator("figure[data-state=vote-cursors-hidden]")).toContainText(
+		"Cursors hidden while voting",
+	);
 	await expect(page.locator(".tally-panel")).toHaveCount(4);
 	await expect(page.locator("figure[data-state=tally-hidden]")).toContainText("Results are hidden");
 	await expect(page.locator("figure[data-state=tally-open] .tally-row").first()).toContainText(

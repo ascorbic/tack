@@ -61,6 +61,28 @@ async function makeBoard(page: Page): Promise<string> {
 	return page.url();
 }
 
+/** Cursors others have sent this page, by name: what devtools would show. */
+function sentCursors(page: Page): Promise<string[]> {
+	return page.evaluate(() => {
+		const { awareness } = (
+			window as unknown as {
+				tackBoard: { awareness: import("y-protocols/awareness").Awareness };
+			}
+		).tackBoard;
+		return [...awareness.getStates()]
+			.filter(([id, state]) => id !== awareness.clientID && state.cursor)
+			.map(([, state]) => (state.user as { name: string }).name);
+	});
+}
+
+/** Move the pointer about the middle of the board. */
+async function wiggle(page: Page) {
+	const box = (await page.locator(".react-flow__pane").boundingBox())!;
+	for (let i = 0; i < 4; i++) {
+		await page.mouse.move(box.x + box.width / 2 + i * 20, box.y + box.height / 2 + i * 10);
+	}
+}
+
 async function openBoard(page: Page, url: string) {
 	await page.goto(url);
 	await expect(page.locator(".react-flow__renderer")).toBeVisible();
@@ -234,6 +256,55 @@ test.describe.serial("running a session", () => {
 		await menu(lead).getByRole("button", { name: "End theirs" }).click();
 		await expect(menu(lead)).toContainText("Bring everyone to what you’re looking at");
 		await lead.keyboard.press("Escape");
+	});
+
+	test("a secret vote hides everyone's cursors until it closes", async () => {
+		const lenasCursor = guest.locator(".cursors-layer .cursor", { hasText: "Lena" });
+		await wiggle(lead);
+		await expect(lenasCursor).toHaveCount(1);
+		expect(await sentCursors(guest)).toContain("Lena Lead");
+
+		await lead.keyboard.press("Escape");
+		await openMenu(lead);
+		await menu(lead).getByRole("button", { name: "On a section…", exact: true }).click();
+		await clickSection(lead, "Now");
+		const start = lead.getByRole("dialog", { name: "Dot vote on “Now”" });
+		await start.getByText("Hide results until it closes").click();
+		await start.getByRole("button", { name: "Start voting" }).click();
+
+		// Both are told why, and neither sends nor sees a pointer, the
+		// facilitator's included.
+		for (const page of [lead, guest]) {
+			await expect(page.locator(".vote-cursors-note")).toHaveText("Cursors hidden while voting");
+		}
+		await wiggle(lead);
+		await wiggle(guest);
+		await expect(lenasCursor).toHaveCount(0);
+		await expect(lead.locator(".cursors-layer .cursor")).toHaveCount(0);
+		await expect.poll(() => sentCursors(guest)).toEqual([]);
+		await expect.poll(() => sentCursors(lead)).toEqual([]);
+		// Avatars stay.
+		await expect(guest.getByRole("group", { name: "People here" })).toContainText("LL");
+
+		await lead
+			.getByRole("region", { name: "Vote on “Now”" })
+			.getByRole("button", { name: "Close vote" })
+			.click();
+		await expect(guest.locator(".vote-cursors-note")).toHaveCount(0);
+		await wiggle(lead);
+		await expect(lenasCursor).toHaveCount(1);
+		expect(await sentCursors(guest)).toContain("Lena Lead");
+
+		// Out of the way again: the results that opened, and the closed vote.
+		for (const page of [lead, guest]) {
+			const results = page.getByRole("dialog", { name: "Vote results" });
+			if (await results.isVisible())
+				await results.getByRole("button", { name: "Close results" }).click();
+			await page
+				.getByRole("region", { name: "Vote on “Now”" })
+				.getByRole("button", { name: "Put this vote away" })
+				.click();
+		}
 	});
 
 	test("calling everyone over moves nobody, and offers a way there", async () => {

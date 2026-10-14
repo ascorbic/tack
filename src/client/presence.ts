@@ -266,8 +266,12 @@ function states(awareness: Awareness): Map<number, PresenceState> {
  * Local and remote presence for a board: who's here, their cursors, and
  * shapes being dragged right now. Local drags come from React Flow change
  * events and are published at most once per frame.
+ *
+ * With `hideCursor` (a secret vote is on, see `hidesCursors` in
+ * dotvotes.ts), your pointer isn't sent at all: what others had is cleared
+ * at once, and where it is now goes out again when it ends.
  */
-export function usePresence(awareness: Awareness, user: User) {
+export function usePresence(awareness: Awareness, user: User, hideCursor = false) {
 	const [localDrags, setLocalDrags] = useState(() => new Map<string, Position>());
 	const [remote, setRemote] = useState<{
 		drags: Map<string, RemoteDrag>;
@@ -318,15 +322,28 @@ export function usePresence(awareness: Awareness, user: User) {
 	}, [awareness, localDrags]);
 
 	const cursorFrame = useRef(0);
+	/** Where your pointer is on the board, sent or not. */
+	const localCursor = useRef<Position | null>(null);
+	const hidden = useRef(hideCursor);
+	hidden.current = hideCursor;
 	const setCursor = useCallback(
 		(cursor: Position | null) => {
+			localCursor.current = cursor;
 			cancelAnimationFrame(cursorFrame.current);
+			if (hidden.current) return;
 			cursorFrame.current = requestAnimationFrame(() => {
-				awareness.setLocalStateField("cursor", cursor);
+				if (!hidden.current) awareness.setLocalStateField("cursor", cursor);
 			});
 		},
 		[awareness],
 	);
+	useEffect(() => {
+		cancelAnimationFrame(cursorFrame.current);
+		if (!awareness.getLocalState()) return;
+		const sent = (awareness.getLocalState() as PresenceState).cursor ?? null;
+		const next = hideCursor ? null : localCursor.current;
+		if (sent !== next) awareness.setLocalStateField("cursor", next);
+	}, [awareness, hideCursor]);
 
 	const onPositionChanges = useCallback((changes: NodeChange<ShapeNode>[]) => {
 		let next: Map<string, Position> | undefined;

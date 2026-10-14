@@ -53,6 +53,23 @@ test.describe("facilitating a retro", () => {
 		await expect(page.getByRole("timer")).toHaveCount(0);
 	});
 
+	test("a short secret vote hides cursors until its time runs out", async ({ page }) => {
+		await page.getByRole("button", { name: "Someone joins" }).click();
+		const cursors = page.locator(".cursors-layer .cursor");
+		await expect(cursors.first()).toBeVisible();
+		await play(page, "Secret vote, 2 minutes").click();
+		const note = page.locator(".vote-cursors-note");
+		await expect(note).toHaveText("Cursors hidden while voting");
+		await expect(cursors).toHaveCount(0);
+		await play(page, "+1 minute").click();
+		await expect(cursors).toHaveCount(0);
+		// Its time runs out on the server's clock: they're back straight away.
+		await play(page, "+1 minute").click();
+		await expect(page.locator(".vote-bar[data-open=false]")).toBeVisible();
+		await expect(note).toHaveCount(0);
+		await expect(cursors.first()).toBeVisible();
+	});
+
 	test("someone else's timer shows for you too", async ({ page }) => {
 		await play(page, "10s timer").click();
 		await expect(page.getByRole("timer")).toBeVisible();

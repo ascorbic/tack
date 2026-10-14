@@ -2046,6 +2046,45 @@ fieldset.vote-closes > .vote-start-label {
 	gap: 5px;
 }
 
+/*
+ * A secret vote has everyone's cursors hidden: a quiet word under its bar
+ * saying so, easing in and out rather than popping (Votes.tsx).
+ */
+.vote-cursors-note {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+	margin: 0;
+	padding: 0 11px 0 9px;
+	border-radius: 999px;
+	background: var(--chrome);
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow-rest);
+	backdrop-filter: blur(14px) saturate(1.4);
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+	/* Just after its bar springs in, when a vote starts. */
+	animation: cursors-note-in var(--t-settle) var(--ease-out) calc(160ms * var(--motion)) backwards;
+	transition:
+		opacity var(--t-settle) var(--ease-out),
+		translate var(--t-settle) var(--ease-out);
+}
+
+.vote-cursors-note[data-leaving] {
+	opacity: 0;
+	translate: 0 -4px;
+}
+
+@keyframes cursors-note-in {
+	from {
+		opacity: 0;
+		translate: 0 -4px;
+	}
+}
+
 /* Results ------------------------------------------------------------------------ */
 
 .tally-panel {

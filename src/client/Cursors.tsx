@@ -3,9 +3,13 @@ import { memo, useEffect, useRef, useState } from "react";
 import type { Status } from "./activity.ts";
 import { CHAT_FADE_MS, type Chat } from "./chat.ts";
 import { ChatBubble } from "./CursorChat.tsx";
+import { scaledDuration } from "./motion.ts";
 import { initials } from "./People.tsx";
 import { CURSOR_MOVING_MS, type RemotePresence, type User, cursorLabel } from "./presence.ts";
 import { useLinger } from "./useLinger.ts";
+
+/** How long cursors take to fade away when a secret vote starts (`.cursors-layer`). */
+const HIDE_MS = 560;
 
 /**
  * Other people's cursors, kept at a constant size. They're drawn in their own
@@ -13,16 +17,39 @@ import { useLinger } from "./useLinger.ts";
  * selected and dragged nodes are raised above everything and would cover the
  * cursor of the person moving them. The layer mirrors the viewport transform
  * so cursors stay locked to the board.
+ *
+ * While a secret vote is on (`hidden`), nobody sends their pointer, and
+ * any still arriving (from a tab that hasn't caught up) aren't shown: the
+ * cursors there were fade where they stood, and come back as people move
+ * once it's over.
  */
-export function Cursors({ people }: { people: RemotePresence[] }) {
+export function Cursors({
+	people,
+	hidden = false,
+}: {
+	people: RemotePresence[];
+	hidden?: boolean;
+}) {
 	const [x, y, zoom] = useStore((state) => state.transform);
+	const before = useRef(people);
+	if (!hidden) before.current = people;
+	const [gone, setGone] = useState(hidden);
+	useEffect(() => {
+		if (!hidden) {
+			setGone(false);
+			return;
+		}
+		const timer = setTimeout(() => setGone(true), scaledDuration(HIDE_MS));
+		return () => clearTimeout(timer);
+	}, [hidden]);
+	const shown = !hidden ? people : gone ? [] : before.current;
 	return (
-		<div className="cursors-layer" aria-hidden="true">
+		<div className="cursors-layer" aria-hidden="true" data-hidden={hidden || undefined}>
 			<div
 				className="cursors-viewport"
 				style={{ transform: `translate(${x}px, ${y}px) scale(${zoom})` }}
 			>
-				{people.map(
+				{shown.map(
 					({ clientId, user, cursor, chat, status }) =>
 						cursor && (
 							<Cursor

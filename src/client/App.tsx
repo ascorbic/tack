@@ -65,13 +65,14 @@ function LiveBoard({
 		Object.assign(window, {
 			tackBoard: {
 				doc: source.doc,
+				awareness: source.awareness,
 				comments: commentStore,
 				since: sinceStore,
 				stage: (op: Operation, options?: Parameters<typeof stageChange>[3]) =>
 					stageChange(source.doc, op, stagerFor(user), options),
 			},
 		});
-	}, [source.doc, user]);
+	}, [source.doc, source.awareness, user]);
 
 	// Stress mode: fill an empty board with synthetic cards once synced.
 	useEffect(() => {

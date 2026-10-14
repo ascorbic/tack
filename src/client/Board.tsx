@@ -62,7 +62,7 @@ import { listKey } from "./display/keys.ts";
 import { moveInList } from "../shared/display.ts";
 import { DisplayPreview, previewStore } from "./display/Preview.tsx";
 import { useDisplay } from "./display/useDisplay.ts";
-import { useVoteNow, useStampCounts, useVotes } from "./facilitation/hooks.ts";
+import { useCursorsHidden, useVoteNow, useStampCounts, useVotes } from "./facilitation/hooks.ts";
 import { isOpen } from "../shared/dotvotes.ts";
 import { useCanvasCommands } from "./commands.ts";
 import { ConnectorLayer } from "./connectors.tsx";
@@ -327,7 +327,9 @@ export function Board({
 	const [fed, setFed] = useState<{ id: string; n: number } | null>(null);
 	// Your colour here: one nobody else present has, while there's one free.
 	const user = useBoardColor(awareness, person, name);
-	const presence = usePresence(awareness, user);
+	// A secret vote in the room: nobody's pointer is sent, or shown.
+	const cursorsHidden = useCursorsHidden(liveDoc);
+	const presence = usePresence(awareness, user, cursorsHidden);
 	const follow = useFollow(awareness, presence.people);
 	// Opening a board: where you left it, if you've been here and there's
 	// still something to see there; otherwise (with `fitOnLoad`) all of it,
@@ -2105,7 +2107,7 @@ export function Board({
 												sizeOf={boxSize}
 											/>
 										)}
-										<Cursors people={presence.people} />
+										<Cursors people={presence.people} hidden={cursorsHidden} />
 										<Emotes awareness={awareness} user={user} people={presence.people} />
 										<ViewPublisher awareness={awareness} paused={exporter.drawing} />
 										{!readOnly && (
@@ -2181,6 +2183,7 @@ export function Board({
 										voting={tool === "vote"}
 										onVoting={setVoting}
 										toasts={toasts}
+										cursorsHidden={cursorsHidden}
 									/>
 								</div>
 								{!readOnly && (

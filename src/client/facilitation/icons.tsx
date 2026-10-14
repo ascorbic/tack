@@ -86,3 +86,11 @@ export const CloseIcon = ({ size = 14 }: { size?: number }) => (
 		<path d="M4 4l8 8M12 4l-8 8" />
 	</Icon>
 );
+
+/** Cursors hidden: a pointer, struck through. */
+export const CursorOffIcon = ({ size }: { size?: number }) => (
+	<Icon size={size}>
+		<path d="M3.5 2.5l8 4-3.4 1-1.6 3.6z" />
+		<path d="M13.5 3 3 13.5" />
+	</Icon>
+);
