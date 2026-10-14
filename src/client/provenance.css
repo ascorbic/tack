@@ -84,9 +84,19 @@
 	transition: padding var(--t-settle) var(--ease-settle);
 }
 
+/* It opens into its label as you point at or focus it, or select its card;
+   where the foot has no room for that beside the reactions (CardView.tsx
+   `labelFits`), it keeps to its glyph, never covering them, and a tooltip
+   says it instead. */
 .provenance:hover,
 .provenance:focus-visible,
 .card[data-selected="true"] .provenance {
+	background: color-mix(in srgb, var(--via, var(--muted)) 12%, var(--chip));
+	color: var(--ink-soft);
+}
+
+.provenance:not([data-tight]):is(:hover, :focus-visible),
+.card[data-selected="true"] .provenance:not([data-tight]) {
 	padding: 0 7px 0 6px;
 	background: color-mix(in srgb, var(--via, var(--muted)) 12%, var(--chip));
 	color: var(--ink-soft);
@@ -96,17 +106,46 @@
 	box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-.provenance:hover .provenance-label,
-.provenance:focus-visible .provenance-label,
-.card[data-selected="true"] .provenance-label {
+.provenance:not([data-tight]):is(:hover, :focus-visible) .provenance-label,
+.card[data-selected="true"] .provenance:not([data-tight]) .provenance-label {
 	grid-template-columns: 1fr;
 	opacity: 1;
 }
 
-.provenance:hover .provenance-label > span,
-.provenance:focus-visible .provenance-label > span,
-.card[data-selected="true"] .provenance-label > span {
+.provenance:not([data-tight]):is(:hover, :focus-visible) .provenance-label > span,
+.card[data-selected="true"] .provenance:not([data-tight]) .provenance-label > span {
 	padding-left: 5px;
+}
+
+/* Its label, over it, where it can't open in place. */
+.provenance[data-tooltip]::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	right: -6px;
+	bottom: calc(100% + 8px);
+	z-index: 3;
+	width: max-content;
+	max-width: 240px;
+	padding: 5px 9px;
+	border-radius: 7px;
+	background: var(--tooltip);
+	color: var(--on-tooltip);
+	font-size: 12px;
+	font-weight: 550;
+	line-height: 1.4;
+	text-decoration: none;
+	opacity: 0;
+	transform: translateY(4px);
+	pointer-events: none;
+	transition:
+		opacity var(--t-quick) var(--ease-out),
+		transform var(--t-quick) var(--ease-out);
+}
+
+.provenance[data-tooltip]:is(:hover, :focus-visible)::after {
+	opacity: 1;
+	transform: none;
+	transition-delay: calc(300ms * var(--motion));
 }
 
 /* A rule's spark turns a little as it opens. */

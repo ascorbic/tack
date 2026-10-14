@@ -127,7 +127,14 @@ export function ProvenanceIcon({ via }: { via: CardOrigin["via"] }) {
 }
 
 /** The glyph in a card's foot, opening into its label on hover or focus. */
-export function ProvenanceBadge({ origin }: { origin: CardOrigin }) {
+export function ProvenanceBadge({
+	origin,
+	tight = false,
+}: {
+	origin: CardOrigin;
+	/** No room for its label to open beside the reactions: a tooltip says it instead. */
+	tight?: boolean;
+}) {
 	// The document says where: only ever an http(s) link (#60).
 	const href = safeUrl(origin.href);
 	if (href) {
@@ -137,6 +144,8 @@ export function ProvenanceBadge({ origin }: { origin: CardOrigin }) {
 			<a
 				className="provenance nodrag"
 				data-via={origin.via}
+				data-tight={tight || undefined}
+				data-tooltip={tight ? origin.label : undefined}
 				href={href}
 				target="_blank"
 				rel="noreferrer"
@@ -154,6 +163,8 @@ export function ProvenanceBadge({ origin }: { origin: CardOrigin }) {
 		<span
 			className="provenance"
 			data-via={origin.via}
+			data-tight={tight || undefined}
+			data-tooltip={tight ? origin.label : undefined}
 			tabIndex={0}
 			role="note"
 			aria-label={origin.label}

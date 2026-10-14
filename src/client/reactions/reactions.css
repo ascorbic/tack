@@ -144,6 +144,12 @@
 	min-width: 0;
 }
 
+/* In a card's foot they're fitted to its room (cardFoot.ts), and keep it:
+   what's beside them (a provenance badge's label) gives way instead. */
+.card-foot > .reaction-pills {
+	flex-shrink: 0;
+}
+
 .reaction-pill {
 	display: inline-flex;
 	align-items: center;

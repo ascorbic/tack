@@ -5,7 +5,7 @@ import {
 	type MissingCard,
 	isMissing,
 } from "../shared/cards.ts";
-import { planFoot } from "../shared/cardFoot.ts";
+import { planFoot, provenanceLabelWidth } from "../shared/cardFoot.ts";
 import { forgeForHost, forgeName, sentenceCase } from "../shared/refs.ts";
 import { cardStore } from "./cardStore.ts";
 import { type Entrance, entranceStyle } from "./entering.ts";
@@ -508,7 +508,19 @@ function LiveCard({
 					show={showReactors}
 				/>
 				{volunteers?.chip}
-				{origin && <ProvenanceBadge origin={origin} />}
+				{origin && (
+					<ProvenanceBadge
+						origin={origin}
+						// Its label opens as the card's pointed at or selected: so beside the
+						// ghost ✋, or the chip as it is then. Without room for it, the badge
+						// keeps to its glyph and a tooltip says it: it never covers the
+						// reactions, nor is squeezed to a sliver.
+						tight={
+							(unfold?.kind === "ghost" || selected ? foot.openSpare : foot.spare) <
+							provenanceLabelWidth(origin.label)
+						}
+					/>
+				)}
 				{liveness && <Liveness state={liveness} card={card} />}
 			</div>
 			{unmatched && <UnmatchedBand unmatched={unmatched} card={card} />}

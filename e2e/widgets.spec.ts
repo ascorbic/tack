@@ -117,6 +117,42 @@ test("pointing at a row lights its card, and the other way round", async ({ page
 	await expect(row(bugs, "Skyfold URLs")).toHaveAttribute("data-linked", "true");
 });
 
+test("a card dragged out of a list keeps its list's mark beside its reactions", async ({
+	page,
+}) => {
+	// #419 has reactions: its mark used to be lost beside them.
+	const bugs = list(page, "Open bugs");
+	await drag(page, row(bugs, "AVIF output"), { x: 640, y: 680 });
+	const card = page.locator(".react-flow__node-card", { hasText: "unpic #419" });
+	await expect(card.locator(".reaction-pill").first()).toBeVisible();
+	const mark = card.locator(".provenance[data-via=list]");
+	/** It's there, whole, inside the card, and on top. */
+	const shows = async () => {
+		await expect(mark).toBeVisible();
+		const box = (await mark.boundingBox())!;
+		const edge = (await card.locator(".card").boundingBox())!;
+		expect(box.width).toBeGreaterThan(15);
+		expect(box.x + box.width).toBeLessThanOrEqual(edge.x + edge.width);
+		expect(
+			await mark.evaluate((el) => {
+				const r = el.getBoundingClientRect();
+				return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+			}),
+		).toBe(true);
+	};
+	// Selected, as it lands; then at rest, and pointed at (with ✋ beside it).
+	await shows();
+	await page.mouse.click(5, 400);
+	await expect(card).not.toHaveClass(/selected/);
+	await shows();
+	await card.locator(".card-title").hover();
+	await expect(card.locator(".volunteers[data-ghost]")).toBeVisible();
+	await shows();
+	// Its own name, where there's no room to open it beside the reactions.
+	await mark.hover();
+	await expect(mark).toHaveAttribute("data-tooltip", /^From the “Open bugs” list$/);
+});
+
 test("rows drag out onto the board as cards from the list", async ({ page }) => {
 	const bugs = list(page, "Open bugs");
 	const before = (await shapes(page)).filter((s) => s.type === "card").length;
