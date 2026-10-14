@@ -5,6 +5,7 @@ import {
 	type MissingCard,
 	isMissing,
 } from "../shared/cards.ts";
+import { pillRoom } from "../shared/cardFoot.ts";
 import { forgeForHost, forgeName, sentenceCase } from "../shared/refs.ts";
 import { cardStore } from "./cardStore.ts";
 import { type Entrance, entranceStyle } from "./entering.ts";
@@ -200,13 +201,27 @@ export interface CardViewProps {
 	/** Show who reacted without hovering, as this (the gallery). */
 	showReactors?: ShowReactors;
 	/** Who's volunteered for it, on the board: a chip after its reactions (volunteers/). */
-	volunteers?: ReactNode;
+	volunteers?: CardVolunteers | null;
 	/** The hand to volunteer with, in its head beside ↗, while nobody has. */
 	hand?: ReactNode;
+	/**
+	 * How wide it's drawn, where that isn't the board's 252px (a phone's
+	 * sheet): its reactions fit the room that leaves in its foot.
+	 */
+	width?: number;
+}
+
+/** The volunteers' chip for a card's foot, and how many it shows (to make room for it). */
+export interface CardVolunteers {
+	chip: ReactNode;
+	count: number;
 }
 
 /** How a card arrives: flying in, dropping in, or not at all. */
-function arrival(enter?: boolean, entrance?: Entrance | null) {
+function arrival(
+	enter?: boolean,
+	entrance?: Entrance | null,
+): { "data-enter"?: boolean | "expand"; style?: React.CSSProperties } {
 	if (entrance) return { "data-enter": "expand", style: entranceStyle(entrance) };
 	return { "data-enter": enter };
 }
@@ -223,6 +238,7 @@ export function CardView({
 	showReactors,
 	volunteers,
 	hand,
+	width,
 }: CardViewProps) {
 	if (!card)
 		return <LoadingCard cardKey={cardKey} selected={selected} enter={enter} entrance={entrance} />;
@@ -239,6 +255,7 @@ export function CardView({
 			showReactors={showReactors}
 			volunteers={volunteers}
 			hand={hand}
+			width={width}
 		/>
 	);
 }
@@ -254,6 +271,7 @@ function LiveCard({
 	showReactors,
 	volunteers,
 	hand,
+	width,
 }: {
 	card: Card;
 	selected?: boolean;
@@ -263,8 +281,9 @@ function LiveCard({
 	origin?: CardOrigin | null;
 	unmatched?: CardUnmatched | null;
 	showReactors?: ShowReactors;
-	volunteers?: ReactNode;
+	volunteers?: CardVolunteers | null;
 	hand?: ReactNode;
+	width?: number;
 }) {
 	const { counts, newLabels, total } = useChanges(card);
 	/** Key and flag for an element that animates when `field` changes. */
@@ -327,12 +346,14 @@ function LiveCard({
 		);
 	}
 
+	const arrives = arrival(enter, entrance);
 	return (
 		<article
 			className="card"
 			{...cardTone(card)}
 			data-selected={selected}
-			{...arrival(enter, entrance)}
+			{...arrives}
+			style={width === undefined ? arrives.style : { ...arrives.style, width }}
 			data-live={card.live === false ? "false" : undefined}
 			data-unmatched={unmatched ? true : undefined}
 		>
@@ -465,34 +486,20 @@ function LiveCard({
 				)}
 				<ReactionPills
 					card={card}
-					// The volunteers' chip (✋ and faces) takes about two pills' room.
-					room={reactionRoom(card, [origin, liveness, volunteers, volunteers])}
+					room={pillRoom(
+						card,
+						{ volunteers: volunteers?.count, provenance: !!origin, liveness },
+						width,
+					)}
 					show={showReactors}
 				/>
-				{volunteers}
+				{volunteers?.chip}
 				{origin && <ProvenanceBadge origin={origin} />}
 				{liveness && <Liveness state={liveness} card={card} />}
 			</div>
 			{unmatched && <UnmatchedBand unmatched={unmatched} card={card} />}
 		</article>
 	);
-}
-
-/**
- * How many reaction pills fit in a card's foot beside everything else in
- * it ("+N" counts as one): four beside the comment count, one fewer for
- * each other thing there, never fewer than two. `beside` is whatever else
- * the foot holds (a provenance badge, liveness, another chip): each present
- * one takes a pill's room.
- */
-function reactionRoom(card: Card, beside: readonly unknown[]): number {
-	const others = [
-		card.assignees.length > 0 || (card.kind === "discussion" && card.author),
-		card.discussion?.upvotes !== undefined,
-		card.discussion?.locked,
-		...beside,
-	].filter(Boolean).length;
-	return Math.max(2, 4 - others);
 }
 
 /** Who answered a discussion, for the Answered chip's tooltip. */

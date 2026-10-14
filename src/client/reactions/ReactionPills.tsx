@@ -8,18 +8,19 @@ import {
 	namePeople,
 	namedPerLine,
 	namedReactors,
-	pillsFor,
 	reactionCount,
 	topReactions,
 } from "../../shared/reactions.ts";
+import { fitPills } from "../../shared/cardFoot.ts";
 import { knownName, selfLogin } from "./names.ts";
 import { ReactionTip, TipLine, useTip } from "./ReactionTip.tsx";
 import { type ReactorsState, useReactors } from "./reactors.ts";
 
 // A card's reactions as GitHub shows them: a pill for each emoji with its
 // count (👍 11 ❤️ 6 🎉 3), in GitHub's order, looking as stamps do so
-// reactions read the same everywhere on the board. Past the room there is,
-// the most left keep their pills and the rest fold into "+N".
+// reactions read the same everywhere on the board. Past the room there is
+// in the card's foot, the most left keep their pills and the rest fold
+// into "+N".
 //
 // Hovering, focusing or tapping a pill says who left that one: "👍 Kai
 // Andersen, Priya Shah and 9 others". Names are asked for then, once for
@@ -41,7 +42,7 @@ export function ReactionPills({
 	show,
 }: {
 	card: Pick<Card, "key" | "reactions" | "reactionCounts">;
-	/** How many pills fit, "+N" included. */
+	/** How wide the pills may be, in pixels, "+N" included (see cardFoot.ts). */
 	room: number;
 	show?: ShowReactors;
 }) {
@@ -64,7 +65,7 @@ export function ReactionPills({
 			</span>
 		);
 	}
-	const { shown, rest } = pillsFor(counts, room);
+	const { shown, rest } = fitPills(counts, room);
 	return (
 		<span className="reaction-pills" role="group" aria-label="Reactions">
 			{shown.map((count) => (

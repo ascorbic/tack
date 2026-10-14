@@ -84,24 +84,6 @@ export function groupCounts(
 	);
 }
 
-/**
- * Which of a card's reactions get a pill of their own when only `room` fit:
- * the most left (in GitHub's order, as they show), and the rest folded
- * into "+N". All of them when they fit.
- */
-export function pillsFor(
-	counts: readonly ReactionCount[],
-	room: number,
-): { shown: ReactionCount[]; rest: ReactionCount[] } {
-	const ordered = orderCounts(counts);
-	if (ordered.length <= room) return { shown: ordered, rest: [] };
-	const top = new Set(topReactions(ordered, Math.max(1, room - 1)).map((c) => c.emoji));
-	return {
-		shown: ordered.filter((c) => top.has(c.emoji)),
-		rest: ordered.filter((c) => !top.has(c.emoji)),
-	};
-}
-
 /** The `top` most left, shown in GitHub's order. */
 export function topReactions(counts: readonly ReactionCount[], top: number): ReactionCount[] {
 	const best = new Set(

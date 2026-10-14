@@ -33,16 +33,19 @@ export function VolunteerGallery({ card }: { card: Card | undefined }) {
 	const chip = (
 		volunteers: ShownVolunteer[],
 		options: { mine?: boolean; assign?: boolean; open?: boolean; viewer?: boolean } = {},
-	) => (
-		<VolunteerChip
-			volunteers={volunteers}
-			me="ana"
-			place="card"
-			toggle={options.viewer ? undefined : { pressed: !!options.mine, onToggle: noop }}
-			assign={options.assign ? ASSIGN : undefined}
-			initialOpen={options.open}
-		/>
-	);
+	) => ({
+		chip: (
+			<VolunteerChip
+				volunteers={volunteers}
+				me="ana"
+				place="card"
+				toggle={options.viewer ? undefined : { pressed: !!options.mine, onToggle: noop }}
+				assign={options.assign ? ASSIGN : undefined}
+				initialOpen={options.open}
+			/>
+		),
+		count: volunteers.length,
+	});
 	return (
 		<section>
 			<h2>Volunteers</h2>

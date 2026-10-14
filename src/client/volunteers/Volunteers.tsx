@@ -1,6 +1,7 @@
 import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 import { pendingIssueFor } from "../../shared/actions.ts";
+import { MAX_FACES } from "../../shared/cardFoot.ts";
 import type { Card } from "../../shared/cards.ts";
 import { repoKeyOf } from "../../shared/refs.ts";
 import {
@@ -14,6 +15,7 @@ import { undoToast } from "../actions/toast.ts";
 import { useChangesUI } from "../changes/context.ts";
 import { useShapeChanges } from "../changes/store.ts";
 import { DecisionContext } from "../decisions/context.ts";
+import type { CardVolunteers } from "../CardView.tsx";
 import { DocContext, HistoryContext, ReadOnlyContext } from "../DocContext.ts";
 import { AvatarImage, initials } from "../People.tsx";
 import { announce } from "../announce.tsx";
@@ -118,9 +120,6 @@ function Face({
 		</span>
 	);
 }
-
-/** Faces shown before the rest fold into "+N". */
-const MAX_FACES = 4;
 
 /**
  * Who's volunteered, as overlapping avatars (yours ringed, those staged to
@@ -309,7 +308,7 @@ function useArrived(count: number): boolean {
 export function useCardVolunteers(
 	shape: string,
 	card: Card | null,
-): { chip: ReactNode; hand: ReactNode } {
+): { chip: CardVolunteers | null; hand: ReactNode } {
 	const { doc, user, me, volunteers, mine, canVolunteer, toggle } = useVolunteering(shape);
 	const changes = useChangesUI();
 	const history = useContext(HistoryContext);
@@ -343,24 +342,29 @@ export function useCardVolunteers(
 		if (staged > 0 && history) undoToast(toasts, history, message);
 		else toasts.show({ message });
 	};
-	const chip = lingering.value ? (
-		<VolunteerChip
-			volunteers={lingering.value}
-			me={me}
-			place="card"
-			leaving={lingering.leaving}
-			enter={arrived}
-			toggle={canVolunteer && !assigned ? { pressed: mine, onToggle: toggle } : undefined}
-			assign={
-				offerAssign
-					? {
-							onAssign: () => void assign(),
-							tooltip: `Stage assigning ${namesInWords(open, me)}`,
+	const chip = lingering.value
+		? {
+				chip: (
+					<VolunteerChip
+						volunteers={lingering.value}
+						me={me}
+						place="card"
+						leaving={lingering.leaving}
+						enter={arrived}
+						toggle={canVolunteer && !assigned ? { pressed: mine, onToggle: toggle } : undefined}
+						assign={
+							offerAssign
+								? {
+										onAssign: () => void assign(),
+										tooltip: `Stage assigning ${namesInWords(open, me)}`,
+									}
+								: undefined
 						}
-					: undefined
+					/>
+				),
+				count: lingering.value.length,
 			}
-		/>
-	) : null;
+		: null;
 	const hand =
 		canVolunteer && !assigned && shown.length === 0 && !lingering.value ? (
 			<HandButton place="head" pressed={mine} onToggle={toggle} />
