@@ -16,6 +16,8 @@ import {
 } from "./Provenance.tsx";
 import { CiBar, PullStatus } from "./PullStatus.tsx";
 import { safeUrl } from "./changes/inline.ts";
+import { ReactionCount } from "./reactions/ReactionCount.tsx";
+import type { ReactorsState } from "./reactions/reactors.ts";
 
 const STATE_LABEL: Record<Card["state"], string> = {
 	open: "Open",
@@ -196,6 +198,8 @@ export interface CardViewProps {
 	origin?: CardOrigin | null;
 	/** It no longer matches the inbox or rule that brought it. */
 	unmatched?: CardUnmatched | null;
+	/** Show who reacted without hovering, as this (the gallery). */
+	showReactors?: ReactorsState;
 }
 
 /** How a card arrives: flying in, dropping in, or not at all. */
@@ -213,6 +217,7 @@ export function CardView({
 	entrance,
 	origin,
 	unmatched,
+	showReactors,
 }: CardViewProps) {
 	if (!card)
 		return <LoadingCard cardKey={cardKey} selected={selected} enter={enter} entrance={entrance} />;
@@ -226,6 +231,7 @@ export function CardView({
 			entrance={entrance}
 			origin={origin}
 			unmatched={unmatched}
+			showReactors={showReactors}
 		/>
 	);
 }
@@ -238,6 +244,7 @@ function LiveCard({
 	entrance,
 	origin,
 	unmatched,
+	showReactors,
 }: {
 	card: Card;
 	selected?: boolean;
@@ -246,6 +253,7 @@ function LiveCard({
 	entrance?: Entrance | null;
 	origin?: CardOrigin | null;
 	unmatched?: CardUnmatched | null;
+	showReactors?: ReactorsState;
 }) {
 	const { counts, newLabels, total } = useChanges(card);
 	/** Key and flag for an element that animates when `field` changes. */
@@ -443,12 +451,12 @@ function LiveCard({
 					</span>
 				)}
 				{card.reactions > 0 && (
-					<span className="count">
-						<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-							<path d="M8 13.5s-5.5-3.2-5.5-7A3 3 0 0 1 8 4.8a3 3 0 0 1 5.5 1.7c0 3.8-5.5 7-5.5 7z" />
-						</svg>
-						{card.reactions}
-					</span>
+					<ReactionCount
+						cardKey={card.key}
+						count={card.reactions}
+						force={showReactors !== undefined}
+						state={showReactors}
+					/>
 				)}
 				{origin && <ProvenanceBadge origin={origin} />}
 				{liveness && <Liveness state={liveness} card={card} />}

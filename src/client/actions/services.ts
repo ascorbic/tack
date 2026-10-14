@@ -3,6 +3,7 @@ import type { BoardInfo, CarryResponse } from "../../shared/boards.ts";
 import type { Stager } from "../../shared/changes.ts";
 import type { RepoDiscussionCategory, RepoMeta } from "../../shared/push.ts";
 import type { QueryError, RelatedResult, SearchResult } from "../../shared/widgets.ts";
+import { type ReactorsResult, isReactorsResult } from "../../shared/reactions.ts";
 import { canEdit } from "../../shared/boards.ts";
 import { type AiService, liveAi } from "../ai/service.ts";
 import { boardsApi } from "../boards/api.ts";
@@ -33,6 +34,11 @@ export interface WriteServices {
 	uploadSnapshot(png: Blob): Promise<string>;
 	/** What's related to an item, as this viewer may see it (Expand related). Never throws. */
 	related(key: string): Promise<RelatedResult | QueryError>;
+	/**
+	 * Who reacted to an item on its forge, asked when someone hovers a
+	 * card's reaction count (src/client/reactions/reactors.ts). Never throws.
+	 */
+	reactors?(key: string): Promise<ReactorsResult | QueryError>;
 	/**
 	 * Issues and pull requests matching a search on a forge (`host`), as
 	 * this viewer may see them, for the card tool. Never throws.
@@ -122,6 +128,20 @@ export function liveServices(boardId: string): WriteServices {
 				const body = (await response.json().catch(() => null)) as RelatedResult | QueryError | null;
 				if (body?.kind === "related" || body?.kind === "error") return body;
 				return { kind: "error", reason: "error", message: "Something went wrong. Try again?" };
+			} catch {
+				return { kind: "error", reason: "error", message: "Couldn’t reach the server." };
+			}
+		},
+		async reactors(key) {
+			try {
+				const response = await fetch(
+					`/api/boards/${encodeURIComponent(boardId)}/reactors?key=${encodeURIComponent(key)}`,
+					{ headers: { accept: "application/json" } },
+				);
+				const body = (await response.json().catch(() => null)) as unknown;
+				if (isReactorsResult(body)) return body;
+				if ((body as QueryError | null)?.kind === "error") return body as QueryError;
+				return { kind: "error", reason: "error", message: "Something went wrong." };
 			} catch {
 				return { kind: "error", reason: "error", message: "Couldn’t reach the server." };
 			}

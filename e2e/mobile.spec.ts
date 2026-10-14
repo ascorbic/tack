@@ -468,6 +468,44 @@ test.describe("on a phone", () => {
 		await expect(sheet).toHaveCount(0);
 	});
 
+	test("who stamped what: listed in the sheet, and a long-press names them", async ({
+		page,
+		browserName,
+	}) => {
+		await openScenario(page, "vote");
+		await sticky(page, "A provider playground").tap();
+		const sheet = page.getByRole("dialog", { name: "Shape" });
+		const thumbs = sheet.getByRole("button", { name: /^👍/ });
+		await thumbs.tap();
+		await expect(thumbs).toHaveAttribute("aria-pressed", "true");
+		await expect(thumbs).toHaveAccessibleName("👍 1: You");
+		// Written out under the stamps: a phone has no hover to ask with.
+		await expect(sheet.getByRole("list", { name: "Who stamped it" })).toContainText("👍 You");
+		// A long-press names them, and doesn't also stamp.
+		const box = (await thumbs.boundingBox())!;
+		const { longPress } = await fingers(page, browserName);
+		await longPress([box.x + box.width / 2, box.y + box.height / 2]);
+		await expect(page.getByRole("tooltip")).toHaveText("👍You");
+		await expect(thumbs).toHaveAttribute("aria-pressed", "true");
+		// A tap anywhere else puts it away.
+		await sheet.getByRole("region", { name: "Comments" }).tap();
+		await expect(page.getByRole("tooltip")).toHaveCount(0);
+	});
+
+	test("tapping a card's reaction count says who reacted", async ({ page }) => {
+		await openScenario(page, "comments");
+		await page.locator(".react-flow__node-card").filter({ hasText: "Drop Node 18" }).tap();
+		const sheet = page.getByRole("dialog", { name: "Card" });
+		const count = sheet.locator("button.count.reactions");
+		// A tap does nothing else there, so a tap opens it, and another puts it away.
+		await count.tap();
+		const tip = page.locator(".reaction-tip");
+		await expect(tip).toContainText("👍");
+		await expect(count).toHaveAccessibleName(/reactions: 👍 /);
+		await count.tap();
+		await expect(tip).toHaveCount(0);
+	});
+
 	test("a decision's vote from the sheet", async ({ page }) => {
 		await openScenario(page, "decisions");
 		await page.getByTestId("rf__node-decision-node-20").tap();

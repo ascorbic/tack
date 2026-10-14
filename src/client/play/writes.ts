@@ -24,6 +24,7 @@ import { playAi } from "./ai.ts";
 import { playLinks } from "./links.ts";
 import { playImages } from "./images.tsx";
 import { RELATED_CARDS, playRelated } from "./related.ts";
+import { fakeReactors } from "../../shared/reactions.ts";
 
 // Writing back (M2) in the playground: a board to try the selection actions
 // on, and stand-ins for the Worker's repository metadata and snapshot
@@ -96,6 +97,17 @@ export function playServices(): WriteServices {
 			return url;
 		},
 		related: playRelated,
+		// Who reacted: made-up people, as many as the card counts, after a
+		// beat so the loading state gets seen. Items with "[fail]" in their
+		// title can't say, and the count speaks for itself.
+		async reactors(key) {
+			await new Promise((resolve) => setTimeout(resolve, 600));
+			const card = cardStore.get(key);
+			if (!card || "missing" in card || card.title.includes("[fail]")) {
+				return { kind: "error", reason: "error", message: "The test forge couldn’t say." };
+			}
+			return { kind: "reactors", key, groups: fakeReactors(key, card.reactions) };
+		},
 		// AI answers in the browser (#64), with modes the playground sets.
 		ai: playAi,
 		// Link cards' previews, canned and drawn in the browser: nothing's fetched.
