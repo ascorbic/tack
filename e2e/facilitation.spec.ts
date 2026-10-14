@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, openScenario, test } from "./fixtures.ts";
+import { expect, openScenario, settleCanvas, test } from "./fixtures.ts";
 
 // Facilitation (#50), silent mode (#49) and dot voting (#48) on the
 // playground, where a pretend board server (play/facilitation.ts) keeps the
@@ -287,6 +287,19 @@ test.describe("dot voting", () => {
 			"data-compact",
 			"true",
 		);
+	});
+
+	test("fitting the board keeps it clear of the vote's bar", async ({ page }) => {
+		// Wide and short, so the board's height decides how it fits.
+		await page.setViewportSize({ width: 1600, height: 640 });
+		await page.locator(".react-flow__pane").click({ position: { x: 300, y: 300 } });
+		await page.keyboard.press("Shift+Digit1");
+		await settleCanvas(page);
+		const dock = await page.locator(".facilitation-dock").boundingBox();
+		const tops = await page
+			.locator(".react-flow__node")
+			.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().top));
+		expect(Math.min(...tops)).toBeGreaterThan(dock!.y + dock!.height);
 	});
 
 	test("a vote starts from a section's header", async ({ page }) => {

@@ -5,7 +5,8 @@ import type { ShapeNode } from "./board.ts";
 import type { Viewport } from "./viewport.ts";
 
 // Fitting the board into view around the chrome that floats over it (the
-// tool dock along the bottom, the minimap in the corner), and remembering
+// tool dock along the bottom, the minimap in the corner, a vote's bar along
+// the top), and remembering
 // where each person last looked at each board, so coming back is where
 // they left off and opening a board for the first time shows all of it.
 // Bounds come from the document rather than React Flow, which only knows
@@ -31,9 +32,10 @@ const GAP = 32;
 const PHONE_GAP = 16;
 
 /**
- * Marks chrome that a phone's fit keeps content clear of, beyond the dock
- * and the minimap: `"top"` for what hangs from the top (a vote's bar),
- * `"bottom"` for what sits along the bottom (the demo's guide card).
+ * Marks chrome that fitting keeps content clear of, beyond the dock and the
+ * minimap: `"top"` for what hangs from the top (a vote's bar, the timer), on
+ * every screen; `"bottom"` for what sits along the bottom (the demo's guide
+ * card), on a phone only, as elsewhere the card moves about with its step.
  */
 export const FIT_CLEAR = "data-fit-clear";
 
@@ -123,21 +125,22 @@ export function shapeBoxes(
 }
 
 /**
- * What the chrome floating over `canvas` (the dock, the minimap, and on a
- * phone whatever's marked with `FIT_CLEAR`) leaves to fit content into.
+ * What the chrome floating over `canvas` (the dock, the minimap, and
+ * whatever's marked with `FIT_CLEAR`) leaves to fit content into.
  */
 export function insetsOf(canvas: HTMLElement, gap?: number): Insets {
 	const shown = (el: Element | null) => {
 		if (!el) return null;
+		// Hidden while history plays back, say, it covers nothing.
+		if (el.checkVisibility && !el.checkVisibility({ visibilityProperty: true })) return null;
 		const rect = el.getBoundingClientRect();
 		return rect.width > 0 && rect.height > 0 ? rect : null;
 	};
 	const box = (selector: string) => shown(canvas.querySelector(selector));
 	const bounds = canvas.getBoundingClientRect();
-	// A wider screen has room beside a vote's bar; a phone has to go below it.
 	const phone = canvas.closest("[data-phone]") !== null;
 	const marked = (edge: "top" | "bottom") =>
-		phone
+		phone || edge === "top"
 			? [...document.querySelectorAll(`[${FIT_CLEAR}="${edge}"]`)]
 					.map(shown)
 					.filter(

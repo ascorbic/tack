@@ -2171,7 +2171,7 @@ export function Board({
 									}
 									onBreakOut={follow.stop}
 								/>
-								{/* A phone fits the board below a vote's bar (fitting.ts). */}
+								{/* Fitting keeps the board below a vote's bar (fitting.ts). */}
 								<div className="facilitation-dock" data-fit-clear="top">
 									<TimerPill doc={doc} user={user} readOnly={readOnly} />
 									<VoteBars
