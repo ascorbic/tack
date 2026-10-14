@@ -53,11 +53,11 @@ const text = ({ shown, rest }: ReturnType<typeof fitPills>) => [
 const pills = (counts: readonly ReactionCount[], room: number) => text(fitPills(counts, room));
 
 describe("a reaction pill's width", () => {
-	// As Chromium draws them, in Geist Mono and a colour emoji font.
+	// As Chromium and WebKit draw them, in Geist Mono and an emoji box.
 	it("matches the stylesheet's, to within half a pixel", () => {
-		expect(pillWidth(6)).toBeCloseTo(38.61, 0);
-		expect(pillWidth(11)).toBeCloseTo(45.2, 0);
-		expect(pillWidth(170)).toBeCloseTo(51.81, 0);
+		expect(pillWidth(6)).toBeCloseTo(39.61, 0);
+		expect(pillWidth(11)).toBeCloseTo(46.2, 0);
+		expect(pillWidth(170)).toBeCloseTo(52.81, 0);
 		expect(morePillWidth(3)).toBeCloseTo(29.22, 0);
 	});
 
@@ -68,8 +68,8 @@ describe("a reaction pill's width", () => {
 	});
 
 	it("is the volunteers' chip's for up to four faces, and its ghost is the chip with you in it", () => {
-		expect(volunteersWidth(2)).toBeCloseTo(55, 0);
-		expect(volunteersWidth(4)).toBeCloseTo(83, 0);
+		expect(volunteersWidth(2)).toBeCloseTo(58, 0);
+		expect(volunteersWidth(4)).toBeCloseTo(86, 0);
 		// Past four, three faces and "+N": still four.
 		expect(volunteersWidth(9)).toBe(volunteersWidth(4));
 		expect(GHOST_WIDTH).toBe(volunteersWidth(1));

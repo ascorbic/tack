@@ -1347,6 +1347,24 @@ button.primary:hover {
 	transform: translateY(0.5px);
 }
 
+/* An emoji in a pill (a reaction, a stamp, the volunteers' ✋): a fixed box
+   1.25em square, the glyph centred in it. Safari draws Apple's emoji a
+   quarter bigger than Chrome does at the same size (its advance 1.42em, not
+   1.25em), so a box keeps the pill's width the same in both, as cardFoot.ts
+   counts it, and an overflowing glyph spills evenly either side. Their ink
+   sits a little high on Geist's line, so they come down 0.025em: measured in
+   Chrome and Safari at 1x and 2x, from whole and part pixels. */
+:is(.reaction-pill-emoji, .stamp-emoji, .volunteers-emoji) {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 1.25em;
+	height: 1.25em;
+	line-height: 1;
+	translate: 0 0.025em;
+}
+
 .category-bubble {
 	fill: none;
 	stroke: currentColor;

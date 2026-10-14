@@ -7,8 +7,8 @@ import { type ReactionCount, orderCounts, topReactions } from "./reactions.ts";
 //
 // The widths are worked out from the stylesheet's sizes and the fonts'
 // metrics rather than measured: Geist and Geist Mono are the app's own, so
-// their digits are always 0.6em, and a colour emoji is 1.25em in Apple's
-// and Noto's fonts alike. That makes it the same on first paint, in tests
+// their digits are always 0.6em, and an emoji is set in a box 1.25em wide
+// (styles.css), whatever the emoji font and however big the browser draws it. That makes it the same on first paint, in tests
 // and for every card on a board, at no cost in layout. Keep the numbers in
 // step with styles.css (`.card`, `.card-foot`, `.count`, `.avatars`,
 // `.liveness`), reactions.css (`.reaction-pill`), provenance.css and
@@ -29,7 +29,7 @@ const PILL_GAP = 4;
 /** A digit's width, in ems: Geist Mono's, and Geist's tabular figures. */
 const DIGIT = 0.6;
 
-/** A colour emoji's width, in ems. */
+/** An emoji's box, in ems. */
 const EMOJI = 1.25;
 
 /** Faces shown in the volunteers' chip before the rest fold into "+N", a face of their own. */
@@ -39,9 +39,9 @@ function digits(n: number): number {
 	return String(Math.max(0, Math.round(n))).length;
 }
 
-/** A reaction's pill: border, padding, a 12px emoji, a gap, and its count in 11px mono. */
+/** A reaction's pill: border, padding (a stamp's), a 12px emoji, a gap, and its count in 11px mono. */
 export function pillWidth(count: number): number {
-	return 2 + 5 + 12 * EMOJI + 3 + digits(count) * 11 * DIGIT + 7;
+	return 2 + 6 + 12 * EMOJI + 3 + digits(count) * 11 * DIGIT + 7;
 }
 
 /** The "+N" pill for `n` folded reactions. */
@@ -136,12 +136,12 @@ function facesWidth(n: number): number {
 }
 
 /**
- * The volunteers' chip: border, padding, a 19px ✋, then 18px faces, each
- * over the last by 4px. It sits 4px closer to the reactions than the
- * foot's other things are to each other.
+ * The volunteers' chip: border, padding, a 19px ✋, a gap, then 18px faces,
+ * each over the last by 4px, and a pixel's padding at its end. It sits 4px
+ * closer to the reactions than the foot's other things are to each other.
  */
 export function volunteersWidth(volunteers: number): number {
-	return 2 + 4 + 19 + 2 + Math.min(volunteers, MAX_FACES) * 14;
+	return 2 + 3 + 19 + 1 + 4 + Math.min(volunteers, MAX_FACES) * 14 + 1;
 }
 
 /** How much closer the chip (or its ghost) sits to the reactions. */

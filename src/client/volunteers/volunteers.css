@@ -35,12 +35,12 @@
 
 .hand-icon,
 .volunteers-emoji {
-	display: block;
 	transform-origin: 50% 90%;
 	transition: transform var(--t-base) var(--ease-spring);
 }
 
 .hand-icon {
+	display: block;
 	fill: none;
 	stroke: currentColor;
 	stroke-width: 1.4;
@@ -50,7 +50,6 @@
 
 .volunteers-emoji {
 	font-size: 12px;
-	line-height: 1;
 }
 
 .volunteer-hand:hover {
@@ -154,14 +153,17 @@
 
 /* The chip --------------------------------------------------------------- */
 
-/* As a reaction pill is: ✋, then the faces. */
+/* As a reaction pill is: ✋, then the faces. ✋'s ink starts 7px in, as a
+   stamp's emoji's does; the first face keeps 4px clear of it (in Safari,
+   whose ✋ is the bigger), and the last sits in the pill's round end, as
+   far from its border all round. Keep in step with cardFoot.ts. */
 .volunteers {
 	position: relative;
 	display: inline-flex;
 	flex: none;
 	align-items: center;
 	height: 22px;
-	padding: 0 3px 0 1px;
+	padding: 0 1px 0 3px;
 	border: 1px solid var(--line-strong);
 	border-radius: 999px;
 	background: var(--surface);
@@ -216,11 +218,13 @@
 	pointer-events: none;
 }
 
-/* Where your face will be. */
+/* Where your face will be: drawn a little inside its place, so its dashes
+   keep clear of the chip's own at its round end. */
 .volunteer.volunteer-placeholder {
 	border: 1.5px dashed var(--line-strong);
 	background: var(--surface);
 	box-shadow: none;
+	scale: 0.78;
 }
 
 /* What opens beside the reactions: the ghost, as the card's pointed at,
@@ -241,9 +245,9 @@
 		.card-foot:has(> .reaction-pills[data-unfolds] .reaction-pill[data-appears]:focus-visible)
 	)
 	> .volunteers[data-ghost] {
-	max-width: 41px;
+	max-width: 44px;
 	margin-left: -4px;
-	padding-inline: 1px 3px;
+	padding-inline: 3px 1px;
 	opacity: 1;
 	/* Room for the hand's tooltip, once it's open. */
 	overflow: visible;
@@ -580,14 +584,15 @@
 
 /* Faces ---------------------------------------------------------------------- */
 
-/* Each face over the last by 4px: a little less than other stacks of faces,
-   whose borders are inside them, since these wear rings outside (an accent
-   one for yours), so every initial still shows. Keep in step with
-   cardFoot.ts. */
+/* Each face over the last by 4px, ringed in the chip's own colour to part
+   them: a little less than other stacks of faces, whose borders are inside
+   them, so every initial still shows. 18px and a 1px ring fill the chip's
+   height inside its border exactly, so nothing pokes out of it. Keep in
+   step with cardFoot.ts. */
 .volunteer-stack {
 	display: inline-flex;
 	align-items: center;
-	padding-left: 2px;
+	padding-left: 1px;
 }
 
 .volunteer {
@@ -601,12 +606,16 @@
 	margin-left: -4px;
 	border-radius: 50%;
 	background: var(--avatar, var(--muted));
-	box-shadow: 0 0 0 1.5px var(--volunteer-ring, var(--surface));
+	box-shadow: 0 0 0 1px var(--volunteer-ring, var(--surface));
 	color: #fff;
 	font-size: 8px;
 	font-weight: 680;
 	letter-spacing: 0.02em;
 	line-height: 1;
+}
+
+.volunteer:first-child {
+	margin-left: 0;
 }
 
 .volunteer .avatar-image {
@@ -619,21 +628,45 @@
 	font-size: 8.5px;
 }
 
-/* Yours: ringed in the accent, so you see you're in at a glance. */
+/* Yours: ringed in the accent, so you see you're in at a glance; staged to
+   be assigned, a dashed ring, as staged things are drawn. Both inside the
+   face, over its avatar's edge and parted from it, so they stay inside the
+   chip. */
 .volunteer[data-mine] {
 	z-index: 1;
-	box-shadow:
-		0 0 0 1.5px var(--volunteer-ring, var(--surface)),
-		0 0 0 3px var(--accent);
 }
 
-/* Staged to be assigned: a dashed ring, as staged things are drawn. */
+.volunteer[data-mine]::before,
 .volunteer[data-staged]::after {
 	content: "";
 	position: absolute;
-	inset: -3px;
-	border: 1.5px dashed var(--accent);
+	inset: 0;
+	z-index: 1;
+	box-sizing: border-box;
 	border-radius: 50%;
+	pointer-events: none;
+}
+
+.volunteer[data-mine]::before {
+	box-shadow:
+		inset 0 0 0 1.5px var(--accent),
+		inset 0 0 0 2.5px var(--volunteer-ring, var(--surface));
+}
+
+/* The dashes on a band of the chip's colour, not over the face. */
+.volunteer[data-staged]::after {
+	border: 1.5px dashed var(--accent);
+	background: radial-gradient(
+			circle closest-side,
+			transparent calc(100% - 2.5px),
+			var(--volunteer-ring, var(--surface)) calc(100% - 2.5px)
+		)
+		border-box;
+}
+
+/* Yours and staged: the dashes say more (the chip says it's yours). */
+.volunteer[data-mine][data-staged]::before {
+	content: none;
 }
 
 /* A hand going up while you watch: the face pops in. */
@@ -663,14 +696,29 @@
 	flex: 0 1 auto;
 }
 
-/* On paper, the chip is a lighter patch of it, without a rule. */
+/* On paper, the chip is a lighter patch of it, without a rule, overhanging
+   the author's line evenly: a size down from a card's, to leave the author
+   their name, in the same measures (✋'s ink 7px in, the first face 4px
+   clear of it, the last face as far from the edge all round). Yours up, it
+   stays paper, the accent only in its outline: on a dark theme's surface it
+   would be a dark blot on the paper. */
 .volunteers[data-place="sticky"] {
 	--volunteer-ring: color-mix(in srgb, var(--sticky) 55%, white);
 	height: 20px;
 	margin: -3px 0;
+	padding-left: 4px;
 	border-color: transparent;
 	background: var(--volunteer-ring);
 	color: var(--sticky-ink-soft);
+}
+
+.volunteers[data-place="sticky"] .volunteer-hand {
+	width: 17px;
+	height: 17px;
+}
+
+.volunteers[data-place="sticky"] .volunteer-stack {
+	padding-left: 2px;
 }
 
 .volunteers[data-place="sticky"] .volunteer {
@@ -679,9 +727,9 @@
 	font-size: 7.5px;
 }
 
-.volunteers[data-place="sticky"] .volunteer-hand {
-	width: 18px;
-	height: 18px;
+.volunteers[data-place="sticky"]:has(.volunteer-hand[aria-pressed="true"]) {
+	border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+	background: var(--volunteer-ring);
 }
 
 .volunteers[data-place="sticky"] .volunteer-hand:hover,

@@ -758,6 +758,11 @@
 	animation: stamp-in var(--t-settle) var(--ease-spring) backwards;
 }
 
+/* A stamp alone, without a count: as much room after it as before. */
+.stamp:not(:has(.stamp-count)) {
+	padding-right: 6px;
+}
+
 .stamp[aria-disabled="true"] {
 	cursor: default;
 }
