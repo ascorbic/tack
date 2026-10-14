@@ -32,6 +32,9 @@ import { fakeReactors } from "../../shared/reactions.ts";
 
 const LATER = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
 
+/** You, in the playground: your made-up login, while you're signed in. */
+export const playViewer: { login: string | null } = { login: null };
+
 /** Labels, milestones and people for fake repositories. */
 export function fakeMeta(repo: string): RepoMeta | null {
 	const name = repo.split("/").slice(1).join("/");
@@ -60,8 +63,11 @@ export function fakeMeta(repo: string): RepoMeta | null {
 			{ title: "5.1", dueOn: LATER(60) },
 			{ title: "Someday", dueOn: null },
 		],
-		// Nobody to assign in the private vault: Assign says so.
-		assignees: name.startsWith("acme/vault") ? [] : ["priya", "kai", "tom", "jo", "ascorbic"],
+		// Nobody to assign in the private vault: Assign says so. You can be
+		// assigned elsewhere, so volunteering yourself goes all the way.
+		assignees: name.startsWith("acme/vault")
+			? []
+			: ["priya", "kai", "tom", "jo", "ascorbic", ...(playViewer.login ? [playViewer.login] : [])],
 		discussionCategories: ["Ideas", "Q&A"],
 		watchers: 214,
 		defaultBranch: "main",

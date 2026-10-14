@@ -34,7 +34,7 @@ import { type PenMode, PenProbe, scribble } from "./PenProbe.tsx";
 import { SCENARIOS } from "./scenarios.ts";
 import { SimulatedStacks, type StackAiMode } from "./stacks.ts";
 import { type RemotePerson, SimulatedBoard } from "./simulator.ts";
-import { playServices } from "./writes.ts";
+import { playServices, playViewer } from "./writes.ts";
 import { playAi } from "./ai.ts";
 import { ChangeControls } from "./ChangeControls.tsx";
 import { pastPushes, SimulatedPush } from "./push.ts";
@@ -185,6 +185,7 @@ export default function Playground() {
 	useEffect(() => widgets.setViewer(user.login ?? null), [widgets, user.login]);
 	useEffect(() => {
 		playAi.login = user.login ?? null;
+		playViewer.login = user.login ?? null;
 	}, [user.login]);
 	// Who's pushing is read when a push starts.
 	const pusher = useRef(user);
@@ -580,6 +581,7 @@ export default function Playground() {
 					scenario.startsWith("template-") ||
 					scenario === "actions" ||
 					scenario === "stacks" ||
+					scenario === "volunteers" ||
 					phone
 				}
 			>

@@ -53,6 +53,7 @@ import { RELATED_CARDS, relatedFor } from "./related.ts";
 import { fakeMeta, playServices, WRITES_CARDS } from "./writes.ts";
 import { GalleryBar } from "./GalleryBar.tsx";
 import { GroupTheseGallery } from "./StackGallery.tsx";
+import { HandIcon } from "../volunteers/Volunteers.tsx";
 
 // Every state of the selection actions (#32, #33): the bars, each picker
 // and panel, and the warnings. `/play/actions`.
@@ -73,6 +74,27 @@ const STICKIES = [
 	{ id: "s2", text: "A provider playground", color: "pink" },
 	{ id: "s3", text: "Codemods for 5.0", color: "green" },
 	{ id: "s4", text: "", color: "blue" },
+];
+
+const hand = (login: string, name: string, color: string, shape: string) => ({
+	shape,
+	login,
+	name,
+	color,
+	at: "2026-10-14T10:00:00Z",
+});
+
+/** Stickies with hands up (volunteers.ts): their issues are made assigned to them. */
+const VOLUNTEERED = [
+	{
+		...STICKIES[0]!,
+		volunteers: [
+			hand("kai", "Kai Andersen", "#1f7a6b", "s1"),
+			hand("priya", "Priya Shah", "#b4467a", "s1"),
+		],
+	},
+	{ ...STICKIES[1]!, volunteers: [hand("jo", "Jo Rivera", "#5b5fc7", "s2")] },
+	STICKIES[2]!,
 ];
 
 const PARENT: Action = { id: "parentIssue", label: "Make a parent issue", icon: <ParentIcon /> };
@@ -134,9 +156,16 @@ const CARD_ACTIONS: Action[] = [
 	...AI_ACTIONS,
 ];
 
+/** Assign volunteers (volunteers/): the cards' volunteers as their assignees. */
+const ASSIGN_VOLUNTEERS: Omit<Action, "id"> & { id: string } = {
+	id: "assignVolunteers",
+	label: "Assign volunteers: stage them as assignees",
+	icon: <HandIcon size={16} />,
+};
+
 const BARS: {
 	label: string;
-	actions: Action[];
+	actions: (Omit<Action, "id"> & { id: string })[];
 	open?: string;
 	install?: boolean;
 	section?: boolean;
@@ -178,6 +207,39 @@ const BARS: {
 		actions: [
 			...TRIAGE,
 			{ id: "expandRelated", label: "Expand related items", icon: <RelatedIcon /> },
+			CLOSE,
+			BACKLINK,
+		],
+	},
+	{
+		label: "One card people have volunteered for",
+		actions: [
+			...TRIAGE,
+			{ id: "expandRelated", label: "Expand related items", icon: <RelatedIcon /> },
+			ASSIGN_VOLUNTEERS,
+			CLOSE,
+			BACKLINK,
+		],
+	},
+	{
+		label: "Volunteers staged to be assigned",
+		actions: [
+			...TRIAGE,
+			{ id: "expandRelated", label: "Expand related items", icon: <RelatedIcon /> },
+			{
+				...ASSIGN_VOLUNTEERS,
+				text: "Staged",
+				unavailable: "Their volunteers are staged to be assigned",
+			},
+			CLOSE,
+			BACKLINK,
+		],
+	},
+	{
+		label: "Volunteers who can’t be assigned",
+		actions: [
+			...TRIAGE,
+			{ ...ASSIGN_VOLUNTEERS, unavailable: "Tom Okafor can’t be assigned in acme/unpic" },
 			CLOSE,
 			BACKLINK,
 		],
@@ -517,6 +579,19 @@ export default function ActionsGallery() {
 								/>
 							</Panel>
 							<figcaption>With labels and a milestone</figcaption>
+						</figure>
+						<figure>
+							<Panel>
+								<MakeIssuesPanel
+									stickies={VOLUNTEERED}
+									staged={new Set()}
+									repos={REPOS}
+									host="fake.tack"
+									initialRepo={REPO}
+									onStage={() => {}}
+								/>
+							</Panel>
+							<figcaption>Stickies people volunteered for: made assigned to them</figcaption>
 						</figure>
 						<figure>
 							<Panel>

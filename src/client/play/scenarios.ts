@@ -34,6 +34,7 @@ import { seedDiscussions, seedTracking, seedWidgets } from "./widgets.ts";
 import { seedCustom } from "./custom.ts";
 import { heroPeople, seedHero } from "./hero.ts";
 import { seedImages } from "./images.tsx";
+import { seedVolunteers, volunteersPeople } from "./volunteers.ts";
 import type { SimulatedBoard } from "./simulator.ts";
 
 export interface Scenario {
@@ -578,6 +579,13 @@ export const SCENARIOS: Record<string, Scenario> = {
 		description:
 			"Changes staged by a few people, on stickies and cards: open Changes in the top bar, then review and push. One failed last time; one is left out.",
 		seed: seedPush,
+	},
+	volunteers: {
+		name: "Volunteers",
+		description:
+			"Hands up for the work: hover a card or a sticky and ✋ to volunteer. Select #412 and Assign volunteers, or the stickies and Make issue, then push. Jo puts a hand up as you watch.",
+		seed: seedVolunteers,
+		present: volunteersPeople,
 	},
 	related: {
 		name: "Related and provenance",

@@ -14,6 +14,7 @@ const SCENARIOS: Record<
 	arrange: { cards: 4, stickies: 6, texts: 0 },
 	decisions: { cards: 4, stickies: 0, texts: 0, decisions: 4 },
 	related: { cards: 6, stickies: 1, texts: 0, sections: 1 },
+	volunteers: { cards: 3, stickies: 2, texts: 0, sections: 2 },
 	empty: { cards: 0, stickies: 0, texts: 0 },
 };
 
@@ -57,6 +58,28 @@ test.describe("scenarios render", () => {
 			await expect(page.locator(".card[data-state]")).toHaveCount(await cards.count());
 		});
 	}
+});
+
+test("volunteers: a hand goes up as you watch, and Assign volunteers stages them", async ({
+	page,
+}) => {
+	await openScenario(page, "volunteers");
+	const card = (item: string) =>
+		page.locator(".react-flow__node-card", { hasText: `unpic ${item}` });
+	// Jo, on the board, puts a hand up for #377.
+	await expect(card("#377").getByRole("group", { name: "Volunteers: Jo Rivera" })).toBeVisible({
+		timeout: 8000,
+	});
+	// The faces name everyone as you point at them.
+	await expect(card("#412").locator(".volunteers-who")).toHaveAttribute(
+		"data-tooltip",
+		"Volunteers: Kai Andersen, Priya Shah",
+	);
+	await card("#412").locator(".card-head").click();
+	const bar = page.getByRole("toolbar", { name: "Stage changes" });
+	await bar.getByRole("button", { name: /^Assign volunteers/ }).click();
+	await expect(page.locator(".toast", { hasText: "Staged +@kai +@priya on #412" })).toBeVisible();
+	await expect(card("#412").getByRole("group", { name: /staged to be assigned\)$/ })).toBeVisible();
 });
 
 test.describe("forge events", () => {

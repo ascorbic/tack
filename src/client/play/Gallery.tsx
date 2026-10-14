@@ -36,6 +36,7 @@ import {
 } from "./ci.ts";
 import { DecisionGallery } from "./DecisionGallery.tsx";
 import { StackGallery } from "./StackGallery.tsx";
+import { VolunteerGallery } from "./VolunteerGallery.tsx";
 import { ImageGallery } from "./images.tsx";
 import {
 	ACCESS_GALLERY,
@@ -731,6 +732,8 @@ function Sections({
 					</div>
 				</section>
 			))}
+
+			<VolunteerGallery card={GALLERY_CARDS[0]?.card} />
 
 			<section>
 				<h2>Sticky states</h2>

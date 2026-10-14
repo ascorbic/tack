@@ -106,7 +106,8 @@ test("every card state renders", async ({ page }) => {
 	// The first four cards, three more PRs and two discussions. Every PR with checks has a CI bar.
 	await expect(page.locator(".card.compact:not(.link-card)")).toHaveCount(9);
 	await expect(page.locator(".card.compact .ci-bar")).toHaveCount(6);
-	await expect(page.locator(".card[data-selected=true]:not(.link-card)")).toHaveCount(1);
+	// Selected: the "Selected" card, and two in Volunteers.
+	await expect(page.locator(".card[data-selected=true]:not(.link-card)")).toHaveCount(3);
 	await expect(page.locator(".card.loading")).toHaveCount(1);
 	await expect(page.locator(".card.missing")).toHaveCount(9);
 });
@@ -200,6 +201,48 @@ test("cards from other forges say how they're kept up to date", async ({ page })
 		"isn’t public on Codeberg",
 	);
 	await expect(figures.nth(5).getByRole("button")).toHaveCount(0);
+});
+
+test("every volunteering state renders: the row, yours, staged, many, and the hand", async ({
+	page,
+}) => {
+	const section = page.locator("section").filter({
+		has: page.getByRole("heading", { name: "Volunteers", exact: true }),
+	});
+	await expect(section.locator("figure")).toHaveCount(8);
+	await expect(
+		section
+			.getByRole("group", { name: "Volunteers: Kai Andersen, Priya Shah", exact: true })
+			.first(),
+	).toBeVisible();
+	await expect(
+		section.getByRole("group", { name: "Volunteers: You, Kai Andersen, Priya Shah", exact: true }),
+	).toBeVisible();
+	await expect(
+		section.getByRole("group", {
+			name: "Volunteers: Kai Andersen, Priya Shah (Kai Andersen staged to be assigned)",
+		}),
+	).toBeVisible();
+	// More than fit fold into +2; yours is ringed; staged is dashed.
+	await expect(section.locator(".volunteer-more")).toHaveText("+2");
+	await expect(section.locator(".volunteer[data-mine]")).toHaveCount(3);
+	await expect(section.locator(".volunteer[data-staged]")).toHaveCount(2);
+	// Selected: your hand and Assign show; at rest they wait for a pointer.
+	const yours = section.locator("figure", { hasText: "Yours among them" });
+	await expect(yours.getByRole("button", { name: "Assign volunteers" })).toHaveCSS("opacity", "1");
+	await expect(yours.getByRole("button", { name: "I’ll take it" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	const resting = section.locator("figure", { hasText: "Two volunteers, at rest" });
+	await expect(resting.getByRole("button", { name: "I’ll take it" })).toHaveCSS("opacity", "0");
+	// Nobody yet: the hand in a card's head, or a sticky's corner.
+	await expect(
+		section
+			.locator("figure", { hasText: "Nobody yet, selected" })
+			.locator(".volunteer-hand[data-place=head]"),
+	).toHaveCSS("opacity", "1");
+	await expect(section.locator(".sticky > .volunteer-hand")).toHaveCount(1);
 });
 
 test("every provenance state renders", async ({ page }) => {

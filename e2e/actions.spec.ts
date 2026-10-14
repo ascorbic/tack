@@ -512,10 +512,24 @@ test("cards without the app can't be changed", async ({ page }) => {
 test("the actions gallery shows every state", async ({ page }) => {
 	await page.goto("/play/actions");
 	await expect(page.getByRole("heading", { name: "Selection actions" })).toBeVisible();
-	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(11);
-	// 27, and Auto-stack's nine (#73): one with cards included, two of cards
+	await expect(page.getByRole("toolbar", { name: "Stage changes" })).toHaveCount(14);
+	// 28, and Auto-stack's nine (#73): one with cards included, two of cards
 	// alone, and a section with more than it reads at once.
-	await expect(page.locator(".action-popover")).toHaveCount(36);
+	await expect(page.locator(".action-popover")).toHaveCount(37);
+	// Assign volunteers: offered, staged, and nobody who can be assigned.
+	const volunteered = page.locator("figure", { hasText: "One card people have volunteered for" });
+	await expect(
+		volunteered.getByRole("button", { name: "Assign volunteers: stage them as assignees" }),
+	).toContainText("Assign volunteers");
+	await expect(
+		page
+			.locator("figure", { hasText: "Volunteers staged to be assigned" })
+			.getByRole("button", { name: /^Assign volunteers/ }),
+	).toHaveAttribute("aria-disabled", "true");
+	// Stickies people volunteered for: their issues are made assigned to them.
+	await expect(
+		page.getByRole("img", { name: "Assigned to its volunteers: Kai Andersen, Priya Shah" }),
+	).toBeVisible();
 	await expect(
 		page.getByRole("dialog", { name: "Auto-stack: A section with more than it reads at once" }),
 	).toContainText("Auto-stacking the first 60 of 84");

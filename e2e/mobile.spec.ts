@@ -506,6 +506,25 @@ test.describe("on a phone", () => {
 		await expect(tip).toHaveCount(0);
 	});
 
+	test("volunteering from the sheet, and taking it back", async ({ page }) => {
+		await openScenario(page, "volunteers");
+		const playground = sticky(page, "A provider playground");
+		// Others' volunteers show on the board, without a hand to hover for.
+		await expect(playground.getByRole("group", { name: /^Volunteers: / })).toBeVisible();
+		await playground.tap();
+		const sheet = page.getByRole("dialog", { name: "Shape" });
+		const hand = sheet.getByRole("button", { name: "I’ll take it" });
+		await expect(hand).toHaveAttribute("aria-pressed", "false");
+		expect((await hand.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+		await hand.tap();
+		await expect(hand).toHaveAttribute("aria-pressed", "true");
+		await expect(sheet).toContainText("You, Kai Andersen, Tom Okafor");
+		await expect(playground.locator(".volunteer")).toHaveCount(3);
+		await hand.tap();
+		await expect(hand).toHaveAttribute("aria-pressed", "false");
+		await expect(playground.locator(".volunteer")).toHaveCount(2);
+	});
+
 	test("a decision's vote from the sheet", async ({ page }) => {
 		await openScenario(page, "decisions");
 		await page.getByTestId("rf__node-decision-node-20").tap();
@@ -737,6 +756,28 @@ test.describe("on a tablet", () => {
 		await gesture([spot], [[-80, -40]]);
 		const moved = await viewport(page);
 		expect(Math.abs(moved.x - start.x)).toBeGreaterThan(40);
+	});
+
+	test("a finger volunteers on a selected card: the hand shows once it's selected", async ({
+		page,
+		browserName,
+	}) => {
+		await openScenario(page, "volunteers");
+		const { tap } = await fingers(page, browserName);
+		// The scenario fits the board, too small to read: in to the card first.
+		const ci = page.locator(".react-flow__node-card", { hasText: "#418" });
+		await tap(await centre(ci));
+		await expect(ci).toHaveClass(/selected/);
+		await page.keyboard.press("Shift+Digit2");
+		await settleCanvas(page);
+		const hand = ci.getByRole("button", { name: "I’ll take it" });
+		await expect(hand).toHaveCSS("opacity", "1");
+		await tap(await centre(hand));
+		await expect(hand).toHaveAttribute("aria-pressed", "true");
+		await expect(ci.locator(".volunteer")).toHaveCount(2);
+		// Not selected, the hand's out of a finger's way again.
+		await page.keyboard.press("Escape");
+		await expect(hand).toHaveCSS("pointer-events", "none");
 	});
 
 	test("a section's bar fits across the tablet, words and all, with the rest in …", async ({

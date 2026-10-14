@@ -80,6 +80,7 @@ const SCENARIOS = [
 	"tracking",
 	"lists",
 	"actions",
+	"volunteers",
 	"inbox",
 	"comments",
 	"history",
