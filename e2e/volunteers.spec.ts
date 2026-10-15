@@ -166,6 +166,67 @@ test.describe.serial("volunteering", () => {
 		expect(await changes(kai)).toEqual([]);
 	});
 
+	test("withdrawing takes only you out of the staged assignment, whoever staged it, and Undo puts you back", async () => {
+		// Kai stages both.
+		await card(kai).click({ position: { x: 24, y: 14 } });
+		const bar = kai.getByRole("toolbar", { name: "Stage changes" });
+		await bar.getByRole("button", { name: /^Assign volunteers/ }).click();
+		await expect(kai.locator(".toast", { hasText: "Staged +@kai +@priya on #4" })).toBeVisible();
+		await kai.keyboard.press("Escape");
+		// Kai's reviewing them as Priya changes her mind.
+		const sheet = await reviewAndPush(kai);
+		await expect(sheet).toContainText("@priya");
+
+		// Priya withdraws: she's out of Kai's change, on both screens at once.
+		await card(priya).hover();
+		await card(priya).getByRole("button", { name: "I’ll take it" }).click();
+		const toast = priya.locator(".toast", {
+			hasText: "Withdrawn — no longer staged to assign you to #4",
+		});
+		await expect(toast).toBeVisible();
+		await expect(sheet).not.toContainText("@priya");
+		await expect(sheet).toContainText("@kai");
+		for (const page of [kai, priya]) {
+			await expect
+				.poll(async () => (await changes(page)).map((change) => change.op.add))
+				.toEqual([["kai"]]);
+		}
+		await expect(volunteers(card(kai))).toHaveAttribute(
+			"aria-label",
+			"Volunteers: You (staged to be assigned)",
+		);
+
+		// Undo puts her hand back up and her back in the change, as one step.
+		await toast.getByRole("button", { name: "Undo" }).click();
+		await expect(sheet).toContainText("@priya");
+		await expect(volunteers(card(priya))).toHaveAttribute(
+			"aria-label",
+			"Volunteers: You, Kai Andersen (staged to be assigned)",
+		);
+		expect((await changes(kai)).map((change) => change.op.add)).toEqual([["kai", "priya"]]);
+		await kai.keyboard.press("Escape");
+		await expect(sheet).toBeHidden();
+
+		// The last one out takes the change with them, and the count follows.
+		const button = kai.getByRole("button", { name: /^Changes/ });
+		await expect(button).toHaveAccessibleName("Changes, 1 staged");
+		await card(kai).hover();
+		await card(kai).getByRole("button", { name: "I’ll take it" }).click();
+		await expect(
+			kai.locator(".toast", { hasText: "Withdrawn — no longer staged to assign you to #4" }),
+		).toBeVisible();
+		await card(priya).hover();
+		await card(priya).getByRole("button", { name: "I’ll take it" }).click();
+		await expect.poll(() => changes(kai)).toEqual([]);
+		await expect(button).toHaveAccessibleName("Changes");
+
+		// Hands up again, for what follows.
+		await raiseHand(card(kai));
+		await expect(faces(card(priya))).toHaveCount(1);
+		await raiseHand(card(priya));
+		await expect(faces(card(kai))).toHaveCount(2);
+	});
+
 	test("Assign volunteers stages them as assignees, and a push writes them", async () => {
 		await card(kai).click({ position: { x: 24, y: 14 } });
 		const bar = kai.getByRole("toolbar", { name: "Stage changes" });
@@ -217,6 +278,25 @@ test.describe.serial("volunteering", () => {
 			"aria-label",
 			"Volunteers: You (staged to be assigned)",
 		);
+
+		// Withdrawing takes him off the new issue, not the issue; Undo puts him back.
+		await sticky(kai).hover();
+		await sticky(kai).getByRole("button", { name: "I’ll take it" }).click();
+		const toast = kai.locator(".toast", {
+			hasText: "Withdrawn — no longer staged to assign you to the sticky’s new issue",
+		});
+		await expect(toast).toBeVisible();
+		await expect
+			.poll(async () => (await changes(priya)).find((c) => c.op.kind === "issue.create")?.op)
+			.toEqual({ kind: "issue.create", repo: REPO, title: "Write the migration guide" });
+		await toast.getByRole("button", { name: "Undo" }).click();
+		await expect(volunteers(sticky(priya))).toHaveAttribute(
+			"aria-label",
+			"Volunteers: Kai Andersen (staged to be assigned)",
+		);
+		expect((await changes(kai)).find((c) => c.op.kind === "issue.create")?.op).toMatchObject({
+			assignees: ["kai"],
+		});
 
 		// The push sheet shows who it's made assigned to.
 		const sheet = await reviewAndPush(kai);
