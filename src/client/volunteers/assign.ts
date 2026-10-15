@@ -13,6 +13,7 @@ import { repoKeyOf } from "../../shared/refs.ts";
 import {
 	type AssignPlan,
 	type AssignTarget,
+	type Unassigned,
 	type Volunteer,
 	assignsByLogin,
 	planAssignments,
@@ -134,10 +135,11 @@ export function stagePlan(
 			message: why ? `Nothing staged: ${why}` : "Every volunteer is assigned already",
 		};
 	}
+	// Marked as volunteers, so withdrawing takes them back out.
 	const ids = stageSetEdits(
 		doc,
 		"item.assignees",
-		plan.edits.map((edit) => ({ ...edit, remove: [] })),
+		plan.edits.map((edit) => ({ ...edit, remove: [], volunteered: edit.add })),
 		stager,
 	);
 	const staged = setEditsInWords(
@@ -145,4 +147,14 @@ export function stagePlan(
 		plan.edits.map((edit) => ({ ...edit, remove: [] })),
 	);
 	return { staged: ids.length, message: why ? `${staged}. ${why}` : staged };
+}
+
+/**
+ * What withdrawing took back, for its toast: "Withdrawn — no longer staged
+ * to assign you to #412", or to the new issue a sticky becomes.
+ */
+export function withdrawnInWords(unassigned: readonly Unassigned[]): string {
+	const keys = [...new Set(unassigned.flatMap((u) => (u.key ? [u.key] : [])))];
+	const what = keys.length > 0 ? itemsInWords(keys) : "the sticky’s new issue";
+	return `Withdrawn — no longer staged to assign you to ${what}`;
 }

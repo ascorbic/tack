@@ -9,6 +9,7 @@ import {
 	namesInWords,
 	sameLogin,
 	toggleVolunteer,
+	unstageVolunteered,
 } from "../../shared/volunteers.ts";
 import { loadRepoMeta, ServicesContext, stagerFor } from "../actions/services.ts";
 import { undoToast } from "../actions/toast.ts";
@@ -20,9 +21,17 @@ import { DocContext, HistoryContext, ReadOnlyContext } from "../DocContext.ts";
 import { AvatarImage, initials } from "../People.tsx";
 import { announce } from "../announce.tsx";
 import type { User } from "../presence.ts";
-import { transactLocal } from "../undo.ts";
+import type { ToastStore } from "../Toasts.tsx";
+import { type History, transactLocal } from "../undo.ts";
 import { useLinger } from "../useLinger.ts";
-import { type ShownVolunteer, canAssign, planFor, shownVolunteers, stagePlan } from "./assign.ts";
+import {
+	type ShownVolunteer,
+	canAssign,
+	planFor,
+	shownVolunteers,
+	stagePlan,
+	withdrawnInWords,
+} from "./assign.ts";
 import { useVolunteersOn } from "./store.ts";
 import "./volunteers.css";
 
@@ -288,18 +297,44 @@ export function roomFor(faces: number, couldJoin: boolean): number {
 /** How long the chip takes to fade away; keep in step with volunteers.css. */
 const LEAVE_MS = 220;
 
+/**
+ * Put your hand up for a shape, or take it down. Withdrawing also takes you
+ * out of what volunteering staged (`unstageVolunteered`), in the same undo
+ * step, and says so with Undo, which brings back both.
+ */
+function toggleHand(
+	doc: Y.Doc,
+	shape: string,
+	user: User,
+	toasts: ToastStore | null,
+	history: History | null,
+): void {
+	const login = user.login;
+	if (!login) return;
+	const { up, unassigned } = transactLocal(doc, () => {
+		const up = toggleVolunteer(doc, shape, user);
+		return { up, unassigned: up ? [] : unstageVolunteered(doc, shape, login) };
+	});
+	if (unassigned.length === 0) return announce(up ? "You’ve volunteered" : "You’ve withdrawn");
+	const message = withdrawnInWords(unassigned);
+	if (!toasts) return announce(message);
+	if (history) undoToast(toasts, history, message);
+	else toasts.show({ message });
+}
+
 /** What a shape's volunteering needs from the board: who you are, and whether you can. */
 function useVolunteering(shape: string) {
 	const doc = useContext(DocContext);
 	const readOnly = useContext(ReadOnlyContext);
 	const user = useContext(DecisionContext).user;
+	const history = useContext(HistoryContext);
+	const toasts = useChangesUI()?.toasts ?? null;
 	const volunteers = useVolunteersOn(doc, shape);
 	const me = loginOf(user);
 	const mine = !!me && volunteers.some((v) => sameLogin(v.login, me));
 	const toggle = (): void => {
 		if (!doc || !user?.login) return;
-		const up = transactLocal(doc, () => toggleVolunteer(doc, shape, user));
-		announce(up ? "You’ve volunteered" : "You’ve withdrawn");
+		toggleHand(doc, shape, user, toasts, history);
 	};
 	return { doc, user, me, volunteers, mine, canVolunteer: !!doc && !readOnly && !!me, toggle };
 }
@@ -430,6 +465,8 @@ export function useStickyVolunteers(
 /** Your hand on a shape, from a phone's sheet: big enough to tap, with who's in. */
 export function VolunteerSheetRow({ doc, shape, user }: { doc: Y.Doc; shape: string; user: User }) {
 	const volunteers = useVolunteersOn(doc, shape);
+	const history = useContext(HistoryContext);
+	const toasts = useChangesUI()?.toasts ?? null;
 	const me = loginOf(user);
 	if (!me) return null;
 	const mine = volunteers.some((v) => sameLogin(v.login, me));
@@ -439,10 +476,7 @@ export function VolunteerSheetRow({ doc, shape, user }: { doc: Y.Doc; shape: str
 				type="button"
 				className="phone-sheet-volunteer"
 				aria-pressed={mine}
-				onClick={() => {
-					const up = transactLocal(doc, () => toggleVolunteer(doc, shape, user));
-					announce(up ? "You’ve volunteered" : "You’ve withdrawn");
-				}}
+				onClick={() => toggleHand(doc, shape, user, toasts, history)}
 			>
 				<HandIcon size={18} />
 				I’ll take it
