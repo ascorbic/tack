@@ -1,5 +1,7 @@
 import type * as Y from "yjs";
+import { type ChangeEffect, type Operation, changesMap, keepVolunteered } from "./changes.ts";
 import { parseRepoKey, repoKeyOf } from "./refs.ts";
+import { shapesMap } from "./shapes.ts";
 
 // Volunteers: people putting their hand up for something on the board ("✋
 // I'll take it"), so a planning session can see who's doing what before
@@ -24,6 +26,12 @@ import { parseRepoKey, repoKeyOf } from "./refs.ts";
 // what makes one assignable. Deleting a shape leaves its volunteers behind,
 // unread, so undoing the delete brings them back; when a sticky becomes its
 // issue's card, the push moves them onto the card (`moveVolunteers`).
+//
+// Withdrawing takes back what volunteering staged, while it's still only
+// staged (`unstageVolunteered`): you, from the card's "Assign volunteers"
+// change, or from the new issue Make issue staged from the sticky. Changes
+// remember who in them is there as a volunteer (`PendingChange.volunteered`),
+// so someone picked in the Assign picker stays. Pushed, it's the forge's.
 //
 // A volunteer the item has as an assignee is shown as one, among the card's
 // assignees, rather than as a volunteer: so once "Assign volunteers" is
@@ -258,6 +266,74 @@ export function stickyAssignees(
 		if (has(out, volunteer.login)) continue;
 		if (assignable && !has(assignable, volunteer.login)) continue;
 		out.push(volunteer.login);
+	}
+	return out;
+}
+
+/** A staged assignment withdrawing took you out of. */
+export interface Unassigned {
+	/** The change's id. */
+	change: string;
+	/** The item it assigns, or null for the new issue a sticky becomes. */
+	key: string | null;
+	/** You were the last in it, so the change went with you. */
+	unstaged: boolean;
+}
+
+/**
+ * Take someone who's withdrawn from a shape out of what volunteering for it
+ * staged, and only that: on a card, the "Assign volunteers" change on its
+ * item (the whole change, if they were the last in it), unless they're
+ * still volunteering on another card for the same item; on a sticky, the
+ * new issue Make issue staged from it. Anyone picked rather than
+ * volunteered, and anything on its way or pushed, stays. Whoever staged it,
+ * it's the board's: call in the same transaction as the withdrawal, so
+ * undoing one undoes both.
+ */
+export function unstageVolunteered(doc: Y.Doc, shape: string, login: string): Unassigned[] {
+	const out: Unassigned[] = [];
+	const shapes = shapesMap(doc);
+	const ref = shapes.get(shape)?.get("ref");
+	const key = typeof ref === "string" ? ref : null;
+	if (key) {
+		for (const value of volunteersMap(doc).values()) {
+			if (!isVolunteer(value) || value.shape === shape || !sameLogin(value.login, login)) continue;
+			if (shapes.get(value.shape)?.get("ref") === key) return out;
+		}
+	}
+	const without = (logins: readonly string[] | undefined) =>
+		(logins ?? []).filter((l) => !sameLogin(l, login));
+	const changes = changesMap(doc);
+	// A copy: changes may go as it reads them.
+	for (const [id, change] of Array.from(changes.entries())) {
+		const status = change.get("status");
+		if (status !== "staged" && status !== "failed") continue;
+		const marked = change.get("volunteered");
+		if (!Array.isArray(marked) || !has(marked as string[], login)) continue;
+		const op = change.get("op") as Operation | undefined;
+		if (op?.kind === "item.assignees") {
+			if (!key || !("key" in op.target) || op.target.key !== key) continue;
+			const add = without(op.add);
+			if (add.length === (op.add?.length ?? 0)) continue;
+			if (add.length === 0 && !op.remove?.length) {
+				changes.delete(id);
+				out.push({ change: id, key, unstaged: true });
+				continue;
+			}
+			const { add: _add, ...rest } = op;
+			change.set("op", add.length > 0 ? { ...rest, add } : rest);
+			keepVolunteered(change, add);
+			out.push({ change: id, key, unstaged: false });
+		} else if (op?.kind === "issue.create") {
+			const effect = change.get("effect") as ChangeEffect | undefined;
+			if (effect?.kind !== "replace" || !effect.shapes.includes(shape)) continue;
+			const assignees = without(op.assignees);
+			if (assignees.length === (op.assignees?.length ?? 0)) continue;
+			const { assignees: _assignees, ...rest } = op;
+			change.set("op", assignees.length > 0 ? { ...rest, assignees } : rest);
+			keepVolunteered(change, assignees);
+			out.push({ change: id, key: null, unstaged: false });
+		}
 	}
 	return out;
 }

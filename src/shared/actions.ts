@@ -10,6 +10,7 @@ import {
 	type Stager,
 	type Target,
 	changesMap,
+	keepVolunteered,
 	listChanges,
 	readChange,
 	stageChange,
@@ -23,7 +24,7 @@ import type { RepoMeta } from "./push.ts";
 import { forgeForHost, itemOf, repoKeyOf } from "./refs.ts";
 import { TITLE_MAX, issueFromText, textFromIssue } from "./issueText.ts";
 import { readShape, shapesMap, transactLocal } from "./shapes.ts";
-import { stickyAssignees, volunteersOn } from "./volunteers.ts";
+import { sameLogin, stickyAssignees, volunteersOn } from "./volunteers.ts";
 
 // Built-in actions (#32): what the selection actions stage. Pure document
 // logic, so it's unit-tested in Node; the UI is in src/client/actions/.
@@ -151,6 +152,8 @@ export function stageStickyIssues(
 				shapes: [sticky.id],
 				effect: { kind: "replace", shapes: [sticky.id] },
 				batch,
+				// Those there as volunteers, not picked: withdrawing takes them out.
+				volunteered: assignees.filter((login) => !picked.some((p) => sameLogin(p, login))),
 			});
 			result.staged.push(id);
 		}
@@ -209,6 +212,8 @@ export function editStagedIssue(doc: Y.Doc, id: string, edit: IssueEdit): boolea
 	transactLocal(doc, () => {
 		if (words && sticky) shapesMap(doc).get(sticky)?.set("text", text);
 		raw.set("op", { ...rest, ...issue, ...extras });
+		// A volunteer taken off in review is no longer there as one.
+		if (edit.assignees) keepVolunteered(raw, extras.assignees ?? []);
 	});
 	return true;
 }
@@ -555,6 +560,7 @@ export function stageParentIssue(
 							shapes: [child.shape],
 							effect: { kind: "replace", shapes: [child.shape] },
 							batch,
+							volunteered: assignees,
 						},
 					);
 					result.staged.push(id);
@@ -805,9 +811,27 @@ export function stageTriage(
 	targets: TriageTarget[],
 	triage: Triage,
 	stager: Stager,
-	options: { batch?: Batcher } = {},
+	options: {
+		batch?: Batcher;
+		/**
+		 * Assignees: who among those added are volunteers ("Assign
+		 * volunteers"), marked so withdrawing takes them back out. Anyone
+		 * else this adds counts as picked, even if they were marked before.
+		 */
+		volunteered?: readonly string[];
+	} = {},
 ): string[] {
 	const ids: string[] = [];
+	const volunteered = triage.kind === "item.assignees" ? (options.volunteered ?? []) : [];
+	// Who's there as a volunteer once this edit's merged into `before`.
+	const marked = (before: readonly string[] | undefined, add: readonly string[]): string[] => {
+		const picked = triage.kind === "item.assignees" ? (triage.add ?? []) : [];
+		const out = new Set(
+			(before ?? []).filter((login) => !picked.includes(login) || volunteered.includes(login)),
+		);
+		for (const login of volunteered) out.add(login);
+		return [...out].filter((login) => add.includes(login));
+	};
 	const existing = listChanges(doc).filter(
 		(change) =>
 			change.status === "staged" &&
@@ -843,11 +867,24 @@ export function stageTriage(
 			} else if (op.kind === "item.labels" || op.kind === "item.assignees") {
 				if (!op.add?.length && !op.remove?.length) continue;
 			}
+			const add = op.kind === "item.assignees" ? (op.add ?? []) : [];
 			if (mine) {
-				changes.get(mine.id)?.set("op", op);
+				const change = changes.get(mine.id);
+				change?.set("op", op);
+				if (change && op.kind === "item.assignees") {
+					const now = marked(mine.volunteered, add);
+					if (now.length > 0) change.set("volunteered", now);
+					else if (change.has("volunteered")) change.delete("volunteered");
+				}
 				ids.push(mine.id);
 			} else {
-				ids.push(stageChange(doc, op, stager, { shapes: shape ? [shape] : undefined, batch }));
+				ids.push(
+					stageChange(doc, op, stager, {
+						shapes: shape ? [shape] : undefined,
+						batch,
+						volunteered: marked([], add),
+					}),
+				);
 			}
 		}
 	});
@@ -920,14 +957,17 @@ export function stageSetEdits(
 		current?: readonly string[];
 		/** It's a discussion (see `TriageTarget`). */
 		discussion?: boolean;
+		/** Who among those added are volunteers (see `stageTriage`). */
+		volunteered?: readonly string[];
 	}[],
 	stager: Stager,
 ): string[] {
 	const batch = new Batcher();
 	return transactLocal(doc, () =>
-		edits.flatMap(({ key, shape, current, add, remove, discussion }) =>
+		edits.flatMap(({ key, shape, current, add, remove, discussion, volunteered }) =>
 			stageTriage(doc, [{ key, shape, current, discussion }], { kind, add, remove }, stager, {
 				batch,
+				volunteered,
 			}),
 		),
 	);

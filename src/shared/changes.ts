@@ -208,6 +208,14 @@ export interface PendingChange {
 	/** Staged with others by one action (Make 40 issues), so they read as one. */
 	batch?: Batch;
 	/**
+	 * Who among the people it assigns (an `item.assignees` change's `add`, a
+	 * new issue's `assignees`) is there because they volunteered: staged by
+	 * "Assign volunteers", or as a sticky's volunteers by Make issue
+	 * (`volunteers.ts`). Withdrawing takes them back out
+	 * (`unstageVolunteered`); anyone picked in the Assign picker stays.
+	 */
+	volunteered?: string[];
+	/**
 	 * Derived when read, never stored: a new issue made from a sticky is the
 	 * sticky's text as it is now (`followSticky`), and this says whether the
 	 * sticky has changed since it was staged.
@@ -325,7 +333,14 @@ export function stageChange(
 	doc: Y.Doc,
 	op: Operation,
 	stagedBy: Stager,
-	options: { shapes?: string[]; effect?: ChangeEffect; id?: string; batch?: Batcher } = {},
+	options: {
+		shapes?: string[];
+		effect?: ChangeEffect;
+		id?: string;
+		batch?: Batcher;
+		/** Who it assigns because they volunteered (`PendingChange.volunteered`). */
+		volunteered?: readonly string[];
+	} = {},
 ): string {
 	const id = options.id ?? crypto.randomUUID();
 	doc.transact(() => {
@@ -338,9 +353,23 @@ export function stageChange(
 		if (options.batch) change.set("batch", options.batch.take());
 		if (options.shapes?.length) change.set("shapes", options.shapes);
 		if (options.effect) change.set("effect", options.effect);
+		if (options.volunteered?.length) change.set("volunteered", [...options.volunteered]);
 		changesMap(doc).set(id, change);
 	}, LOCAL_ORIGIN);
 	return id;
+}
+
+/**
+ * Keep a change's `volunteered` to those it still assigns (`assigns`),
+ * dropping the key once nobody's left.
+ */
+export function keepVolunteered(change: Y.Map<unknown>, assigns: readonly string[]): void {
+	const before = change.get("volunteered");
+	if (!Array.isArray(before)) return;
+	const after = (before as string[]).filter((login) => assigns.includes(login));
+	if (after.length === before.length) return;
+	if (after.length > 0) change.set("volunteered", after);
+	else change.delete("volunteered");
 }
 
 /** Remove staged changes. Only `staged` and `failed` changes can be unstaged. */
