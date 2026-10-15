@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
-import { WRANGLER_CONFIG, wranglerConfig } from "../scripts/wrangler-config.ts";
+import { WRANGLER_CONFIG, workerConfig, wranglerConfig } from "../scripts/wrangler-config.ts";
 
 describe("what the Deploy to Cloudflare button reads", () => {
 	it("wrangler.jsonc matches cloudflare.config.ts (run `node scripts/wrangler-config.ts`)", async () => {
@@ -42,5 +42,16 @@ describe("what the Deploy to Cloudflare button reads", () => {
 		};
 		expect(pkg.scripts.deploy).toMatch(/cf deploy/);
 		expect(pkg.scripts.build).toBeTruthy();
+	});
+});
+
+describe("a Preview's config", () => {
+	it("has no cron triggers, which Preview uploads refuse, while production keeps them", async () => {
+		const preview = await workerConfig({ isPreview: true, mode: "production" });
+		expect(preview.worker).not.toHaveProperty("triggers");
+		const production = await workerConfig({ isPreview: false, mode: "production" });
+		expect(production.worker.triggers).toEqual([
+			expect.objectContaining({ schedule: "*/10 * * * *" }),
+		]);
 	});
 });
