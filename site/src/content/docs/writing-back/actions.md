@@ -81,6 +81,7 @@ In a session, people put their hands up for the work: ✋ on a card or a sticky 
 - **Only people the repository lets be assigned** are staged. Anyone else is left a volunteer, and the toast says so: "Tom Okafor can't be assigned in acme/app". GitHub allows ten assignees an issue; volunteers past that are left out too.
 - **Volunteers are GitHub people**: a volunteer is whoever's signed in, by their GitHub login, so cards from other forges don't offer it. Discussions have no assignees, so their volunteers stay on the board.
 - **Stickies**: when a sticky is made into an issue (**Make issues**, or as a sub-issue of a **Parent issue**), its volunteers are its assignees, alongside any you pick, and the panel shows them beside each title. The push sheet lists every assignee before anything's written, and once it's pushed, the sticky's volunteers move to its new card.
+- **Withdrawing unstages you**: clicking ✋ again before the push takes you, and only you, out of what volunteering staged, whoever staged it ("Withdrawn — no longer staged to assign you to #412", with **Undo**), while anyone picked with **Assign** stays, and once it's pushed it's GitHub's.
 
 After the push, assigned volunteers move from the chip to the card's assignees, and the chip goes once everyone in it is assigned. The same happens when someone assigns them on GitHub.
 
