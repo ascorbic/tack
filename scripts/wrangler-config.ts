@@ -52,17 +52,25 @@ const HEADER = `// Generated from cloudflare.config.ts by \`node scripts/wrangle
 // cloudflare.config.ts.
 `;
 
-/** wrangler.jsonc as it should be, for production. */
-export async function wranglerConfig(): Promise<string> {
+/** cloudflare.config.ts as cf reads it, for a production build or a Preview's. */
+export async function workerConfig(options: {
+	isPreview: boolean;
+	mode: string;
+}): Promise<{ worker: Record<string, unknown> }> {
 	const config = await configModule();
-	const { result } = await config.loadAndParseConfig(join(ROOT, "cloudflare.config.ts"), {
-		isPreview: false,
-		mode: "production",
-	});
+	const { result } = await config.loadAndParseConfig(join(ROOT, "cloudflare.config.ts"), options);
 	if (!result.success) {
 		throw new Error(`cloudflare.config.ts is invalid: ${JSON.stringify(result.error)}`);
 	}
-	const wrangler = config.convertToWranglerConfig(result.data);
+	return result.data as { worker: Record<string, unknown> };
+}
+
+/** wrangler.jsonc as it should be, for production. */
+export async function wranglerConfig(): Promise<string> {
+	const config = await configModule();
+	const wrangler = config.convertToWranglerConfig(
+		await workerConfig({ isPreview: false, mode: "production" }),
+	);
 	// The converter gives an absolute entrypoint; the file is shared.
 	if (typeof wrangler.main === "string") wrangler.main = relative(ROOT, wrangler.main);
 	return `${HEADER}${JSON.stringify(wrangler, null, "\t")}\n`;

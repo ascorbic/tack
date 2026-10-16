@@ -27,13 +27,25 @@ Tack remembers your format, scale and background in this browser.
 
 A board's file is its content, not anyone's own part of it:
 
-- comments, history and visits, which aren't part of the board's content
-- votes on decisions, dot votes and stamps: who voted for what is theirs
+- history and visits, which aren't part of the board's content
+- comments, votes on decisions, dot votes, stamps and hands up, unless you [include them](#including-votes-stamps-and-comments)
 - stickies still face down in silent mode: their text is their author's until it's revealed
 - staged changes, and where cards came from (inboxes, rules, lists)
 - cards from repositories you can't read, and the issues action items link to there; the dialog says how many
 
 Cards are their links, so an imported board shows them as they are now on GitHub, to whoever can read them.
+
+## Including votes, stamps and comments
+
+To read a board somewhere else, after a planning session say, or to hand it to a tool or an AI agent, turn on **Include votes, stamps and comments** under JSON. The file then also says what people did on the board, beside its content:
+
+- **Dot votes**: each vote's settings, whether it's closed, how many people voted, and each shape's dots, 👍 reactions counted as votes, total and rank. Like the board, a vote that hides its dots never says who put them where, and has no results in the file until it closes.
+- **Decisions' votes**: who agreed and who disagreed.
+- **Stamps** and **hands up**: who, on each shape.
+- **Comments**: each thread still showing, with its messages, who wrote them, what it's pinned to and whether it's resolved.
+- **What the cards show**: each item's title, state, labels, assignees, comment and reaction counts, and for discussions their category and upvotes, as you see them as you export.
+
+It's only ever about what's in the file, so nothing on a card from a repository you can't read, or on a sticky still face down, goes in. The dialog counts what it adds, and Tack remembers the choice in this browser. Importing a file like this makes a board from its content alone: everything it says people did stays behind. Backups never include it.
 
 ## Importing
 

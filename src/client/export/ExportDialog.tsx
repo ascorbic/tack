@@ -4,12 +4,14 @@ import {
 	type ExportOmissions,
 	type ExportedImage,
 	exportBoard,
+	type ExportSummary,
 	exportFileName,
 	summariseExport,
 } from "../../shared/boardExport.ts";
 import { describeBytes } from "../../shared/images.ts";
 import { Modal } from "../boards/Modal.tsx";
 import { cardStore } from "../cardStore.ts";
+import { useComments } from "../comments/store.ts";
 import { useImages } from "../images/service.ts";
 import { SHORTCUTS, isApplePlatform, matchesCombo } from "../shortcuts.ts";
 import type { ToastStore } from "../Toasts.tsx";
@@ -26,6 +28,8 @@ import "./export.css";
 // board's menu. Images show a preview as they'll come out, and say how big
 // they'll be; JSON says what it holds and what it leaves out, and carries
 // the files its image shapes show (fetched from the board as it's chosen).
+// JSON can also carry what people did on the board (votes, stamps, hands up,
+// comments and the items its cards show), for reading it elsewhere.
 
 const FORMATS: { format: ExportFormat; label: string; hint: string }[] = [
 	{ format: "png", label: "PNG", hint: "An image, for docs, slides and chat" },
@@ -44,16 +48,19 @@ interface Prefs {
 	format: ExportFormat;
 	scale: number;
 	background: boolean;
+	/** JSON: include what people did on the board. */
+	activity: boolean;
 }
 
 function loadPrefs(): Prefs {
-	const fallback: Prefs = { format: "png", scale: 2, background: true };
+	const fallback: Prefs = { format: "png", scale: 2, background: true, activity: false };
 	try {
 		const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null") as Partial<Prefs> | null;
 		return {
 			format: raw?.format === "svg" || raw?.format === "json" ? raw.format : fallback.format,
 			scale: SCALES.includes(raw?.scale as never) ? (raw?.scale as number) : fallback.scale,
 			background: typeof raw?.background === "boolean" ? raw.background : fallback.background,
+			activity: typeof raw?.activity === "boolean" ? raw.activity : fallback.activity,
 		};
 	} catch {
 		return fallback;
@@ -170,7 +177,7 @@ function ExportPanel({
 		});
 		setError(null);
 	};
-	const { format, scale, background } = prefs;
+	const { format, scale, background, activity } = prefs;
 	const image = format !== "json";
 	const title = boardTitle(name);
 
@@ -217,6 +224,7 @@ function ExportPanel({
 	const size = region ? imageSize(region, format === "svg" ? 1 : scale) : null;
 
 	// JSON: what's in it, and what's left out, worked out once it's chosen.
+	const { threads } = useComments();
 	const json = useMemo(() => {
 		if (format !== "json") return null;
 		const { data, omitted } = exportBoard(doc, {
@@ -225,9 +233,12 @@ function ExportPanel({
 				const card = cardStore.get(key);
 				return !(card && "missing" in card && card.reason === "private");
 			},
+			...(activity
+				? { activity: { cards: (key: string) => cardStore.get(key), threads: threads.values() } }
+				: {}),
 		});
 		return { data, omitted, summary: summariseExport(data) };
-	}, [doc, format, title]);
+	}, [doc, format, title, activity, threads]);
 
 	// Its image shapes' files, fetched from the board for the file to carry.
 	const images = useImages();
@@ -415,6 +426,8 @@ function ExportPanel({
 						omitted={json.omitted}
 						files={files}
 						bytes={file?.bytes ?? null}
+						activity={activity}
+						onActivity={(include) => update({ activity: include })}
 					/>
 				)
 			)}
@@ -507,13 +520,18 @@ function JsonSummary({
 	omitted,
 	files,
 	bytes,
+	activity,
+	onActivity,
 }: {
-	summary: ReturnType<typeof summariseExport>;
+	summary: ExportSummary;
 	omitted: ExportOmissions;
 	files: Files;
 	/** The file's size, once its images are in. */
 	bytes: number | null;
+	activity: boolean;
+	onActivity: (include: boolean) => void;
 }) {
+	const activityId = useId();
 	const counts = Object.entries(NOUNS).flatMap(([type, [one, many]]) => {
 		const n = summary.counts[type as keyof typeof summary.counts] ?? 0;
 		return n > 0 ? [plural(n, one, many)] : [];
@@ -527,11 +545,36 @@ function JsonSummary({
 				<span className="export-json-size"> · {bytes === null ? "…" : describeBytes(bytes)}</span>
 			</p>
 			<ImagesNote files={files} />
+			<div className="export-json-activity">
+				<label className="export-switch">
+					<input
+						type="checkbox"
+						role="switch"
+						checked={activity}
+						aria-describedby={activityId}
+						onChange={(event) => onActivity(event.target.checked)}
+					/>
+					<span className="export-switch-track" aria-hidden="true">
+						<span className="export-switch-knob" />
+					</span>
+					Include votes, stamps and comments
+				</label>
+				<p id={activityId} className="export-json-activity-note" aria-live="polite">
+					{summary.activity ? (
+						<ActivityCounts counts={summary.activity} />
+					) : (
+						"Who voted, stamped, put their hand up and commented, and what the cards show, for reading the board elsewhere. Importing leaves them out."
+					)}
+				</p>
+			</div>
 			<ul className="export-json-notes">
-				<li>
-					Comments, history, votes, stamps and staged changes stay here: they’re people’s own, or
-					only mean something on this board.
-				</li>
+				{activity && (
+					<li>
+						It names who voted, stamped, put their hand up and commented, except in hidden votes, as
+						the board does. Importing it leaves all that behind.
+					</li>
+				)}
+				<li>History and staged changes stay here: they only mean something on this board.</li>
 				{omitted.cards > 0 && (
 					<li>
 						{plural(omitted.cards, "card")} from repositories you can’t read{" "}
@@ -548,6 +591,18 @@ function JsonSummary({
 			</ul>
 		</div>
 	);
+}
+
+/** What people did, as the file carries it: "2 votes · 9 stamps · 12 comment threads · 3 cards’ details". */
+function ActivityCounts({ counts }: { counts: NonNullable<ExportSummary["activity"]> }) {
+	const parts = [
+		counts.votes ? plural(counts.votes, "vote") : null,
+		counts.stamps ? plural(counts.stamps, "stamp") : null,
+		counts.volunteers ? plural(counts.volunteers, "hand up", "hands up") : null,
+		counts.comments ? plural(counts.comments, "comment thread") : null,
+		counts.items ? plural(counts.items, "card’s details", "cards’ details") : null,
+	].filter((part) => part !== null);
+	return <>{parts.length ? parts.join(" · ") : "No votes, stamps, hands up or comments yet"}</>;
 }
 
 /** The board's images in the file: a bar while they're fetched, then how many went in. */

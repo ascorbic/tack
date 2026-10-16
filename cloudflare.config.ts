@@ -113,10 +113,9 @@ export default defineConfig(({ isPreview, mode }) => ({
 			Instance: exports.durableObject({ storage: "sqlite" }),
 			Directory: exports.durableObject({ storage: "sqlite" }),
 		},
-		triggers: [
-			// Redeliver failed GitHub webhooks (src/server/github/redeliver.ts).
-			triggers.scheduled({ schedule: "*/10 * * * *" }),
-		],
+		// Redeliver failed GitHub webhooks (src/server/github/redeliver.ts).
+		// Preview uploads refuse triggers, and webhooks only go to production.
+		...(isPreview ? {} : { triggers: [triggers.scheduled({ schedule: "*/10 * * * *" })] }),
 		observability: {
 			enabled: true,
 		},

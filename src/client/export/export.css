@@ -395,6 +395,23 @@
 	transition: transform var(--t-base) var(--ease-out);
 }
 
+/* Including what people did: a switch, and what it'd add (or what it's for). */
+.export-json-activity {
+	display: grid;
+	gap: 4px;
+	padding-top: 10px;
+	border-top: 1px solid var(--line);
+}
+
+.export-json-activity-note {
+	margin: 0;
+	padding-left: 38px;
+	color: var(--ink-soft);
+	font-size: 12.5px;
+	line-height: 1.45;
+	font-variant-numeric: tabular-nums;
+}
+
 .export-json-notes {
 	display: grid;
 	gap: 6px;
