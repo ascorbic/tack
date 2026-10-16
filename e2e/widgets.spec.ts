@@ -124,7 +124,11 @@ test("a card dragged out of a list keeps its list's mark beside its reactions", 
 	const bugs = list(page, "Open bugs");
 	await drag(page, row(bugs, "AVIF output"), { x: 640, y: 680 });
 	const card = page.locator(".react-flow__node-card", { hasText: "unpic #419" });
-	await expect(card.locator(".reaction-pill").first()).toBeVisible();
+	// Selected as it lands, ✋'s ghost beside them leaves its reactions room
+	// for "+N" alone (cardFoot.ts `unfoldPills`); at rest, below, 👍 has its pill.
+	const pills = card.locator(".reaction-pill");
+	await expect(pills.filter({ visible: true })).toHaveCount(1);
+	await expect(card.locator(".reaction-pill[data-more]")).toBeVisible();
 	const mark = card.locator(".provenance[data-via=list]");
 	/** It's there, whole, inside the card, and on top. */
 	const shows = async () => {
@@ -144,6 +148,8 @@ test("a card dragged out of a list keeps its list's mark beside its reactions", 
 	await shows();
 	await page.mouse.click(5, 400);
 	await expect(card).not.toHaveClass(/selected/);
+	await expect(pills.first()).toBeVisible();
+	await expect(pills.first()).toHaveAccessibleName(/^👍 5/);
 	await shows();
 	await card.locator(".card-title").hover();
 	await expect(card.locator(".volunteers[data-ghost]")).toBeVisible();
