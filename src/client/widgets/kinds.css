@@ -35,11 +35,13 @@
 
 /* Rows' quick actions, over the right of the row on hover ------------------------- */
 
+/* Above a list's sticky headers (the stale finder's groups, z-index 2), so a
+   row scrolled half under one still has its actions, and its tooltips, on top. */
 .widget-row-actions {
 	position: absolute;
 	top: 50%;
 	right: 6px;
-	z-index: 1;
+	z-index: 3;
 	display: flex;
 	gap: 1px;
 	padding: 3px;
@@ -866,6 +868,17 @@ body[data-row-drag] .widget-row-actions {
 	color: var(--pending-ink);
 }
 
+.widget-stale {
+	--stale-head: 32px;
+}
+
+/* Rows scroll under their group's sticky header: whatever's scrolled into
+   view (a focused row or action) lands below it, never behind it, with a
+   little room under its fade. */
+.widget-stale .widget-body {
+	scroll-padding-top: calc(var(--stale-head) + 4px);
+}
+
 .stale-groups {
 	padding: 2px 0 6px;
 }
@@ -890,6 +903,7 @@ body[data-row-drag] .widget-row-actions {
 	grid-template-columns: 28px minmax(0, 1fr) auto auto;
 	align-items: center;
 	gap: 8px;
+	min-height: var(--stale-head);
 	padding: 9px 14px 5px;
 	background: linear-gradient(var(--surface) 80%, transparent);
 }
