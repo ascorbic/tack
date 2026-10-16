@@ -42,6 +42,20 @@ const widget = (page: Page, title: string) =>
 
 const row = (scope: Locator, text: string) => scope.locator(".widget-row", { hasText: text });
 
+/**
+ * Hover something whose controls come in on hover (a row's quick actions, a
+ * group's Close all) and wait until they've finished coming in. Clicking while
+ * they still spring into place makes Playwright retry with other scroll
+ * alignments, which scroll the list out from under the pointer.
+ */
+async function reveal(target: Locator, controls: Locator) {
+	await target.hover();
+	await expect(controls).toHaveCSS("opacity", "1");
+	await expect.poll(() => controls.evaluate((el) => el.getAnimations().length)).toBe(0);
+}
+
+const showActions = (r: Locator) => reveal(r, r.locator(".widget-row-actions"));
+
 // Room for the whole board, quick actions and all.
 test.use({ viewport: { width: 1440, height: 960 } });
 
@@ -132,7 +146,7 @@ test("the stale finder groups by age, and its quick actions stage changes", asyn
 	const pixfold = row(finder, "Pixfold: respect fit=facearea");
 	await expect(pixfold).toContainText("quiet 52 days");
 
-	await pixfold.hover();
+	await showActions(pixfold);
 	await pixfold.getByRole("button", { name: /as not planned/ }).click();
 	await expect(pixfold.locator(".stale-staged")).toHaveText("Closing");
 	await expect(pixfold).toHaveAttribute("data-closing", "true");
@@ -148,7 +162,7 @@ test("the stale finder groups by age, and its quick actions stage changes", asyn
 		}),
 	]);
 
-	await pixfold.hover();
+	await showActions(pixfold);
 	await pixfold.getByRole("button", { name: /still wanted/ }).click();
 	await expect(pixfold.locator(".stale-staged")).toHaveText(["Closing", "Pinging"]);
 	// What the ping will say, before anything's pushed.
@@ -160,7 +174,7 @@ test("the stale finder groups by age, and its quick actions stage changes", asyn
 	expect(comment?.op.body).toMatch(/^@priya: this issue has been quiet for 52 days/);
 
 	const cli = row(finder, "A CLI for generating srcsets");
-	await cli.hover();
+	await showActions(cli);
 	await cli.getByRole("button", { name: /Label/ }).click();
 	expect((await changes(page)).find((c) => c.op.kind === "item.labels")?.op).toMatchObject({
 		add: ["stale"],
@@ -174,9 +188,48 @@ test("the stale finder groups by age, and its quick actions stage changes", asyn
 
 	// A whole group at once.
 	const group = finder.getByRole("group", { name: "30 days – 2 months" });
-	await group.hover();
-	await group.getByRole("button", { name: "Close all 4" }).click();
+	const closeAll = group.getByRole("button", { name: "Close all 4" });
+	await reveal(group.locator(".stale-group-head"), closeAll);
+	await closeAll.click();
 	expect((await changes(page)).filter((c) => c.op.kind === "item.state")).toHaveLength(4);
+});
+
+test("the stale finder's sticky group headers never cover a row's actions or a focused row", async ({
+	page,
+}) => {
+	const finder = widget(page, "Quiet for 30 days+");
+	const body = finder.locator(".widget-body");
+	const head = finder.locator(".stale-group-head").first();
+	const pixfold = row(finder, "Pixfold: respect fit=facearea");
+	const close = pixfold.getByRole("button", { name: /as not planned/ });
+	// Scrolled so the first row is mostly under its group's header: hovering
+	// what's left of it shows actions above the header, not behind it.
+	const top = (await pixfold.boundingBox())!;
+	const resting = (await head.boundingBox())!;
+	await body.evaluate(
+		(el, by) => {
+			el.scrollTop = by;
+		},
+		top.y - (resting.y + resting.height) + top.height - 19,
+	);
+	const peek = (await pixfold.boundingBox())!;
+	await page.mouse.move(peek.x + 100, peek.y + peek.height - 6);
+	await expect(pixfold.locator(".widget-row-actions")).toHaveCSS("opacity", "1");
+	const hit = await close.evaluate((button) => {
+		const r = button.getBoundingClientRect();
+		return button.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+	});
+	expect(hit).toBe(true);
+
+	// From the keyboard: a row focused while scrolled past lands below the header.
+	await page.mouse.move(10, 500);
+	await body.evaluate((el) => {
+		el.scrollTop = el.scrollHeight;
+	});
+	await pixfold.locator(".widget-row-main").focus();
+	const focused = (await pixfold.boundingBox())!;
+	const stuck = (await head.boundingBox())!;
+	expect(focused.y).toBeGreaterThanOrEqual(stuck.y + stuck.height);
 });
 
 test("zoomed out, each reads as one big number", async ({ page }) => {
