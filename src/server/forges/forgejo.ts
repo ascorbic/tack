@@ -220,8 +220,10 @@ export function checksFrom(checks: Check[]): Checks {
 			if (failing.length < MAX_FAILING_CHECKS) {
 				failing.push({ name: check.name || "check", url: check.url ?? null });
 			}
-		} else if (check.state === "neutral") counts.skipped++;
-		else counts.pending++;
+		} else if (check.state === "neutral" || check.stateRaw === "skipped") {
+			// The library reads Forgejo's `skipped` as `unknown`, which would leave CI pending.
+			counts.skipped++;
+		} else counts.pending++;
 	}
 	return { state: checksState(counts), ...counts, failing };
 }

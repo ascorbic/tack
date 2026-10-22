@@ -57,6 +57,7 @@ beforeEach(() => {
 		statuses: [
 			{ status: "success", context: "build" },
 			{ status: "failure", context: "test" },
+			{ status: "skipped", context: "deploy" },
 		],
 		reviews: [{ login: "grace", state: "APPROVED" }],
 	});
@@ -93,7 +94,14 @@ describe("cards", () => {
 		expect(card?.state).toBe("draft");
 		expect(card?.pull).toMatchObject({
 			detail: "full",
-			checks: { state: "failing", passed: 1, failed: 1, failing: [{ name: "test" }] },
+			checks: {
+				state: "failing",
+				passed: 1,
+				failed: 1,
+				skipped: 1,
+				pending: 0,
+				failing: [{ name: "test" }],
+			},
 			review: "approved",
 			reviewers: [{ login: "grace", state: "approved" }],
 			mergeable: "mergeable",
