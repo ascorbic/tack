@@ -1,3 +1,5 @@
+import type { Check, Review, Thread } from "forges";
+import { forgejo as forgejoProvider } from "forges/forgejo";
 import {
 	type Card,
 	type CardState,
@@ -11,13 +13,8 @@ import {
 } from "../../shared/cards.ts";
 import { type ItemMention, mentionsIn } from "../../shared/mentions.ts";
 import { itemKey } from "../../shared/refs.ts";
-import { hostConfig } from "./config.ts";
-import {
-	type ForgejoIssue,
-	type ForgejoRepository,
-	type ForgejoUser,
-	forgejoApiFor as apiFor,
-} from "./forgejo-api.ts";
+import { type ForgeHostConfig, hostConfig } from "./config.ts";
+import type { ForgejoIssue, ForgejoRepository } from "./forgejo-api.ts";
 import {
 	applyForgejo,
 	canWriteForgejo,
@@ -25,9 +22,9 @@ import {
 	listDirectoryForgejo,
 	repoMetaForgejo,
 } from "./forgejo-write.ts";
-import { digestOf, verifyHexSignature } from "./hmac.ts";
-import { rateLimitOf } from "./rateLimit.ts";
-import { hexColor, iso, missingReason, type RestApi, segments, send } from "./rest.ts";
+import { digestOf } from "./hmac.ts";
+import { fetchForLibrary, missingOf, retryAtOf } from "./library.ts";
+import { hexColor, iso, TIMEOUT_MS } from "./rest.ts";
 import type {
 	FetchRef,
 	ForgeAdapter,
@@ -43,17 +40,40 @@ import type {
 // host, or none (public repositories only); never a viewer's GitHub token.
 // Webhooks are set up by hand, on a repository or an organisation, pointing
 // at `/webhooks/forgejo` with the host's secret (see config.ts).
+//
+// Reads and webhook signatures go through the `forges` library's Forgejo
+// provider (see library.ts). Webhook deliveries are made into cards from
+// their payload as Forgejo sent it: the library's view of a delivery leaves
+// out assignees, milestones, comment counts and times, which a card shows.
 
-interface CombinedStatus {
-	state?: string;
-	statuses?: { status?: string; state?: string; context?: string; target_url?: string | null }[];
+type ForgejoProvider = ReturnType<typeof forgejoProvider>;
+
+/** The library's provider for a host, with the instance's token for it if it has one. */
+function providerFor(config: ForgeHostConfig): ForgejoProvider {
+	return forgejoProvider({
+		baseUrl: `https://${config.host}`,
+		...(config.token ? { auth: { type: "token", token: config.token } } : {}),
+		...(config.webhookSecret ? { webhookSecret: config.webhookSecret } : {}),
+		fetch: fetchForLibrary,
+		timeout: TIMEOUT_MS,
+		userAgent: "tack",
+	});
 }
 
-interface Review {
-	user?: ForgejoUser | null;
-	state?: string;
-	dismissed?: boolean;
-	stale?: boolean;
+/** The provider for a host this instance serves with Forgejo, or null. */
+function providerAt(env: Env, host: string): ForgejoProvider | null {
+	const config = hostConfig(env, host);
+	return config?.forge === "forgejo" ? providerFor(config) : null;
+}
+
+function repoRef(host: string, name: string) {
+	const slash = name.indexOf("/");
+	return {
+		forge: "forgejo",
+		instance: host,
+		owner: name.slice(0, slash),
+		name: name.slice(slash + 1),
+	} as const;
 }
 
 /** `owner/name` from an item's page, which knows a renamed repository's new name. */
@@ -65,14 +85,9 @@ function repoFromUrl(url: string | undefined, host: string): string | null {
 /** A pull request whose title marks it a draft, as Forgejo reads it. */
 const WIP = /^\s*(\[wip\]|wip:|\[draft\]|draft:)/i;
 
-/** An issue or pull request as a card. Pull requests' details come from `pullDetails`. */
-export function normaliseForgejo(
-	host: string,
-	repo: string,
-	issue: ForgejoIssue,
-	pull?: PullDetails,
-): Card {
-	const isPull = Boolean(issue.pull_request) || pull !== undefined || issue.head !== undefined;
+/** An issue or pull request from a webhook's payload as a card. */
+export function normaliseForgejo(host: string, repo: string, issue: ForgejoIssue): Card {
+	const isPull = Boolean(issue.pull_request) || issue.head !== undefined;
 	const merged = Boolean(issue.merged || issue.merged_at || issue.pull_request?.merged);
 	const mergedAt = iso(issue.merged_at ?? issue.pull_request?.merged_at ?? null);
 	const draft = Boolean(issue.draft ?? issue.pull_request?.draft) || WIP.test(issue.title);
@@ -114,36 +129,32 @@ export function normaliseForgejo(
 						: null,
 				}
 			: {}),
-		...(isPull ? { pull: pull ?? basicPull(issue) } : {}),
+		...(isPull
+			? {
+					pull: {
+						detail: "basic",
+						...(typeof issue.additions === "number" ? { additions: issue.additions } : {}),
+						...(typeof issue.deletions === "number" ? { deletions: issue.deletions } : {}),
+						...(typeof issue.changed_files === "number"
+							? { changedFiles: issue.changed_files }
+							: {}),
+						head: issue.head?.sha ?? null,
+						checks: null,
+						review: null,
+						reviewers: (issue.requested_reviewers ?? []).map((r) => ({
+							login: r.login,
+							avatarUrl: r.avatar_url ?? "",
+							state: "requested" as const,
+						})),
+						mergeable: mergeableOf(issue),
+						linked: [],
+					},
+				}
+			: {}),
 	};
 }
 
-/** What a pull request's own payload says, without CI or reviews: `basic`, until they're fetched. */
-function basicPull(pull: ForgejoIssue): PullDetails {
-	return {
-		detail: "basic",
-		...sizeOf(pull),
-		head: pull.head?.sha ?? null,
-		checks: null,
-		review: null,
-		reviewers: (pull.requested_reviewers ?? []).map((r) => ({
-			login: r.login,
-			avatarUrl: r.avatar_url ?? "",
-			state: "requested" as const,
-		})),
-		mergeable: mergeableOf(pull),
-		linked: [],
-	};
-}
-
-function sizeOf(pull: ForgejoIssue): Pick<PullDetails, "additions" | "deletions" | "changedFiles"> {
-	return {
-		...(typeof pull.additions === "number" ? { additions: pull.additions } : {}),
-		...(typeof pull.deletions === "number" ? { deletions: pull.deletions } : {}),
-		...(typeof pull.changed_files === "number" ? { changedFiles: pull.changed_files } : {}),
-	};
-}
-
+/** What the pulls endpoint says about merging; the library's model doesn't carry it. */
 function mergeableOf(pull: ForgejoIssue): PullDetails["mergeable"] {
 	if (pull.merged || pull.state === "closed") return "unknown";
 	return pull.mergeable === true
@@ -153,53 +164,99 @@ function mergeableOf(pull: ForgejoIssue): PullDetails["mergeable"] {
 			: "unknown";
 }
 
+const isoOf = (date: Date | undefined): string | null => (date ? date.toISOString() : null);
+
+/** An issue or pull request the library read, as a card. Pull requests' details come from `pullDetails`. */
+function cardOf(host: string, repo: string, thread: Thread, pull?: PullDetails): Card {
+	const isPull = thread.kind === "pull_request";
+	const draft = thread.isDraft || WIP.test(thread.title);
+	const state: CardState =
+		thread.state === "merged"
+			? "merged"
+			: thread.state === "open"
+				? isPull && draft
+					? "draft"
+					: "open"
+				: "closed";
+	const name = repoFromUrl(thread.url, host) ?? repo.toLowerCase();
+	const item = `#${thread.ref.number}`;
+	return {
+		key: itemKey({ host, repo: name, item }),
+		forge: "forgejo",
+		host,
+		repo: name,
+		item,
+		kind: isPull ? "pull" : "issue",
+		title: thread.title,
+		state,
+		stateReason: null,
+		labels: thread.labels.map((label) => ({ name: label.name, color: hexColor(label.colour) })),
+		assignees: thread.assignees.map((a) => ({ login: a.login, avatarUrl: a.avatarUrl ?? "" })),
+		author: thread.author
+			? { login: thread.author.login, avatarUrl: thread.author.avatarUrl ?? "" }
+			: null,
+		comments: thread.commentCount ?? 0,
+		reactions: 0,
+		url: thread.url ?? "",
+		updatedAt: isoOf(thread.updatedAt) ?? "",
+		...(thread.createdAt ? { createdAt: thread.createdAt.toISOString() } : {}),
+		closedAt: isoOf(thread.closedAt),
+		...(isPull ? { mergedAt: isoOf(thread.mergedAt) } : {}),
+		milestone: thread.milestone
+			? { title: thread.milestone.title, dueOn: isoOf(thread.milestone.dueOn) }
+			: null,
+		...(isPull ? { pull } : {}),
+	};
+}
+
 /** A commit's statuses as a CI rollup. */
-export function checksFromStatus(status: CombinedStatus | null): Checks | null {
-	if (!status) return null;
+export function checksFrom(checks: Check[]): Checks {
 	const counts = { passed: 0, failed: 0, pending: 0, skipped: 0 };
 	const failing: Checks["failing"] = [];
-	for (const entry of status.statuses ?? []) {
-		const state = (entry.status ?? entry.state ?? "").toLowerCase();
-		if (state === "success") counts.passed++;
-		else if (state === "failure" || state === "error") {
+	for (const check of checks) {
+		if (check.state === "success") counts.passed++;
+		else if (check.state === "failure") {
 			counts.failed++;
 			if (failing.length < MAX_FAILING_CHECKS) {
-				failing.push({ name: entry.context ?? "check", url: entry.target_url || null });
+				failing.push({ name: check.name || "check", url: check.url ?? null });
 			}
-		} else if (state === "warning" || state === "skipped") counts.skipped++;
+		} else if (check.state === "neutral") counts.skipped++;
 		else counts.pending++;
 	}
 	return { state: checksState(counts), ...counts, failing };
 }
 
+const REVIEW_STATES: Partial<Record<Review["state"], Reviewer["state"]>> = {
+	approved: "approved",
+	changes_requested: "changes_requested",
+	commented: "commented",
+};
+
 /** Each reviewer's latest review, and what they add up to. */
-export function reviewsOf(
+export function reviewsFrom(
 	reviews: Review[],
-	requested: ForgejoUser[],
+	requested: Thread["reviewers"],
 ): { review: ReviewDecision | null; reviewers: Reviewer[] } {
 	const latest = new Map<string, Reviewer>();
 	for (const r of requested) {
-		latest.set(r.login, { login: r.login, avatarUrl: r.avatar_url ?? "", state: "requested" });
+		latest.set(r.actor.login, {
+			login: r.actor.login,
+			avatarUrl: r.actor.avatarUrl ?? "",
+			state: "requested",
+		});
 	}
 	for (const r of reviews) {
-		if (!r.user || r.dismissed) continue;
-		const state = (r.state ?? "").toUpperCase();
-		const mapped: Reviewer["state"] | null =
-			state === "APPROVED"
-				? "approved"
-				: state === "REQUEST_CHANGES"
-					? "changes_requested"
-					: state === "COMMENT"
-						? "commented"
-						: null;
+		// The library keeps a dismissed review's verdict; Forgejo says it no longer counts.
+		if (!r.author || (r.raw as { dismissed?: boolean }).dismissed) continue;
+		const mapped = REVIEW_STATES[r.state];
 		if (!mapped) continue;
 		// A comment after an approval doesn't take the approval back.
-		const before = latest.get(r.user.login)?.state;
+		const before = latest.get(r.author.login)?.state;
 		if (mapped === "commented" && (before === "approved" || before === "changes_requested"))
 			continue;
-		latest.set(r.user.login, {
-			login: r.user.login,
-			avatarUrl: r.user.avatar_url ?? "",
+		latest.set(r.author.login, {
+			login: r.author.login,
+			avatarUrl: r.author.avatarUrl ?? "",
 			state: mapped,
 		});
 	}
@@ -214,92 +271,94 @@ export function reviewsOf(
 	return { review, reviewers };
 }
 
-async function getJson<T>(
-	api: RestApi,
-	path: string,
-): Promise<{ ok: true; value: T } | { ok: false; response: Response }> {
-	const response = await send(api, path).catch(() => null);
-	if (!response) return { ok: false, response: new Response(null, { status: 599 }) };
-	if (!response.ok) return { ok: false, response };
-	return { ok: true, value: await response.json<T>() };
-}
-
 /** One item, in full: the issue, and for a pull request its details, CI and reviews. */
 async function fetchItem(
-	api: RestApi,
+	forge: ForgejoProvider,
 	host: string,
 	name: string,
 	item: string,
 ): Promise<Card | MissingCard> {
 	const key = itemKey({ host, repo: name, item });
+	const repo = repoRef(host, name);
 	const number = item.slice(1);
-	const base = `/repos/${segments(name)}`;
+	let issue: Thread;
 	try {
-		const issue = await getJson<ForgejoIssue>(api, `${base}/issues/${number}`);
-		if (!issue.ok) return { key, missing: true, reason: missingReason(issue.response) };
-		if (!issue.value.pull_request) return normaliseForgejo(host, name, issue.value);
-		const pull = await getJson<ForgejoIssue>(api, `${base}/pulls/${number}`);
-		if (!pull.ok) return normaliseForgejo(host, name, issue.value);
-		const merged = {
-			...issue.value,
-			...pull.value,
-			labels: issue.value.labels,
-			comments: issue.value.comments,
-		};
-		const sha = pull.value.head?.sha;
-		const [status, reviews] = await Promise.all([
-			sha && pull.value.state === "open"
-				? getJson<CombinedStatus>(api, `${base}/commits/${encodeURIComponent(sha)}/status`)
-				: Promise.resolve(null),
-			getJson<Review[]>(api, `${base}/pulls/${number}/reviews`),
+		issue = await forge.threads.get({ ...repo, repo, kind: "issue", number });
+	} catch (error) {
+		return { key, missing: true, reason: missingOf(error) };
+	}
+	if (issue.kind !== "pull_request") return cardOf(host, name, issue);
+	const ref = { ...repo, repo, kind: "pull_request", number } as const;
+	try {
+		const [pull, reviews] = await Promise.all([
+			forge.threads.get(ref),
+			forge.threads
+				.reviews(ref)
+				.page()
+				.then((page) => page.items)
+				.catch(() => [] as Review[]),
 		]);
-		const { review, reviewers } = reviewsOf(
-			reviews.ok ? reviews.value : [],
-			pull.value.requested_reviewers ?? [],
+		const raw = pull.raw as ForgejoIssue;
+		const sha = pull.branches?.head.sha ?? raw.head?.sha;
+		const checks =
+			sha && pull.state === "open"
+				? await forge.checks
+						.list(repo, sha)
+						.then((page) => checksFrom(page.items))
+						.catch(() => null)
+				: null;
+		const { review, reviewers } = reviewsFrom(reviews, pull.reviewers);
+		return cardOf(
+			host,
+			name,
+			{ ...pull, labels: issue.labels, commentCount: issue.commentCount },
+			{
+				detail: "full",
+				...(pull.stats?.additions !== undefined ? { additions: pull.stats.additions } : {}),
+				...(pull.stats?.deletions !== undefined ? { deletions: pull.stats.deletions } : {}),
+				...(pull.stats?.changedFileCount !== undefined
+					? { changedFiles: pull.stats.changedFileCount }
+					: {}),
+				head: sha ?? null,
+				checks,
+				review,
+				reviewers,
+				mergeable: mergeableOf(raw),
+				linked: [],
+			},
 		);
-		return normaliseForgejo(host, name, merged, {
-			detail: "full",
-			...sizeOf(pull.value),
-			head: sha ?? null,
-			checks: status?.ok ? checksFromStatus(status.value) : null,
-			review,
-			reviewers,
-			mergeable: mergeableOf(pull.value),
-			linked: [],
-		});
 	} catch {
-		return { key, missing: true, reason: "error" };
+		return normaliseForgejo(host, name, issue.raw as ForgejoIssue);
 	}
 }
 
 /** Items updated since `since`, newest first: one page, enough for a board's worth. */
 async function updatedSince(
-	api: RestApi,
+	forge: ForgejoProvider,
+	host: string,
 	name: string,
 	since: string,
 	etag: string | null,
 ): Promise<
 	| { status: "unchanged" }
-	| { status: "changed"; etag: string | null; items: ForgejoIssue[] }
+	| { status: "changed"; etag: string | null; items: Thread[] }
 	| { status: "error"; retryAt?: number }
 > {
-	const params = new URLSearchParams({ state: "all", since, limit: "50" });
-	const response = await send(
-		api,
-		`/repos/${segments(name)}/issues?${params.toString()}`,
-		{},
-	).catch(() => null);
-	if (!response) return { status: "error" };
-	if (etag && response.status === 304) return { status: "unchanged" };
-	if (!response.ok) {
-		const limit = rateLimitOf(response);
-		return { status: "error", ...(limit ? { retryAt: limit.retryAt } : {}) };
+	try {
+		const page = await forge.threads
+			.list(repoRef(host, name), {
+				state: "all",
+				since: new Date(since),
+				perPage: 50,
+				...(etag ? { cursor: { etag } } : {}),
+			})
+			.page();
+		if (page.notModified) return { status: "unchanged" };
+		return { status: "changed", etag: page.etag ?? null, items: page.items };
+	} catch (error) {
+		const retryAt = retryAtOf(error);
+		return { status: "error", ...(retryAt ? { retryAt } : {}) };
 	}
-	return {
-		status: "changed",
-		etag: response.headers.get("etag"),
-		items: await response.json<ForgejoIssue[]>(),
-	};
 }
 
 function repoIdentity(host: string, repository: ForgejoRepository): RepoIdentity {
@@ -347,45 +406,47 @@ export const forgejo: ForgeAdapter = {
 	liveFromDeliveries: true,
 
 	async resolveRepo(host, name, env) {
-		const api = apiFor(env, host);
-		if (!api) return "unsupported";
-		const result = await getJson<ForgejoRepository>(api, `/repos/${segments(name)}`).catch(
-			() => null,
-		);
-		if (!result) return "error";
-		if (!result.ok) return missingReason(result.response) as MissingReason;
-		return repoIdentity(host, result.value);
+		const forge = providerAt(env, host);
+		if (!forge) return "unsupported";
+		try {
+			const repo = await forge.repos.get(repoRef(host, name));
+			return repoIdentity(host, repo.raw as ForgejoRepository);
+		} catch (error) {
+			return missingOf(error) as MissingReason;
+		}
 	},
 
 	async fetchItems(refs, env, repo) {
 		const results = await Promise.all(
 			refs.map(async (ref: FetchRef): Promise<Card | MissingCard> => {
 				const key = itemKey(ref);
-				const api = apiFor(env, ref.host);
-				if (!api || !/^#\d+$/.test(ref.item)) return { key, missing: true, reason: "unsupported" };
-				return fetchItem(api, ref.host.toLowerCase(), repo?.name ?? ref.repo, ref.item);
+				const forge = providerAt(env, ref.host);
+				if (!forge || !/^#\d+$/.test(ref.item))
+					return { key, missing: true, reason: "unsupported" };
+				return fetchItem(forge, ref.host.toLowerCase(), repo?.name ?? ref.repo, ref.item);
 			}),
 		);
 		return results;
 	},
 
 	async reconcile(repo, cards, env) {
-		const api = apiFor(env, repo.host);
-		if (!api || cards.length === 0) return [];
+		const forge = providerAt(env, repo.host);
+		if (!forge || cards.length === 0) return [];
 		const since = cards.reduce((min, card) => (card.updatedAt < min ? card.updatedAt : min), "~");
-		const listed = await updatedSince(api, repo.name, since, null);
+		const listed = await updatedSince(forge, repo.host, repo.name, since, null);
 		if (listed.status !== "changed") return [];
-		return refetchChanged(api, repo, cards, listed.items);
+		return refetchChanged(forge, repo, cards, listed.items);
 	},
 
 	async poll(repo, cards, env, options): Promise<PollResult> {
-		const api = apiFor(env, repo.host);
-		if (!api) return { status: "error" };
+		const forge = providerAt(env, repo.host);
+		if (!forge) return { status: "error" };
 		// Since the last poll, or (the first time) the oldest card.
 		const oldest = cards.reduce((min, card) => (card.updatedAt < min ? card.updatedAt : min), "~");
 		const since = options.since ?? oldest;
 		const listed = await updatedSince(
-			api,
+			forge,
+			repo.host,
 			repo.name,
 			since === "~" ? new Date().toISOString() : since,
 			options.etag,
@@ -394,7 +455,7 @@ export const forgejo: ForgeAdapter = {
 		return {
 			status: "changed",
 			etag: listed.etag,
-			cards: await refetchChanged(api, repo, cards, listed.items),
+			cards: await refetchChanged(forge, repo, cards, listed.items),
 		};
 	},
 
@@ -424,9 +485,7 @@ export const forgejo: ForgeAdapter = {
 		const config = host ? hostConfig(env, host) : null;
 		if (!host || config?.forge !== "forgejo") return reply({ error: "unknown host" }, 403);
 		if (!config.webhookSecret) return reply({ error: "webhook secret not configured" }, 403);
-		const signature =
-			request.headers.get("x-forgejo-signature") ?? request.headers.get("x-gitea-signature");
-		if (!(await verifyHexSignature(config.webhookSecret, body, signature))) {
+		if (!(await providerFor(config).webhooks.verify({ headers: request.headers, body }))) {
 			return reply({ error: "invalid signature" }, 401);
 		}
 		const digest = await digestOf(body);
@@ -447,7 +506,7 @@ export const forgejo: ForgeAdapter = {
 		const commits = new Set<string>();
 		if (payload.pull_request) {
 			// Its CI and reviews aren't in the payload: read them again shortly.
-			const pull = normaliseForgejo(host, repo.name, payload.pull_request, undefined);
+			const pull = normaliseForgejo(host, repo.name, payload.pull_request);
 			cards.push(pull);
 			items.add(pull.item);
 			const text = `${payload.pull_request.title}\n${payload.pull_request.body ?? ""}`;
@@ -487,22 +546,22 @@ export const forgejo: ForgeAdapter = {
 
 /** Fresh cards for the cached ones a list says changed. */
 async function refetchChanged(
-	api: RestApi,
+	forge: ForgejoProvider,
 	repo: RepoIdentity,
 	cards: Card[],
-	listed: ForgejoIssue[],
+	listed: Thread[],
 ): Promise<(Card | MissingCard)[]> {
 	const cached = new Map(cards.map((card) => [card.item, card]));
-	const changed = listed.filter((issue) => {
-		const card = cached.get(`#${issue.number}`);
-		return card && iso(issue.updated_at) > card.updatedAt;
+	const changed = listed.filter((thread) => {
+		const card = cached.get(`#${thread.ref.number}`);
+		return card && (isoOf(thread.updatedAt) ?? "") > card.updatedAt;
 	});
 	return Promise.all(
-		changed.map((issue) =>
+		changed.map((thread) =>
 			// Issues are all there; pull requests need their details.
-			issue.pull_request
-				? fetchItem(api, repo.host, repo.name, `#${issue.number}`)
-				: Promise.resolve(normaliseForgejo(repo.host, repo.name, issue)),
+			thread.kind === "pull_request"
+				? fetchItem(forge, repo.host, repo.name, `#${thread.ref.number}`)
+				: Promise.resolve(cardOf(repo.host, repo.name, thread)),
 		),
 	);
 }

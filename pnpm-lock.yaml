@@ -34,6 +34,9 @@ importers:
       acorn:
         specifier: 8.19.0
         version: 8.19.0
+      forges:
+        specifier: 0.2.0
+        version: 0.2.0
       fractional-indexing:
         specifier: ^4.0.0
         version: 4.0.0
@@ -2347,6 +2350,10 @@ packages:
   fontkitten@1.0.3:
     resolution: {integrity: sha512-Wp1zXWPVUPBmfoa3Cqc9ctaKuzKAV6uLstRqlR56kSjplf5uAce+qeyYym7F+PHbGTk+tCEdkCW6RD7DX/gBZw==}
     engines: {node: '>=20'}
+
+  forges@0.2.0:
+    resolution: {integrity: sha512-n7r9408sEp5U53P7JalJ0bPxqUO7uR0WXQ3HyWTcJc/M2ItXL+mDSUALU7cz4Uig0zNWBAOE68ITPjSVoFktww==}
+    engines: {node: '>=22.18'}
 
   fractional-indexing@4.0.0:
     resolution: {integrity: sha512-Nr2P1Yyaj2sy1Qdt/wI3GcByxrUdbSKg5+cGvw8f18hT2SkQt6V72iOjBpk7IO3UkzBsdlGRs2a4z6dLrJprgw==}
@@ -4710,7 +4717,7 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.2
       '@testing-library/user-event': 14.6.7(@testing-library/dom@10.4.2)
-      '@vitest/browser': 5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.4)(esbuild@0.28.2)(typescript@7.0.2)(yaml@2.9.1))(vitest@5.0.3)
+      '@vitest/browser': 5.0.3(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))(vitest@5.0.3)
       vitest: 5.0.3(@types/node@26.6.4)(@vitest/browser-preview@5.0.3)(@vitest/ui@5.0.3)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))
     transitivePeerDependencies:
       - bufferutil
@@ -4718,10 +4725,10 @@ snapshots:
       - utf-8-validate
       - vite
 
-  '@vitest/browser@5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.4)(esbuild@0.28.2)(typescript@7.0.2)(yaml@2.9.1))(vitest@5.0.3)':
+  '@vitest/browser@5.0.3(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))(vitest@5.0.3)':
     dependencies:
       '@blazediff/core': 1.10.0
-      '@vitest/mocker': 5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.4)(esbuild@0.28.2)(typescript@7.0.2)(yaml@2.9.1))
+      '@vitest/mocker': 5.0.3(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))
       '@vitest/ui': 5.0.3(vitest@5.0.3)
       '@vitest/utils': 5.0.3
       magic-string: 1.4.3
@@ -4744,6 +4751,15 @@ snapshots:
       magic-string: 1.4.3
     optionalDependencies:
       vite: '@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.4)(esbuild@0.28.2)(typescript@7.0.2)(yaml@2.9.1)'
+
+  '@vitest/mocker@5.0.3(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))':
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      '@vitest/spy': 5.0.3
+      estree-walker: 3.0.3
+      magic-string: 1.4.3
+    optionalDependencies:
+      vite: 8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1)
 
   '@vitest/pretty-format@5.0.3':
     dependencies:
@@ -5430,6 +5446,8 @@ snapshots:
   fontkitten@1.0.3:
     dependencies:
       tiny-inflate: 1.0.3
+
+  forges@0.2.0: {}
 
   fractional-indexing@4.0.0: {}
 
@@ -7046,7 +7064,7 @@ snapshots:
     dependencies:
       '@oxc-project/types': 0.153.0
       '@oxlint/plugins': 1.79.0
-      '@vitest/browser': 5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.4)(esbuild@0.28.2)(typescript@7.0.2)(yaml@2.9.1))(vitest@5.0.3)
+      '@vitest/browser': 5.0.3(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))(vitest@5.0.3)
       '@vitest/browser-preview': 5.0.3(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))(vitest@5.0.3)
       '@vitest/mocker': 5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.4)(esbuild@0.28.2)(typescript@7.0.2)(yaml@2.9.1))
       '@vitest/pretty-format': 5.0.3
@@ -7122,7 +7140,7 @@ snapshots:
   vitest@5.0.3(@types/node@26.6.4)(@vitest/browser-preview@5.0.3)(@vitest/ui@5.0.3)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.4)(esbuild@0.28.2)(typescript@7.0.2)(yaml@2.9.1))
+      '@vitest/mocker': 5.0.3(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0

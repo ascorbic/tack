@@ -1,8 +1,9 @@
-import { type ForgeHostConfig, hostConfig } from "./config.ts";
+import type { ForgeHostConfig } from "./config.ts";
 import type { RestApi } from "./rest.ts";
 
-// Forgejo's API (Codeberg, and Gitea, which shares it), as the Forgejo
-// adapter (`forgejo.ts`) and its writes (`forgejo-write.ts`) call it.
+// Forgejo's API (Codeberg, and Gitea, which shares it): as the Forgejo
+// adapter's writes (`forgejo-write.ts`) call it, and as its webhooks and the
+// `raw` of what the `forges` library reads (`forgejo.ts`) carry it.
 
 export interface ForgejoUser {
 	login: string;
@@ -62,10 +63,4 @@ export function forgejoApi(config: ForgeHostConfig): RestApi {
 		base: `https://${config.host}/api/v1`,
 		headers: config.token ? { authorization: `token ${config.token}` } : {},
 	};
-}
-
-/** The API for a host this instance serves with Forgejo, or null. */
-export function forgejoApiFor(env: Env, host: string): RestApi | null {
-	const config = hostConfig(env, host);
-	return config?.forge === "forgejo" ? forgejoApi(config) : null;
 }

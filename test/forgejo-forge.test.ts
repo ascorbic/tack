@@ -124,6 +124,25 @@ describe("cards", () => {
 			result?.status === "changed" && result.cards.map((c) => "title" in c && c.title),
 		).toEqual(["Offline"]);
 	});
+
+	it("answers a rate limit at once with when to try again, rather than waiting it out", async () => {
+		const route = forgesFetch({ forgejo: [fake] });
+		let calls = 0;
+		vi.stubGlobal("fetch", async (input: string, init?: RequestInit) => {
+			if (!String(input).includes("/issues?")) return route(input, init);
+			calls++;
+			return new Response("{}", { status: 429, headers: { "retry-after": "30" } });
+		});
+		const started = Date.now();
+		const poll = () => forgejo.poll?.(REPO, [], env, { etag: null, since: null });
+		const first = await poll();
+		expect(first).toMatchObject({ status: "error", retryAt: expect.any(Number) });
+		expect(first?.status === "error" && (first.retryAt ?? 0) - started).toBeGreaterThan(25_000);
+		// The gate answers the next one without asking Forgejo.
+		expect(await poll()).toMatchObject({ status: "error" });
+		expect(calls).toBe(1);
+		expect(Date.now() - started).toBeLessThan(1_000);
+	});
 });
 
 describe("webhooks", () => {

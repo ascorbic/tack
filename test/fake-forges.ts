@@ -626,9 +626,11 @@ export class FakeForgejo {
 			if (sub === "/reviews") {
 				return json(
 					R,
-					(item.reviews ?? []).map((r) => ({
+					(item.reviews ?? []).map((r, i) => ({
+						id: i + 1,
 						user: { login: r.login, avatar_url: "" },
 						state: r.state,
+						comments_count: 0,
 					})),
 				);
 			}

@@ -73,7 +73,7 @@ Server (`src/server/`):
 - `auth/` — sign-in, sessions, OAuth with PKCE, instance access checks, crypto helpers
 - `boards/` — `access.ts` (`roleFor`), the `/api/boards` routes and the per-board connection check (`routes.ts`), templates and carrying action items (`templates.ts`), people lookups (`people.ts`)
 - `github/` — the GitHub App: manifest and app JWTs, `/setup` routes, webhook health, webhook verification, `tokens.ts` (`repoToken`, `isInstalled`: everything reading GitHub goes through it), the redelivery cron
-- `forges/` — forge adapters: GitHub (`github*.ts`), GitLab, Forgejo, Tangled, and the synthetic `fake.tack` (`fake.ts`), with `config.ts` (which hosts an instance serves, `TACK_FORGES`), `rest.ts` and `rateLimit.ts` (`forgeFetch`). Everything outside this folder is forge-neutral
+- `forges/` — forge adapters: GitHub (`github*.ts`), GitLab, Forgejo, Tangled, and the synthetic `fake.tack` (`fake.ts`), with `config.ts` (which hosts an instance serves, `TACK_FORGES`), `rest.ts` and `rateLimit.ts` (`forgeFetch`), and `library.ts`, the bridge to the `forges` library that Forgejo's reads and webhook signatures go through. Everything outside this folder is forge-neutral
 - `push/` — pushing staged changes: routes, planning (`plan.ts`) and the engine each `Board` runs (`engine.ts`)
 - `widgets/runner.ts` — runs widget and inbox queries as the person looking; `widgets/sandbox.ts` — custom widgets' sandbox page
 - `links/` — link cards' unfurling and image proxy, behind `guard.ts`'s `guardedFetch`
